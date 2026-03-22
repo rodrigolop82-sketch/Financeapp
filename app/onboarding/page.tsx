@@ -112,10 +112,11 @@ export default function OnboardingPage() {
       });
       if (!res.ok) {
         const body = await res.json();
-        throw new Error(body.error || 'Error al guardar');
+        const detail = body.details ? ` (${body.details})` : '';
+        throw new Error((body.error || 'Error al guardar') + detail);
       }
-      router.push('/dashboard');
       router.refresh();
+      router.push('/dashboard');
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Error al guardar datos');
       setSaving(false);
