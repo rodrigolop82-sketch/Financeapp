@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function RegistroPage() {
@@ -14,22 +16,71 @@ export default function RegistroPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const router = useRouter();
+  const supabase = createClient();
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    // TODO: Supabase auth
-    // const { error } = await supabase.auth.signUp({
-    //   email, password,
-    //   options: { data: { full_name: fullName } }
-    // })
-    // if (!error) router.push('/onboarding')
+    setError('');
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+      },
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    // If Supabase has email confirmation disabled, user is logged in immediately
+    if (data.session) {
+      router.push('/onboarding');
+      router.refresh();
+    } else {
+      setEmailSent(true);
+    }
     setLoading(false);
   }
 
   async function handleGoogleSignUp() {
-    // TODO: Supabase OAuth
-    // await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/auth/callback` } })
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+      },
+    });
+    if (error) setError(error.message);
+  }
+
+  if (emailSent) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h2 className="text-xl font-bold mb-2">Revisa tu correo</h2>
+            <p className="text-gray-600 mb-4">
+              Enviamos un enlace de confirmación a <strong>{email}</strong>.
+              Haz clic en el enlace para activar tu cuenta.
+            </p>
+            <p className="text-sm text-gray-500">
+              ¿No lo ves? Revisa tu carpeta de spam.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -48,6 +99,13 @@ export default function RegistroPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
           <Button variant="outline" className="w-full mb-4" onClick={handleGoogleSignUp}>
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />

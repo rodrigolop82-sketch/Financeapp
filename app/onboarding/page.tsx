@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,13 +22,13 @@ import {
   Sparkles,
   Plus,
   Trash2,
+  Loader2,
 } from 'lucide-react';
 import { OnboardingData } from '@/types';
 import { formatCurrency } from '@/types';
 import { calculateHealthScore, ScoreBreakdown } from '@/lib/scoring';
 import { generateInitialPlan } from '@/lib/action-plan';
 import { ActionStep } from '@/types';
-import Link from 'next/link';
 
 const TOTAL_STEPS = 8;
 
@@ -56,6 +57,9 @@ export default function OnboardingPage() {
   const [score, setScore] = useState<ScoreBreakdown | null>(null);
   const [animatedScore, setAnimatedScore] = useState(0);
   const [plan, setPlan] = useState<ActionStep[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const router = useRouter();
 
   const progress = (step / TOTAL_STEPS) * 100;
 
@@ -96,6 +100,27 @@ export default function OnboardingPage() {
       return () => clearInterval(timer);
     }
   }, [step, score]);
+
+  async function saveOnboarding() {
+    setSaving(true);
+    setSaveError('');
+    try {
+      const res = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error || 'Error al guardar');
+      }
+      router.push('/dashboard');
+      router.refresh();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Error al guardar datos');
+      setSaving(false);
+    }
+  }
 
   function next() {
     if (step === 6) {
@@ -728,12 +753,26 @@ export default function OnboardingPage() {
 
                 <Separator className="my-4" />
 
-                <Link href="/dashboard">
-                  <Button size="lg" className="w-full">
-                    <Check className="w-5 h-5 mr-2" />
-                    Ir a mi dashboard
-                  </Button>
-                </Link>
+                {saveError && (
+                  <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
+                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                    <p className="text-sm text-red-700">{saveError}</p>
+                  </div>
+                )}
+
+                <Button size="lg" className="w-full" onClick={saveOnboarding} disabled={saving}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-5 h-5 mr-2" />
+                      Guardar e ir a mi dashboard
+                    </>
+                  )}
+                </Button>
                 <p className="text-center text-sm text-gray-500">
                   Puedes ajustar tu plan en cualquier momento desde la sección de Plan.
                 </p>
