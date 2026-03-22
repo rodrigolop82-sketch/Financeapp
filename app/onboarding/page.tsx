@@ -111,9 +111,15 @@ export default function OnboardingPage() {
         body: JSON.stringify(data),
       });
       if (!res.ok) {
-        const body = await res.json();
-        const detail = body.details ? ` (${body.details})` : '';
-        throw new Error((body.error || 'Error al guardar') + detail);
+        let errorMsg = `Error del servidor (${res.status})`;
+        try {
+          const body = await res.json();
+          const detail = body.details ? ` (${body.details})` : '';
+          errorMsg = (body.error || 'Error al guardar') + detail;
+        } catch {
+          // Response wasn't JSON
+        }
+        throw new Error(errorMsg);
       }
       router.refresh();
       router.push('/dashboard');
