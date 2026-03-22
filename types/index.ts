@@ -1,0 +1,164 @@
+export interface User {
+  id: string;
+  email: string;
+  full_name: string | null;
+  country: string;
+  currency: string;
+  plan: 'free' | 'premium';
+  trial_ends_at: string;
+  created_at: string;
+}
+
+export interface Household {
+  id: string;
+  name: string;
+  owner_id: string;
+  type: 'individual' | 'family';
+  created_at: string;
+}
+
+export interface HouseholdMember {
+  household_id: string;
+  user_id: string;
+  role: 'owner' | 'member';
+  joined_at: string;
+}
+
+export interface FinancialProfile {
+  id: string;
+  household_id: string;
+  total_income: number;
+  income_type: 'fixed' | 'variable' | 'mixed';
+  total_fixed_expenses: number;
+  total_debt: number;
+  total_savings: number;
+  has_emergency_fund: boolean;
+  health_score: number;
+  updated_at: string;
+}
+
+export interface BudgetCategory {
+  id: string;
+  household_id: string;
+  name: string;
+  bucket: 'needs' | 'wants' | 'savings';
+  budgeted_amount: number;
+  is_custom: boolean;
+}
+
+export interface Transaction {
+  id: string;
+  household_id: string;
+  category_id: string;
+  amount: number;
+  description: string | null;
+  date: string;
+  source: 'manual' | 'ocr' | 'csv';
+  created_at: string;
+}
+
+export interface Debt {
+  id: string;
+  household_id: string;
+  name: string;
+  type: 'credit' | 'loan' | 'informal';
+  balance: number;
+  interest_rate: number;
+  min_payment: number;
+  due_day: number;
+  strategy: 'snowball' | 'avalanche';
+  is_paid: boolean;
+  created_at: string;
+}
+
+export interface ActionPlan {
+  id: string;
+  household_id: string;
+  month: string;
+  steps: ActionStep[];
+  completed_steps: ActionStep[];
+  generated_by: 'rule' | 'ai';
+  created_at: string;
+}
+
+export interface ActionStep {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
+export interface MonthlySnapshot {
+  id: string;
+  household_id: string;
+  month: string;
+  health_score: number;
+  income: number;
+  expenses: number;
+  savings: number;
+  plan_completed: boolean;
+}
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  stripe_subscription_id: string;
+  plan: 'monthly' | 'annual';
+  status: 'active' | 'cancelled' | 'past_due' | 'trialing';
+  current_period_end: string;
+}
+
+// Onboarding state
+export interface OnboardingData {
+  householdName: string;
+  householdType: 'individual' | 'family';
+  totalIncome: number;
+  incomeType: 'fixed' | 'variable' | 'mixed';
+  fixedExpenses: {
+    vivienda: number;
+    transporte: number;
+    servicios: number;
+    alimentacion: number;
+    salud: number;
+    educacion: number;
+  };
+  hasDebts: boolean;
+  debts: {
+    name: string;
+    type: 'credit' | 'loan' | 'informal';
+    balance: number;
+    interestRate: number;
+    minPayment: number;
+  }[];
+  totalSavings: number;
+  hasEmergencyFund: boolean;
+}
+
+// Currency formatting
+export function formatCurrency(amount: number, currency = 'GTQ'): string {
+  if (currency === 'GTQ') {
+    return `Q ${amount.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return new Intl.NumberFormat('es-GT', { style: 'currency', currency }).format(amount);
+}
+
+// Default budget categories
+export const DEFAULT_CATEGORIES: Omit<BudgetCategory, 'id' | 'household_id'>[] = [
+  // Necesidades (50%)
+  { name: 'Vivienda/alquiler', bucket: 'needs', budgeted_amount: 0, is_custom: false },
+  { name: 'Alimentación', bucket: 'needs', budgeted_amount: 0, is_custom: false },
+  { name: 'Transporte', bucket: 'needs', budgeted_amount: 0, is_custom: false },
+  { name: 'Salud/medicinas', bucket: 'needs', budgeted_amount: 0, is_custom: false },
+  { name: 'Servicios (agua, luz, internet)', bucket: 'needs', budgeted_amount: 0, is_custom: false },
+  { name: 'Educación', bucket: 'needs', budgeted_amount: 0, is_custom: false },
+  // Gustos (30%)
+  { name: 'Restaurantes y salidas', bucket: 'wants', budgeted_amount: 0, is_custom: false },
+  { name: 'Ropa', bucket: 'wants', budgeted_amount: 0, is_custom: false },
+  { name: 'Entretenimiento', bucket: 'wants', budgeted_amount: 0, is_custom: false },
+  { name: 'Suscripciones', bucket: 'wants', budgeted_amount: 0, is_custom: false },
+  { name: 'Varios personales', bucket: 'wants', budgeted_amount: 0, is_custom: false },
+  // Ahorro/Deudas (20%)
+  { name: 'Fondo de emergencia', bucket: 'savings', budgeted_amount: 0, is_custom: false },
+  { name: 'Ahorro metas', bucket: 'savings', budgeted_amount: 0, is_custom: false },
+  { name: 'Pago de deudas extra', bucket: 'savings', budgeted_amount: 0, is_custom: false },
+];
