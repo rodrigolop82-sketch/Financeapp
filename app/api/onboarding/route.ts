@@ -1,12 +1,14 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { calculateHealthScore } from '@/lib/scoring';
 import { generateInitialPlan } from '@/lib/action-plan';
 
 export async function POST(request: Request) {
+  // Auth client (with cookies) to verify the user's session
   const cookieStore = cookies();
-  const supabase = createServerClient(
+  const authClient = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -22,10 +24,16 @@ export async function POST(request: Request) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authClient.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
   }
+
+  // Admin client (service role) to bypass RLS for data operations
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
 
   // Ensure user row exists in public.users (handles case where trigger didn't fire)
   const { data: existingUser } = await supabase
