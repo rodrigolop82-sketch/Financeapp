@@ -23,6 +23,8 @@ import {
   Menu,
   LogOut,
   Loader2,
+  Receipt,
+  Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
@@ -50,7 +52,9 @@ const NAV_ITEMS = [
   { href: '/presupuesto', icon: Wallet, label: 'Presupuesto' },
   { href: '/deudas', icon: CreditCard, label: 'Deudas' },
   { href: '/plan', icon: Target, label: 'Plan' },
+  { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
   { href: '/historial', icon: Clock, label: 'Historial' },
+  { href: '/familia', icon: Users, label: 'Familia' },
   { href: '/cuenta', icon: Settings, label: 'Cuenta' },
 ];
 
