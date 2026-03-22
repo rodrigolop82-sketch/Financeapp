@@ -27,6 +27,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
   }
 
+  // Ensure user row exists in public.users (handles case where trigger didn't fire)
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('id', user.id)
+    .single();
+
+  if (!existingUser) {
+    const { error: userError } = await supabase.from('users').insert({
+      id: user.id,
+      email: user.email!,
+      full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
+    });
+    if (userError) {
+      return NextResponse.json(
+        { error: 'Error al crear usuario', details: userError.message },
+        { status: 500 }
+      );
+    }
+  }
+
   const body = await request.json();
   const {
     householdName,
