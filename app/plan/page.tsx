@@ -99,7 +99,7 @@ export default function PlanPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
       </div>
     );
   }
@@ -139,9 +139,9 @@ export default function PlanPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${allCompleted ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${allCompleted ? 'bg-purple-100' : 'bg-gray-100'}`}>
                   {allCompleted ? (
-                    <Sparkles className="w-6 h-6 text-emerald-600" />
+                    <Sparkles className="w-6 h-6 text-purple-600" />
                   ) : (
                     <Target className="w-6 h-6 text-gray-400" />
                   )}
@@ -157,7 +157,7 @@ export default function PlanPage() {
                   </p>
                 </div>
               </div>
-              <span className="text-2xl font-bold text-emerald-600">{Math.round(progress)}%</span>
+              <span className="text-2xl font-bold text-purple-600">{Math.round(progress)}%</span>
             </div>
             <Progress value={progress} className="h-3" />
           </CardContent>
@@ -206,9 +206,9 @@ export default function PlanPage() {
                             className="mt-0.5 flex-shrink-0"
                           >
                             {isCompleted ? (
-                              <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                              <CheckCircle2 className="w-6 h-6 text-purple-500" />
                             ) : (
-                              <Circle className="w-6 h-6 text-gray-300 hover:text-emerald-400 transition-colors" />
+                              <Circle className="w-6 h-6 text-gray-300 hover:text-purple-400 transition-colors" />
                             )}
                           </button>
                           <div className="flex-1 min-w-0">

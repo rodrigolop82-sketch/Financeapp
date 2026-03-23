@@ -146,7 +146,7 @@ export default function DeudasPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
       </div>
     );
   }
@@ -209,7 +209,7 @@ export default function DeudasPage() {
           <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-emerald-600" />
+                <Calculator className="w-5 h-5 text-purple-600" />
                 <CardTitle className="text-lg">Simulador de pago</CardTitle>
               </div>
               <CardDescription>
@@ -222,7 +222,7 @@ export default function DeudasPage() {
                 <button
                   onClick={() => setStrategy('snowball')}
                   className={`p-4 rounded-lg border-2 text-left transition-all ${
-                    strategy === 'snowball' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'
+                    strategy === 'snowball' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
@@ -236,7 +236,7 @@ export default function DeudasPage() {
                 <button
                   onClick={() => setStrategy('avalanche')}
                   className={`p-4 rounded-lg border-2 text-left transition-all ${
-                    strategy === 'avalanche' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'
+                    strategy === 'avalanche' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
@@ -270,7 +270,7 @@ export default function DeudasPage() {
                   <div className="space-y-2">
                     {sim.order.map((d, i) => (
                       <div key={d.name} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center text-xs font-bold text-emerald-700">
+                        <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center text-xs font-bold text-purple-700">
                           {i + 1}
                         </div>
                         <div className="flex-1">
@@ -316,7 +316,7 @@ export default function DeudasPage() {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="ghost" size="sm" onClick={() => markPaid(debt.id)} title="Marcar como pagada">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      <CheckCircle2 className="w-4 h-4 text-purple-500" />
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => deleteDebt(debt.id)} title="Eliminar">
                       <Trash2 className="w-4 h-4 text-red-400" />
@@ -330,7 +330,7 @@ export default function DeudasPage() {
           {activeDebts.length === 0 && !showForm && (
             <Card>
               <CardContent className="p-8 text-center">
-                <TrendingDown className="w-12 h-12 text-emerald-300 mx-auto mb-3" />
+                <TrendingDown className="w-12 h-12 text-purple-300 mx-auto mb-3" />
                 <p className="font-medium text-gray-700">No tienes deudas activas</p>
                 <p className="text-sm text-gray-500 mt-1">Excelente. Sigue así.</p>
               </CardContent>
@@ -343,10 +343,10 @@ export default function DeudasPage() {
           <div className="mt-8">
             <h3 className="text-sm font-medium text-gray-500 mb-3">Deudas pagadas</h3>
             {debts.filter(d => d.is_paid).map(debt => (
-              <div key={debt.id} className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg mb-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                <span className="text-sm line-through text-emerald-700">{debt.name}</span>
-                <span className="text-sm text-emerald-600 ml-auto">{formatCurrency(Number(debt.balance))}</span>
+              <div key={debt.id} className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg mb-2">
+                <CheckCircle2 className="w-5 h-5 text-purple-500" />
+                <span className="text-sm line-through text-purple-700">{debt.name}</span>
+                <span className="text-sm text-purple-600 ml-auto">{formatCurrency(Number(debt.balance))}</span>
               </div>
             ))}
           </div>
@@ -380,7 +380,7 @@ export default function DeudasPage() {
                       key={t.value}
                       onClick={() => setNewDebt({ ...newDebt, type: t.value })}
                       className={`py-2 px-3 rounded border text-sm transition-all ${
-                        newDebt.type === t.value ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'
+                        newDebt.type === t.value ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
                       }`}
                     >
                       {t.label}

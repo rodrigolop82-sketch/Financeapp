@@ -8,23 +8,23 @@ import {
   PiggyBank,
   Shield,
   Target,
-  TrendingUp,
   Users,
+  MessageCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
       {/* Header */}
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 bg-purple-600 rounded-xl flex items-center justify-center">
+              <span className="text-white text-sm font-bold">Z</span>
             </div>
-            <span className="text-xl font-bold text-emerald-900">
-              FinanzasClaras
+            <span className="text-xl font-bold text-purple-900">
+              Zafi
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -40,18 +40,18 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-4 py-20 text-center">
-        <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-800 rounded-full px-4 py-1.5 text-sm font-medium mb-6">
+        <div className="inline-flex items-center gap-2 bg-purple-100 text-purple-800 rounded-full px-4 py-1.5 text-sm font-medium mb-6">
           <PiggyBank className="w-4 h-4" />
           14 días de prueba gratis
         </div>
         <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-          Ordena tus finanzas
+          Ordená tu dinero.
           <br />
-          <span className="text-emerald-600">con claridad</span>
+          <span className="text-purple-600">Construí tu futuro.</span>
         </h1>
         <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-          Crea tu presupuesto, sal de deudas y construye el hábito de revisión
-          mensual. Diseñada para Guatemala y Latinoamérica.
+          El planner financiero que el 95% de latinoamericanos nunca pudo pagar.
+          Diagnóstico honesto, plan de acción, y acompañamiento mes a mes.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/registro">
@@ -75,39 +75,39 @@ export default function LandingPage() {
           {[
             {
               icon: BarChart3,
-              title: 'Diagnóstico financiero',
+              title: 'Diagnóstico honesto',
               description:
-                'Conoce tu puntaje de salud financiera en minutos. Identifica dónde estás y hacia dónde ir.',
+                'Conocé tu puntaje Zafi en minutos. Sin rodeos — te decimos exactamente dónde estás y qué hacer primero.',
             },
             {
               icon: Target,
-              title: 'Presupuesto 50/30/20',
+              title: 'Plan priorizado cada mes',
               description:
-                'Organiza tus gastos en necesidades, gustos y ahorro. Categorías adaptadas a tu realidad.',
+                '3-5 acciones ordenadas por impacto real. Cada una con un "por qué" y números concretos de tu situación.',
             },
             {
               icon: Shield,
-              title: 'Plan para salir de deudas',
+              title: 'Salí de deudas',
               description:
                 'Estrategias bola de nieve y avalancha. Incluye deudas informales (préstamos familiares, tandas).',
             },
             {
-              icon: TrendingUp,
-              title: 'Plan de acción mensual',
+              icon: MessageCircle,
+              title: 'Zafi AI — tu planner personal',
               description:
-                'Cada mes recibe pasos claros y alcanzables para mejorar tu situación financiera.',
+                'Preguntale lo que quieras. Zafi ya conoce tus números y responde con consejos específicos, no genéricos.',
             },
             {
               icon: PiggyBank,
               title: 'Fondo de emergencia',
               description:
-                'Construye tu colchón financiero paso a paso. Te guiamos hasta llegar a 6 meses de gastos.',
+                'Construí tu colchón financiero paso a paso. Te guiamos hasta llegar a 6 meses de gastos.',
             },
             {
               icon: Users,
               title: 'Modo familia',
               description:
-                'Administra las finanzas del hogar en equipo. Ideal para parejas y familias.',
+                'Administrá las finanzas del hogar en equipo. Ideal para parejas y familias.',
             },
           ].map((feature) => (
             <Card
@@ -115,8 +115,8 @@ export default function LandingPage() {
               className="border-0 shadow-md hover:shadow-lg transition-shadow"
             >
               <CardContent className="p-6">
-                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
-                  <feature.icon className="w-6 h-6 text-emerald-600" />
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                  <feature.icon className="w-6 h-6 text-purple-600" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   {feature.title}
@@ -134,7 +134,7 @@ export default function LandingPage() {
           Simple y accesible
         </h2>
         <p className="text-center text-gray-600 mb-12">
-          Empieza gratis. Mejora cuando estés listo.
+          Empezá gratis. Mejorá cuando estés listo.
         </p>
         <div className="grid md:grid-cols-2 gap-6">
           <Card className="border-2">
@@ -150,8 +150,8 @@ export default function LandingPage() {
               </ul>
             </CardContent>
           </Card>
-          <Card className="border-2 border-emerald-500 relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-sm px-3 py-1 rounded-full">
+          <Card className="border-2 border-purple-500 relative">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-sm px-3 py-1 rounded-full">
               Popular
             </div>
             <CardContent className="p-8">
@@ -166,7 +166,7 @@ export default function LandingPage() {
                 <li>&#10003; Todo lo del plan gratis</li>
                 <li>&#10003; Deudas ilimitadas</li>
                 <li>&#10003; Modo familia</li>
-                <li>&#10003; Plan de acción con IA</li>
+                <li>&#10003; Zafi AI — planner personal</li>
                 <li>&#10003; Historial completo</li>
                 <li>&#10003; Soporte prioritario</li>
               </ul>
@@ -182,12 +182,12 @@ export default function LandingPage() {
       <footer className="border-t bg-gray-50 mt-16">
         <div className="max-w-6xl mx-auto px-4 py-8 text-center text-gray-500 text-sm">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <div className="w-6 h-6 bg-emerald-600 rounded flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-white" />
+            <div className="w-6 h-6 bg-purple-600 rounded-lg flex items-center justify-center">
+              <span className="text-white text-xs font-bold">Z</span>
             </div>
-            <span className="font-semibold text-gray-700">FinanzasClaras</span>
+            <span className="font-semibold text-gray-700">Zafi</span>
           </div>
-          <p>&copy; 2026 FinanzasClaras. Hecho con cariño en Guatemala.</p>
+          <p>&copy; 2026 Zafi. Hecho con cariño en Guatemala.</p>
         </div>
       </footer>
     </div>

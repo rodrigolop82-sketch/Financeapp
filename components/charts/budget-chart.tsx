@@ -8,7 +8,7 @@ interface BudgetChartProps {
   savings: number;
 }
 
-const COLORS = ['#059669', '#10b981', '#6ee7b7'];
+const COLORS = ['#5b21b6', '#7c3aed', '#c4b5fd'];
 const LABELS = ['Necesidades', 'Gustos', 'Ahorro'];
 
 export function BudgetChart({ needs, wants, savings }: BudgetChartProps) {

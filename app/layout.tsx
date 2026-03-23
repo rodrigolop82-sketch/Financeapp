@@ -14,9 +14,9 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "FinanzasClaras - Ordena tus finanzas personales",
+  title: "Zafi — Ordená tu dinero. Construí tu futuro.",
   description:
-    "Aplicación de finanzas personales para Latinoamérica. Crea tu presupuesto, sal de deudas y construye el hábito de revisión mensual.",
+    "Tu planner financiero personal para Latinoamérica. Diagnóstico honesto, plan de acción priorizado, y acompañamiento proactivo mes a mes.",
 };
 
 export default function RootLayout({

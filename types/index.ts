@@ -5,6 +5,7 @@ export interface User {
   country: string;
   currency: string;
   plan: 'free' | 'premium';
+  show_decimals: boolean;
   trial_ends_at: string;
   created_at: string;
 }
@@ -134,7 +135,16 @@ export interface OnboardingData {
   hasEmergencyFund: boolean;
 }
 
-// Currency formatting
+export interface ChatMessage {
+  id: string;
+  user_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  model_used: string | null;
+  created_at: string;
+}
+
+// Legacy formatCurrency — new code should use formatMoney from @/lib/format
 export function formatCurrency(amount: number, currency = 'GTQ'): string {
   if (currency === 'GTQ') {
     return `Q ${amount.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

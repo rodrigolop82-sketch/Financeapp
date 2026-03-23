@@ -1,4 +1,4 @@
--- FinanzasClaras Database Schema
+-- Zafi Database Schema
 -- Run this in Supabase SQL Editor
 
 -- Usuarios (extiende auth.users de Supabase)
@@ -9,6 +9,7 @@ CREATE TABLE users (
   country TEXT DEFAULT 'GT',
   currency TEXT DEFAULT 'GTQ',
   plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'premium')),
+  show_decimals BOOLEAN DEFAULT false,
   trial_ends_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '14 days',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -117,6 +118,16 @@ CREATE TABLE subscriptions (
   current_period_end TIMESTAMPTZ
 );
 
+-- Historial de conversaciones con Zafi AI
+CREATE TABLE chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL,
+  model_used TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ============================================================
 -- Row Level Security (RLS)
 -- ============================================================
@@ -131,6 +142,7 @@ ALTER TABLE debts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE action_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE monthly_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
 -- Helper: obtener household_ids del usuario actual
 CREATE OR REPLACE FUNCTION get_my_household_ids()
@@ -205,6 +217,12 @@ CREATE POLICY "Users can view own subscriptions" ON subscriptions
   FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY "Users can manage own subscriptions" ON subscriptions
   FOR ALL USING (user_id = auth.uid());
+
+-- Chat messages: solo el usuario
+CREATE POLICY "Users can view own chat messages" ON chat_messages
+  FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Users can insert own chat messages" ON chat_messages
+  FOR INSERT WITH CHECK (user_id = auth.uid());
 
 -- ============================================================
 -- Función: crear categorías por defecto al crear household

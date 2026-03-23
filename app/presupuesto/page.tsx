@@ -19,9 +19,9 @@ import {
 import Link from 'next/link';
 
 const BUCKET_LABELS = {
-  needs: { label: 'Necesidades (50%)', color: 'bg-emerald-700', textColor: 'text-emerald-700' },
-  wants: { label: 'Gustos (30%)', color: 'bg-emerald-500', textColor: 'text-emerald-500' },
-  savings: { label: 'Ahorro/Deudas (20%)', color: 'bg-emerald-300', textColor: 'text-emerald-700' },
+  needs: { label: 'Necesidades (50%)', color: 'bg-purple-700', textColor: 'text-purple-700' },
+  wants: { label: 'Gustos (30%)', color: 'bg-purple-500', textColor: 'text-purple-500' },
+  savings: { label: 'Ahorro/Deudas (20%)', color: 'bg-purple-300', textColor: 'text-purple-700' },
 };
 
 export default function PresupuestoPage() {
@@ -117,7 +117,7 @@ export default function PresupuestoPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
       </div>
     );
   }
@@ -142,7 +142,7 @@ export default function PresupuestoPage() {
             {saving ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : saved ? (
-              <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 mr-2 text-purple-500" />
             ) : (
               <Save className="w-4 h-4 mr-2" />
             )}
@@ -188,7 +188,7 @@ export default function PresupuestoPage() {
                 <div className="pt-2 border-t">
                   <div className="flex justify-between font-medium">
                     <span>Sin asignar</span>
-                    <span className={remaining < 0 ? 'text-red-500' : 'text-emerald-600'}>
+                    <span className={remaining < 0 ? 'text-red-500' : 'text-purple-600'}>
                       {formatCurrency(remaining)}
                     </span>
                   </div>

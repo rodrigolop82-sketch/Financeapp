@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function RegistroPage() {
@@ -63,11 +63,11 @@ export default function RegistroPage() {
 
   if (emailSent) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-8 h-8 text-purple-600" />
             </div>
             <h2 className="text-xl font-bold mb-2">Revisa tu correo</h2>
             <p className="text-gray-600 mb-4">
@@ -84,14 +84,14 @@ export default function RegistroPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 bg-purple-600 rounded-xl flex items-center justify-center">
+              <span className="text-white text-sm font-bold">Z</span>
             </div>
-            <span className="text-xl font-bold text-emerald-900">FinanzasClaras</span>
+            <span className="text-xl font-bold text-purple-900">Zafi</span>
           </div>
           <CardTitle>Crea tu cuenta</CardTitle>
           <CardDescription>
@@ -167,7 +167,7 @@ export default function RegistroPage() {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             ¿Ya tienes cuenta?{' '}
-            <Link href="/login" className="text-emerald-600 font-medium hover:underline">
+            <Link href="/login" className="text-purple-600 font-medium hover:underline">
               Inicia sesión
             </Link>
           </p>

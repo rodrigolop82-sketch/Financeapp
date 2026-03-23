@@ -15,6 +15,7 @@ import {
   User,
   CreditCard,
   Shield,
+  Eye,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -28,9 +29,10 @@ export default function CuentaPage() {
 
 function CuentaContent() {
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<{ email: string; full_name: string; plan: string; trial_ends_at: string } | null>(null);
+  const [user, setUser] = useState<{ email: string; full_name: string; plan: string; trial_ends_at: string; show_decimals: boolean } | null>(null);
   const [subscription, setSubscription] = useState<{ plan: string; status: string; current_period_end: string } | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [showDecimals, setShowDecimals] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -47,6 +49,7 @@ function CuentaContent() {
       ]);
 
       setUser(profile as typeof user);
+      setShowDecimals(profile?.show_decimals ?? false);
       setSubscription(sub as typeof subscription);
       setLoading(false);
     }
@@ -65,6 +68,14 @@ function CuentaContent() {
     else setUpgrading(false);
   }
 
+  async function toggleDecimals(val: boolean) {
+    setShowDecimals(val);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      await supabase.from('users').update({ show_decimals: val }).eq('id', authUser.id);
+    }
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push('/login');
@@ -74,7 +85,7 @@ function CuentaContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
       </div>
     );
   }
@@ -97,9 +108,9 @@ function CuentaContent() {
         </div>
 
         {justUpgraded && (
-          <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-            <p className="text-sm text-emerald-800">Tu plan Premium se ha activado correctamente.</p>
+          <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg flex gap-2">
+            <CheckCircle2 className="w-5 h-5 text-purple-600 flex-shrink-0" />
+            <p className="text-sm text-purple-800">Tu plan Premium se ha activado correctamente.</p>
           </div>
         )}
 
@@ -120,6 +131,38 @@ function CuentaContent() {
             <div className="flex justify-between">
               <span className="text-sm text-gray-500">Correo</span>
               <span className="text-sm font-medium">{user?.email}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Display preferences */}
+        <Card className="mb-4">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Eye className="w-5 h-5 text-gray-500" />
+              <CardTitle className="text-base">Preferencias de visualización</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Mostrar centavos</p>
+                <p className="text-xs text-muted-foreground">
+                  {showDecimals ? 'Q 8,500.75 — precisión total' : 'Q 8,501 — más limpio y fácil de leer'}
+                </p>
+              </div>
+              <button
+                onClick={() => toggleDecimals(!showDecimals)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  showDecimals ? 'bg-purple-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showDecimals ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
           </CardContent>
         </Card>
@@ -175,7 +218,7 @@ function CuentaContent() {
                 <ul className="text-xs text-gray-500 space-y-1">
                   <li>&#10003; Deudas ilimitadas</li>
                   <li>&#10003; Modo familia</li>
-                  <li>&#10003; Plan de acción con IA</li>
+                  <li>&#10003; Zafi AI — planner personal</li>
                   <li>&#10003; Historial completo</li>
                 </ul>
               </div>

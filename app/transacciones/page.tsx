@@ -145,7 +145,7 @@ export default function TransaccionesPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
       </div>
     );
   }
@@ -167,7 +167,7 @@ export default function TransaccionesPage() {
     .reduce((s, t) => s + Number(t.amount), 0);
 
   const bucketColors: Record<string, string> = {
-    needs: 'bg-emerald-100 text-emerald-700',
+    needs: 'bg-purple-100 text-purple-700',
     wants: 'bg-purple-100 text-purple-700',
     savings: 'bg-blue-100 text-blue-700',
   };

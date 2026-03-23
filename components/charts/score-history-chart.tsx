@@ -34,8 +34,8 @@ export function ScoreHistoryChart({ data }: ScoreHistoryProps) {
           <Area
             type="monotone"
             dataKey="score"
-            stroke="#059669"
-            fill="#d1fae5"
+            stroke="#7c3aed"
+            fill="#ede9fe"
             strokeWidth={2}
             name="Puntaje"
           />
