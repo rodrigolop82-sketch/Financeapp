@@ -25,7 +25,9 @@ import Link from 'next/link';
 interface SimResult {
   totalMonths: number;
   totalInterest: number;
-  order: { name: string; months: number; totalPaid: number }[];
+  totalPaid: number;
+  order: { name: string; months: number; totalPaid: number; interestPaid: number }[];
+  warnings: string[];
 }
 
 function simulatePayoff(
@@ -33,16 +35,29 @@ function simulatePayoff(
   extraPayment: number,
   strategy: 'snowball' | 'avalanche'
 ): SimResult {
-  if (debts.length === 0) return { totalMonths: 0, totalInterest: 0, order: [] };
+  if (debts.length === 0) return { totalMonths: 0, totalInterest: 0, totalPaid: 0, order: [], warnings: [] };
 
-  const active = debts.map(d => ({
-    name: d.name,
-    balance: Number(d.balance),
-    rate: Number(d.interest_rate) / 100 / 12,
-    minPayment: Number(d.min_payment),
-    totalPaid: 0,
-    months: 0,
-  }));
+  const warnings: string[] = [];
+  const active = debts.map(d => {
+    const balance = Number(d.balance);
+    const monthlyRate = Number(d.interest_rate) / 100 / 12;
+    const minPayment = Number(d.min_payment);
+    const firstMonthInterest = balance * monthlyRate;
+
+    if (minPayment > 0 && minPayment < firstMonthInterest) {
+      warnings.push(`"${d.name}": el pago mínimo (${minPayment.toFixed(0)}) no cubre los intereses mensuales (${firstMonthInterest.toFixed(0)}). La deuda crecerá.`);
+    }
+
+    return {
+      name: d.name,
+      balance,
+      rate: monthlyRate,
+      minPayment,
+      totalPaid: 0,
+      interestPaid: 0,
+      months: 0,
+    };
+  });
 
   // Sort by strategy
   if (strategy === 'snowball') {
@@ -54,20 +69,23 @@ function simulatePayoff(
   const order: SimResult['order'] = [];
   let totalMonths = 0;
   let totalInterest = 0;
+  let freedPayments = 0; // Tracks freed min payments from paid-off debts
   const maxIterations = 360; // 30 years max
 
   while (active.some(d => d.balance > 0) && totalMonths < maxIterations) {
     totalMonths++;
-    let extra = extraPayment;
+    let extra = extraPayment + freedPayments;
 
     for (const d of active) {
       if (d.balance <= 0) continue;
 
       const interest = d.balance * d.rate;
       totalInterest += interest;
+      d.interestPaid += interest;
       d.balance += interest;
 
-      const payment = d.minPayment + (active.indexOf(d) === active.findIndex(x => x.balance > 0) ? extra : 0);
+      const isTarget = active.indexOf(d) === active.findIndex(x => x.balance > 0);
+      const payment = d.minPayment + (isTarget ? extra : 0);
       const actualPayment = Math.min(payment, d.balance);
       d.balance -= actualPayment;
       d.totalPaid += actualPayment;
@@ -75,13 +93,22 @@ function simulatePayoff(
 
       if (d.balance <= 0.01) {
         d.balance = 0;
-        extra += d.minPayment; // Freed-up payment goes to next debt
-        order.push({ name: d.name, months: totalMonths, totalPaid: d.totalPaid });
+        freedPayments += d.minPayment; // Persists across months
+        order.push({ name: d.name, months: totalMonths, totalPaid: d.totalPaid, interestPaid: Math.round(d.interestPaid) });
       }
     }
   }
 
-  return { totalMonths, totalInterest: Math.round(totalInterest), order };
+  // Add remaining unpaid debts to order (hit max iterations)
+  for (const d of active) {
+    if (d.balance > 0) {
+      order.push({ name: d.name, months: totalMonths, totalPaid: d.totalPaid, interestPaid: Math.round(d.interestPaid) });
+      warnings.push(`"${d.name}" no se paga en 30 años con los pagos actuales.`);
+    }
+  }
+
+  const totalPaid = active.reduce((s, d) => s + d.totalPaid, 0);
+  return { totalMonths, totalInterest: Math.round(totalInterest), totalPaid: Math.round(totalPaid), order, warnings };
 }
 
 export default function DeudasPage() {
@@ -119,6 +146,9 @@ export default function DeudasPage() {
   const totalBalance = activeDebts.reduce((s, d) => s + Number(d.balance), 0);
   const totalMinPayment = activeDebts.reduce((s, d) => s + Number(d.min_payment), 0);
   const sim = simulatePayoff(activeDebts, extraPayment, strategy);
+  const baseline = simulatePayoff(activeDebts, 0, strategy);
+  const monthsSaved = baseline.totalMonths - sim.totalMonths;
+  const interestSaved = baseline.totalInterest - sim.totalInterest;
 
   async function addDebt() {
     setSaving(true);
@@ -265,6 +295,74 @@ export default function DeudasPage() {
                 </div>
               </div>
 
+              {/* Warnings */}
+              {sim.warnings.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm font-medium text-amber-800 mb-1">Atención:</p>
+                  {sim.warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-amber-700">{w}</p>
+                  ))}
+                </div>
+              )}
+
+              {/* Projection comparison */}
+              {activeDebts.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 space-y-3">
+                  <p className="text-sm font-semibold text-gray-700">Proyección con pago extra de {fmt(extraPayment)}/mes:</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <p className="text-xs text-gray-500">Tiempo para saldar</p>
+                      <p className="text-lg font-bold text-purple-700">
+                        {sim.totalMonths >= 360 ? '+30 años' : sim.totalMonths > 12
+                          ? `${Math.floor(sim.totalMonths / 12)}a ${sim.totalMonths % 12}m`
+                          : `${sim.totalMonths} meses`}
+                      </p>
+                      {monthsSaved > 0 && (
+                        <p className="text-xs text-green-600 font-medium">
+                          {monthsSaved} meses menos vs. solo mínimos
+                        </p>
+                      )}
+                    </div>
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <p className="text-xs text-gray-500">Intereses totales</p>
+                      <p className="text-lg font-bold text-purple-700">{fmt(sim.totalInterest)}</p>
+                      {interestSaved > 0 && (
+                        <p className="text-xs text-green-600 font-medium">
+                          Ahorrás {fmt(interestSaved)} en intereses
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {extraPayment > 0 && baseline.totalMonths > 0 && (
+                    <div className="bg-white rounded-lg p-3">
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>Solo mínimos</span>
+                        <span>Con extra</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-purple-500 h-2 rounded-full transition-all"
+                            style={{ width: `${Math.min(100, (sim.totalMonths / Math.max(baseline.totalMonths, 1)) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-xs mt-1">
+                        <span className="text-gray-400">
+                          {baseline.totalMonths >= 360 ? '+30 años' : `${baseline.totalMonths} meses`}
+                        </span>
+                        <span className="text-purple-600 font-medium">
+                          {sim.totalMonths >= 360 ? '+30 años' : `${sim.totalMonths} meses`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    Costo total de la deuda: {fmt(sim.totalPaid)} (capital + intereses)
+                  </p>
+                </div>
+              )}
+
               {/* Payoff timeline */}
               {sim.order.length > 0 && (
                 <div>
@@ -278,7 +376,8 @@ export default function DeudasPage() {
                         <div className="flex-1">
                           <p className="text-sm font-medium">{d.name}</p>
                           <p className="text-xs text-gray-500">
-                            Se paga en {d.months} meses - Total pagado: {fmt(d.totalPaid)}
+                            {d.months >= 360 ? 'No se paga en 30 años' : `Se paga en ${d.months} meses`} - Total pagado: {fmt(d.totalPaid)}
+                            <span className="text-amber-600 ml-1">(intereses: {fmt(d.interestPaid)})</span>
                           </p>
                         </div>
                       </div>
