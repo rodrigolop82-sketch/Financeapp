@@ -33,6 +33,8 @@ export interface FinancialProfile {
   total_fixed_expenses: number;
   total_debt: number;
   total_savings: number;
+  savings_cash: number;
+  savings_investments: number;
   has_emergency_fund: boolean;
   health_score: number;
   updated_at: string;
@@ -132,6 +134,8 @@ export interface OnboardingData {
     minPayment: number;
   }[];
   totalSavings: number;
+  savingsCash: number;
+  savingsInvestments: number;
   hasEmergencyFund: boolean;
 }
 

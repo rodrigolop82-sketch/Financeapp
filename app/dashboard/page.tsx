@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { BudgetChart } from '@/components/charts/budget-chart';
 import { ScoreHistoryChart } from '@/components/charts/score-history-chart';
-import { formatCurrency } from '@/types';
 import { createClient } from '@/lib/supabase';
 import { getUserDashboardData } from '@/lib/queries';
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
   Wallet,
   CreditCard,
@@ -65,6 +65,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<Awaited<ReturnType<typeof getUserDashboardData>> | null>(null);
   const router = useRouter();
   const supabase = createClient();
+  const fmt = useFormatMoney();
 
   useEffect(() => {
     async function loadData() {
@@ -103,6 +104,8 @@ export default function DashboardPage() {
   const totalExpenses = (data.transactions || []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0);
   const totalDebtBalance = (data.debts || []).reduce((s: number, d: { balance: number }) => s + Number(d.balance), 0);
   const savings = fp ? Number(fp.total_savings) : 0;
+  const savingsCash = fp ? Number(fp.savings_cash ?? 0) : 0;
+  const savingsInvestments = fp ? Number(fp.savings_investments ?? 0) : 0;
   const colors = getScoreColor(healthScore);
   const scoreLabel = getScoreLabel(healthScore);
 
@@ -228,7 +231,7 @@ export default function DashboardPage() {
                   <p className="text-sm text-gray-500">Ingreso del mes</p>
                   <Wallet className="w-5 h-5 text-purple-500" />
                 </div>
-                <p className="text-2xl font-bold">{formatCurrency(income)}</p>
+                <p className="text-2xl font-bold">{fmt(income)}</p>
               </CardContent>
             </Card>
 
@@ -238,7 +241,7 @@ export default function DashboardPage() {
                   <p className="text-sm text-gray-500">Gastos del mes</p>
                   <CreditCard className="w-5 h-5 text-orange-500" />
                 </div>
-                <p className="text-2xl font-bold">{formatCurrency(totalExpenses)}</p>
+                <p className="text-2xl font-bold">{fmt(totalExpenses)}</p>
                 {income > 0 && (
                   <p className="text-xs text-gray-500 mt-1">
                     {Math.round((totalExpenses / income) * 100)}% de tu ingreso
@@ -253,7 +256,23 @@ export default function DashboardPage() {
                   <p className="text-sm text-gray-500">Ahorros</p>
                   <PiggyBank className="w-5 h-5 text-green-500" />
                 </div>
-                <p className="text-2xl font-bold">{formatCurrency(savings)}</p>
+                <p className="text-2xl font-bold">{fmt(savings)}</p>
+                {(savingsCash > 0 || savingsInvestments > 0) && (
+                  <div className="mt-2 space-y-1">
+                    {savingsCash > 0 && (
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>Efectivo</span>
+                        <span>{fmt(savingsCash)}</span>
+                      </div>
+                    )}
+                    {savingsInvestments > 0 && (
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>Inversiones</span>
+                        <span>{fmt(savingsInvestments)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -287,7 +306,7 @@ export default function DashboardPage() {
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-gray-600">{b.label}</span>
                         <span className={b.budgeted > 0 && b.spent > b.budgeted ? 'text-red-500 font-medium' : 'text-gray-900'}>
-                          {formatCurrency(b.spent)} / {formatCurrency(b.budgeted)}
+                          {fmt(b.spent)} / {fmt(b.budgeted)}
                         </span>
                       </div>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -359,7 +378,7 @@ export default function DashboardPage() {
                   <div>
                     <CardTitle className="text-lg">Deudas</CardTitle>
                     <CardDescription>
-                      Total: {formatCurrency(totalDebtBalance)}
+                      Total: {fmt(totalDebtBalance)}
                     </CardDescription>
                   </div>
                   <Link href="/deudas">
@@ -375,10 +394,10 @@ export default function DashboardPage() {
                     <div key={debt.id}>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="font-medium">{debt.name}</span>
-                        <span className="text-gray-600">{formatCurrency(Number(debt.balance))}</span>
+                        <span className="text-gray-600">{fmt(Number(debt.balance))}</span>
                       </div>
                       <p className="text-xs text-gray-500">
-                        Pago mínimo: {formatCurrency(Number(debt.min_payment))}/mes
+                        Pago mínimo: {fmt(Number(debt.min_payment))}/mes
                         {debt.type === 'informal' && ' (informal)'}
                       </p>
                     </div>

@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ScoreHistoryChart } from '@/components/charts/score-history-chart';
-import { formatCurrency, MonthlySnapshot } from '@/types';
+import { MonthlySnapshot } from '@/types';
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
   ArrowLeft,
   Loader2,
@@ -36,6 +37,7 @@ export default function HistorialPage() {
   const [snapshots, setSnapshots] = useState<MonthlySnapshot[]>([]);
   const router = useRouter();
   const supabase = createClient();
+  const fmt = useFormatMoney();
 
   useEffect(() => {
     async function load() {
@@ -210,15 +212,15 @@ export default function HistorialPage() {
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
                       <p className="text-xs text-gray-500">Ingresos</p>
-                      <p className="text-sm font-medium">{formatCurrency(Number(snap.income) || 0)}</p>
+                      <p className="text-sm font-medium">{fmt(Number(snap.income) || 0)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Gastos</p>
-                      <p className="text-sm font-medium">{formatCurrency(Number(snap.expenses) || 0)}</p>
+                      <p className="text-sm font-medium">{fmt(Number(snap.expenses) || 0)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Ahorros</p>
-                      <p className="text-sm font-medium">{formatCurrency(Number(snap.savings) || 0)}</p>
+                      <p className="text-sm font-medium">{fmt(Number(snap.savings) || 0)}</p>
                     </div>
                   </div>
                 </CardContent>

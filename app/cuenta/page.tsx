@@ -16,6 +16,7 @@ import {
   CreditCard,
   Shield,
   Eye,
+  Coins,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -29,7 +30,7 @@ export default function CuentaPage() {
 
 function CuentaContent() {
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<{ email: string; full_name: string; plan: string; trial_ends_at: string; show_decimals: boolean } | null>(null);
+  const [user, setUser] = useState<{ email: string; full_name: string; plan: string; trial_ends_at: string; show_decimals: boolean; currency: string } | null>(null);
   const [subscription, setSubscription] = useState<{ plan: string; status: string; current_period_end: string } | null>(null);
   const [upgrading, setUpgrading] = useState(false);
   const [showDecimals, setShowDecimals] = useState(false);
@@ -73,6 +74,14 @@ function CuentaContent() {
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (authUser) {
       await supabase.from('users').update({ show_decimals: val }).eq('id', authUser.id);
+    }
+  }
+
+  async function changeCurrency(val: string) {
+    setUser(prev => prev ? { ...prev, currency: val } : prev);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      await supabase.from('users').update({ currency: val }).eq('id', authUser.id);
     }
   }
 
@@ -163,6 +172,39 @@ function CuentaContent() {
                   }`}
                 />
               </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Currency */}
+        <Card className="mb-4">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Coins className="w-5 h-5 text-gray-500" />
+              <CardTitle className="text-base">Moneda</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Moneda principal</p>
+                <p className="text-xs text-muted-foreground">
+                  Se usa para mostrar todos los montos en la app
+                </p>
+              </div>
+              <select
+                value={user?.currency || 'GTQ'}
+                onChange={(e) => changeCurrency(e.target.value)}
+                className="border rounded-md px-3 py-2 text-sm bg-white"
+              >
+                <option value="GTQ">Q - Quetzal (GTQ)</option>
+                <option value="USD">$ - Dólar (USD)</option>
+                <option value="MXN">$ - Peso MX (MXN)</option>
+                <option value="COP">$ - Peso CO (COP)</option>
+                <option value="HNL">L - Lempira (HNL)</option>
+                <option value="NIO">C$ - Córdoba (NIO)</option>
+                <option value="CRC">₡ - Colón (CRC)</option>
+              </select>
             </div>
           </CardContent>
         </Card>

@@ -108,6 +108,8 @@ ${scoreTrend}
 Ingreso mensual: ${symbol} ${Math.round(profile?.total_income ?? 0).toLocaleString()} (${profile?.income_type === 'fixed' ? 'fijo' : profile?.income_type === 'variable' ? 'variable' : 'mixto'})
 Gastos fijos: ${symbol} ${Math.round(profile?.total_fixed_expenses ?? 0).toLocaleString()}
 Ahorros totales: ${symbol} ${Math.round(profile?.total_savings ?? 0).toLocaleString()}
+  - Efectivo disponible: ${symbol} ${Math.round(profile?.savings_cash ?? 0).toLocaleString()}
+  - Inversiones (no líquido): ${symbol} ${Math.round(profile?.savings_investments ?? 0).toLocaleString()}
 Fondo de emergencia: ${profile?.has_emergency_fund ? 'Sí' : 'No'}
 Deudas totales: ${symbol} ${Math.round(profile?.total_debt ?? 0).toLocaleString()}
 

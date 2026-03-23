@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatCurrency, Debt } from '@/types';
+import { Debt } from '@/types';
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
   ArrowLeft,
   Plus,
@@ -94,6 +95,7 @@ export default function DeudasPage() {
   const [saving, setSaving] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const fmt = useFormatMoney();
 
   useEffect(() => {
     async function load() {
@@ -165,7 +167,7 @@ export default function DeudasPage() {
             <div>
               <h1 className="text-2xl font-bold">Rastreador de deudas</h1>
               <p className="text-sm text-gray-500">
-                {activeDebts.length} deuda{activeDebts.length !== 1 ? 's' : ''} activa{activeDebts.length !== 1 ? 's' : ''} - Total: {formatCurrency(totalBalance)}
+                {activeDebts.length} deuda{activeDebts.length !== 1 ? 's' : ''} activa{activeDebts.length !== 1 ? 's' : ''} - Total: {fmt(totalBalance)}
               </p>
             </div>
           </div>
@@ -180,13 +182,13 @@ export default function DeudasPage() {
           <Card>
             <CardContent className="p-5">
               <p className="text-sm text-gray-500">Deuda total</p>
-              <p className="text-2xl font-bold mt-1">{formatCurrency(totalBalance)}</p>
+              <p className="text-2xl font-bold mt-1">{fmt(totalBalance)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-5">
               <p className="text-sm text-gray-500">Pago mínimo mensual</p>
-              <p className="text-2xl font-bold mt-1">{formatCurrency(totalMinPayment)}</p>
+              <p className="text-2xl font-bold mt-1">{fmt(totalMinPayment)}</p>
             </CardContent>
           </Card>
           <Card>
@@ -197,7 +199,7 @@ export default function DeudasPage() {
               </p>
               {sim.totalInterest > 0 && (
                 <p className="text-xs text-gray-500 mt-1">
-                  Intereses totales: {formatCurrency(sim.totalInterest)}
+                  Intereses totales: {fmt(sim.totalInterest)}
                 </p>
               )}
             </CardContent>
@@ -276,7 +278,7 @@ export default function DeudasPage() {
                         <div className="flex-1">
                           <p className="text-sm font-medium">{d.name}</p>
                           <p className="text-xs text-gray-500">
-                            Se paga en {d.months} meses - Total pagado: {formatCurrency(d.totalPaid)}
+                            Se paga en {d.months} meses - Total pagado: {fmt(d.totalPaid)}
                           </p>
                         </div>
                       </div>
@@ -305,9 +307,9 @@ export default function DeudasPage() {
                         {debt.type === 'credit' ? 'Tarjeta' : debt.type === 'loan' ? 'Préstamo' : 'Informal'}
                       </span>
                     </div>
-                    <p className="text-2xl font-bold">{formatCurrency(Number(debt.balance))}</p>
+                    <p className="text-2xl font-bold">{fmt(Number(debt.balance))}</p>
                     <div className="flex gap-4 mt-2 text-sm text-gray-500">
-                      <span>Pago mín: {formatCurrency(Number(debt.min_payment))}/mes</span>
+                      <span>Pago mín: {fmt(Number(debt.min_payment))}/mes</span>
                       {Number(debt.interest_rate) > 0 && (
                         <span>Tasa: {debt.interest_rate}% anual</span>
                       )}
@@ -346,7 +348,7 @@ export default function DeudasPage() {
               <div key={debt.id} className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg mb-2">
                 <CheckCircle2 className="w-5 h-5 text-purple-500" />
                 <span className="text-sm line-through text-purple-700">{debt.name}</span>
-                <span className="text-sm text-purple-600 ml-auto">{formatCurrency(Number(debt.balance))}</span>
+                <span className="text-sm text-purple-600 ml-auto">{fmt(Number(debt.balance))}</span>
               </div>
             ))}
           </div>

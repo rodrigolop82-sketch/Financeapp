@@ -24,7 +24,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { OnboardingData } from '@/types';
-import { formatCurrency } from '@/types';
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { calculateHealthScore, ScoreBreakdown } from '@/lib/scoring';
 import { generateInitialPlan } from '@/lib/action-plan';
 import { ActionStep } from '@/types';
@@ -47,6 +47,8 @@ const defaultData: OnboardingData = {
   hasDebts: false,
   debts: [],
   totalSavings: 0,
+  savingsCash: 0,
+  savingsInvestments: 0,
   hasEmergencyFund: false,
 };
 
@@ -59,6 +61,7 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const router = useRouter();
+  const fmt = useFormatMoney();
 
   const progress = (step / TOTAL_STEPS) * 100;
 
@@ -396,7 +399,7 @@ export default function OnboardingPage() {
                 <Separator />
                 <div className="flex justify-between items-center font-medium">
                   <span>Total gastos fijos</span>
-                  <span className="text-lg">{formatCurrency(totalFixedExpenses)}</span>
+                  <span className="text-lg">{fmt(totalFixedExpenses)}</span>
                 </div>
                 {data.totalIncome > 0 && (
                   <p className="text-sm text-gray-500">
@@ -533,7 +536,7 @@ export default function OnboardingPage() {
                     {data.debts.length > 0 && (
                       <div className="flex justify-between items-center font-medium pt-2">
                         <span>Total deudas</span>
-                        <span className="text-lg">{formatCurrency(totalDebt)}</span>
+                        <span className="text-lg">{fmt(totalDebt)}</span>
                       </div>
                     )}
                   </>
@@ -559,23 +562,55 @@ export default function OnboardingPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div>
-                  <Label htmlFor="savings">Total de ahorros (GTQ)</Label>
+                  <Label>Efectivo disponible (cuentas de ahorro, efectivo)</Label>
+                  <p className="text-xs text-gray-500 mb-1">
+                    Dinero que puedes usar de inmediato si lo necesitas.
+                  </p>
                   <div className="relative mt-1">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
                       Q
                     </span>
                     <Input
-                      id="savings"
                       type="number"
                       placeholder="0"
                       className="pl-8"
-                      value={data.totalSavings || ''}
-                      onChange={(e) =>
-                        setData({ ...data, totalSavings: parseFloat(e.target.value) || 0 })
-                      }
+                      value={data.savingsCash || ''}
+                      onChange={(e) => {
+                        const cash = parseFloat(e.target.value) || 0;
+                        setData({ ...data, savingsCash: cash, totalSavings: cash + data.savingsInvestments });
+                      }}
                     />
                   </div>
                 </div>
+
+                <div>
+                  <Label>Inversiones (plazos fijos, fondos, acciones)</Label>
+                  <p className="text-xs text-gray-500 mb-1">
+                    Dinero invertido que no tiene disponibilidad inmediata.
+                  </p>
+                  <div className="relative mt-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                      Q
+                    </span>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      className="pl-8"
+                      value={data.savingsInvestments || ''}
+                      onChange={(e) => {
+                        const inv = parseFloat(e.target.value) || 0;
+                        setData({ ...data, savingsInvestments: inv, totalSavings: data.savingsCash + inv });
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {(data.savingsCash > 0 || data.savingsInvestments > 0) && (
+                  <div className="bg-gray-50 rounded-lg p-3 flex justify-between text-sm">
+                    <span className="text-gray-600">Total ahorros</span>
+                    <span className="font-semibold">{fmt(data.totalSavings)}</span>
+                  </div>
+                )}
 
                 <div>
                   <Label>¿Tienes un fondo de emergencia separado?</Label>
@@ -683,19 +718,19 @@ export default function OnboardingPage() {
                 <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Ingreso mensual</span>
-                    <span className="font-medium">{formatCurrency(data.totalIncome)}</span>
+                    <span className="font-medium">{fmt(data.totalIncome)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Gastos fijos</span>
-                    <span className="font-medium">{formatCurrency(totalFixedExpenses)}</span>
+                    <span className="font-medium">{fmt(totalFixedExpenses)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Deuda total</span>
-                    <span className="font-medium">{formatCurrency(totalDebt)}</span>
+                    <span className="font-medium">{fmt(totalDebt)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Ahorros</span>
-                    <span className="font-medium">{formatCurrency(data.totalSavings)}</span>
+                    <span className="font-medium">{fmt(data.totalSavings)}</span>
                   </div>
                 </div>
               </CardContent>

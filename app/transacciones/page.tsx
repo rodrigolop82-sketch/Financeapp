@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatCurrency, BudgetCategory, Transaction } from '@/types';
+import { BudgetCategory, Transaction } from '@/types';
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
   ArrowLeft,
   Plus,
@@ -38,6 +39,7 @@ export default function TransaccionesPage() {
   const [extraIncome, setExtraIncome] = useState({ amount: 0, description: 'Aguinaldo', date: new Date().toISOString().split('T')[0] });
   const router = useRouter();
   const supabase = createClient();
+  const fmt = useFormatMoney();
 
   useEffect(() => {
     async function load() {
@@ -185,7 +187,7 @@ export default function TransaccionesPage() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold">Transacciones</h1>
-              <p className="text-sm text-gray-500">Este mes: {formatCurrency(totalThisMonth)}</p>
+              <p className="text-sm text-gray-500">Este mes: {fmt(totalThisMonth)}</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -334,7 +336,7 @@ export default function TransaccionesPage() {
             <div key={date} className="mb-4">
               <div className="flex items-center justify-between mb-2 px-1">
                 <p className="text-sm font-medium text-gray-500 capitalize">{label}</p>
-                <p className="text-sm font-medium">{formatCurrency(dayTotal)}</p>
+                <p className="text-sm font-medium">{fmt(dayTotal)}</p>
               </div>
               <Card>
                 <CardContent className="p-0 divide-y">
@@ -354,7 +356,7 @@ export default function TransaccionesPage() {
                         </div>
                       </div>
                       <div className="text-right flex items-center gap-2">
-                        <span className="font-medium text-sm">{formatCurrency(Number(tx.amount))}</span>
+                        <span className="font-medium text-sm">{fmt(Number(tx.amount))}</span>
                         <button
                           onClick={() => deleteTransaction(tx.id)}
                           className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"

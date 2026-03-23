@@ -41,6 +41,8 @@ CREATE TABLE financial_profiles (
   total_fixed_expenses NUMERIC(12,2) DEFAULT 0,
   total_debt NUMERIC(12,2) DEFAULT 0,
   total_savings NUMERIC(12,2) DEFAULT 0,
+  savings_cash NUMERIC(12,2) DEFAULT 0,
+  savings_investments NUMERIC(12,2) DEFAULT 0,
   has_emergency_fund BOOLEAN DEFAULT false,
   health_score INTEGER DEFAULT 0 CHECK (health_score BETWEEN 0 AND 100),
   updated_at TIMESTAMPTZ DEFAULT NOW()

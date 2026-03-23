@@ -71,6 +71,8 @@ export async function POST(request: Request) {
     fixedExpenses,
     debts,
     totalSavings,
+    savingsCash,
+    savingsInvestments,
     hasEmergencyFund,
   } = body;
 
@@ -130,6 +132,8 @@ export async function POST(request: Request) {
     total_fixed_expenses: totalFixedExpenses,
     total_debt: totalDebt,
     total_savings: totalSavings,
+    savings_cash: savingsCash || 0,
+    savings_investments: savingsInvestments || 0,
     has_emergency_fund: hasEmergencyFund,
     health_score: score.total,
   });

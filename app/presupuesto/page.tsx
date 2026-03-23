@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BudgetChart } from '@/components/charts/budget-chart';
-import { formatCurrency, BudgetCategory } from '@/types';
+import { BudgetCategory } from '@/types';
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
   ArrowLeft,
   Save,
@@ -35,6 +36,7 @@ export default function PresupuestoPage() {
   const [newCatBucket, setNewCatBucket] = useState<'needs' | 'wants' | 'savings'>('needs');
   const router = useRouter();
   const supabase = createClient();
+  const fmt = useFormatMoney();
 
   useEffect(() => {
     async function load() {
@@ -135,7 +137,7 @@ export default function PresupuestoPage() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold">Presupuesto 50/30/20</h1>
-              <p className="text-sm text-gray-500">Ingreso mensual: {formatCurrency(income)}</p>
+              <p className="text-sm text-gray-500">Ingreso mensual: {fmt(income)}</p>
             </div>
           </div>
           <Button onClick={saveAll} disabled={saving}>
@@ -170,7 +172,7 @@ export default function PresupuestoPage() {
                       <div className="flex justify-between text-sm mb-1">
                         <span className={`font-medium ${info.textColor}`}>{info.label}</span>
                         <span className="text-gray-600">
-                          {formatCurrency(actual)} ({pct}%)
+                          {fmt(actual)} ({pct}%)
                         </span>
                       </div>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -180,7 +182,7 @@ export default function PresupuestoPage() {
                         />
                       </div>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        Meta: {formatCurrency(target)}
+                        Meta: {fmt(target)}
                       </p>
                     </div>
                   );
@@ -189,7 +191,7 @@ export default function PresupuestoPage() {
                   <div className="flex justify-between font-medium">
                     <span>Sin asignar</span>
                     <span className={remaining < 0 ? 'text-red-500' : 'text-purple-600'}>
-                      {formatCurrency(remaining)}
+                      {fmt(remaining)}
                     </span>
                   </div>
                 </div>
