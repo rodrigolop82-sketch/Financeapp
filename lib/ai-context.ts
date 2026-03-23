@@ -5,21 +5,41 @@ export async function buildZafiSystemPrompt(
   supabase: SupabaseClient
 ): Promise<string> {
 
+  // First get the user's household (household_id ≠ user.id)
+  const { data: household } = await supabase
+    .from('households')
+    .select('id')
+    .eq('owner_id', userId)
+    .limit(1)
+    .single()
+
+  const householdId = household?.id
+
   const [userRes, profileRes, debtsRes, planRes, categoriesRes, snapshotsRes] =
     await Promise.all([
       supabase.from('users').select('*').eq('id', userId).single(),
-      supabase.from('financial_profiles')
-        .select('*').eq('household_id', userId).single(),
-      supabase.from('debts')
-        .select('*').eq('household_id', userId).eq('is_paid', false),
-      supabase.from('action_plans')
-        .select('*').eq('household_id', userId)
-        .eq('month', new Date().toISOString().slice(0, 7) + '-01').single(),
-      supabase.from('budget_categories')
-        .select('*').eq('household_id', userId),
-      supabase.from('monthly_snapshots')
-        .select('*').eq('household_id', userId)
-        .order('month', { ascending: false }).limit(3),
+      householdId
+        ? supabase.from('financial_profiles')
+            .select('*').eq('household_id', householdId).single()
+        : Promise.resolve({ data: null }),
+      householdId
+        ? supabase.from('debts')
+            .select('*').eq('household_id', householdId).eq('is_paid', false)
+        : Promise.resolve({ data: [] }),
+      householdId
+        ? supabase.from('action_plans')
+            .select('*').eq('household_id', householdId)
+            .eq('month', new Date().toISOString().slice(0, 7) + '-01').single()
+        : Promise.resolve({ data: null }),
+      householdId
+        ? supabase.from('budget_categories')
+            .select('*').eq('household_id', householdId)
+        : Promise.resolve({ data: [] }),
+      householdId
+        ? supabase.from('monthly_snapshots')
+            .select('*').eq('household_id', householdId)
+            .order('month', { ascending: false }).limit(3)
+        : Promise.resolve({ data: [] }),
     ])
 
   const user = userRes.data
@@ -40,11 +60,13 @@ export async function buildZafiSystemPrompt(
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const { data: txs } = await supabase
-    .from('transactions')
-    .select('amount, category_id')
-    .eq('household_id', userId)
-    .gte('date', monthStart)
+  const { data: txs } = householdId
+    ? await supabase
+        .from('transactions')
+        .select('amount, category_id')
+        .eq('household_id', householdId)
+        .gte('date', monthStart)
+    : { data: [] }
 
   const spentByCategory: Record<string, number> = {}
   txs?.forEach((t: { amount: number; category_id: string }) => {
