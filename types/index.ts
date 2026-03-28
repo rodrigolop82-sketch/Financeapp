@@ -49,6 +49,16 @@ export interface BudgetCategory {
   is_custom: boolean;
 }
 
+export interface BudgetSubItem {
+  id: string;
+  category_id: string;
+  household_id: string;
+  name: string;
+  amount: number;
+  is_fixed: boolean;
+  created_at: string;
+}
+
 export interface Transaction {
   id: string;
   household_id: string;

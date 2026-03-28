@@ -6,8 +6,9 @@ import { createClient } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { BudgetChart } from '@/components/charts/budget-chart';
-import { BudgetCategory } from '@/types';
+import { BudgetCategory, BudgetSubItem } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
   ArrowLeft,
@@ -16,6 +17,11 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Lock,
+  Unlock,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { VoiceButton } from '@/components/voice/VoiceButton';
@@ -30,11 +36,17 @@ const BUCKET_LABELS = {
 
 export default function PresupuestoPage() {
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
+  const [subItems, setSubItems] = useState<BudgetSubItem[]>([]);
   const [income, setIncome] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [householdId, setHouseholdId] = useState('');
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [addingSubItem, setAddingSubItem] = useState<string | null>(null);
+  const [newSubName, setNewSubName] = useState('');
+  const [newSubAmount, setNewSubAmount] = useState(0);
+  const [newSubFixed, setNewSubFixed] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatBucket, setNewCatBucket] = useState<'needs' | 'wants' | 'savings'>('needs');
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
@@ -58,39 +70,74 @@ export default function PresupuestoPage() {
       if (!hh) { router.push('/onboarding'); return; }
       setHouseholdId(hh.id);
 
-      const [{ data: cats }, { data: fp }] = await Promise.all([
+      const [{ data: cats }, { data: fp }, { data: subs }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
+        supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
       ]);
 
       setCategories((cats || []) as BudgetCategory[]);
       setIncome(fp ? Number(fp.total_income) : 0);
+      setSubItems((subs || []) as BudgetSubItem[]);
       setLoading(false);
     }
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Calculate category total from sub-items (if any), otherwise use budgeted_amount
+  function getCategoryTotal(catId: string): number {
+    const catSubs = subItems.filter(s => s.category_id === catId);
+    if (catSubs.length > 0) {
+      return catSubs.reduce((s, sub) => s + Number(sub.amount), 0);
+    }
+    const cat = categories.find(c => c.id === catId);
+    return cat ? Number(cat.budgeted_amount) : 0;
+  }
+
   const bucketTotals = {
-    needs: categories.filter(c => c.bucket === 'needs').reduce((s, c) => s + Number(c.budgeted_amount), 0),
-    wants: categories.filter(c => c.bucket === 'wants').reduce((s, c) => s + Number(c.budgeted_amount), 0),
-    savings: categories.filter(c => c.bucket === 'savings').reduce((s, c) => s + Number(c.budgeted_amount), 0),
+    needs: categories.filter(c => c.bucket === 'needs').reduce((s, c) => s + getCategoryTotal(c.id), 0),
+    wants: categories.filter(c => c.bucket === 'wants').reduce((s, c) => s + getCategoryTotal(c.id), 0),
+    savings: categories.filter(c => c.bucket === 'savings').reduce((s, c) => s + getCategoryTotal(c.id), 0),
   };
   const totalBudgeted = bucketTotals.needs + bucketTotals.wants + bucketTotals.savings;
   const remaining = income - totalBudgeted;
+
+  function toggleCat(id: string) {
+    setExpandedCats(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function updateAmount(id: string, amount: number) {
     setCategories(cats => cats.map(c => c.id === id ? { ...c, budgeted_amount: amount } : c));
     setSaved(false);
   }
 
+  function updateSubAmount(id: string, amount: number) {
+    setSubItems(items => items.map(s => s.id === id ? { ...s, amount } : s));
+    setSaved(false);
+  }
+
   async function saveAll() {
     setSaving(true);
-    for (const cat of categories) {
-      await supabase
-        .from('budget_categories')
-        .update({ budgeted_amount: cat.budgeted_amount })
-        .eq('id', cat.id);
+    // Save category amounts (for those without sub-items)
+    const promises = categories.map(cat =>
+      supabase.from('budget_categories')
+        .update({ budgeted_amount: getCategoryTotal(cat.id) })
+        .eq('id', cat.id)
+    );
+    // Save sub-item amounts
+    for (const sub of subItems) {
+      promises.push(
+        supabase.from('budget_sub_items')
+          .update({ amount: sub.amount })
+          .eq('id', sub.id)
+      );
     }
+    await Promise.all(promises);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -119,6 +166,45 @@ export default function PresupuestoPage() {
   async function deleteCategory(id: string) {
     await supabase.from('budget_categories').delete().eq('id', id);
     setCategories(cats => cats.filter(c => c.id !== id));
+    setSubItems(items => items.filter(s => s.category_id !== id));
+  }
+
+  async function addSubItem(categoryId: string) {
+    if (!newSubName.trim()) return;
+    const { data } = await supabase
+      .from('budget_sub_items')
+      .insert({
+        category_id: categoryId,
+        household_id: householdId,
+        name: newSubName.trim(),
+        amount: newSubAmount,
+        is_fixed: newSubFixed,
+      })
+      .select()
+      .single();
+
+    if (data) {
+      setSubItems([...subItems, data as BudgetSubItem]);
+      setNewSubName('');
+      setNewSubAmount(0);
+      setNewSubFixed(false);
+      setAddingSubItem(null);
+      setSaved(false);
+    }
+  }
+
+  async function deleteSubItem(id: string) {
+    await supabase.from('budget_sub_items').delete().eq('id', id);
+    setSubItems(items => items.filter(s => s.id !== id));
+    setSaved(false);
+  }
+
+  async function toggleSubFixed(id: string) {
+    const sub = subItems.find(s => s.id === id);
+    if (!sub) return;
+    const newFixed = !sub.is_fixed;
+    await supabase.from('budget_sub_items').update({ is_fixed: newFixed }).eq('id', id);
+    setSubItems(items => items.map(s => s.id === id ? { ...s, is_fixed: newFixed } : s));
   }
 
   async function saveVoiceTransactions(transactions: VoiceExtractionResult['transactions']) {
@@ -254,30 +340,171 @@ export default function PresupuestoPage() {
                 <CardTitle className={`text-base ${info.textColor}`}>{info.label}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {bucketCats.map((cat) => (
-                    <div key={cat.id} className="flex items-center gap-3">
-                      <div className={`w-1.5 h-8 rounded-full ${info.color}`} />
-                      <span className="flex-1 text-sm font-medium min-w-0 truncate">{cat.name}</span>
-                      <div className="relative w-32">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
-                        <Input
-                          type="number"
-                          className="pl-6 h-8 text-sm text-right"
-                          value={cat.budgeted_amount || ''}
-                          onChange={(e) => updateAmount(cat.id, parseFloat(e.target.value) || 0)}
-                        />
+                <div className="space-y-1">
+                  {bucketCats.map((cat) => {
+                    const catSubs = subItems.filter(s => s.category_id === cat.id);
+                    const hasSubs = catSubs.length > 0;
+                    const isExpanded = expandedCats.has(cat.id);
+                    const catTotal = getCategoryTotal(cat.id);
+                    const fixedTotal = catSubs.filter(s => s.is_fixed).reduce((s, sub) => s + Number(sub.amount), 0);
+                    const variableTotal = catSubs.filter(s => !s.is_fixed).reduce((s, sub) => s + Number(sub.amount), 0);
+
+                    return (
+                      <div key={cat.id} className="border rounded-lg overflow-hidden">
+                        {/* Category header row */}
+                        <div className="flex items-center gap-2 p-3 hover:bg-gray-50 transition-colors">
+                          <button
+                            onClick={() => toggleCat(cat.id)}
+                            className="flex items-center gap-2 flex-1 min-w-0"
+                          >
+                            <div className={`w-1.5 h-6 rounded-full ${info.color} flex-shrink-0`} />
+                            <span className="text-sm font-medium truncate">{cat.name}</span>
+                            {hasSubs && (
+                              <span className="text-xs text-gray-400 flex-shrink-0">
+                                ({catSubs.length} item{catSubs.length !== 1 ? 's' : ''})
+                              </span>
+                            )}
+                            {isExpanded ? (
+                              <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            )}
+                          </button>
+
+                          {/* Total amount — editable only if no sub-items */}
+                          {hasSubs ? (
+                            <span className="text-sm font-bold text-gray-700 w-28 text-right flex-shrink-0">
+                              {fmt(catTotal)}
+                            </span>
+                          ) : (
+                            <div className="relative w-28 flex-shrink-0">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
+                              <Input
+                                type="number"
+                                className="pl-6 h-8 text-sm text-right"
+                                value={cat.budgeted_amount || ''}
+                                onChange={(e) => updateAmount(cat.id, parseFloat(e.target.value) || 0)}
+                              />
+                            </div>
+                          )}
+
+                          {cat.is_custom && (
+                            <button
+                              onClick={() => deleteCategory(cat.id)}
+                              className="text-gray-300 hover:text-red-500 flex-shrink-0"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Expanded: sub-items */}
+                        {isExpanded && (
+                          <div className="border-t bg-gray-50 px-3 pb-3">
+                            {/* Fixed/Variable summary */}
+                            {hasSubs && (
+                              <div className="flex gap-4 py-2 text-xs text-gray-500">
+                                <span>Fijos: <strong className="text-gray-700">{fmt(fixedTotal)}</strong></span>
+                                <span>Variables: <strong className="text-gray-700">{fmt(variableTotal)}</strong></span>
+                              </div>
+                            )}
+
+                            {/* Sub-item list */}
+                            <div className="space-y-1">
+                              {catSubs.map((sub) => (
+                                <div key={sub.id} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2">
+                                  <button
+                                    onClick={() => toggleSubFixed(sub.id)}
+                                    className="flex-shrink-0"
+                                    title={sub.is_fixed ? 'Gasto fijo' : 'Gasto variable'}
+                                  >
+                                    {sub.is_fixed ? (
+                                      <Lock className="w-3.5 h-3.5 text-blue-500" />
+                                    ) : (
+                                      <Unlock className="w-3.5 h-3.5 text-gray-400" />
+                                    )}
+                                  </button>
+                                  <span className="text-sm flex-1 min-w-0 truncate">{sub.name}</span>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${sub.is_fixed ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                                    {sub.is_fixed ? 'fijo' : 'variable'}
+                                  </span>
+                                  <div className="relative w-24 flex-shrink-0">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
+                                    <Input
+                                      type="number"
+                                      className="pl-6 h-7 text-xs text-right"
+                                      value={sub.amount || ''}
+                                      onChange={(e) => updateSubAmount(sub.id, parseFloat(e.target.value) || 0)}
+                                    />
+                                  </div>
+                                  <button
+                                    onClick={() => deleteSubItem(sub.id)}
+                                    className="text-gray-300 hover:text-red-500 flex-shrink-0"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Add sub-item form */}
+                            {addingSubItem === cat.id ? (
+                              <div className="mt-2 bg-white rounded-lg p-3 space-y-2 border border-purple-200">
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="Nombre del sub-item"
+                                    className="flex-1 h-8 text-sm"
+                                    value={newSubName}
+                                    onChange={(e) => setNewSubName(e.target.value)}
+                                    autoFocus
+                                  />
+                                  <div className="relative w-24">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
+                                    <Input
+                                      type="number"
+                                      className="pl-6 h-8 text-sm text-right"
+                                      placeholder="0"
+                                      value={newSubAmount || ''}
+                                      onChange={(e) => setNewSubAmount(parseFloat(e.target.value) || 0)}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <Label className="flex items-center gap-2 text-xs cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={newSubFixed}
+                                      onChange={(e) => setNewSubFixed(e.target.checked)}
+                                      className="rounded border-gray-300"
+                                    />
+                                    Gasto fijo
+                                  </Label>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" className="h-7 text-xs" onClick={() => addSubItem(cat.id)} disabled={!newSubName.trim()}>
+                                      <Plus className="w-3 h-3 mr-1" />
+                                      Agregar
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); }}>
+                                      <X className="w-3 h-3 mr-1" />
+                                      Cancelar
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setAddingSubItem(cat.id); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); }}
+                                className="mt-2 flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                Agregar detalle
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {cat.is_custom && (
-                        <button
-                          onClick={() => deleteCategory(cat.id)}
-                          className="text-gray-300 hover:text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
