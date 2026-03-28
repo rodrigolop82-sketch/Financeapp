@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BudgetCategory, Transaction } from '@/types';
+import type { VoiceExtractionResult } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
+import { VoiceButton } from '@/components/voice/VoiceButton';
+import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import {
   ArrowLeft,
   Plus,
@@ -35,6 +38,8 @@ export default function TransaccionesPage() {
     description: '',
     date: new Date().toISOString().split('T')[0],
   });
+  const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   // Extraordinary income
   const [extraIncome, setExtraIncome] = useState({ amount: 0, description: 'Aguinaldo', date: new Date().toISOString().split('T')[0] });
   const router = useRouter();
@@ -139,6 +144,35 @@ export default function TransaccionesPage() {
     setSaving(false);
   }
 
+  async function saveVoiceTransactions(txs: VoiceExtractionResult['transactions']) {
+    if (!householdId) return;
+    const { data } = await supabase
+      .from('transactions')
+      .insert(
+        txs.map(tx => ({
+          household_id: householdId,
+          category_id: tx.category_id ?? null,
+          amount: tx.amount,
+          description: tx.description,
+          date: tx.date,
+          source: 'voice',
+          voice_raw_text: voiceResult?.raw_text ?? null,
+        }))
+      )
+      .select('*, budget_categories(name, bucket)');
+
+    if (data) {
+      const mapped = data.map((d: Record<string, unknown>) => ({
+        ...d,
+        category_name: (d.budget_categories as { name: string } | null)?.name || 'Sin categoría',
+        bucket: (d.budget_categories as { bucket: string } | null)?.bucket || '',
+      })) as (Transaction & { category_name?: string; bucket?: string })[];
+      setTransactions([...mapped, ...transactions]);
+    }
+    setVoiceResult(null);
+    setVoiceError(null);
+  }
+
   async function deleteTransaction(id: string) {
     await supabase.from('transactions').delete().eq('id', id);
     setTransactions(transactions.filter(t => t.id !== id));
@@ -191,16 +225,37 @@ export default function TransaccionesPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => { setIsExtraordinary(true); setShowForm(false); }}>
+            <VoiceButton
+              mode="expense"
+              onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); setShowForm(false); setIsExtraordinary(false); }}
+              onError={(err) => setVoiceError(err)}
+            />
+            <Button variant="outline" onClick={() => { setIsExtraordinary(true); setShowForm(false); setVoiceResult(null); }}>
               <Gift className="w-4 h-4 mr-2" />
               Aguinaldo
             </Button>
-            <Button onClick={() => { setShowForm(true); setIsExtraordinary(false); }}>
+            <Button onClick={() => { setShowForm(true); setIsExtraordinary(false); setVoiceResult(null); }}>
               <Plus className="w-4 h-4 mr-2" />
               Gasto
             </Button>
           </div>
         </div>
+
+        {/* Voice transaction preview */}
+        {voiceError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            {voiceError}
+          </div>
+        )}
+        {voiceResult && (
+          <div className="mb-6">
+            <TransactionPreview
+              result={voiceResult}
+              onConfirm={saveVoiceTransactions}
+              onCancel={() => setVoiceResult(null)}
+            />
+          </div>
+        )}
 
         {/* Extraordinary income form (aguinaldo) */}
         {isExtraordinary && (
