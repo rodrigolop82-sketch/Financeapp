@@ -74,7 +74,9 @@ export async function POST(req: NextRequest) {
   })
 
   if (!extractionResponse.ok) {
-    return NextResponse.json({ error: 'Error al procesar. Intentá de nuevo.' }, { status: 500 })
+    const errText = await extractionResponse.text()
+    console.error('Claude extraction error:', extractionResponse.status, errText)
+    return NextResponse.json({ error: `Error al extraer datos: ${extractionResponse.status}. Intentá de nuevo.` }, { status: 500 })
   }
 
   const extraction = await extractionResponse.json()
@@ -86,7 +88,9 @@ export async function POST(req: NextRequest) {
     result = JSON.parse(text.replace(/```json|```/g, '').trim())
     result.raw_text = transcription
   } catch {
-    return NextResponse.json({ error: 'Error al procesar. Intentá de nuevo.' }, { status: 500 })
+    const rawText = extraction.content?.[0]?.text || 'sin respuesta'
+    console.error('JSON parse error from Claude:', rawText)
+    return NextResponse.json({ error: 'Error al interpretar la respuesta. Intentá de nuevo.' }, { status: 500 })
   }
 
   // Paso 3: Enriquecer con category_id del household del usuario
