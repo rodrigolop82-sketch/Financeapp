@@ -175,10 +175,19 @@ export default function DeudasPage() {
   const activeDebts = debts.filter(d => !d.is_paid);
   const totalBalance = activeDebts.reduce((s, d) => s + Number(d.balance), 0);
   const totalMinPayment = activeDebts.reduce((s, d) => s + Number(d.min_payment), 0);
-  const sim = simulatePayoff(activeDebts, extraPayment, strategy);
+
+  // Simulate both strategies for comparison
+  const simSnowball = simulatePayoff(activeDebts, extraPayment, 'snowball');
+  const simAvalanche = simulatePayoff(activeDebts, extraPayment, 'avalanche');
+  const sim = strategy === 'snowball' ? simSnowball : simAvalanche;
   const baseline = simulatePayoff(activeDebts, 0, strategy);
   const monthsSaved = baseline.totalMonths - sim.totalMonths;
   const interestSaved = baseline.totalInterest - sim.totalInterest;
+
+  // Determine which strategy is better
+  const avalancheSavings = simSnowball.totalInterest - simAvalanche.totalInterest;
+  const snowballFaster = simSnowball.order[0]?.months ?? 999;
+  const avalancheFirstPaid = simAvalanche.order[0]?.months ?? 999;
 
   function toggleDebt(id: string) {
     setExpandedDebts(prev => {
@@ -391,38 +400,6 @@ export default function DeudasPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Strategy selector */}
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setStrategy('snowball')}
-                  className={`p-4 rounded-lg border-2 text-left transition-all ${
-                    strategy === 'snowball' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Zap className="w-4 h-4 text-yellow-500" />
-                    <span className="font-medium text-sm">Bola de nieve</span>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Paga primero la deuda más pequeña. Ganas motivación rápido.
-                  </p>
-                </button>
-                <button
-                  onClick={() => setStrategy('avalanche')}
-                  className={`p-4 rounded-lg border-2 text-left transition-all ${
-                    strategy === 'avalanche' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Mountain className="w-4 h-4 text-blue-500" />
-                    <span className="font-medium text-sm">Avalancha</span>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Paga primero la de mayor interés. Ahorras más a largo plazo.
-                  </p>
-                </button>
-              </div>
-
               {/* Extra payment */}
               <div>
                 <Label>Pago extra mensual (además de los mínimos)</Label>
@@ -447,55 +424,168 @@ export default function DeudasPage() {
                 </div>
               )}
 
-              {/* Projection comparison */}
-              <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 space-y-3">
-                <p className="text-sm font-semibold text-gray-700">Proyección con pago extra de {fmt(extraPayment)}/mes:</p>
+              {/* Strategy comparison — side by side */}
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-3">
+                  Comparación de estrategias (con pago extra de {fmt(extraPayment)}/mes):
+                </p>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white rounded-lg p-3 text-center">
-                    <p className="text-xs text-gray-500">Tiempo para saldar</p>
-                    <p className="text-lg font-bold text-purple-700">
-                      {formatMonths(sim.totalMonths)}
-                    </p>
-                    {monthsSaved > 0 && (
-                      <p className="text-xs text-green-600 font-medium">
-                        {monthsSaved} meses menos vs. solo mínimos
+                  {/* Snowball */}
+                  <button
+                    onClick={() => setStrategy('snowball')}
+                    className={`rounded-xl border-2 text-left transition-all overflow-hidden ${
+                      strategy === 'snowball' ? 'border-yellow-400 ring-1 ring-yellow-200' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className={`p-3 ${strategy === 'snowball' ? 'bg-yellow-50' : 'bg-gray-50'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Zap className="w-4 h-4 text-yellow-500" />
+                        <span className="font-semibold text-sm">Bola de nieve</span>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Paga la deuda más pequeña primero
                       </p>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      <div>
+                        <p className="text-xs text-gray-500">Tiempo total</p>
+                        <p className="text-lg font-bold text-gray-900">{formatMonths(simSnowball.totalMonths)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Intereses totales</p>
+                        <p className="text-sm font-bold text-amber-600">{fmt(simSnowball.totalInterest)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Costo total</p>
+                        <p className="text-sm font-medium">{fmt(simSnowball.totalPaid)}</p>
+                      </div>
+                      {simSnowball.order.length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500">Primera deuda eliminada</p>
+                          <p className="text-xs font-medium text-green-600">
+                            {simSnowball.order[0].name} en {formatMonths(simSnowball.order[0].months)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    {strategy === 'snowball' && (
+                      <div className="bg-yellow-100 text-center py-1">
+                        <p className="text-xs font-semibold text-yellow-800">Seleccionada</p>
+                      </div>
                     )}
-                  </div>
-                  <div className="bg-white rounded-lg p-3 text-center">
-                    <p className="text-xs text-gray-500">Intereses totales</p>
-                    <p className="text-lg font-bold text-purple-700">{fmt(sim.totalInterest)}</p>
-                    {interestSaved > 0 && (
-                      <p className="text-xs text-green-600 font-medium">
-                        Ahorrás {fmt(interestSaved)} en intereses
+                  </button>
+
+                  {/* Avalanche */}
+                  <button
+                    onClick={() => setStrategy('avalanche')}
+                    className={`rounded-xl border-2 text-left transition-all overflow-hidden ${
+                      strategy === 'avalanche' ? 'border-blue-400 ring-1 ring-blue-200' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className={`p-3 ${strategy === 'avalanche' ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Mountain className="w-4 h-4 text-blue-500" />
+                        <span className="font-semibold text-sm">Avalancha</span>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Paga la de mayor interés primero
                       </p>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      <div>
+                        <p className="text-xs text-gray-500">Tiempo total</p>
+                        <p className="text-lg font-bold text-gray-900">{formatMonths(simAvalanche.totalMonths)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Intereses totales</p>
+                        <p className="text-sm font-bold text-amber-600">{fmt(simAvalanche.totalInterest)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Costo total</p>
+                        <p className="text-sm font-medium">{fmt(simAvalanche.totalPaid)}</p>
+                      </div>
+                      {simAvalanche.order.length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500">Primera deuda eliminada</p>
+                          <p className="text-xs font-medium text-green-600">
+                            {simAvalanche.order[0].name} en {formatMonths(simAvalanche.order[0].months)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    {strategy === 'avalanche' && (
+                      <div className="bg-blue-100 text-center py-1">
+                        <p className="text-xs font-semibold text-blue-800">Seleccionada</p>
+                      </div>
                     )}
-                  </div>
+                  </button>
                 </div>
-                {extraPayment > 0 && baseline.totalMonths > 0 && (
+
+                {/* Recommendation */}
+                {activeDebts.length > 1 && (avalancheSavings > 0 || snowballFaster < avalancheFirstPaid) && (
+                  <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-xl">
+                    <p className="text-sm font-medium text-purple-900 mb-1">Recomendación de Zafi:</p>
+                    {avalancheSavings > 500 ? (
+                      <p className="text-xs text-purple-700">
+                        <strong>Avalancha</strong> te ahorra <strong>{fmt(avalancheSavings)}</strong> en intereses vs. Bola de nieve.
+                        {snowballFaster < avalancheFirstPaid && (
+                          <> Pero <strong>Bola de nieve</strong> elimina tu primera deuda más rápido ({formatMonths(snowballFaster)} vs {formatMonths(avalancheFirstPaid)}), lo cual ayuda con la motivación.</>
+                        )}
+                      </p>
+                    ) : avalancheSavings > 0 ? (
+                      <p className="text-xs text-purple-700">
+                        Ambas estrategias son muy similares en tu caso. La diferencia es solo {fmt(avalancheSavings)} en intereses. Elegí la que te motive más.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-purple-700">
+                        <strong>Bola de nieve</strong> te da victorias rápidas eliminando la deuda más pequeña primero en {formatMonths(snowballFaster)}.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Projection vs baseline */}
+              {extraPayment > 0 && baseline.totalMonths > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 space-y-3">
+                  <p className="text-sm font-semibold text-gray-700">Impacto del pago extra:</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <p className="text-xs text-gray-500">Solo pagos mínimos</p>
+                      <p className="text-lg font-bold text-gray-400">{formatMonths(baseline.totalMonths)}</p>
+                      <p className="text-xs text-gray-400">Intereses: {fmt(baseline.totalInterest)}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 text-center border-2 border-green-200">
+                      <p className="text-xs text-green-600 font-medium">Con +{fmt(extraPayment)}/mes</p>
+                      <p className="text-lg font-bold text-green-700">{formatMonths(sim.totalMonths)}</p>
+                      <p className="text-xs text-green-600">Intereses: {fmt(sim.totalInterest)}</p>
+                    </div>
+                  </div>
+                  {monthsSaved > 0 && (
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <p className="text-sm text-green-700 font-semibold">
+                        Ahorrás {fmt(interestSaved)} en intereses y terminás {monthsSaved} meses antes
+                      </p>
+                    </div>
+                  )}
                   <div className="bg-white rounded-lg p-3">
                     <div className="flex justify-between text-xs text-gray-500 mb-1">
                       <span>Solo mínimos</span>
                       <span>Con extra</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-purple-500 h-2 rounded-full transition-all"
-                          style={{ width: `${Math.min(100, (sim.totalMonths / Math.max(baseline.totalMonths, 1)) * 100)}%` }}
-                        />
-                      </div>
+                    <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-green-500 h-2 rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (sim.totalMonths / Math.max(baseline.totalMonths, 1)) * 100)}%` }}
+                      />
                     </div>
                     <div className="flex justify-between text-xs mt-1">
                       <span className="text-gray-400">{formatMonths(baseline.totalMonths)}</span>
-                      <span className="text-purple-600 font-medium">{formatMonths(sim.totalMonths)}</span>
+                      <span className="text-green-600 font-medium">{formatMonths(sim.totalMonths)}</span>
                     </div>
                   </div>
-                )}
-                <p className="text-xs text-gray-500">
-                  Costo total de la deuda: {fmt(sim.totalPaid)} (capital + intereses)
-                </p>
-              </div>
+                </div>
+              )}
 
               {/* Payoff timeline */}
               {sim.order.length > 0 && (
