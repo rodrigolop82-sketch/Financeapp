@@ -21,6 +21,9 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  Save,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -148,6 +151,8 @@ export default function DeudasPage() {
   const [extraPayment, setExtraPayment] = useState(500);
   const [showForm, setShowForm] = useState(false);
   const [expandedDebts, setExpandedDebts] = useState<Set<string>>(new Set());
+  const [editingDebt, setEditingDebt] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ name: string; type: 'credit' | 'loan' | 'informal'; balance: number; interest_rate: number; min_payment: number; due_day: number }>({ name: '', type: 'credit', balance: 0, interest_rate: 0, min_payment: 0, due_day: 1 });
   const [newDebt, setNewDebt] = useState<{ name: string; type: 'credit' | 'loan' | 'informal'; balance: number; interest_rate: number; min_payment: number; due_day: number }>({ name: '', type: 'credit', balance: 0, interest_rate: 0, min_payment: 0, due_day: 1 });
   const [saving, setSaving] = useState(false);
   const router = useRouter();
@@ -221,6 +226,37 @@ export default function DeudasPage() {
   async function deleteDebt(id: string) {
     await supabase.from('debts').delete().eq('id', id);
     setDebts(debts.filter(d => d.id !== id));
+  }
+
+  function startEdit(debt: Debt) {
+    setEditingDebt(debt.id);
+    setEditForm({
+      name: debt.name,
+      type: debt.type as 'credit' | 'loan' | 'informal',
+      balance: Number(debt.balance),
+      interest_rate: Number(debt.interest_rate),
+      min_payment: Number(debt.min_payment),
+      due_day: debt.due_day,
+    });
+  }
+
+  async function saveEdit() {
+    if (!editingDebt) return;
+    setSaving(true);
+    const { error } = await supabase.from('debts').update({
+      name: editForm.name,
+      type: editForm.type,
+      balance: editForm.balance,
+      interest_rate: editForm.interest_rate,
+      min_payment: editForm.min_payment,
+      due_day: editForm.due_day,
+    }).eq('id', editingDebt);
+
+    if (!error) {
+      setDebts(debts.map(d => d.id === editingDebt ? { ...d, ...editForm } : d));
+      setEditingDebt(null);
+    }
+    setSaving(false);
   }
 
   function formatMonths(months: number): string {
@@ -324,7 +360,72 @@ export default function DeudasPage() {
                 </button>
 
                 {/* Expanded details */}
-                {isExpanded && (
+                {isExpanded && editingDebt === debt.id && (
+                  <CardContent className="px-4 pb-4 pt-0 border-t">
+                    <div className="space-y-3 mt-3">
+                      <div>
+                        <Label className="text-xs">Nombre</Label>
+                        <Input
+                          className="mt-1"
+                          value={editForm.name}
+                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Tipo</Label>
+                        <div className="grid grid-cols-3 gap-2 mt-1">
+                          {([
+                            { value: 'credit', label: 'Tarjeta' },
+                            { value: 'loan', label: 'Préstamo' },
+                            { value: 'informal', label: 'Informal' },
+                          ] as const).map((t) => (
+                            <button
+                              key={t.value}
+                              onClick={() => setEditForm({ ...editForm, type: t.value })}
+                              className={`py-1.5 px-2 rounded border text-xs transition-all ${
+                                editForm.type === t.value ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
+                              }`}
+                            >
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">Saldo actual (Q)</Label>
+                          <Input type="number" className="mt-1" value={editForm.balance || ''} onChange={(e) => setEditForm({ ...editForm, balance: parseFloat(e.target.value) || 0 })} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Pago mínimo (Q)</Label>
+                          <Input type="number" className="mt-1" value={editForm.min_payment || ''} onChange={(e) => setEditForm({ ...editForm, min_payment: parseFloat(e.target.value) || 0 })} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">Tasa de interés anual (%)</Label>
+                          <Input type="number" className="mt-1" value={editForm.interest_rate || ''} onChange={(e) => setEditForm({ ...editForm, interest_rate: parseFloat(e.target.value) || 0 })} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Día de vencimiento</Label>
+                          <Input type="number" min={1} max={31} className="mt-1" value={editForm.due_day || ''} onChange={(e) => setEditForm({ ...editForm, due_day: parseInt(e.target.value) || 1 })} />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={saveEdit} disabled={saving || !editForm.name.trim()}>
+                          {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                          Guardar
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setEditingDebt(null)}>
+                          <X className="w-4 h-4 mr-1" />
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
+
+                {isExpanded && editingDebt !== debt.id && (
                   <CardContent className="px-4 pb-4 pt-0 border-t">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                       <div>
@@ -361,6 +462,10 @@ export default function DeudasPage() {
                     )}
 
                     <div className="flex gap-2 mt-3">
+                      <Button variant="outline" size="sm" onClick={() => startEdit(debt)}>
+                        <Pencil className="w-4 h-4 mr-1" />
+                        Editar
+                      </Button>
                       <Button variant="outline" size="sm" onClick={() => markPaid(debt.id)}>
                         <CheckCircle2 className="w-4 h-4 mr-1 text-green-500" />
                         Pagada
