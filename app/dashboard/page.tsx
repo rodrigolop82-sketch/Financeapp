@@ -114,7 +114,7 @@ export default function DashboardPage() {
   if (loading || !data || !data.household || !data.budgetByBucket) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
       </div>
     );
   }
@@ -154,10 +154,10 @@ export default function DashboardPage() {
           <Menu className="w-6 h-6 text-gray-600" />
         </button>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-purple-600 rounded-lg flex items-center justify-center">
+          <div className="w-6 h-6 bg-[#2563EB] rounded-lg flex items-center justify-center">
             <span className="text-white text-xs font-bold">Z</span>
           </div>
-          <span className="font-semibold text-purple-900">Zafi</span>
+          <span className="font-semibold text-[#1E3A5F]">Zafi</span>
         </div>
         <div className="w-6" />
       </header>
@@ -171,10 +171,10 @@ export default function DashboardPage() {
         >
           <div className="p-6">
             <div className="flex items-center gap-2 mb-8">
-              <div className="w-8 h-8 bg-purple-600 rounded-xl flex items-center justify-center">
+              <div className="w-8 h-8 bg-[#2563EB] rounded-xl flex items-center justify-center">
                 <span className="text-white text-sm font-bold">Z</span>
               </div>
-              <span className="text-lg font-bold text-purple-900">Zafi</span>
+              <span className="text-lg font-bold text-[#1E3A5F]">Zafi</span>
             </div>
             <nav className="space-y-1">
               {NAV_ITEMS.map((item) => (
@@ -183,7 +183,7 @@ export default function DashboardPage() {
                   href={item.href}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     item.href === '/dashboard'
-                      ? 'bg-purple-50 text-purple-700'
+                      ? 'bg-[#F8F9FF] text-[#1D4ED8]'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
@@ -195,8 +195,8 @@ export default function DashboardPage() {
           </div>
           <div className="absolute bottom-0 w-full p-4 border-t">
             <div className="flex items-center gap-3 px-3 py-2">
-              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-purple-700">
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                <span className="text-sm font-medium text-[#1D4ED8]">
                   {userName[0]}
                 </span>
               </div>
@@ -250,7 +250,7 @@ export default function DashboardPage() {
               <CardContent className="p-5">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-gray-500">Ingreso del mes</p>
-                  <Wallet className="w-5 h-5 text-purple-500" />
+                  <Wallet className="w-5 h-5 text-[#3B82F6]" />
                 </div>
                 <p className="text-2xl font-bold">{fmt(income)}</p>
               </CardContent>
@@ -319,9 +319,9 @@ export default function DashboardPage() {
                 />
                 <div className="space-y-3 mt-4">
                   {[
-                    { label: 'Necesidades', budgeted: data.budgetByBucket.needs, spent: data.spentByBucket.needs, color: 'bg-purple-700' },
-                    { label: 'Gustos', budgeted: data.budgetByBucket.wants, spent: data.spentByBucket.wants, color: 'bg-purple-500' },
-                    { label: 'Ahorro/Deudas', budgeted: data.budgetByBucket.savings, spent: data.spentByBucket.savings, color: 'bg-purple-300' },
+                    { label: 'Necesidades', budgeted: data.budgetByBucket.needs, spent: data.spentByBucket.needs, color: 'bg-[#1E3A5F]' },
+                    { label: 'Gustos', budgeted: data.budgetByBucket.wants, spent: data.spentByBucket.wants, color: 'bg-[#3B82F6]' },
+                    { label: 'Ahorro/Deudas', budgeted: data.budgetByBucket.savings, spent: data.spentByBucket.savings, color: 'bg-[#93C5FD]' },
                   ].map((b) => (
                     <div key={b.label}>
                       <div className="flex justify-between text-sm mb-1">
@@ -366,17 +366,17 @@ export default function DashboardPage() {
                     <div
                       key={item.id}
                       className={`flex items-start gap-3 p-3 rounded-lg ${
-                        item.completed ? 'bg-purple-50' : 'bg-gray-50'
+                        item.completed ? 'bg-[#F8F9FF]' : 'bg-gray-50'
                       }`}
                     >
                       {item.completed ? (
-                        <CheckCircle2 className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                        <CheckCircle2 className="w-5 h-5 text-[#3B82F6] flex-shrink-0 mt-0.5" />
                       ) : (
                         <Circle className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5" />
                       )}
                       <span
                         className={`text-sm ${
-                          item.completed ? 'text-purple-700 line-through' : 'text-gray-700'
+                          item.completed ? 'text-[#1D4ED8] line-through' : 'text-gray-700'
                         }`}
                       >
                         {item.title}
@@ -446,8 +446,8 @@ export default function DashboardPage() {
               <CardContent>
                 <ScoreHistoryChart data={data.scoreHistory} />
                 {data.scoreHistory.length >= 2 && (
-                  <div className="mt-4 p-3 bg-purple-50 rounded-lg">
-                    <p className="text-sm text-purple-800">
+                  <div className="mt-4 p-3 bg-[#F8F9FF] rounded-lg">
+                    <p className="text-sm text-[#1E40AF]">
                       {(() => {
                         const first = data.scoreHistory[0].score;
                         const last = data.scoreHistory[data.scoreHistory.length - 1].score;

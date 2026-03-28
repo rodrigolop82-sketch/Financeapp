@@ -15,15 +15,15 @@ import Link from 'next/link';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#F8F9FF] to-white">
       {/* Header */}
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-purple-600 rounded-xl flex items-center justify-center">
+            <div className="w-8 h-8 bg-[#2563EB] rounded-xl flex items-center justify-center">
               <span className="text-white text-sm font-bold">Z</span>
             </div>
-            <span className="text-xl font-bold text-purple-900">
+            <span className="text-xl font-bold text-[#1E3A5F]">
               Zafi
             </span>
           </div>
@@ -40,14 +40,14 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-4 py-20 text-center">
-        <div className="inline-flex items-center gap-2 bg-purple-100 text-purple-800 rounded-full px-4 py-1.5 text-sm font-medium mb-6">
+        <div className="inline-flex items-center gap-2 bg-blue-100 text-[#1E40AF] rounded-full px-4 py-1.5 text-sm font-medium mb-6">
           <PiggyBank className="w-4 h-4" />
           14 días de prueba gratis
         </div>
         <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
           Ordená tu dinero.
           <br />
-          <span className="text-purple-600">Construí tu futuro.</span>
+          <span className="text-[#2563EB]">Construí tu futuro.</span>
         </h1>
         <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-8">
           El planner financiero que el 95% de latinoamericanos nunca pudo pagar.
@@ -115,8 +115,8 @@ export default function LandingPage() {
               className="border-0 shadow-md hover:shadow-lg transition-shadow"
             >
               <CardContent className="p-6">
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                  <feature.icon className="w-6 h-6 text-purple-600" />
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                  <feature.icon className="w-6 h-6 text-[#2563EB]" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   {feature.title}
@@ -150,8 +150,8 @@ export default function LandingPage() {
               </ul>
             </CardContent>
           </Card>
-          <Card className="border-2 border-purple-500 relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-sm px-3 py-1 rounded-full">
+          <Card className="border-2 border-[#3B82F6] relative">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#2563EB] text-white text-sm px-3 py-1 rounded-full">
               Popular
             </div>
             <CardContent className="p-8">
@@ -182,7 +182,7 @@ export default function LandingPage() {
       <footer className="border-t bg-gray-50 mt-16">
         <div className="max-w-6xl mx-auto px-4 py-8 text-center text-gray-500 text-sm">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <div className="w-6 h-6 bg-purple-600 rounded-lg flex items-center justify-center">
+            <div className="w-6 h-6 bg-[#2563EB] rounded-lg flex items-center justify-center">
               <span className="text-white text-xs font-bold">Z</span>
             </div>
             <span className="font-semibold text-gray-700">Zafi</span>

@@ -100,7 +100,7 @@ export default function CapsulePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
       </div>
     )
   }
@@ -120,11 +120,11 @@ export default function CapsulePage() {
         </Link>
         <button
           onClick={toggleBookmark}
-          className="text-muted-foreground hover:text-purple-600 transition-colors"
+          className="text-muted-foreground hover:text-[#2563EB] transition-colors"
           title={bookmarked ? 'Quitar marcador' : 'Guardar'}
         >
           {bookmarked ? (
-            <BookmarkCheck className="w-5 h-5 text-purple-600" />
+            <BookmarkCheck className="w-5 h-5 text-[#2563EB]" />
           ) : (
             <Bookmark className="w-5 h-5" />
           )}
@@ -148,9 +148,9 @@ export default function CapsulePage() {
 
       {/* Key takeaway */}
       {capsule.key_takeaway && (
-        <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-xl">
-          <p className="text-xs font-medium text-purple-700 mb-1">Lo mas importante</p>
-          <p className="text-sm font-medium text-purple-900">{capsule.key_takeaway}</p>
+        <div className="mb-6 p-4 bg-[#F8F9FF] border border-[#BFDBFE] rounded-xl">
+          <p className="text-xs font-medium text-[#1D4ED8] mb-1">Lo mas importante</p>
+          <p className="text-sm font-medium text-[#1E3A5F]">{capsule.key_takeaway}</p>
         </div>
       )}
 
@@ -173,8 +173,8 @@ export default function CapsulePage() {
         </p>
         <Link
           href={`/chat?q=Leí sobre ${encodeURIComponent(capsule.title)} — ¿cómo aplica esto a mi situación?`}
-          className="inline-block text-sm font-medium text-white bg-purple-600
-                     px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+          className="inline-block text-sm font-medium text-white bg-[#2563EB]
+                     px-4 py-2 rounded-lg hover:bg-[#1E3A5F] transition-colors"
         >
           Preguntarle a Zafi →
         </Link>

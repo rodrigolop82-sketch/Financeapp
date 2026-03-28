@@ -124,7 +124,7 @@ export default function FamiliaPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
       </div>
     );
   }
@@ -156,7 +156,7 @@ export default function FamiliaPage() {
         {/* Status message */}
         {message && (
           <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
-            message.type === 'success' ? 'bg-purple-50 text-purple-700' : 'bg-red-50 text-red-700'
+            message.type === 'success' ? 'bg-[#F8F9FF] text-[#1D4ED8]' : 'bg-red-50 text-red-700'
           }`}>
             {message.type === 'success'
               ? <CheckCircle2 className="w-4 h-4" />
@@ -168,7 +168,7 @@ export default function FamiliaPage() {
 
         {/* Invite form */}
         {showInvite && isOwner && (
-          <Card className="mb-6 border-purple-200">
+          <Card className="mb-6 border-[#BFDBFE]">
             <CardHeader>
               <CardTitle className="text-base">Invitar miembro</CardTitle>
             </CardHeader>

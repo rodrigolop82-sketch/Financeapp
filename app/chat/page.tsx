@@ -88,7 +88,7 @@ export default function ChatPage() {
   if (!authChecked) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
       </div>
     )
   }
@@ -102,7 +102,7 @@ export default function ChatPage() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
         </Link>
-        <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-lg bg-[#2563EB] flex items-center justify-center">
           <span className="text-white text-sm font-bold">Z</span>
         </div>
         <div>
@@ -123,7 +123,7 @@ export default function ChatPage() {
                 key={i}
                 onClick={() => sendMessage(q)}
                 className="w-full text-left text-sm px-4 py-3 rounded-xl border border-border
-                           hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                           hover:border-[#93C5FD] hover:bg-[#F8F9FF] transition-colors"
               >
                 {q}
               </button>
@@ -135,7 +135,7 @@ export default function ChatPage() {
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed
               ${msg.role === 'user'
-                ? 'bg-purple-600 text-white rounded-br-sm'
+                ? 'bg-[#2563EB] text-white rounded-br-sm'
                 : 'bg-secondary text-foreground rounded-bl-sm'
               }`}>
               {msg.content || (isStreaming && i === messages.length - 1
@@ -166,13 +166,13 @@ export default function ChatPage() {
             placeholder="Preguntale algo a Zafi..."
             disabled={isStreaming}
             className="flex-1 px-4 py-2.5 rounded-xl border text-sm
-                       focus:outline-none focus:border-purple-400"
+                       focus:outline-none focus:border-[#3B82F6]"
           />
           <button
             onClick={() => sendMessage(input)}
             disabled={isStreaming || !input.trim()}
-            className="px-4 py-2.5 bg-purple-600 text-white rounded-xl text-sm
-                       disabled:opacity-40 hover:bg-purple-700 transition-colors"
+            className="px-4 py-2.5 bg-[#2563EB] text-white rounded-xl text-sm
+                       disabled:opacity-40 hover:bg-[#1E3A5F] transition-colors"
           >
             Enviar
           </button>

@@ -33,13 +33,13 @@ export function ModuleCard({
   return (
     <Link
       href={isLocked ? '/cuenta?upgrade=true' : `/aprende/${slug}`}
-      className="block p-4 bg-background border rounded-xl hover:border-purple-300
+      className="block p-4 bg-background border rounded-xl hover:border-[#93C5FD]
                  transition-colors relative overflow-hidden"
     >
       {/* Barra de progreso sutil en el fondo */}
       {progressPct > 0 && (
         <div
-          className="absolute inset-y-0 left-0 bg-purple-50 opacity-60 transition-all"
+          className="absolute inset-y-0 left-0 bg-[#F8F9FF] opacity-60 transition-all"
           style={{ width: `${progressPct}%` }}
         />
       )}

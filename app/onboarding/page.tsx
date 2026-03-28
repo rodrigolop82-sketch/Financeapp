@@ -168,7 +168,7 @@ export default function OnboardingPage() {
         orange: 'text-orange-500',
         yellow: 'text-yellow-500',
         green: 'text-green-500',
-        emerald: 'text-purple-500',
+        emerald: 'text-[#3B82F6]',
       }[score.color]
     : '';
 
@@ -178,21 +178,21 @@ export default function OnboardingPage() {
         orange: 'bg-orange-100',
         yellow: 'bg-yellow-100',
         green: 'bg-green-100',
-        emerald: 'bg-purple-100',
+        emerald: 'bg-blue-100',
       }[score.color]
     : '';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#F8F9FF] to-white">
       {/* Top bar */}
       <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b z-40">
         <div className="max-w-2xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-purple-600 rounded-lg flex items-center justify-center">
+              <div className="w-6 h-6 bg-[#2563EB] rounded-lg flex items-center justify-center">
                 <span className="text-white text-xs font-bold">Z</span>
               </div>
-              <span className="font-semibold text-purple-900">Zafi</span>
+              <span className="font-semibold text-[#1E3A5F]">Zafi</span>
             </div>
             <span className="text-sm text-gray-500">
               Paso {step} de {TOTAL_STEPS}
@@ -208,8 +208,8 @@ export default function OnboardingPage() {
           <div className="animate-fade-in">
             <Card>
               <CardHeader className="text-center">
-                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-purple-600" />
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-8 h-8 text-[#2563EB]" />
                 </div>
                 <CardTitle className="text-2xl">Hola, soy Zafi</CardTitle>
                 <CardDescription className="text-base">
@@ -257,12 +257,12 @@ export default function OnboardingPage() {
                     onClick={() => setData({ ...data, householdType: opt.value })}
                     className={`w-full flex items-center gap-4 p-4 rounded-lg border-2 transition-all text-left ${
                       data.householdType === opt.value && (opt.label !== 'Familia' || data.householdType === 'family')
-                        ? 'border-purple-500 bg-purple-50'
+                        ? 'border-[#3B82F6] bg-[#F8F9FF]'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <opt.icon className="w-5 h-5 text-purple-600" />
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <opt.icon className="w-5 h-5 text-[#2563EB]" />
                     </div>
                     <div>
                       <p className="font-medium">{opt.label}</p>
@@ -280,8 +280,8 @@ export default function OnboardingPage() {
           <div className="animate-fade-in">
             <Card>
               <CardHeader>
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-2">
-                  <Wallet className="w-6 h-6 text-purple-600" />
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
+                  <Wallet className="w-6 h-6 text-[#2563EB]" />
                 </div>
                 <CardTitle>¿Cuál es tu ingreso mensual?</CardTitle>
                 <CardDescription>
@@ -321,7 +321,7 @@ export default function OnboardingPage() {
                         onClick={() => setData({ ...data, incomeType: opt.value })}
                         className={`p-3 rounded-lg border-2 text-center transition-all ${
                           data.incomeType === opt.value
-                            ? 'border-purple-500 bg-purple-50'
+                            ? 'border-[#3B82F6] bg-[#F8F9FF]'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
@@ -429,7 +429,7 @@ export default function OnboardingPage() {
                     onClick={() => setData({ ...data, hasDebts: true })}
                     className={`p-4 rounded-lg border-2 text-center transition-all ${
                       data.hasDebts
-                        ? 'border-purple-500 bg-purple-50'
+                        ? 'border-[#3B82F6] bg-[#F8F9FF]'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -439,7 +439,7 @@ export default function OnboardingPage() {
                     onClick={() => setData({ ...data, hasDebts: false, debts: [] })}
                     className={`p-4 rounded-lg border-2 text-center transition-all ${
                       !data.hasDebts
-                        ? 'border-purple-500 bg-purple-50'
+                        ? 'border-[#3B82F6] bg-[#F8F9FF]'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -480,7 +480,7 @@ export default function OnboardingPage() {
                                 onClick={() => updateDebt(i, 'type', t.value)}
                                 className={`py-1.5 px-2 rounded border text-sm transition-all ${
                                   debt.type === t.value
-                                    ? 'border-purple-500 bg-purple-50'
+                                    ? 'border-[#3B82F6] bg-[#F8F9FF]'
                                     : 'border-gray-200'
                                 }`}
                               >
@@ -551,8 +551,8 @@ export default function OnboardingPage() {
           <div className="animate-fade-in">
             <Card>
               <CardHeader>
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-2">
-                  <PiggyBank className="w-6 h-6 text-purple-600" />
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
+                  <PiggyBank className="w-6 h-6 text-[#2563EB]" />
                 </div>
                 <CardTitle>¿Tienes ahorros?</CardTitle>
                 <CardDescription>
@@ -623,7 +623,7 @@ export default function OnboardingPage() {
                       onClick={() => setData({ ...data, hasEmergencyFund: true })}
                       className={`p-3 rounded-lg border-2 text-center transition-all ${
                         data.hasEmergencyFund
-                          ? 'border-purple-500 bg-purple-50'
+                          ? 'border-[#3B82F6] bg-[#F8F9FF]'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
@@ -633,7 +633,7 @@ export default function OnboardingPage() {
                       onClick={() => setData({ ...data, hasEmergencyFund: false })}
                       className={`p-3 rounded-lg border-2 text-center transition-all ${
                         !data.hasEmergencyFund
-                          ? 'border-purple-500 bg-purple-50'
+                          ? 'border-[#3B82F6] bg-[#F8F9FF]'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
@@ -693,7 +693,7 @@ export default function OnboardingPage() {
                       </div>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-purple-500 rounded-full transition-all duration-1000"
+                          className="h-full bg-[#3B82F6] rounded-full transition-all duration-1000"
                           style={{ width: `${(comp.value / comp.max) * 100}%` }}
                         />
                       </div>
@@ -743,8 +743,8 @@ export default function OnboardingPage() {
           <div className="animate-fade-in">
             <Card>
               <CardHeader className="text-center">
-                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-purple-600" />
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-8 h-8 text-[#2563EB]" />
                 </div>
                 <CardTitle className="text-2xl">Tu plan de acción</CardTitle>
                 <CardDescription>

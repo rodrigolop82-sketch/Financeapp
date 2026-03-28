@@ -94,7 +94,7 @@ function CuentaContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
       </div>
     );
   }
@@ -117,9 +117,9 @@ function CuentaContent() {
         </div>
 
         {justUpgraded && (
-          <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg flex gap-2">
-            <CheckCircle2 className="w-5 h-5 text-purple-600 flex-shrink-0" />
-            <p className="text-sm text-purple-800">Tu plan Premium se ha activado correctamente.</p>
+          <div className="mb-4 p-4 bg-[#F8F9FF] border border-[#BFDBFE] rounded-lg flex gap-2">
+            <CheckCircle2 className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
+            <p className="text-sm text-[#1E40AF]">Tu plan Premium se ha activado correctamente.</p>
           </div>
         )}
 
@@ -163,7 +163,7 @@ function CuentaContent() {
               <button
                 onClick={() => toggleDecimals(!showDecimals)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  showDecimals ? 'bg-purple-600' : 'bg-gray-200'
+                  showDecimals ? 'bg-[#2563EB]' : 'bg-gray-200'
                 }`}
               >
                 <span

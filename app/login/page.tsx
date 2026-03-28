@@ -61,14 +61,14 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-b from-[#F8F9FF] to-white flex items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-purple-600 rounded-xl flex items-center justify-center">
+            <div className="w-8 h-8 bg-[#2563EB] rounded-xl flex items-center justify-center">
               <span className="text-white text-sm font-bold">Z</span>
             </div>
-            <span className="text-xl font-bold text-purple-900">Zafi</span>
+            <span className="text-xl font-bold text-[#1E3A5F]">Zafi</span>
           </div>
           <CardTitle>Iniciar sesión</CardTitle>
           <CardDescription>Ingresa a tu cuenta para continuar</CardDescription>
@@ -130,7 +130,7 @@ function LoginForm() {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             ¿No tienes cuenta?{' '}
-            <Link href="/registro" className="text-purple-600 font-medium hover:underline">
+            <Link href="/registro" className="text-[#2563EB] font-medium hover:underline">
               Regístrate gratis
             </Link>
           </p>

@@ -29,9 +29,9 @@ import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import type { VoiceExtractionResult } from '@/types';
 
 const BUCKET_LABELS = {
-  needs: { label: 'Necesidades (50%)', color: 'bg-purple-700', textColor: 'text-purple-700' },
-  wants: { label: 'Gustos (30%)', color: 'bg-purple-500', textColor: 'text-purple-500' },
-  savings: { label: 'Ahorro/Deudas (20%)', color: 'bg-purple-300', textColor: 'text-purple-700' },
+  needs: { label: 'Necesidades (50%)', color: 'bg-[#1E3A5F]', textColor: 'text-[#1D4ED8]' },
+  wants: { label: 'Gustos (30%)', color: 'bg-[#3B82F6]', textColor: 'text-[#3B82F6]' },
+  savings: { label: 'Ahorro/Deudas (20%)', color: 'bg-[#93C5FD]', textColor: 'text-[#1D4ED8]' },
 };
 
 export default function PresupuestoPage() {
@@ -235,7 +235,7 @@ export default function PresupuestoPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
       </div>
     );
   }
@@ -266,7 +266,7 @@ export default function PresupuestoPage() {
             {saving ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : saved ? (
-              <CheckCircle2 className="w-4 h-4 mr-2 text-purple-500" />
+              <CheckCircle2 className="w-4 h-4 mr-2 text-[#3B82F6]" />
             ) : (
               <Save className="w-4 h-4 mr-2" />
             )}
@@ -329,7 +329,7 @@ export default function PresupuestoPage() {
                 <div className="pt-2 border-t">
                   <div className="flex justify-between font-medium">
                     <span>Sin asignar</span>
-                    <span className={remaining < 0 ? 'text-red-500' : 'text-purple-600'}>
+                    <span className={remaining < 0 ? 'text-red-500' : 'text-[#2563EB]'}>
                       {fmt(remaining)}
                     </span>
                   </div>
@@ -468,7 +468,7 @@ export default function PresupuestoPage() {
 
                             {/* Add sub-item form */}
                             {addingSubItem === cat.id ? (
-                              <div className="mt-2 bg-white rounded-lg p-3 space-y-2 border border-purple-200">
+                              <div className="mt-2 bg-white rounded-lg p-3 space-y-2 border border-[#BFDBFE]">
                                 <div className="flex gap-2">
                                   <Input
                                     placeholder="Nombre del sub-item"
@@ -523,7 +523,7 @@ export default function PresupuestoPage() {
                             ) : (
                               <button
                                 onClick={() => { setAddingSubItem(cat.id); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); }}
-                                className="mt-2 flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium"
+                                className="mt-2 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
                               >
                                 <Plus className="w-3.5 h-3.5" />
                                 Agregar detalle
@@ -558,7 +558,7 @@ export default function PresupuestoPage() {
                 ) : (
                   <button
                     onClick={() => { setAddingCatBucket(bucket); setNewCatName(''); }}
-                    className="mt-3 flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium"
+                    className="mt-3 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Agregar categoría

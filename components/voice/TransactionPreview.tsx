@@ -54,7 +54,7 @@ export function TransactionPreview({ result, onConfirm, onCancel }: TransactionP
   }
 
   return (
-    <Card className="border-purple-200">
+    <Card className="border-[#BFDBFE]">
       <CardContent className="p-4">
         {/* Raw text feedback */}
         <div className="flex items-center gap-2 mb-3 text-xs text-gray-500">
@@ -127,7 +127,7 @@ export function TransactionPreview({ result, onConfirm, onCancel }: TransactionP
         <div className="flex gap-2 mt-4">
           <Button
             onClick={() => onConfirm(transactions)}
-            className="flex-1 bg-purple-600 hover:bg-purple-700"
+            className="flex-1 bg-[#2563EB] hover:bg-[#1E3A5F]"
           >
             <Check className="w-4 h-4 mr-2" />
             Guardar {transactions.length > 1 ? `${transactions.length} gastos` : 'gasto'}

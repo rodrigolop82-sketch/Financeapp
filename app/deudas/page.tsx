@@ -268,7 +268,7 @@ export default function DeudasPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
       </div>
     );
   }
@@ -341,7 +341,7 @@ export default function DeudasPage() {
                 >
                   <div className="flex items-center gap-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      debt.type === 'credit' ? 'bg-purple-100 text-purple-700'
+                      debt.type === 'credit' ? 'bg-blue-100 text-[#1D4ED8]'
                       : debt.type === 'loan' ? 'bg-blue-100 text-blue-700'
                       : 'bg-amber-100 text-amber-700'
                     }`}>
@@ -383,7 +383,7 @@ export default function DeudasPage() {
                               key={t.value}
                               onClick={() => setEditForm({ ...editForm, type: t.value })}
                               className={`py-1.5 px-2 rounded border text-xs transition-all ${
-                                editForm.type === t.value ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
+                                editForm.type === t.value ? 'border-[#3B82F6] bg-[#F8F9FF]' : 'border-gray-200'
                               }`}
                             >
                               {t.label}
@@ -484,7 +484,7 @@ export default function DeudasPage() {
           {activeDebts.length === 0 && !showForm && (
             <Card>
               <CardContent className="p-8 text-center">
-                <TrendingDown className="w-12 h-12 text-purple-300 mx-auto mb-3" />
+                <TrendingDown className="w-12 h-12 text-[#93C5FD] mx-auto mb-3" />
                 <p className="font-medium text-gray-700">No tienes deudas activas</p>
                 <p className="text-sm text-gray-500 mt-1">Excelente. Sigue así.</p>
               </CardContent>
@@ -497,7 +497,7 @@ export default function DeudasPage() {
           <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-purple-600" />
+                <Calculator className="w-5 h-5 text-[#2563EB]" />
                 <CardTitle className="text-lg">Simulador de pago</CardTitle>
               </div>
               <CardDescription>
@@ -628,21 +628,21 @@ export default function DeudasPage() {
 
                 {/* Recommendation */}
                 {activeDebts.length > 1 && (avalancheSavings > 0 || snowballFaster < avalancheFirstPaid) && (
-                  <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-xl">
-                    <p className="text-sm font-medium text-purple-900 mb-1">Recomendación de Zafi:</p>
+                  <div className="mt-3 p-3 bg-[#F8F9FF] border border-[#BFDBFE] rounded-xl">
+                    <p className="text-sm font-medium text-[#1E3A5F] mb-1">Recomendación de Zafi:</p>
                     {avalancheSavings > 500 ? (
-                      <p className="text-xs text-purple-700">
+                      <p className="text-xs text-[#1D4ED8]">
                         <strong>Avalancha</strong> te ahorra <strong>{fmt(avalancheSavings)}</strong> en intereses vs. Bola de nieve.
                         {snowballFaster < avalancheFirstPaid && (
                           <> Pero <strong>Bola de nieve</strong> elimina tu primera deuda más rápido ({formatMonths(snowballFaster)} vs {formatMonths(avalancheFirstPaid)}), lo cual ayuda con la motivación.</>
                         )}
                       </p>
                     ) : avalancheSavings > 0 ? (
-                      <p className="text-xs text-purple-700">
+                      <p className="text-xs text-[#1D4ED8]">
                         Ambas estrategias son muy similares en tu caso. La diferencia es solo {fmt(avalancheSavings)} en intereses. Elegí la que te motive más.
                       </p>
                     ) : (
-                      <p className="text-xs text-purple-700">
+                      <p className="text-xs text-[#1D4ED8]">
                         <strong>Bola de nieve</strong> te da victorias rápidas eliminando la deuda más pequeña primero en {formatMonths(snowballFaster)}.
                       </p>
                     )}
@@ -652,7 +652,7 @@ export default function DeudasPage() {
 
               {/* Projection vs baseline */}
               {extraPayment > 0 && baseline.totalMonths > 0 && (
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 space-y-3">
+                <div className="bg-gradient-to-r from-[#F8F9FF] to-blue-50 rounded-lg p-4 space-y-3">
                   <p className="text-sm font-semibold text-gray-700">Impacto del pago extra:</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-white rounded-lg p-3 text-center">
@@ -699,7 +699,7 @@ export default function DeudasPage() {
                   <div className="space-y-2">
                     {sim.order.map((d, i) => (
                       <div key={d.name} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center text-xs font-bold text-purple-700">
+                        <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-[#1D4ED8]">
                           {i + 1}
                         </div>
                         <div className="flex-1">
@@ -723,10 +723,10 @@ export default function DeudasPage() {
           <div className="mt-8">
             <h3 className="text-sm font-medium text-gray-500 mb-3">Deudas pagadas</h3>
             {debts.filter(d => d.is_paid).map(debt => (
-              <div key={debt.id} className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg mb-2">
-                <CheckCircle2 className="w-5 h-5 text-purple-500" />
-                <span className="text-sm line-through text-purple-700">{debt.name}</span>
-                <span className="text-sm text-purple-600 ml-auto">{fmt(Number(debt.balance))}</span>
+              <div key={debt.id} className="flex items-center gap-3 p-3 bg-[#F8F9FF] rounded-lg mb-2">
+                <CheckCircle2 className="w-5 h-5 text-[#3B82F6]" />
+                <span className="text-sm line-through text-[#1D4ED8]">{debt.name}</span>
+                <span className="text-sm text-[#2563EB] ml-auto">{fmt(Number(debt.balance))}</span>
               </div>
             ))}
           </div>
@@ -760,7 +760,7 @@ export default function DeudasPage() {
                       key={t.value}
                       onClick={() => setNewDebt({ ...newDebt, type: t.value })}
                       className={`py-2 px-3 rounded border text-sm transition-all ${
-                        newDebt.type === t.value ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
+                        newDebt.type === t.value ? 'border-[#3B82F6] bg-[#F8F9FF]' : 'border-gray-200'
                       }`}
                     >
                       {t.label}

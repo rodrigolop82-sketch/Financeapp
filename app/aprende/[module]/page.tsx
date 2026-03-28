@@ -22,7 +22,7 @@ export default function ModulePage() {
   const moduleSlug = params.module as string
   const [moduleTitle, setModuleTitle] = useState('')
   const [moduleDescription, setModuleDescription] = useState('')
-  const [moduleColor, setModuleColor] = useState('#7C3AED')
+  const [moduleColor, setModuleColor] = useState('#2563EB')
   const [capsules, setCapsules] = useState<CapsuleData[]>([])
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [userPlan, setUserPlan] = useState<'free' | 'premium'>('free')
@@ -60,7 +60,7 @@ export default function ModulePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
       </div>
     )
   }
