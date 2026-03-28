@@ -28,7 +28,7 @@ export default function AprendePage() {
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) { setLoading(false); return }
 
       const [modulesRes, userRes, progressRes] = await Promise.all([
         supabase.from('capsule_modules').select('*, capsules(count)').order('order_index'),
@@ -48,7 +48,7 @@ export default function AprendePage() {
         }
       })
 
-      if (modulesRes.data) {
+      if (modulesRes.data && modulesRes.data.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setModules(modulesRes.data.map((m: any) => ({
           ...m,
@@ -60,7 +60,7 @@ export default function AprendePage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -87,6 +87,16 @@ export default function AprendePage() {
       </div>
 
       <div className="space-y-3">
+        {modules.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-sm text-muted-foreground">
+              Los módulos de educación todavía no están disponibles.
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Ejecutá la migración de base de datos para cargar el contenido.
+            </p>
+          </div>
+        )}
         {modules.map(mod => (
           <ModuleCard
             key={mod.id}
