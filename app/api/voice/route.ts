@@ -1,10 +1,5 @@
-import OpenAI from 'openai'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
-
-function getOpenAI() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-}
 
 const ZAFI_CATEGORIES = [
   'Vivienda/alquiler', 'Alimentación', 'Transporte', 'Salud/medicinas', 'Servicios',
@@ -22,16 +17,31 @@ export async function POST(req: NextRequest) {
   const mode = (formData.get('mode') as string) ?? 'expense'
   if (!audioBlob) return NextResponse.json({ error: 'Audio requerido' }, { status: 400 })
 
-  // Paso 1: Whisper transcription
+  // Paso 1: Whisper transcription via fetch
   let transcription: string
   try {
-    const result = await getOpenAI().audio.transcriptions.create({
-      file: audioBlob,
-      model: 'gpt-4o-mini-transcribe',
-      language: 'es',
-      prompt: 'Quetzales, gasté, pagué, compré, almuerzo, gasolina, supermercado, farmacia, luz, agua, internet',
+    const whisperForm = new FormData()
+    whisperForm.append('file', audioBlob, 'recording.webm')
+    whisperForm.append('model', 'whisper-1')
+    whisperForm.append('language', 'es')
+    whisperForm.append('prompt', 'Quetzales, gasté, pagué, compré, almuerzo, gasolina, supermercado, farmacia, luz, agua, internet')
+
+    const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: whisperForm,
     })
-    transcription = result.text.trim()
+
+    if (!whisperRes.ok) {
+      const err = await whisperRes.text()
+      console.error('Whisper error:', err)
+      return NextResponse.json({ error: 'Error al transcribir audio' }, { status: 500 })
+    }
+
+    const whisperData = await whisperRes.json()
+    transcription = (whisperData.text || '').trim()
   } catch {
     return NextResponse.json({ error: 'Error al transcribir audio' }, { status: 500 })
   }
