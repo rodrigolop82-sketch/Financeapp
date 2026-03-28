@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { formatMoney, Currency, FormatOptions } from '@/lib/format'
+import { formatMoney, formatPercent, formatScore, Currency, FormatOptions } from '@/lib/format'
 
 export function useFormatMoney() {
   const [prefs, setPrefs] = useState<{ currency: Currency; showDecimals: boolean }>({
@@ -42,4 +42,17 @@ export function useFormatMoney() {
   )
 
   return fmt
+}
+
+/**
+ * Extended hook returning money/percent/score formatters.
+ * Use this when you need all three formatters.
+ */
+export function useMoneyFormat() {
+  const money = useFormatMoney()
+  return {
+    money,
+    percent: formatPercent,
+    score: formatScore,
+  }
 }

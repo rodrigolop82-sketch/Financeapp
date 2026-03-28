@@ -56,7 +56,8 @@ export interface Transaction {
   amount: number;
   description: string | null;
   date: string;
-  source: 'manual' | 'ocr' | 'csv';
+  source: 'manual' | 'voice' | 'ocr' | 'csv';
+  voice_raw_text: string | null;
   created_at: string;
 }
 
@@ -144,8 +145,77 @@ export interface ChatMessage {
   user_id: string;
   role: 'user' | 'assistant';
   content: string;
+  input_mode: 'text' | 'voice';
   model_used: string | null;
   created_at: string;
+}
+
+// Voice types
+export interface ExtractedTransaction {
+  amount: number;
+  description: string;
+  category: string;
+  category_id?: string;
+  date: string;
+  confidence: number;
+}
+
+export interface VoiceExtractionResult {
+  transactions: ExtractedTransaction[];
+  raw_text: string;
+  ambiguous: boolean;
+  clarification?: string;
+}
+
+export type VoiceState = 'idle' | 'recording' | 'processing' | 'extracting' | 'confirming' | 'saving' | 'done' | 'error';
+
+// Education types
+export interface CapsuleModule {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  order_index: number;
+  is_premium: boolean;
+  total_capsules: number;
+  created_at: string;
+}
+
+export interface Capsule {
+  id: string;
+  module_id: string;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  content_md: string;
+  key_takeaway: string | null;
+  read_time_minutes: number;
+  order_index: number;
+  is_premium: boolean;
+  tags: string[];
+  related_score_component: string | null;
+  score_threshold: number | null;
+  created_at: string;
+}
+
+export interface UserCapsuleProgress {
+  user_id: string;
+  capsule_id: string;
+  read_at: string;
+  bookmarked: boolean;
+}
+
+export interface CapsuleRecommendation {
+  capsule_id: string;
+  title: string;
+  subtitle: string;
+  module_title: string;
+  module_slug: string;
+  slug: string;
+  read_time_minutes: number;
+  reason: string;
 }
 
 // Legacy formatCurrency — new code should use formatMoney from @/lib/format
@@ -163,7 +233,7 @@ export const DEFAULT_CATEGORIES: Omit<BudgetCategory, 'id' | 'household_id'>[] =
   { name: 'Alimentación', bucket: 'needs', budgeted_amount: 0, is_custom: false },
   { name: 'Transporte', bucket: 'needs', budgeted_amount: 0, is_custom: false },
   { name: 'Salud/medicinas', bucket: 'needs', budgeted_amount: 0, is_custom: false },
-  { name: 'Servicios (agua, luz, internet)', bucket: 'needs', budgeted_amount: 0, is_custom: false },
+  { name: 'Servicios', bucket: 'needs', budgeted_amount: 0, is_custom: false },
   { name: 'Educación', bucket: 'needs', budgeted_amount: 0, is_custom: false },
   // Gustos (30%)
   { name: 'Restaurantes y salidas', bucket: 'wants', budgeted_amount: 0, is_custom: false },
@@ -173,6 +243,6 @@ export const DEFAULT_CATEGORIES: Omit<BudgetCategory, 'id' | 'household_id'>[] =
   { name: 'Varios personales', bucket: 'wants', budgeted_amount: 0, is_custom: false },
   // Ahorro/Deudas (20%)
   { name: 'Fondo de emergencia', bucket: 'savings', budgeted_amount: 0, is_custom: false },
-  { name: 'Ahorro metas', bucket: 'savings', budgeted_amount: 0, is_custom: false },
-  { name: 'Pago de deudas extra', bucket: 'savings', budgeted_amount: 0, is_custom: false },
+  { name: 'Ahorro para metas', bucket: 'savings', budgeted_amount: 0, is_custom: false },
+  { name: 'Pago extra de deudas', bucket: 'savings', budgeted_amount: 0, is_custom: false },
 ];

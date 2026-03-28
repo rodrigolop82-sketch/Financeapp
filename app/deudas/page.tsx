@@ -74,7 +74,7 @@ function simulatePayoff(
 
   while (active.some(d => d.balance > 0) && totalMonths < maxIterations) {
     totalMonths++;
-    let extra = extraPayment + freedPayments;
+    const extra = extraPayment + freedPayments;
 
     for (const d of active) {
       if (d.balance <= 0) continue;

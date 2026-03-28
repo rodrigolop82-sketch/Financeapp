@@ -5,9 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { BudgetChart } from '@/components/charts/budget-chart';
 import { ScoreHistoryChart } from '@/components/charts/score-history-chart';
+import { CapsuleRecommendations } from '@/components/education/CapsuleRecommendations';
 import { createClient } from '@/lib/supabase';
 import { getUserDashboardData } from '@/lib/queries';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
+import { getRecommendedCapsules } from '@/lib/capsule-recommendations';
+import type { CapsuleRecommendation } from '@/types';
 import {
   Wallet,
   CreditCard,
@@ -25,6 +28,7 @@ import {
   Receipt,
   Users,
   MessageCircle,
+  BookOpen,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
@@ -54,6 +58,7 @@ const NAV_ITEMS = [
   { href: '/plan', icon: Target, label: 'Plan' },
   { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
   { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
+  { href: '/aprende', icon: BookOpen, label: 'Aprende' },
   { href: '/historial', icon: Clock, label: 'Historial' },
   { href: '/familia', icon: Users, label: 'Familia' },
   { href: '/cuenta', icon: Settings, label: 'Cuenta' },
@@ -63,6 +68,7 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Awaited<ReturnType<typeof getUserDashboardData>> | null>(null);
+  const [capsuleRecs, setCapsuleRecs] = useState<CapsuleRecommendation[]>([]);
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -80,6 +86,21 @@ export default function DashboardPage() {
       }
       setData(result);
       setLoading(false);
+
+      // Load capsule recommendations based on score
+      if (result.financialProfile && result.user) {
+        const { calculateHealthScore } = await import('@/lib/scoring');
+        const score = calculateHealthScore({
+          total_income: Number(result.financialProfile.total_income),
+          total_fixed_expenses: Number(result.financialProfile.total_fixed_expenses),
+          total_debt: Number(result.financialProfile.total_debt),
+          total_savings: Number(result.financialProfile.total_savings),
+          has_emergency_fund: result.financialProfile.has_emergency_fund,
+          income_type: result.financialProfile.income_type,
+        });
+        const recs = await getRecommendedCapsules(result.user.id, score);
+        setCapsuleRecs(recs);
+      }
     }
     loadData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -441,6 +462,13 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Capsule recommendations */}
+          {capsuleRecs.length > 0 && (
+            <div className="mt-6">
+              <CapsuleRecommendations recommendations={capsuleRecs} />
+            </div>
+          )}
         </main>
       </div>
     </div>

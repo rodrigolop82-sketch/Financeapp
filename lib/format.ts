@@ -56,3 +56,9 @@ export function formatPercent(ratio: number): string {
 export function formatScore(score: number): string {
   return Math.round(score).toString()
 }
+
+/**
+ * Hook que expone money(), percent() y score() con las preferencias del usuario.
+ * Re-exportado desde /lib/hooks/useFormatMoney.ts para compatibilidad.
+ */
+export { useMoneyFormat } from '@/lib/hooks/useFormatMoney'

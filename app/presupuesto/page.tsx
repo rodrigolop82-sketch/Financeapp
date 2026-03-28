@@ -18,6 +18,9 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import Link from 'next/link';
+import { VoiceButton } from '@/components/voice/VoiceButton';
+import { TransactionPreview } from '@/components/voice/TransactionPreview';
+import type { VoiceExtractionResult } from '@/types';
 
 const BUCKET_LABELS = {
   needs: { label: 'Necesidades (50%)', color: 'bg-purple-700', textColor: 'text-purple-700' },
@@ -34,6 +37,8 @@ export default function PresupuestoPage() {
   const [householdId, setHouseholdId] = useState('');
   const [newCatName, setNewCatName] = useState('');
   const [newCatBucket, setNewCatBucket] = useState<'needs' | 'wants' | 'savings'>('needs');
+  const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -116,6 +121,22 @@ export default function PresupuestoPage() {
     setCategories(cats => cats.filter(c => c.id !== id));
   }
 
+  async function saveVoiceTransactions(transactions: VoiceExtractionResult['transactions']) {
+    if (!householdId) return;
+    await supabase.from('transactions').insert(
+      transactions.map(tx => ({
+        household_id: householdId,
+        category_id: tx.category_id ?? null,
+        amount: tx.amount,
+        description: tx.description,
+        date: tx.date,
+        source: 'voice',
+        voice_raw_text: voiceResult?.raw_text ?? null,
+      }))
+    );
+    setVoiceResult(null);
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -140,7 +161,13 @@ export default function PresupuestoPage() {
               <p className="text-sm text-gray-500">Ingreso mensual: {fmt(income)}</p>
             </div>
           </div>
-          <Button onClick={saveAll} disabled={saving}>
+          <div className="flex items-center gap-2">
+            <VoiceButton
+              mode="expense"
+              onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); }}
+              onError={(err) => setVoiceError(err)}
+            />
+            <Button onClick={saveAll} disabled={saving}>
             {saving ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : saved ? (
@@ -149,8 +176,25 @@ export default function PresupuestoPage() {
               <Save className="w-4 h-4 mr-2" />
             )}
             {saved ? 'Guardado' : 'Guardar'}
-          </Button>
+            </Button>
+          </div>
         </div>
+
+        {/* Voice transaction preview */}
+        {voiceError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            {voiceError}
+          </div>
+        )}
+        {voiceResult && (
+          <div className="mb-6">
+            <TransactionPreview
+              result={voiceResult}
+              onConfirm={saveVoiceTransactions}
+              onCancel={() => setVoiceResult(null)}
+            />
+          </div>
+        )}
 
         {/* Summary card */}
         <Card className="mb-6">

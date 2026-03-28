@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { VoiceButton } from '@/components/voice/VoiceButton'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -149,6 +150,14 @@ export default function ChatPage() {
       {/* Input */}
       <div className="p-4 border-t">
         <div className="flex gap-2">
+          <VoiceButton
+            mode="chat"
+            onTranscription={(text) => {
+              setInput(text)
+              sendMessage(text)
+            }}
+            onError={() => {}}
+          />
           <input
             type="text"
             value={input}
