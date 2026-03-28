@@ -58,6 +58,10 @@ export async function POST(req: NextRequest) {
   // Paso 2: Claude extrae transacciones
   const today = new Date().toISOString().split('T')[0]
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada en el servidor.' }, { status: 500 })
+  }
+
   const extractionResponse = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -117,6 +121,16 @@ export async function POST(req: NextRequest) {
         return { ...tx, category_id: match?.id }
       })
     }
+  }
+
+  // If no transactions were extracted, include transcription for debugging
+  if (!result.transactions || result.transactions.length === 0) {
+    return NextResponse.json({
+      transactions: [],
+      raw_text: transcription,
+      ambiguous: false,
+      clarification: `Whisper escuchó: "${transcription}" pero no se detectaron gastos. Intentá ser más específico, por ejemplo: "gasté 100 quetzales en gasolina".`,
+    })
   }
 
   return NextResponse.json(result)

@@ -33,7 +33,18 @@ export function TransactionPreview({ result, onConfirm, onCancel }: TransactionP
     return (
       <Card className="border-orange-200 bg-orange-50">
         <CardContent className="p-4 text-center">
-          <p className="text-sm text-orange-800">No se detectaron gastos. Intentá de nuevo.</p>
+          <p className="text-sm text-orange-800">No se detectaron gastos.</p>
+          {result.raw_text && (
+            <p className="text-xs text-gray-500 mt-1">
+              Escuché: &ldquo;{result.raw_text}&rdquo;
+            </p>
+          )}
+          {result.clarification && (
+            <p className="text-xs text-orange-700 mt-1">{result.clarification}</p>
+          )}
+          <p className="text-xs text-gray-400 mt-2">
+            Intentá decir algo como: &ldquo;Gasté 50 quetzales en gasolina&rdquo;
+          </p>
           <Button variant="outline" size="sm" onClick={onCancel} className="mt-2">
             Cerrar
           </Button>
