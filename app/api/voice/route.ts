@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
 
     if (!whisperRes.ok) {
       const err = await whisperRes.text()
-      console.error('Whisper error:', err)
-      return NextResponse.json({ error: 'Error al transcribir audio' }, { status: 500 })
+      console.error('Whisper error:', whisperRes.status, err)
+      return NextResponse.json({ error: `Error al transcribir audio: ${err}` }, { status: 500 })
     }
 
     const whisperData = await whisperRes.json()
