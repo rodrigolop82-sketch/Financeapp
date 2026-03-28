@@ -47,8 +47,9 @@ export default function PresupuestoPage() {
   const [newSubName, setNewSubName] = useState('');
   const [newSubAmount, setNewSubAmount] = useState(0);
   const [newSubFixed, setNewSubFixed] = useState(false);
+  const [newSubPayment, setNewSubPayment] = useState<'efectivo' | 'tarjeta' | 'cheque' | 'transferencia'>('efectivo');
+  const [addingCatBucket, setAddingCatBucket] = useState<'needs' | 'wants' | 'savings' | null>(null);
   const [newCatName, setNewCatName] = useState('');
-  const [newCatBucket, setNewCatBucket] = useState<'needs' | 'wants' | 'savings'>('needs');
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const router = useRouter();
@@ -143,26 +144,6 @@ export default function PresupuestoPage() {
     setTimeout(() => setSaved(false), 3000);
   }
 
-  async function addCategory() {
-    if (!newCatName.trim()) return;
-    const { data } = await supabase
-      .from('budget_categories')
-      .insert({
-        household_id: householdId,
-        name: newCatName.trim(),
-        bucket: newCatBucket,
-        budgeted_amount: 0,
-        is_custom: true,
-      })
-      .select()
-      .single();
-
-    if (data) {
-      setCategories([...categories, data as BudgetCategory]);
-      setNewCatName('');
-    }
-  }
-
   async function deleteCategory(id: string) {
     await supabase.from('budget_categories').delete().eq('id', id);
     setCategories(cats => cats.filter(c => c.id !== id));
@@ -179,6 +160,7 @@ export default function PresupuestoPage() {
         name: newSubName.trim(),
         amount: newSubAmount,
         is_fixed: newSubFixed,
+        payment_method: newSubPayment,
       })
       .select()
       .single();
@@ -188,8 +170,35 @@ export default function PresupuestoPage() {
       setNewSubName('');
       setNewSubAmount(0);
       setNewSubFixed(false);
+      setNewSubPayment('efectivo');
       setAddingSubItem(null);
       setSaved(false);
+    }
+  }
+
+  async function updateSubPayment(id: string, method: BudgetSubItem['payment_method']) {
+    await supabase.from('budget_sub_items').update({ payment_method: method }).eq('id', id);
+    setSubItems(items => items.map(s => s.id === id ? { ...s, payment_method: method } : s));
+  }
+
+  async function addCategoryToBucket(bucket: 'needs' | 'wants' | 'savings') {
+    if (!newCatName.trim()) return;
+    const { data } = await supabase
+      .from('budget_categories')
+      .insert({
+        household_id: householdId,
+        name: newCatName.trim(),
+        bucket,
+        budgeted_amount: 0,
+        is_custom: true,
+      })
+      .select()
+      .single();
+
+    if (data) {
+      setCategories([...categories, data as BudgetCategory]);
+      setNewCatName('');
+      setAddingCatBucket(null);
     }
   }
 
@@ -428,6 +437,16 @@ export default function PresupuestoPage() {
                                   <span className={`text-xs px-1.5 py-0.5 rounded ${sub.is_fixed ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
                                     {sub.is_fixed ? 'fijo' : 'variable'}
                                   </span>
+                                  <select
+                                    className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                                    value={sub.payment_method || 'efectivo'}
+                                    onChange={(e) => updateSubPayment(sub.id, e.target.value as BudgetSubItem['payment_method'])}
+                                  >
+                                    <option value="efectivo">Efectivo</option>
+                                    <option value="tarjeta">Tarjeta</option>
+                                    <option value="cheque">Cheque</option>
+                                    <option value="transferencia">Transferencia</option>
+                                  </select>
                                   <div className="relative w-24 flex-shrink-0">
                                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
                                     <Input
@@ -469,7 +488,7 @@ export default function PresupuestoPage() {
                                     />
                                   </div>
                                 </div>
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3 flex-wrap">
                                   <Label className="flex items-center gap-2 text-xs cursor-pointer">
                                     <input
                                       type="checkbox"
@@ -479,12 +498,22 @@ export default function PresupuestoPage() {
                                     />
                                     Gasto fijo
                                   </Label>
-                                  <div className="flex gap-2">
+                                  <select
+                                    className="text-xs border rounded px-2 py-1 bg-white text-gray-600"
+                                    value={newSubPayment}
+                                    onChange={(e) => setNewSubPayment(e.target.value as BudgetSubItem['payment_method'])}
+                                  >
+                                    <option value="efectivo">Efectivo</option>
+                                    <option value="tarjeta">Tarjeta</option>
+                                    <option value="cheque">Cheque</option>
+                                    <option value="transferencia">Transferencia</option>
+                                  </select>
+                                  <div className="flex gap-2 ml-auto">
                                     <Button size="sm" className="h-7 text-xs" onClick={() => addSubItem(cat.id)} disabled={!newSubName.trim()}>
                                       <Plus className="w-3 h-3 mr-1" />
                                       Agregar
                                     </Button>
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); }}>
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); setNewSubPayment('efectivo'); }}>
                                       <X className="w-3 h-3 mr-1" />
                                       Cancelar
                                     </Button>
@@ -506,40 +535,39 @@ export default function PresupuestoPage() {
                     );
                   })}
                 </div>
+
+                {/* Add category to this bucket */}
+                {addingCatBucket === bucket ? (
+                  <div className="mt-3 flex gap-2 items-center">
+                    <Input
+                      placeholder="Nombre de la categoría"
+                      className="flex-1 h-8 text-sm"
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === 'Enter') addCategoryToBucket(bucket); }}
+                    />
+                    <Button size="sm" className="h-8 text-xs" onClick={() => addCategoryToBucket(bucket)} disabled={!newCatName.trim()}>
+                      <Plus className="w-3 h-3 mr-1" />
+                      Agregar
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setAddingCatBucket(null); setNewCatName(''); }}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setAddingCatBucket(bucket); setNewCatName(''); }}
+                    className="mt-3 flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Agregar categoría
+                  </button>
+                )}
               </CardContent>
             </Card>
           );
         })}
-
-        {/* Add custom category */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Agregar categoría</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-3 flex-wrap">
-              <Input
-                placeholder="Nombre de la categoría"
-                className="flex-1 min-w-[200px]"
-                value={newCatName}
-                onChange={(e) => setNewCatName(e.target.value)}
-              />
-              <select
-                className="border rounded-md px-3 py-2 text-sm bg-white"
-                value={newCatBucket}
-                onChange={(e) => setNewCatBucket(e.target.value as 'needs' | 'wants' | 'savings')}
-              >
-                <option value="needs">Necesidades</option>
-                <option value="wants">Gustos</option>
-                <option value="savings">Ahorro/Deudas</option>
-              </select>
-              <Button onClick={addCategory} disabled={!newCatName.trim()}>
-                <Plus className="w-4 h-4 mr-2" />
-                Agregar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
