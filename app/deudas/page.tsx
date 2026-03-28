@@ -19,6 +19,8 @@ import {
   Zap,
   Mountain,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -40,12 +42,13 @@ function simulatePayoff(
   const warnings: string[] = [];
   const active = debts.map(d => {
     const balance = Number(d.balance);
-    const monthlyRate = Number(d.interest_rate) / 100 / 12;
+    const annualRate = Number(d.interest_rate);
+    const monthlyRate = annualRate / 100 / 12;
     const minPayment = Number(d.min_payment);
-    const firstMonthInterest = balance * monthlyRate;
+    const monthlyInterest = balance * monthlyRate;
 
-    if (minPayment > 0 && minPayment < firstMonthInterest) {
-      warnings.push(`"${d.name}": el pago mínimo (${minPayment.toFixed(0)}) no cubre los intereses mensuales (${firstMonthInterest.toFixed(0)}). La deuda crecerá.`);
+    if (minPayment > 0 && minPayment <= monthlyInterest && annualRate > 0) {
+      warnings.push(`"${d.name}": el pago mínimo (Q ${minPayment.toLocaleString()}) no cubre los intereses mensuales (Q ${Math.round(monthlyInterest).toLocaleString()}). Necesitás pagar más para reducir esta deuda.`);
     }
 
     return {
@@ -56,6 +59,7 @@ function simulatePayoff(
       totalPaid: 0,
       interestPaid: 0,
       months: 0,
+      paidOff: false,
     };
   });
 
@@ -69,41 +73,66 @@ function simulatePayoff(
   const order: SimResult['order'] = [];
   let totalMonths = 0;
   let totalInterest = 0;
-  let freedPayments = 0; // Tracks freed min payments from paid-off debts
-  const maxIterations = 360; // 30 years max
+  let freedPayments = 0;
+  const maxMonths = 360; // 30 years max
 
-  while (active.some(d => d.balance > 0) && totalMonths < maxIterations) {
+  while (active.some(d => d.balance > 0 && !d.paidOff) && totalMonths < maxMonths) {
     totalMonths++;
-    const extra = extraPayment + freedPayments;
+    const availableExtra = extraPayment + freedPayments;
+    let extraRemaining = availableExtra;
 
+    // First pass: apply interest and minimum payments
     for (const d of active) {
-      if (d.balance <= 0) continue;
+      if (d.balance <= 0 || d.paidOff) continue;
 
+      // Apply monthly interest
       const interest = d.balance * d.rate;
       totalInterest += interest;
       d.interestPaid += interest;
       d.balance += interest;
 
-      const isTarget = active.indexOf(d) === active.findIndex(x => x.balance > 0);
-      const payment = d.minPayment + (isTarget ? extra : 0);
-      const actualPayment = Math.min(payment, d.balance);
-      d.balance -= actualPayment;
-      d.totalPaid += actualPayment;
+      // Apply minimum payment
+      const minPay = Math.min(d.minPayment, d.balance);
+      d.balance -= minPay;
+      d.totalPaid += minPay;
       d.months = totalMonths;
 
       if (d.balance <= 0.01) {
         d.balance = 0;
-        freedPayments += d.minPayment; // Persists across months
-        order.push({ name: d.name, months: totalMonths, totalPaid: d.totalPaid, interestPaid: Math.round(d.interestPaid) });
+        d.paidOff = true;
+        freedPayments += d.minPayment;
+        order.push({ name: d.name, months: totalMonths, totalPaid: Math.round(d.totalPaid), interestPaid: Math.round(d.interestPaid) });
       }
+    }
+
+    // Second pass: apply extra payment to target debt (first unpaid in sorted order)
+    for (const d of active) {
+      if (d.balance <= 0 || d.paidOff || extraRemaining <= 0) continue;
+
+      const extraPay = Math.min(extraRemaining, d.balance);
+      d.balance -= extraPay;
+      d.totalPaid += extraPay;
+      extraRemaining -= extraPay;
+
+      if (d.balance <= 0.01) {
+        d.balance = 0;
+        d.paidOff = true;
+        freedPayments += d.minPayment;
+        // Check if already added to order
+        if (!order.some(o => o.name === d.name)) {
+          order.push({ name: d.name, months: totalMonths, totalPaid: Math.round(d.totalPaid), interestPaid: Math.round(d.interestPaid) });
+        }
+      }
+
+      break; // Extra payment goes to first target only
     }
   }
 
-  // Add remaining unpaid debts to order (hit max iterations)
+  // Add remaining unpaid debts
   for (const d of active) {
-    if (d.balance > 0) {
-      order.push({ name: d.name, months: totalMonths, totalPaid: d.totalPaid, interestPaid: Math.round(d.interestPaid) });
-      warnings.push(`"${d.name}" no se paga en 30 años con los pagos actuales.`);
+    if (d.balance > 0 && !d.paidOff) {
+      order.push({ name: d.name, months: totalMonths, totalPaid: Math.round(d.totalPaid), interestPaid: Math.round(d.interestPaid) });
+      warnings.push(`"${d.name}" no se paga en 30 años con los pagos actuales. Considerá aumentar el pago mensual.`);
     }
   }
 
@@ -118,6 +147,7 @@ export default function DeudasPage() {
   const [strategy, setStrategy] = useState<'snowball' | 'avalanche'>('snowball');
   const [extraPayment, setExtraPayment] = useState(500);
   const [showForm, setShowForm] = useState(false);
+  const [expandedDebts, setExpandedDebts] = useState<Set<string>>(new Set());
   const [newDebt, setNewDebt] = useState<{ name: string; type: 'credit' | 'loan' | 'informal'; balance: number; interest_rate: number; min_payment: number; due_day: number }>({ name: '', type: 'credit', balance: 0, interest_rate: 0, min_payment: 0, due_day: 1 });
   const [saving, setSaving] = useState(false);
   const router = useRouter();
@@ -150,6 +180,15 @@ export default function DeudasPage() {
   const monthsSaved = baseline.totalMonths - sim.totalMonths;
   const interestSaved = baseline.totalInterest - sim.totalInterest;
 
+  function toggleDebt(id: string) {
+    setExpandedDebts(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   async function addDebt() {
     setSaving(true);
     const { data } = await supabase.from('debts').insert({
@@ -173,6 +212,12 @@ export default function DeudasPage() {
   async function deleteDebt(id: string) {
     await supabase.from('debts').delete().eq('id', id);
     setDebts(debts.filter(d => d.id !== id));
+  }
+
+  function formatMonths(months: number): string {
+    if (months >= 360) return '+30 años';
+    if (months > 12) return `${Math.floor(months / 12)}a ${months % 12}m`;
+    return `${months} meses`;
   }
 
   if (loading) {
@@ -225,7 +270,7 @@ export default function DeudasPage() {
             <CardContent className="p-5">
               <p className="text-sm text-gray-500">Libre de deuda en</p>
               <p className="text-2xl font-bold mt-1">
-                {sim.totalMonths > 0 ? `${sim.totalMonths} meses` : 'N/A'}
+                {sim.totalMonths > 0 ? formatMonths(sim.totalMonths) : 'N/A'}
               </p>
               {sim.totalInterest > 0 && (
                 <p className="text-xs text-gray-500 mt-1">
@@ -234,6 +279,103 @@ export default function DeudasPage() {
               )}
             </CardContent>
           </Card>
+        </div>
+
+        {/* Debt list — collapsible cards */}
+        <div className="space-y-2 mb-6">
+          {activeDebts.map((debt) => {
+            const isExpanded = expandedDebts.has(debt.id);
+            const monthlyInterest = Number(debt.balance) * (Number(debt.interest_rate) / 100 / 12);
+
+            return (
+              <Card key={debt.id} className="overflow-hidden">
+                {/* Collapsed header — always visible */}
+                <button
+                  onClick={() => toggleDebt(debt.id)}
+                  className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      debt.type === 'credit' ? 'bg-purple-100 text-purple-700'
+                      : debt.type === 'loan' ? 'bg-blue-100 text-blue-700'
+                      : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {debt.type === 'credit' ? 'Tarjeta' : debt.type === 'loan' ? 'Préstamo' : 'Informal'}
+                    </span>
+                    <span className="font-semibold text-sm">{debt.name}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-sm">{fmt(Number(debt.balance))}</span>
+                    {isExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Expanded details */}
+                {isExpanded && (
+                  <CardContent className="px-4 pb-4 pt-0 border-t">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                      <div>
+                        <p className="text-xs text-gray-500">Pago mínimo</p>
+                        <p className="text-sm font-medium">{fmt(Number(debt.min_payment))}/mes</p>
+                      </div>
+                      {Number(debt.interest_rate) > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500">Tasa anual</p>
+                          <p className="text-sm font-medium">{debt.interest_rate}%</p>
+                        </div>
+                      )}
+                      {Number(debt.interest_rate) > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500">Interés mensual</p>
+                          <p className="text-sm font-medium text-amber-600">{fmt(Math.round(monthlyInterest))}</p>
+                        </div>
+                      )}
+                      {debt.due_day > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500">Vence</p>
+                          <p className="text-sm font-medium">Día {debt.due_day}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Warning if min payment doesn't cover interest */}
+                    {Number(debt.interest_rate) > 0 && Number(debt.min_payment) <= monthlyInterest && (
+                      <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-xs text-amber-700">
+                          El pago mínimo no cubre los intereses mensuales. Esta deuda va a crecer si no pagás más.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 mt-3">
+                      <Button variant="outline" size="sm" onClick={() => markPaid(debt.id)}>
+                        <CheckCircle2 className="w-4 h-4 mr-1 text-green-500" />
+                        Pagada
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => deleteDebt(debt.id)} className="text-red-500 hover:text-red-600">
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Eliminar
+                      </Button>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
+
+          {activeDebts.length === 0 && !showForm && (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <TrendingDown className="w-12 h-12 text-purple-300 mx-auto mb-3" />
+                <p className="font-medium text-gray-700">No tienes deudas activas</p>
+                <p className="text-sm text-gray-500 mt-1">Excelente. Sigue así.</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Simulator */}
@@ -306,62 +448,54 @@ export default function DeudasPage() {
               )}
 
               {/* Projection comparison */}
-              {activeDebts.length > 0 && (
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 space-y-3">
-                  <p className="text-sm font-semibold text-gray-700">Proyección con pago extra de {fmt(extraPayment)}/mes:</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-white rounded-lg p-3 text-center">
-                      <p className="text-xs text-gray-500">Tiempo para saldar</p>
-                      <p className="text-lg font-bold text-purple-700">
-                        {sim.totalMonths >= 360 ? '+30 años' : sim.totalMonths > 12
-                          ? `${Math.floor(sim.totalMonths / 12)}a ${sim.totalMonths % 12}m`
-                          : `${sim.totalMonths} meses`}
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-700">Proyección con pago extra de {fmt(extraPayment)}/mes:</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-500">Tiempo para saldar</p>
+                    <p className="text-lg font-bold text-purple-700">
+                      {formatMonths(sim.totalMonths)}
+                    </p>
+                    {monthsSaved > 0 && (
+                      <p className="text-xs text-green-600 font-medium">
+                        {monthsSaved} meses menos vs. solo mínimos
                       </p>
-                      {monthsSaved > 0 && (
-                        <p className="text-xs text-green-600 font-medium">
-                          {monthsSaved} meses menos vs. solo mínimos
-                        </p>
-                      )}
+                    )}
+                  </div>
+                  <div className="bg-white rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-500">Intereses totales</p>
+                    <p className="text-lg font-bold text-purple-700">{fmt(sim.totalInterest)}</p>
+                    {interestSaved > 0 && (
+                      <p className="text-xs text-green-600 font-medium">
+                        Ahorrás {fmt(interestSaved)} en intereses
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {extraPayment > 0 && baseline.totalMonths > 0 && (
+                  <div className="bg-white rounded-lg p-3">
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>Solo mínimos</span>
+                      <span>Con extra</span>
                     </div>
-                    <div className="bg-white rounded-lg p-3 text-center">
-                      <p className="text-xs text-gray-500">Intereses totales</p>
-                      <p className="text-lg font-bold text-purple-700">{fmt(sim.totalInterest)}</p>
-                      {interestSaved > 0 && (
-                        <p className="text-xs text-green-600 font-medium">
-                          Ahorrás {fmt(interestSaved)} en intereses
-                        </p>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-purple-500 h-2 rounded-full transition-all"
+                          style={{ width: `${Math.min(100, (sim.totalMonths / Math.max(baseline.totalMonths, 1)) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-xs mt-1">
+                      <span className="text-gray-400">{formatMonths(baseline.totalMonths)}</span>
+                      <span className="text-purple-600 font-medium">{formatMonths(sim.totalMonths)}</span>
                     </div>
                   </div>
-                  {extraPayment > 0 && baseline.totalMonths > 0 && (
-                    <div className="bg-white rounded-lg p-3">
-                      <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>Solo mínimos</span>
-                        <span>Con extra</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-purple-500 h-2 rounded-full transition-all"
-                            style={{ width: `${Math.min(100, (sim.totalMonths / Math.max(baseline.totalMonths, 1)) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-between text-xs mt-1">
-                        <span className="text-gray-400">
-                          {baseline.totalMonths >= 360 ? '+30 años' : `${baseline.totalMonths} meses`}
-                        </span>
-                        <span className="text-purple-600 font-medium">
-                          {sim.totalMonths >= 360 ? '+30 años' : `${sim.totalMonths} meses`}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-500">
-                    Costo total de la deuda: {fmt(sim.totalPaid)} (capital + intereses)
-                  </p>
-                </div>
-              )}
+                )}
+                <p className="text-xs text-gray-500">
+                  Costo total de la deuda: {fmt(sim.totalPaid)} (capital + intereses)
+                </p>
+              </div>
 
               {/* Payoff timeline */}
               {sim.order.length > 0 && (
@@ -376,7 +510,7 @@ export default function DeudasPage() {
                         <div className="flex-1">
                           <p className="text-sm font-medium">{d.name}</p>
                           <p className="text-xs text-gray-500">
-                            {d.months >= 360 ? 'No se paga en 30 años' : `Se paga en ${d.months} meses`} - Total pagado: {fmt(d.totalPaid)}
+                            {d.months >= 360 ? 'No se paga en 30 años' : `Se paga en ${formatMonths(d.months)}`} - Total pagado: {fmt(d.totalPaid)}
                             <span className="text-amber-600 ml-1">(intereses: {fmt(d.interestPaid)})</span>
                           </p>
                         </div>
@@ -388,56 +522,6 @@ export default function DeudasPage() {
             </CardContent>
           </Card>
         )}
-
-        {/* Debt list */}
-        <div className="space-y-3">
-          {activeDebts.map((debt) => (
-            <Card key={debt.id}>
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold">{debt.name}</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        debt.type === 'credit' ? 'bg-purple-100 text-purple-700'
-                        : debt.type === 'loan' ? 'bg-blue-100 text-blue-700'
-                        : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {debt.type === 'credit' ? 'Tarjeta' : debt.type === 'loan' ? 'Préstamo' : 'Informal'}
-                      </span>
-                    </div>
-                    <p className="text-2xl font-bold">{fmt(Number(debt.balance))}</p>
-                    <div className="flex gap-4 mt-2 text-sm text-gray-500">
-                      <span>Pago mín: {fmt(Number(debt.min_payment))}/mes</span>
-                      {Number(debt.interest_rate) > 0 && (
-                        <span>Tasa: {debt.interest_rate}% anual</span>
-                      )}
-                      {debt.due_day && <span>Vence: día {debt.due_day}</span>}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => markPaid(debt.id)} title="Marcar como pagada">
-                      <CheckCircle2 className="w-4 h-4 text-purple-500" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => deleteDebt(debt.id)} title="Eliminar">
-                      <Trash2 className="w-4 h-4 text-red-400" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-
-          {activeDebts.length === 0 && !showForm && (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <TrendingDown className="w-12 h-12 text-purple-300 mx-auto mb-3" />
-                <p className="font-medium text-gray-700">No tienes deudas activas</p>
-                <p className="text-sm text-gray-500 mt-1">Excelente. Sigue así.</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
 
         {/* Paid debts */}
         {debts.some(d => d.is_paid) && (
