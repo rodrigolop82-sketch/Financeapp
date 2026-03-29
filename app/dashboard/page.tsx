@@ -1,476 +1,276 @@
-'use client';
+'use client'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
+import { StatusHero } from '@/components/dashboard/StatusHero'
+import { QuickAddBar } from '@/components/dashboard/QuickAddBar'
+import { SummaryRow } from '@/components/dashboard/SummaryRow'
+import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
+import { TransactionsList } from '@/components/dashboard/TransactionsList'
+import { StreakCard } from '@/components/dashboard/StreakCard'
+import { TransactionPreview } from '@/components/voice/TransactionPreview'
+import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile } from '@/types'
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { BudgetChart } from '@/components/charts/budget-chart';
-import { ScoreHistoryChart } from '@/components/charts/score-history-chart';
-import { CapsuleRecommendations } from '@/components/education/CapsuleRecommendations';
-import { createClient } from '@/lib/supabase';
-import { getUserDashboardData } from '@/lib/queries';
-import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
-import { getRecommendedCapsules } from '@/lib/capsule-recommendations';
-import type { CapsuleRecommendation } from '@/types';
-import {
-  Wallet,
-  CreditCard,
-  PiggyBank,
-  Target,
-  ArrowRight,
-  CheckCircle2,
-  Circle,
-  BarChart3,
-  Clock,
-  Settings,
-  Menu,
-  LogOut,
-  Loader2,
-  Receipt,
-  Users,
-  MessageCircle,
-  BookOpen,
-} from 'lucide-react';
-import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { ActionStep } from '@/types';
-
-function getScoreColor(score: number) {
-  if (score >= 85) return { text: 'text-emerald-500', bg: 'bg-emerald-100' };
-  if (score >= 65) return { text: 'text-green-500', bg: 'bg-green-100' };
-  if (score >= 45) return { text: 'text-yellow-500', bg: 'bg-yellow-100' };
-  if (score >= 25) return { text: 'text-orange-500', bg: 'bg-orange-100' };
-  return { text: 'text-red-500', bg: 'bg-red-100' };
+interface EnrichedTransaction {
+  id: string
+  description: string | null
+  category: string
+  amount: number
+  date: string
+  source: 'manual' | 'voice' | 'ocr' | 'csv'
 }
 
-function getScoreLabel(score: number) {
-  if (score >= 85) return 'excelente';
-  if (score >= 65) return 'saludable';
-  if (score >= 45) return 'estable';
-  if (score >= 25) return 'en riesgo';
-  return 'crítico';
+interface DashboardData {
+  profile: FinancialProfile | null
+  enrichedTransactions: EnrichedTransaction[]
+  spentMonth: number
+  spentToday: number
+  spentWeek: number
+  todayCount: number
+  daysLeft: number
+  daysInMonth: number
+  alert: AlertData | null
+  weekDayStatus: ('done' | 'today' | 'miss')[]
+  currentStreak: number
+  budget: number
+  householdId: string
 }
-
-const NAV_ITEMS = [
-  { href: '/dashboard', icon: BarChart3, label: 'Dashboard' },
-  { href: '/presupuesto', icon: Wallet, label: 'Presupuesto' },
-  { href: '/deudas', icon: CreditCard, label: 'Deudas' },
-  { href: '/plan', icon: Target, label: 'Plan' },
-  { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
-  { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
-  { href: '/aprende', icon: BookOpen, label: 'Aprende' },
-  { href: '/historial', icon: Clock, label: 'Historial' },
-  { href: '/familia', icon: Users, label: 'Familia' },
-  { href: '/cuenta', icon: Settings, label: 'Cuenta' },
-];
 
 export default function DashboardPage() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<Awaited<ReturnType<typeof getUserDashboardData>> | null>(null);
-  const [capsuleRecs, setCapsuleRecs] = useState<CapsuleRecommendation[]>([]);
-  const router = useRouter();
-  const supabase = createClient();
-  const fmt = useFormatMoney();
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const router = useRouter()
 
-  useEffect(() => {
-    async function loadData() {
-      const result = await getUserDashboardData(supabase);
-      if (!result) {
-        router.push('/login');
-        return;
-      }
-      if (!result.household) {
-        router.push('/onboarding');
-        return;
-      }
-      setData(result);
-      setLoading(false);
+  useEffect(() => { loadDashboardData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-      // Load capsule recommendations based on score
-      if (result.financialProfile && result.user) {
-        const { calculateHealthScore } = await import('@/lib/scoring');
-        const score = calculateHealthScore({
-          total_income: Number(result.financialProfile.total_income),
-          total_fixed_expenses: Number(result.financialProfile.total_fixed_expenses),
-          total_debt: Number(result.financialProfile.total_debt),
-          total_savings: Number(result.financialProfile.total_savings),
-          has_emergency_fund: result.financialProfile.has_emergency_fund,
-          income_type: result.financialProfile.income_type,
-        });
-        const recs = await getRecommendedCapsules(result.user.id, score);
-        setCapsuleRecs(recs);
+  async function loadDashboardData() {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const today = now.toISOString().split('T')[0]
+
+    const [profileRes, txMonthRes, categoriesRes] = await Promise.all([
+      supabase.from('financial_profiles').select('*').eq('household_id', user.id).single(),
+      supabase.from('transactions').select('*').eq('household_id', user.id).gte('date', monthStart).order('date', { ascending: false }),
+      supabase.from('budget_categories').select('*').eq('household_id', user.id),
+    ])
+
+    const profile = profileRes.data as FinancialProfile | null
+    const txMonth = (txMonthRes.data ?? []) as Transaction[]
+    const categories = (categoriesRes.data ?? []) as BudgetCategory[]
+
+    // Build category lookup map
+    const categoryMap: Record<string, string> = {}
+    categories.forEach((c) => { categoryMap[c.id] = c.name })
+
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const daysLeft = daysInMonth - now.getDate()
+
+    const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
+    const spentToday = txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0)
+    const spentWeek  = txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0)
+    const todayCount = txMonth.filter((t) => t.date === today).length
+
+    // Enrich transactions with category name for display
+    const enrichedTransactions: EnrichedTransaction[] = txMonth.map((t) => ({
+      id: t.id,
+      description: t.description,
+      category: categoryMap[t.category_id] ?? 'Otros',
+      amount: Number(t.amount),
+      date: t.date,
+      source: t.source ?? 'manual',
+    }))
+
+    // Calcular categoría más sobregirada
+    const spentByCat: Record<string, number> = {}
+    txMonth.forEach((t) => { spentByCat[t.category_id] = (spentByCat[t.category_id] ?? 0) + Number(t.amount) })
+    let topOver: { name: string; spent: number; limit: number; pctOver: number } | undefined = undefined
+    categories.forEach((c) => {
+      const s = spentByCat[c.id] ?? 0
+      const over = c.budgeted_amount > 0 ? (s - c.budgeted_amount) / c.budgeted_amount * 100 : 0
+      if (over > 20 && (!topOver || over > topOver.pctOver)) {
+        topOver = { name: c.name, spent: s, limit: c.budgeted_amount, pctOver: Math.round(over) }
+      }
+    })
+
+    // Días sin registrar (para alerta)
+    const lastTxDate = txMonth[0]?.date
+    const daysSinceLast = lastTxDate
+      ? Math.floor((now.getTime() - new Date(lastTxDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24))
+      : 999
+
+    // Calcular racha de días consecutivos registrando gastos
+    const txDates = new Set(txMonth.map((t) => t.date))
+    let currentStreak = 0
+    const checkDate = new Date(now)
+    // Si hoy tiene gastos, contarlo; si no, empezar desde ayer
+    if (!txDates.has(today)) {
+      checkDate.setDate(checkDate.getDate() - 1)
+    }
+    while (true) {
+      const ds = checkDate.toISOString().split('T')[0]
+      if (txDates.has(ds)) {
+        currentStreak++
+        checkDate.setDate(checkDate.getDate() - 1)
+      } else {
+        break
       }
     }
-    loadData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    // Días de la semana para racha visual
+    const weekDayStatus: ('done' | 'today' | 'miss')[] = Array.from({ length: 7 }, (_, i) => {
+      const dayDate = new Date(now)
+      const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1  // Lun=0
+      dayDate.setDate(now.getDate() - dayOfWeek + i)
+      const ds = dayDate.toISOString().split('T')[0]
+      if (ds === today) return 'today'
+      if (txDates.has(ds)) return 'done'
+      if (ds < today) return 'miss'
+      return 'miss'
+    })
+
+    const budget = profile?.total_income ? Number(profile.total_income) * 0.8 : 4000
+
+    const alert = buildSmartAlert({
+      spent: spentMonth,
+      budget,
+      daysLeft,
+      daysInMonth,
+      topOverBudgetCategory: topOver,
+      daysSinceLastTransaction: daysSinceLast,
+    })
+
+    setData({
+      profile, enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
+      daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, budget,
+      householdId: user.id,
+    })
   }
 
-  if (loading || !data || !data.household || !data.budgetByBucket) {
+  // Input de texto rápido — parseo básico "Q45 Starbucks"
+  async function handleQuickAdd(text: string) {
+    const match = text.match(/^Q?\s*(\d+(?:\.\d+)?)\s+(.+)$/i)
+    if (!match) return
+    const amount = parseFloat(match[1])
+    const description = match[2].trim()
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('transactions').insert({
+      household_id: user.id, amount, description,
+      date: new Date().toISOString().split('T')[0], source: 'manual',
+    })
+    setSuccessMsg(`Q ${amount} "${description}" guardado`)
+    setTimeout(() => setSuccessMsg(null), 3000)
+    loadDashboardData()
+  }
+
+  async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || transactions.length === 0) return
+
+    const rows = transactions.map((t) => ({
+      household_id: user.id,
+      amount: t.amount,
+      description: t.description,
+      category_id: t.category_id ?? null,
+      date: t.date || new Date().toISOString().split('T')[0],
+      source: 'voice' as const,
+      voice_raw_text: voiceResult?.raw_text ?? null,
+    }))
+    await supabase.from('transactions').insert(rows)
+
+    setVoiceResult(null)
+    const count = transactions.length
+    setSuccessMsg(`${count} gasto${count > 1 ? 's' : ''} guardado${count > 1 ? 's' : ''}`)
+    setTimeout(() => setSuccessMsg(null), 3000)
+    loadDashboardData()
+  }
+
+  if (!data) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div style={{ fontSize: 13, color: '#94A3B8' }}>Cargando...</div>
       </div>
-    );
+    )
   }
-
-  const fp = data.financialProfile;
-  const healthScore = fp?.health_score ?? 0;
-  const income = fp ? Number(fp.total_income) : 0;
-  const totalExpenses = (data.transactions || []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0);
-  const totalDebtBalance = (data.debts || []).reduce((s: number, d: { balance: number }) => s + Number(d.balance), 0);
-  const savings = fp ? Number(fp.total_savings) : 0;
-  const savingsCash = fp ? Number(fp.savings_cash ?? 0) : 0;
-  const savingsInvestments = fp ? Number(fp.savings_investments ?? 0) : 0;
-  const colors = getScoreColor(healthScore);
-  const scoreLabel = getScoreLabel(healthScore);
-
-  const userName = data.user?.full_name?.split(' ')[0] || 'Usuario';
-  const householdName = data.household.name;
-
-  // Action plan steps
-  const planSteps: (ActionStep & { completed: boolean })[] =
-    data.actionPlan?.steps
-      ? (data.actionPlan.steps as ActionStep[]).map((s) => ({
-          ...s,
-          completed: data.actionPlan?.completed_steps
-            ? (data.actionPlan.completed_steps as ActionStep[]).some((c) => c.id === s.id)
-            : false,
-        }))
-      : [];
-  const completedSteps = planSteps.filter((s) => s.completed).length;
-  const planProgress = planSteps.length > 0 ? (completedSteps / planSteps.length) * 100 : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Mobile header */}
-      <header className="lg:hidden sticky top-0 bg-white border-b z-40 px-4 py-3 flex items-center justify-between">
-        <button onClick={() => setSidebarOpen(!sidebarOpen)}>
-          <Menu className="w-6 h-6 text-gray-600" />
-        </button>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-[#2563EB] rounded-lg flex items-center justify-center">
-            <span className="text-white text-xs font-bold">Z</span>
-          </div>
-          <span className="font-semibold text-[#1E3A5F]">Zafi</span>
+    <div style={{ background: '#F0F4FF', minHeight: '100vh', paddingBottom: 80 }}>
+
+      {/* Hero marino */}
+      <StatusHero
+        spent={data.spentMonth}
+        budget={data.budget}
+        daysLeft={data.daysLeft}
+      />
+
+      {/* Mensaje de éxito */}
+      {successMsg && (
+        <div style={{
+          margin: '10px 16px 0', padding: '8px 12px',
+          background: '#F0FDF4', border: '0.5px solid #BBF7D0',
+          borderRadius: 10, fontSize: 12, color: '#065F46'
+        }}>
+          {successMsg}
         </div>
-        <div className="w-6" />
-      </header>
+      )}
 
-      <div className="flex">
-        {/* Sidebar */}
-        <aside
-          className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-white border-r z-50 transform transition-transform lg:translate-x-0 ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <div className="p-6">
-            <div className="flex items-center gap-2 mb-8">
-              <div className="w-8 h-8 bg-[#2563EB] rounded-xl flex items-center justify-center">
-                <span className="text-white text-sm font-bold">Z</span>
-              </div>
-              <span className="text-lg font-bold text-[#1E3A5F]">Zafi</span>
-            </div>
-            <nav className="space-y-1">
-              {NAV_ITEMS.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    item.href === '/dashboard'
-                      ? 'bg-[#F8F9FF] text-[#1D4ED8]'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-          <div className="absolute bottom-0 w-full p-4 border-t">
-            <div className="flex items-center gap-3 px-3 py-2">
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-[#1D4ED8]">
-                  {userName[0]}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{userName}</p>
-                <p className="text-xs text-gray-500 truncate">{householdName}</p>
-              </div>
-              <button onClick={handleLogout} className="text-gray-400 hover:text-gray-600">
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        {/* Overlay */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/20 z-40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
+      {/* Preview de voz (si hay) */}
+      {voiceResult && (
+        <div style={{ margin: '10px 16px 0', padding: 14, background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14 }}>
+          <p style={{ fontSize: 12, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisá antes de guardar</p>
+          <TransactionPreview
+            result={voiceResult}
+            onConfirm={handleVoiceConfirm}
+            onCancel={() => setVoiceResult(null)}
           />
-        )}
+        </div>
+      )}
 
-        {/* Main content */}
-        <main className="flex-1 p-4 lg:p-8 max-w-6xl">
-          {/* Welcome */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Hola, {userName}
-            </h1>
-            <p className="text-gray-500">
-              Aquí tienes el resumen de {householdName} para este mes.
-            </p>
-          </div>
+      {/* Quick add */}
+      <QuickAddBar
+        onAdd={handleQuickAdd}
+        onVoiceResult={setVoiceResult}
+      />
 
-          {/* Top cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm text-gray-500">Puntaje Zafi</p>
-                  <div className={`w-10 h-10 rounded-full ${colors.bg} flex items-center justify-center`}>
-                    <span className={`text-lg font-bold ${colors.text}`}>{healthScore}</span>
-                  </div>
-                </div>
-                <p className={`text-sm font-semibold capitalize ${colors.text}`}>{scoreLabel}</p>
-                <Progress value={healthScore} className="h-1.5 mt-2" />
-              </CardContent>
-            </Card>
+      {/* Summary */}
+      <SummaryRow
+        today={data.spentToday}
+        todayCount={data.todayCount}
+        week={data.spentWeek}
+        weekVsPrev={12}
+        month={data.spentMonth}
+        monthBudget={data.budget}
+      />
 
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm text-gray-500">Ingreso del mes</p>
-                  <Wallet className="w-5 h-5 text-[#3B82F6]" />
-                </div>
-                <p className="text-2xl font-bold">{fmt(income)}</p>
-              </CardContent>
-            </Card>
+      {/* Alerta inteligente */}
+      <SmartAlert alert={data.alert} />
 
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm text-gray-500">Gastos del mes</p>
-                  <CreditCard className="w-5 h-5 text-orange-500" />
-                </div>
-                <p className="text-2xl font-bold">{fmt(totalExpenses)}</p>
-                {income > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {Math.round((totalExpenses / income) * 100)}% de tu ingreso
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+      {/* Últimos movimientos */}
+      <TransactionsList
+        transactions={data.enrichedTransactions}
+        onSeeAll={() => router.push('/transacciones')}
+      />
 
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm text-gray-500">Ahorros</p>
-                  <PiggyBank className="w-5 h-5 text-green-500" />
-                </div>
-                <p className="text-2xl font-bold">{fmt(savings)}</p>
-                {(savingsCash > 0 || savingsInvestments > 0) && (
-                  <div className="mt-2 space-y-1">
-                    {savingsCash > 0 && (
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>Efectivo</span>
-                        <span>{fmt(savingsCash)}</span>
-                      </div>
-                    )}
-                    {savingsInvestments > 0 && (
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>Inversiones</span>
-                        <span>{fmt(savingsInvestments)}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+      {/* Racha */}
+      <StreakCard
+        currentStreak={data.currentStreak}
+        bestStreak={12}
+        weekDays={data.weekDayStatus}
+      />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Budget overview */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Presupuesto 50/30/20</CardTitle>
-                  <Link href="/presupuesto">
-                    <Button variant="ghost" size="sm">
-                      Ver detalle <ArrowRight className="w-4 h-4 ml-1" />
-                    </Button>
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <BudgetChart
-                  needs={data.budgetByBucket.needs}
-                  wants={data.budgetByBucket.wants}
-                  savings={data.budgetByBucket.savings}
-                />
-                <div className="space-y-3 mt-4">
-                  {[
-                    { label: 'Necesidades', budgeted: data.budgetByBucket.needs, spent: data.spentByBucket.needs, color: 'bg-[#1E3A5F]' },
-                    { label: 'Gustos', budgeted: data.budgetByBucket.wants, spent: data.spentByBucket.wants, color: 'bg-[#3B82F6]' },
-                    { label: 'Ahorro/Deudas', budgeted: data.budgetByBucket.savings, spent: data.spentByBucket.savings, color: 'bg-[#93C5FD]' },
-                  ].map((b) => (
-                    <div key={b.label}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-600">{b.label}</span>
-                        <span className={b.budgeted > 0 && b.spent > b.budgeted ? 'text-red-500 font-medium' : 'text-gray-900'}>
-                          {fmt(b.spent)} / {fmt(b.budgeted)}
-                        </span>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${b.budgeted > 0 && b.spent > b.budgeted ? 'bg-red-400' : b.color}`}
-                          style={{ width: `${b.budgeted > 0 ? Math.min((b.spent / b.budgeted) * 100, 100) : 0}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Action plan */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Plan de acción</CardTitle>
-                    <CardDescription>
-                      {completedSteps} de {planSteps.length} pasos completados
-                    </CardDescription>
-                  </div>
-                  <Link href="/plan">
-                    <Button variant="ghost" size="sm">
-                      Ver todo <ArrowRight className="w-4 h-4 ml-1" />
-                    </Button>
-                  </Link>
-                </div>
-                <Progress value={planProgress} className="h-2" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {planSteps.slice(0, 5).map((item) => (
-                    <div
-                      key={item.id}
-                      className={`flex items-start gap-3 p-3 rounded-lg ${
-                        item.completed ? 'bg-[#F8F9FF]' : 'bg-gray-50'
-                      }`}
-                    >
-                      {item.completed ? (
-                        <CheckCircle2 className="w-5 h-5 text-[#3B82F6] flex-shrink-0 mt-0.5" />
-                      ) : (
-                        <Circle className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5" />
-                      )}
-                      <span
-                        className={`text-sm ${
-                          item.completed ? 'text-[#1D4ED8] line-through' : 'text-gray-700'
-                        }`}
-                      >
-                        {item.title}
-                      </span>
-                    </div>
-                  ))}
-                  {planSteps.length === 0 && (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      No hay plan de acción para este mes.
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Debts overview */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Deudas</CardTitle>
-                    <CardDescription>
-                      Total: {fmt(totalDebtBalance)}
-                    </CardDescription>
-                  </div>
-                  <Link href="/deudas">
-                    <Button variant="ghost" size="sm">
-                      Ver detalle <ArrowRight className="w-4 h-4 ml-1" />
-                    </Button>
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {data.debts.length > 0 ? data.debts.map((debt) => (
-                    <div key={debt.id}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="font-medium">{debt.name}</span>
-                        <span className="text-gray-600">{fmt(Number(debt.balance))}</span>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        Pago mínimo: {fmt(Number(debt.min_payment))}/mes
-                        {debt.type === 'informal' && ' (informal)'}
-                      </p>
-                    </div>
-                  )) : (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      No tienes deudas registradas.
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Score history */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Progreso</CardTitle>
-                  <Link href="/historial">
-                    <Button variant="ghost" size="sm">
-                      Ver historial <ArrowRight className="w-4 h-4 ml-1" />
-                    </Button>
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ScoreHistoryChart data={data.scoreHistory} />
-                {data.scoreHistory.length >= 2 && (
-                  <div className="mt-4 p-3 bg-[#F8F9FF] rounded-lg">
-                    <p className="text-sm text-[#1E40AF]">
-                      {(() => {
-                        const first = data.scoreHistory[0].score;
-                        const last = data.scoreHistory[data.scoreHistory.length - 1].score;
-                        const diff = last - first;
-                        if (diff > 0) return <>Tu puntaje subió <strong>+{diff} puntos</strong>. ¡Seguí así!</>;
-                        if (diff < 0) return <>Tu puntaje bajó <strong>{diff} puntos</strong>. Revisá tu plan de acción.</>;
-                        return <>Tu puntaje se mantiene estable.</>;
-                      })()}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Capsule recommendations */}
-          {capsuleRecs.length > 0 && (
-            <div className="mt-6">
-              <CapsuleRecommendations recommendations={capsuleRecs} />
-            </div>
-          )}
-        </main>
-      </div>
+      {/* Espacio final */}
+      <div style={{ height: 16 }} />
     </div>
-  );
+  )
 }
