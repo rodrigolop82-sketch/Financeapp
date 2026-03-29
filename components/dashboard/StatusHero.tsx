@@ -40,7 +40,7 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
     status.color === 'amber' ? '#F59E0B' : '#EF4444'
 
   return (
-    <div style={{ background: '#1E3A5F' }}>
+    <div style={{ background: '#1E3A5F', borderRadius: 20, margin: '12px 16px 0', overflow: 'hidden' }}>
 
       {/* TopBar integrado — solo visible en mobile */}
       <div className="lg:hidden" style={{
