@@ -5,14 +5,39 @@ import { createClient } from '@/lib/supabase'
 import { StatusHero } from '@/components/dashboard/StatusHero'
 import { QuickAddBar } from '@/components/dashboard/QuickAddBar'
 import { SummaryRow } from '@/components/dashboard/SummaryRow'
-import { SmartAlert, buildSmartAlert } from '@/components/dashboard/SmartAlert'
+import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
 import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
-import type { VoiceExtractionResult } from '@/types'
+import type { VoiceExtractionResult, Transaction, BudgetCategory, FinancialProfile } from '@/types'
+
+interface EnrichedTransaction {
+  id: string
+  description: string | null
+  category: string
+  amount: number
+  date: string
+  source: 'manual' | 'voice' | 'ocr' | 'csv'
+}
+
+interface DashboardData {
+  profile: FinancialProfile | null
+  enrichedTransactions: EnrichedTransaction[]
+  spentMonth: number
+  spentToday: number
+  spentWeek: number
+  todayCount: number
+  daysLeft: number
+  daysInMonth: number
+  alert: AlertData | null
+  weekDayStatus: ('done' | 'today' | 'miss')[]
+  currentStreak: number
+  budget: number
+  householdId: string
+}
 
 export default function DashboardPage() {
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<DashboardData | null>(null)
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const router = useRouter()
@@ -38,24 +63,24 @@ export default function DashboardPage() {
       supabase.from('budget_categories').select('*').eq('household_id', user.id),
     ])
 
-    const profile = profileRes.data
-    const txMonth = txMonthRes.data ?? []
-    const categories = categoriesRes.data ?? []
+    const profile = profileRes.data as FinancialProfile | null
+    const txMonth = (txMonthRes.data ?? []) as Transaction[]
+    const categories = (categoriesRes.data ?? []) as BudgetCategory[]
 
     // Build category lookup map
     const categoryMap: Record<string, string> = {}
-    categories.forEach((c: any) => { categoryMap[c.id] = c.name })
+    categories.forEach((c) => { categoryMap[c.id] = c.name })
 
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
     const daysLeft = daysInMonth - now.getDate()
 
-    const spentMonth = txMonth.reduce((s: number, t: any) => s + Number(t.amount), 0)
-    const spentToday = txMonth.filter((t: any) => t.date === today).reduce((s: number, t: any) => s + Number(t.amount), 0)
-    const spentWeek  = txMonth.filter((t: any) => t.date >= weekStart).reduce((s: number, t: any) => s + Number(t.amount), 0)
-    const todayCount = txMonth.filter((t: any) => t.date === today).length
+    const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
+    const spentToday = txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0)
+    const spentWeek  = txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0)
+    const todayCount = txMonth.filter((t) => t.date === today).length
 
     // Enrich transactions with category name for display
-    const enrichedTransactions = txMonth.map((t: any) => ({
+    const enrichedTransactions: EnrichedTransaction[] = txMonth.map((t) => ({
       id: t.id,
       description: t.description,
       category: categoryMap[t.category_id] ?? 'Otros',
@@ -66,9 +91,9 @@ export default function DashboardPage() {
 
     // Calcular categoría más sobregirada
     const spentByCat: Record<string, number> = {}
-    txMonth.forEach((t: any) => { spentByCat[t.category_id] = (spentByCat[t.category_id] ?? 0) + Number(t.amount) })
+    txMonth.forEach((t) => { spentByCat[t.category_id] = (spentByCat[t.category_id] ?? 0) + Number(t.amount) })
     let topOver: { name: string; spent: number; limit: number; pctOver: number } | undefined = undefined
-    categories.forEach((c: any) => {
+    categories.forEach((c) => {
       const s = spentByCat[c.id] ?? 0
       const over = c.budgeted_amount > 0 ? (s - c.budgeted_amount) / c.budgeted_amount * 100 : 0
       if (over > 20 && (!topOver || over > topOver.pctOver)) {
@@ -83,7 +108,7 @@ export default function DashboardPage() {
       : 999
 
     // Calcular racha de días consecutivos registrando gastos
-    const txDates = new Set(txMonth.map((t: any) => t.date))
+    const txDates = new Set(txMonth.map((t) => t.date))
     let currentStreak = 0
     const checkDate = new Date(now)
     // Si hoy tiene gastos, contarlo; si no, empezar desde ayer
