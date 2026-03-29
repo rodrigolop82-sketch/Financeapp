@@ -65,6 +65,7 @@ export default function PresupuestoPage() {
   const [incomeCollapsed, setIncomeCollapsed] = useState(true);
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({});
+  const [budgetDefCollapsed, setBudgetDefCollapsed] = useState(true);
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -471,9 +472,12 @@ export default function PresupuestoPage() {
           )}
         </Card>
 
-        {/* Summary card */}
+        {/* ─── SECCIÓN 1: Gráfica y medidores ─── */}
         <Card className="mb-6">
-          <CardContent className="p-6">
+          <CardHeader>
+            <CardTitle className="text-base text-[#1E3A5F]">Distribución del presupuesto</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <BudgetChart
                 needs={bucketTotals.needs}
@@ -519,90 +523,25 @@ export default function PresupuestoPage() {
           </CardContent>
         </Card>
 
-        {/* Categories by bucket */}
-        {/* Comparativo Real vs Presupuesto */}
-        {categories.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-base text-[#1E3A5F]">Comparativo del mes</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 overflow-x-auto">
-              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr className="border-b-2 border-gray-200">
-                    <th className="text-left text-xs font-semibold text-gray-500 py-2 px-1">Categoría</th>
-                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">Presupuesto</th>
-                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">Real</th>
-                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">Variación</th>
-                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(['needs', 'wants', 'savings'] as const).map((bucket) => {
-                    const info = BUCKET_LABELS[bucket];
-                    const bucketCats = categories.filter(c => c.bucket === bucket);
-                    if (bucketCats.length === 0) return null;
-                    return (
-                      <React.Fragment key={bucket}>
-                        <tr className="bg-gray-50">
-                          <td colSpan={5} className={`text-xs font-semibold py-1.5 px-1 ${info.textColor}`}>
-                            {info.label}
-                          </td>
-                        </tr>
-                        {bucketCats.map((cat) => {
-                          const budgeted = getCategoryTotal(cat.id);
-                          const actual = spentByCategory[cat.id] || 0;
-                          const diff = actual - budgeted;
-                          const pct = budgeted > 0 ? Math.round((diff / budgeted) * 100) : 0;
-                          const varClass = diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-600' : 'text-gray-400';
-                          return (
-                            <tr key={cat.id} className="border-b border-gray-100">
-                              <td className="py-2 px-1 font-medium text-[#1E3A5F]">{cat.name}</td>
-                              <td className="py-2 px-1 text-right tabular-nums">{fmt(budgeted)}</td>
-                              <td className="py-2 px-1 text-right tabular-nums">{fmt(actual)}</td>
-                              <td className={`py-2 px-1 text-right font-medium tabular-nums ${varClass}`}>
-                                {diff > 0 ? '+' : ''}{fmt(Math.abs(diff))}
-                              </td>
-                              <td className={`py-2 px-1 text-right font-medium ${varClass}`}>
-                                {diff === 0 ? '0%' : `${diff > 0 ? '+' : '-'}${Math.abs(pct)}%`}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </React.Fragment>
-                    );
-                  })}
-                  {/* Total row */}
-                  <tr className="border-t-2 border-[#1E3A5F]">
-                    <td className="py-2 px-1 font-bold text-[#1E3A5F]">TOTAL</td>
-                    <td className="py-2 px-1 text-right font-bold text-[#1E3A5F] tabular-nums">{fmt(totalBudgeted)}</td>
-                    <td className="py-2 px-1 text-right font-bold text-[#1E3A5F] tabular-nums">
-                      {fmt(Object.values(spentByCategory).reduce((s, v) => s + v, 0))}
-                    </td>
-                    {(() => {
-                      const totalSpent = Object.values(spentByCategory).reduce((s, v) => s + v, 0);
-                      const totalDiff = totalSpent - totalBudgeted;
-                      const totalPct = totalBudgeted > 0 ? Math.round((totalDiff / totalBudgeted) * 100) : 0;
-                      const cls = totalDiff > 0 ? 'text-red-500' : totalDiff < 0 ? 'text-green-600' : 'text-gray-400';
-                      return (
-                        <>
-                          <td className={`py-2 px-1 text-right font-bold tabular-nums ${cls}`}>
-                            {totalDiff > 0 ? '+' : ''}{fmt(Math.abs(totalDiff))}
-                          </td>
-                          <td className={`py-2 px-1 text-right font-bold ${cls}`}>
-                            {totalDiff === 0 ? '0%' : `${totalDiff > 0 ? '+' : '-'}${Math.abs(totalPct)}%`}
-                          </td>
-                        </>
-                      );
-                    })()}
-                  </tr>
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        )}
-
-        {(['needs', 'wants', 'savings'] as const).map((bucket) => {
+        {/* ─── SECCIÓN 2: Definición del presupuesto (colapsable) ─── */}
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base text-[#1E3A5F]">Definición del presupuesto</CardTitle>
+              <button onClick={() => setBudgetDefCollapsed(!budgetDefCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
+                <span>{budgetDefCollapsed ? 'Ver detalle' : 'Cerrar'}</span>
+                {budgetDefCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </button>
+            </div>
+            {budgetDefCollapsed && (
+              <p className="text-xs text-gray-400 mt-1">
+                {categories.length} categorías &middot; Total asignado: {fmt(totalBudgeted)}
+              </p>
+            )}
+          </CardHeader>
+          {!budgetDefCollapsed && (
+            <CardContent className="pt-0 space-y-4">
+              {(['needs', 'wants', 'savings'] as const).map((bucket) => {
           const info = BUCKET_LABELS[bucket];
           const bucketCats = categories.filter(c => c.bucket === bucket);
           return (
@@ -830,6 +769,90 @@ export default function PresupuestoPage() {
             </Card>
           );
         })}
+            </CardContent>
+          )}
+        </Card>
+
+        {/* ─── SECCIÓN 3: Comparativo del mes ─── */}
+        {categories.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-base text-[#1E3A5F]">Comparativo del mes</CardTitle>
+              <p className="text-xs text-gray-400 mt-1">Todas las cifras están en Quetzales (GTQ)</p>
+            </CardHeader>
+            <CardContent className="pt-0 overflow-x-auto">
+              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr className="border-b-2 border-gray-200">
+                    <th className="text-left text-xs font-semibold text-gray-500 py-2 px-1">Categoría</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">Presupuesto</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">Real</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">Variación</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(['needs', 'wants', 'savings'] as const).map((bucket) => {
+                    const info = BUCKET_LABELS[bucket];
+                    const bucketCats = categories.filter(c => c.bucket === bucket);
+                    if (bucketCats.length === 0) return null;
+                    return (
+                      <React.Fragment key={bucket}>
+                        <tr className="bg-gray-50">
+                          <td colSpan={5} className={`text-xs font-semibold py-1.5 px-1 ${info.textColor}`}>
+                            {info.label}
+                          </td>
+                        </tr>
+                        {bucketCats.map((cat) => {
+                          const budgeted = getCategoryTotal(cat.id);
+                          const actual = spentByCategory[cat.id] || 0;
+                          const diff = actual - budgeted;
+                          const pct = budgeted > 0 ? Math.round((diff / budgeted) * 100) : 0;
+                          const varClass = diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-600' : 'text-gray-400';
+                          const fmtNum = (n: number) => n.toLocaleString('es-GT', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                          return (
+                            <tr key={cat.id} className="border-b border-gray-100">
+                              <td className="py-2 px-1 font-medium text-[#1E3A5F]">{cat.name}</td>
+                              <td className="py-2 px-1 text-right tabular-nums">{fmtNum(budgeted)}</td>
+                              <td className="py-2 px-1 text-right tabular-nums">{fmtNum(actual)}</td>
+                              <td className={`py-2 px-1 text-right font-medium tabular-nums ${varClass}`}>
+                                {diff > 0 ? '+' : diff < 0 ? '-' : ''}{fmtNum(Math.abs(diff))}
+                              </td>
+                              <td className={`py-2 px-1 text-right font-medium ${varClass}`}>
+                                {diff === 0 ? '0%' : `${diff > 0 ? '+' : '-'}${Math.abs(pct)}%`}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                  {/* Total row */}
+                  {(() => {
+                    const totalSpent = Object.values(spentByCategory).reduce((s, v) => s + v, 0);
+                    const totalDiff = totalSpent - totalBudgeted;
+                    const totalPct = totalBudgeted > 0 ? Math.round((totalDiff / totalBudgeted) * 100) : 0;
+                    const cls = totalDiff > 0 ? 'text-red-500' : totalDiff < 0 ? 'text-green-600' : 'text-gray-400';
+                    const fmtNum = (n: number) => n.toLocaleString('es-GT', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                    return (
+                      <tr className="border-t-2 border-[#1E3A5F]">
+                        <td className="py-2 px-1 font-bold text-[#1E3A5F]">TOTAL</td>
+                        <td className="py-2 px-1 text-right font-bold text-[#1E3A5F] tabular-nums">{fmtNum(totalBudgeted)}</td>
+                        <td className="py-2 px-1 text-right font-bold text-[#1E3A5F] tabular-nums">{fmtNum(totalSpent)}</td>
+                        <td className={`py-2 px-1 text-right font-bold tabular-nums ${cls}`}>
+                          {totalDiff > 0 ? '+' : totalDiff < 0 ? '-' : ''}{fmtNum(Math.abs(totalDiff))}
+                        </td>
+                        <td className={`py-2 px-1 text-right font-bold ${cls}`}>
+                          {totalDiff === 0 ? '0%' : `${totalDiff > 0 ? '+' : '-'}${Math.abs(totalPct)}%`}
+                        </td>
+                      </tr>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
