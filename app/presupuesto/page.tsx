@@ -62,10 +62,10 @@ export default function PresupuestoPage() {
   const [newCatName, setNewCatName] = useState('');
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [incomeCollapsed, setIncomeCollapsed] = useState(true);
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({});
   const [budgetDefCollapsed, setBudgetDefCollapsed] = useState(true);
+  const [comparativoCollapsed, setComparativoCollapsed] = useState(true);
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -359,119 +359,6 @@ export default function PresupuestoPage() {
           </div>
         )}
 
-        {/* Ingresos section */}
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <CardTitle className="text-base text-[#1E3A5F]">Ingresos</CardTitle>
-                {incomeCollapsed && incomeEntries.length > 0 && (
-                  <span className="text-sm font-bold text-[#2563EB]">{fmt(getMonthlyTotal())}/mes</span>
-                )}
-              </div>
-              <button onClick={() => setIncomeCollapsed(!incomeCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
-                <span>{incomeCollapsed ? 'Ver detalle' : 'Cerrar'}</span>
-                {incomeCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-              </button>
-            </div>
-          </CardHeader>
-          {!incomeCollapsed && (
-            <CardContent className="pt-0">
-              {/* Quick-add chips */}
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {INCOME_SUGGESTIONS.filter(s => !incomeEntries.some(e => e.source === s)).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => addIncomeEntry(s)}
-                    className="px-2.5 py-1 text-xs rounded-full border border-[#BFDBFE] text-[#2563EB] hover:bg-[#EFF6FF] transition-colors"
-                  >
-                    <Plus className="w-3 h-3 inline mr-0.5 -mt-0.5" />
-                    {s}
-                  </button>
-                ))}
-              </div>
-
-              {/* Income entries list */}
-              <div className="space-y-1.5">
-                {incomeEntries.map((entry) => (
-                  <div key={entry.id} className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white">
-                    {/* Source */}
-                    <Input
-                      className="flex-1 h-7 text-sm min-w-0"
-                      placeholder="Fuente"
-                      value={entry.source}
-                      onChange={(e) => updateIncomeEntry(entry.id, 'source', e.target.value)}
-                    />
-                    {/* Member */}
-                    <select
-                      className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
-                      value={entry.member}
-                      onChange={(e) => updateIncomeEntry(entry.id, 'member', e.target.value)}
-                    >
-                      <option value="Persona 1">Persona 1</option>
-                      <option value="Persona 2">Persona 2</option>
-                      <option value="Persona 3">Persona 3</option>
-                      <option value="Hogar">Hogar</option>
-                    </select>
-                    {/* Frequency */}
-                    <select
-                      className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
-                      value={entry.frequency}
-                      onChange={(e) => updateIncomeEntry(entry.id, 'frequency', e.target.value)}
-                    >
-                      <option value="mensual">Mensual</option>
-                      <option value="quincenal">Quincenal</option>
-                      <option value="semanal">Semanal</option>
-                      <option value="anual">Anual</option>
-                    </select>
-                    {/* Amount */}
-                    <div className="relative w-28 flex-shrink-0">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
-                      <Input
-                        type="number"
-                        className="pl-6 h-7 text-xs text-right"
-                        placeholder="0"
-                        value={entry.amount || ''}
-                        onChange={(e) => updateIncomeEntry(entry.id, 'amount', parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    {/* Monthly equivalent hint */}
-                    {entry.frequency !== 'mensual' && entry.amount > 0 && (
-                      <span className="text-[10px] text-gray-400 flex-shrink-0 w-16 text-right">
-                        {fmt(Math.round(entry.amount * (FREQUENCY_MULTIPLIER[entry.frequency] || 1) * 100) / 100)}/mes
-                      </span>
-                    )}
-                    {/* Delete */}
-                    <button
-                      onClick={() => deleteIncomeEntry(entry.id)}
-                      className="text-gray-300 hover:text-red-500 flex-shrink-0"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add entry button */}
-              <button
-                onClick={() => addIncomeEntry()}
-                className="mt-3 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Agregar ingreso
-              </button>
-
-              {/* Total monthly income */}
-              {incomeEntries.length > 0 && (
-                <div className="mt-4 pt-3 border-t flex justify-between items-center">
-                  <span className="text-sm font-medium text-gray-700">Ingreso mensual total</span>
-                  <span className="text-sm font-bold text-[#1E3A5F]">{fmt(income)}</span>
-                </div>
-              )}
-            </CardContent>
-          )}
-        </Card>
-
         {/* ─── SECCIÓN 1: Gráfica y medidores ─── */}
         <Card className="mb-6">
           <CardHeader>
@@ -535,12 +422,109 @@ export default function PresupuestoPage() {
             </div>
             {budgetDefCollapsed && (
               <p className="text-xs text-gray-400 mt-1">
-                {categories.length} categorías &middot; Total asignado: {fmt(totalBudgeted)}
+                Ingresos: {fmt(income)} &middot; {categories.length} categorías &middot; Total asignado: {fmt(totalBudgeted)}
               </p>
             )}
           </CardHeader>
           {!budgetDefCollapsed && (
             <CardContent className="pt-0 space-y-4">
+              {/* ── Ingresos ── */}
+              <Card className="mb-4">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base text-[#10B981]">Ingresos</CardTitle>
+                    <span className="text-sm font-bold text-[#10B981]">{fmt(income)}/mes</span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {/* Quick-add chips */}
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {INCOME_SUGGESTIONS.filter(s => !incomeEntries.some(e => e.source === s)).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => addIncomeEntry(s)}
+                        className="px-2.5 py-1 text-xs rounded-full border border-[#BFDBFE] text-[#2563EB] hover:bg-[#EFF6FF] transition-colors"
+                      >
+                        <Plus className="w-3 h-3 inline mr-0.5 -mt-0.5" />
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Income entries */}
+                  <div className="space-y-1">
+                    {incomeEntries.map((entry) => (
+                      <div key={entry.id} className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white">
+                        <div className="w-1.5 h-6 rounded-full bg-[#10B981] flex-shrink-0" />
+                        <Input
+                          className="flex-1 h-7 text-sm min-w-0"
+                          placeholder="Fuente"
+                          value={entry.source}
+                          onChange={(e) => updateIncomeEntry(entry.id, 'source', e.target.value)}
+                        />
+                        <select
+                          className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                          value={entry.member}
+                          onChange={(e) => updateIncomeEntry(entry.id, 'member', e.target.value)}
+                        >
+                          <option value="Persona 1">Persona 1</option>
+                          <option value="Persona 2">Persona 2</option>
+                          <option value="Persona 3">Persona 3</option>
+                          <option value="Hogar">Hogar</option>
+                        </select>
+                        <select
+                          className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                          value={entry.frequency}
+                          onChange={(e) => updateIncomeEntry(entry.id, 'frequency', e.target.value)}
+                        >
+                          <option value="mensual">Mensual</option>
+                          <option value="quincenal">Quincenal</option>
+                          <option value="semanal">Semanal</option>
+                          <option value="anual">Anual</option>
+                        </select>
+                        <div className="relative w-28 flex-shrink-0">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
+                          <Input
+                            type="number"
+                            className="pl-6 h-7 text-xs text-right"
+                            placeholder="0"
+                            value={entry.amount || ''}
+                            onChange={(e) => updateIncomeEntry(entry.id, 'amount', parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                        {entry.frequency !== 'mensual' && entry.amount > 0 && (
+                          <span className="text-[10px] text-gray-400 flex-shrink-0 w-16 text-right">
+                            {fmt(Math.round(entry.amount * (FREQUENCY_MULTIPLIER[entry.frequency] || 1) * 100) / 100)}/mes
+                          </span>
+                        )}
+                        <button
+                          onClick={() => deleteIncomeEntry(entry.id)}
+                          className="text-gray-300 hover:text-red-500 flex-shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => addIncomeEntry()}
+                    className="mt-3 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Agregar ingreso
+                  </button>
+
+                  {incomeEntries.length > 0 && (
+                    <div className="mt-4 pt-3 border-t flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Ingreso mensual total</span>
+                      <span className="text-sm font-bold text-[#1E3A5F]">{fmt(income)}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* ── Necesidades / Gustos / Ahorro ── */}
               {(['needs', 'wants', 'savings'] as const).map((bucket) => {
           const info = BUCKET_LABELS[bucket];
           const bucketCats = categories.filter(c => c.bucket === bucket);
@@ -773,13 +757,32 @@ export default function PresupuestoPage() {
           )}
         </Card>
 
-        {/* ─── SECCIÓN 3: Comparativo del mes ─── */}
-        {categories.length > 0 && (
+        {/* ─── SECCIÓN 3: Comparativo del mes (colapsable) ─── */}
+        {categories.length > 0 && (() => {
+          const totalSpent = Object.values(spentByCategory).reduce((s, v) => s + v, 0);
+          const totalDiff = totalSpent - totalBudgeted;
+          const fmtNum = (n: number) => n.toLocaleString('es-GT', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+          return (
           <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-base text-[#1E3A5F]">Comparativo del mes</CardTitle>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base text-[#1E3A5F]">Comparativo del mes</CardTitle>
+                <button onClick={() => setComparativoCollapsed(!comparativoCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
+                  <span>{comparativoCollapsed ? 'Ver detalle' : 'Cerrar'}</span>
+                  {comparativoCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                </button>
+              </div>
+              {comparativoCollapsed && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Presupuesto: {fmtNum(totalBudgeted)} &middot; Real: {fmtNum(totalSpent)} &middot;{' '}
+                  <span className={totalDiff > 0 ? 'text-red-500' : totalDiff < 0 ? 'text-green-600' : ''}>
+                    Variación: {totalDiff > 0 ? '+' : totalDiff < 0 ? '-' : ''}{fmtNum(Math.abs(totalDiff))}
+                  </span>
+                </p>
+              )}
               <p className="text-xs text-gray-400 mt-1">Todas las cifras están en Quetzales (GTQ)</p>
             </CardHeader>
+            {!comparativoCollapsed && (
             <CardContent className="pt-0 overflow-x-auto">
               <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
                 <thead>
@@ -796,6 +799,11 @@ export default function PresupuestoPage() {
                     const info = BUCKET_LABELS[bucket];
                     const bucketCats = categories.filter(c => c.bucket === bucket);
                     if (bucketCats.length === 0) return null;
+                    const bucketBudgeted = bucketCats.reduce((s, c) => s + getCategoryTotal(c.id), 0);
+                    const bucketActual = bucketCats.reduce((s, c) => s + (spentByCategory[c.id] || 0), 0);
+                    const bucketDiff = bucketActual - bucketBudgeted;
+                    const bucketPct = bucketBudgeted > 0 ? Math.round((bucketDiff / bucketBudgeted) * 100) : 0;
+                    const bucketVarClass = bucketDiff > 0 ? 'text-red-500' : bucketDiff < 0 ? 'text-green-600' : 'text-gray-400';
                     return (
                       <React.Fragment key={bucket}>
                         <tr className="bg-gray-50">
@@ -809,7 +817,6 @@ export default function PresupuestoPage() {
                           const diff = actual - budgeted;
                           const pct = budgeted > 0 ? Math.round((diff / budgeted) * 100) : 0;
                           const varClass = diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-600' : 'text-gray-400';
-                          const fmtNum = (n: number) => n.toLocaleString('es-GT', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
                           return (
                             <tr key={cat.id} className="border-b border-gray-100">
                               <td className="py-2 px-1 font-medium text-[#1E3A5F]">{cat.name}</td>
@@ -824,16 +831,25 @@ export default function PresupuestoPage() {
                             </tr>
                           );
                         })}
+                        {/* Subtotal row per bucket */}
+                        <tr className="border-b border-gray-200 bg-gray-50/50">
+                          <td className="py-1.5 px-1 text-xs font-semibold text-gray-600">Subtotal</td>
+                          <td className="py-1.5 px-1 text-right text-xs font-semibold text-gray-600 tabular-nums">{fmtNum(bucketBudgeted)}</td>
+                          <td className="py-1.5 px-1 text-right text-xs font-semibold text-gray-600 tabular-nums">{fmtNum(bucketActual)}</td>
+                          <td className={`py-1.5 px-1 text-right text-xs font-semibold tabular-nums ${bucketVarClass}`}>
+                            {bucketDiff > 0 ? '+' : bucketDiff < 0 ? '-' : ''}{fmtNum(Math.abs(bucketDiff))}
+                          </td>
+                          <td className={`py-1.5 px-1 text-right text-xs font-semibold ${bucketVarClass}`}>
+                            {bucketDiff === 0 ? '0%' : `${bucketDiff > 0 ? '+' : '-'}${Math.abs(bucketPct)}%`}
+                          </td>
+                        </tr>
                       </React.Fragment>
                     );
                   })}
                   {/* Total row */}
                   {(() => {
-                    const totalSpent = Object.values(spentByCategory).reduce((s, v) => s + v, 0);
-                    const totalDiff = totalSpent - totalBudgeted;
                     const totalPct = totalBudgeted > 0 ? Math.round((totalDiff / totalBudgeted) * 100) : 0;
                     const cls = totalDiff > 0 ? 'text-red-500' : totalDiff < 0 ? 'text-green-600' : 'text-gray-400';
-                    const fmtNum = (n: number) => n.toLocaleString('es-GT', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
                     return (
                       <tr className="border-t-2 border-[#1E3A5F]">
                         <td className="py-2 px-1 font-bold text-[#1E3A5F]">TOTAL</td>
@@ -851,8 +867,10 @@ export default function PresupuestoPage() {
                 </tbody>
               </table>
             </CardContent>
+            )}
           </Card>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
