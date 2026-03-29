@@ -9,7 +9,7 @@ import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashbo
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
 import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
-import type { VoiceExtractionResult, Transaction, BudgetCategory, FinancialProfile } from '@/types'
+import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile } from '@/types'
 
 interface EnrichedTransaction {
   id: string
@@ -173,9 +173,25 @@ export default function DashboardPage() {
     loadDashboardData()
   }
 
-  function handleVoiceConfirmed(saved: number) {
+  async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || transactions.length === 0) return
+
+    const rows = transactions.map((t) => ({
+      household_id: user.id,
+      amount: t.amount,
+      description: t.description,
+      category_id: t.category_id ?? null,
+      date: t.date || new Date().toISOString().split('T')[0],
+      source: 'voice' as const,
+      voice_raw_text: voiceResult?.raw_text ?? null,
+    }))
+    await supabase.from('transactions').insert(rows)
+
     setVoiceResult(null)
-    setSuccessMsg(`${saved} gasto${saved > 1 ? 's' : ''} guardado${saved > 1 ? 's' : ''}`)
+    const count = transactions.length
+    setSuccessMsg(`${count} gasto${count > 1 ? 's' : ''} guardado${count > 1 ? 's' : ''}`)
     setTimeout(() => setSuccessMsg(null), 3000)
     loadDashboardData()
   }
@@ -215,8 +231,7 @@ export default function DashboardPage() {
           <p style={{ fontSize: 12, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisá antes de guardar</p>
           <TransactionPreview
             result={voiceResult}
-            householdId={data.householdId}
-            onConfirmed={handleVoiceConfirmed}
+            onConfirm={handleVoiceConfirm}
             onCancel={() => setVoiceResult(null)}
           />
         </div>
