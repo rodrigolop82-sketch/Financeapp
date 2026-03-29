@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BudgetChart } from '@/components/charts/budget-chart';
-import { BudgetCategory, BudgetSubItem } from '@/types';
+import { BudgetCategory, BudgetSubItem, IncomeEntry } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
   Save,
@@ -51,9 +51,58 @@ export default function PresupuestoPage() {
   const [newCatName, setNewCatName] = useState('');
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
+  const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
+  const [incomeCollapsed, setIncomeCollapsed] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
+
+  const INCOME_SUGGESTIONS = ['Salario', 'Bonos', 'Freelance', 'Intereses', 'Rentas', 'Dividendos', 'Pensión', 'Otros'];
+
+  const FREQUENCY_MULTIPLIER: Record<string, number> = {
+    mensual: 1,
+    quincenal: 2,
+    semanal: 4.33,
+    anual: 1 / 12,
+  };
+
+  function getMonthlyTotal(entries: IncomeEntry[]): number {
+    return entries.reduce((sum, e) => sum + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
+  }
+
+  function saveIncomeEntries(entries: IncomeEntry[], hhId: string) {
+    localStorage.setItem(`income_entries_${hhId}`, JSON.stringify(entries));
+    setIncomeEntries(entries);
+    const monthlyTotal = Math.round(getMonthlyTotal(entries) * 100) / 100;
+    setIncome(monthlyTotal);
+    // Update Supabase total_income
+    supabase.from('financial_profiles').update({ total_income: monthlyTotal }).eq('household_id', hhId).then();
+  }
+
+  function addIncomeEntry(source = '') {
+    const entry: IncomeEntry = {
+      id: crypto.randomUUID(),
+      source,
+      member: 'Persona 1',
+      amount: 0,
+      frequency: 'mensual',
+    };
+    const updated = [...incomeEntries, entry];
+    saveIncomeEntries(updated, householdId);
+    setEditingIncomeId(entry.id);
+  }
+
+  function updateIncomeEntry(id: string, field: keyof IncomeEntry, value: string | number) {
+    const updated = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
+    saveIncomeEntries(updated, householdId);
+  }
+
+  function deleteIncomeEntry(id: string) {
+    const updated = incomeEntries.filter(e => e.id !== id);
+    saveIncomeEntries(updated, householdId);
+    if (editingIncomeId === id) setEditingIncomeId(null);
+  }
 
   useEffect(() => {
     async function load() {
@@ -77,8 +126,23 @@ export default function PresupuestoPage() {
       ]);
 
       setCategories((cats || []) as BudgetCategory[]);
-      setIncome(fp ? Number(fp.total_income) : 0);
       setSubItems((subs || []) as BudgetSubItem[]);
+
+      // Load income entries from localStorage
+      try {
+        const stored = localStorage.getItem(`income_entries_${hh.id}`);
+        if (stored) {
+          const entries = JSON.parse(stored) as IncomeEntry[];
+          setIncomeEntries(entries);
+          const monthlyTotal = Math.round(entries.reduce((sum, e) => sum + e.amount * ({ mensual: 1, quincenal: 2, semanal: 4.33, anual: 1 / 12 }[e.frequency] || 1), 0) * 100) / 100;
+          setIncome(monthlyTotal);
+        } else {
+          setIncome(fp ? Number(fp.total_income) : 0);
+        }
+      } catch {
+        setIncome(fp ? Number(fp.total_income) : 0);
+      }
+
       setLoading(false);
     }
     load();
@@ -278,6 +342,113 @@ export default function PresupuestoPage() {
             />
           </div>
         )}
+
+        {/* Ingresos section */}
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base text-[#1E3A5F]">Ingresos</CardTitle>
+              <button onClick={() => setIncomeCollapsed(!incomeCollapsed)}>
+                {incomeCollapsed ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronUp className="w-4 h-4 text-gray-400" />}
+              </button>
+            </div>
+          </CardHeader>
+          {!incomeCollapsed && (
+            <CardContent className="pt-0">
+              {/* Quick-add chips */}
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {INCOME_SUGGESTIONS.filter(s => !incomeEntries.some(e => e.source === s)).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => addIncomeEntry(s)}
+                    className="px-2.5 py-1 text-xs rounded-full border border-[#BFDBFE] text-[#2563EB] hover:bg-[#EFF6FF] transition-colors"
+                  >
+                    <Plus className="w-3 h-3 inline mr-0.5 -mt-0.5" />
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Income entries list */}
+              <div className="space-y-1.5">
+                {incomeEntries.map((entry) => (
+                  <div key={entry.id} className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white">
+                    {/* Source */}
+                    <Input
+                      className="flex-1 h-7 text-sm min-w-0"
+                      placeholder="Fuente"
+                      value={entry.source}
+                      onChange={(e) => updateIncomeEntry(entry.id, 'source', e.target.value)}
+                    />
+                    {/* Member */}
+                    <select
+                      className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                      value={entry.member}
+                      onChange={(e) => updateIncomeEntry(entry.id, 'member', e.target.value)}
+                    >
+                      <option value="Persona 1">Persona 1</option>
+                      <option value="Persona 2">Persona 2</option>
+                      <option value="Persona 3">Persona 3</option>
+                      <option value="Hogar">Hogar</option>
+                    </select>
+                    {/* Frequency */}
+                    <select
+                      className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                      value={entry.frequency}
+                      onChange={(e) => updateIncomeEntry(entry.id, 'frequency', e.target.value)}
+                    >
+                      <option value="mensual">Mensual</option>
+                      <option value="quincenal">Quincenal</option>
+                      <option value="semanal">Semanal</option>
+                      <option value="anual">Anual</option>
+                    </select>
+                    {/* Amount */}
+                    <div className="relative w-28 flex-shrink-0">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
+                      <Input
+                        type="number"
+                        className="pl-6 h-7 text-xs text-right"
+                        placeholder="0"
+                        value={entry.amount || ''}
+                        onChange={(e) => updateIncomeEntry(entry.id, 'amount', parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                    {/* Monthly equivalent hint */}
+                    {entry.frequency !== 'mensual' && entry.amount > 0 && (
+                      <span className="text-[10px] text-gray-400 flex-shrink-0 w-16 text-right">
+                        {fmt(Math.round(entry.amount * (FREQUENCY_MULTIPLIER[entry.frequency] || 1) * 100) / 100)}/mes
+                      </span>
+                    )}
+                    {/* Delete */}
+                    <button
+                      onClick={() => deleteIncomeEntry(entry.id)}
+                      className="text-gray-300 hover:text-red-500 flex-shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add entry button */}
+              <button
+                onClick={() => addIncomeEntry()}
+                className="mt-3 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Agregar ingreso
+              </button>
+
+              {/* Total monthly income */}
+              {incomeEntries.length > 0 && (
+                <div className="mt-4 pt-3 border-t flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Ingreso mensual total</span>
+                  <span className="text-sm font-bold text-[#1E3A5F]">{fmt(income)}</span>
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
 
         {/* Summary card */}
         <Card className="mb-6">

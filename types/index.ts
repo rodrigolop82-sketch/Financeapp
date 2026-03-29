@@ -229,6 +229,15 @@ export interface CapsuleRecommendation {
   reason: string;
 }
 
+// Income entry (stored in localStorage)
+export interface IncomeEntry {
+  id: string;
+  source: string;
+  member: string;
+  amount: number;
+  frequency: 'mensual' | 'quincenal' | 'semanal' | 'anual';
+}
+
 // Legacy formatCurrency — new code should use formatMoney from @/lib/format
 export function formatCurrency(amount: number, currency = 'GTQ'): string {
   if (currency === 'GTQ') {

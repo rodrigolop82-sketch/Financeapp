@@ -11,6 +11,8 @@ interface VoiceButtonProps {
   onExtraction?: (result: VoiceExtractionResult) => void
   onError?: (error: string) => void
   className?: string
+  size?: 'default' | 'sm' | 'lg' | 'icon'
+  label?: string
 }
 
 export function VoiceButton({
@@ -19,6 +21,8 @@ export function VoiceButton({
   onExtraction,
   onError,
   className = '',
+  size = 'icon',
+  label,
 }: VoiceButtonProps) {
   const [state, setState] = useState<VoiceState>('idle')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -102,23 +106,27 @@ export function VoiceButton({
   const isRecording = state === 'recording'
   const isProcessing = state === 'processing' || state === 'extracting'
 
+  const iconSize = size === 'lg' ? 'w-6 h-6' : 'w-5 h-5'
+  const stopIconSize = size === 'lg' ? 'w-5 h-5' : 'w-4 h-4'
+
   return (
     <Button
       type="button"
       variant={isRecording ? 'destructive' : 'outline'}
-      size="icon"
+      size={size}
       onClick={handleClick}
       disabled={isProcessing}
       className={`relative ${isRecording ? 'animate-pulse' : ''} ${className}`}
       title={isRecording ? 'Detener grabación' : 'Dictar con voz'}
     >
       {isProcessing ? (
-        <Loader2 className="w-5 h-5 animate-spin" />
+        <Loader2 className={`${iconSize} animate-spin`} />
       ) : isRecording ? (
-        <Square className="w-4 h-4" />
+        <Square className={stopIconSize} />
       ) : (
-        <Mic className="w-5 h-5" />
+        <Mic className={iconSize} />
       )}
+      {label && <span className={isProcessing ? 'ml-2' : 'ml-2'}>{isRecording ? 'Grabando...' : isProcessing ? 'Procesando...' : label}</span>}
       {isRecording && (
         <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
       )}
