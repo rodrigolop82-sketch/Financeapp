@@ -4,13 +4,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ScoreHistoryChart } from '@/components/charts/score-history-chart';
 import { MonthlySnapshot } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
+import { AppShell } from '@/components/layout/AppShell';
 import {
-  ArrowLeft,
   Loader2,
   TrendingUp,
   TrendingDown,
@@ -19,7 +18,6 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
-import Link from 'next/link';
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MONTH_NAMES_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -79,21 +77,7 @@ export default function HistorialPage() {
   const scoreDiff = previous && latest ? (latest.health_score ?? 0) - (previous.health_score ?? 0) : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold">Historial de progreso</h1>
-            <p className="text-sm text-gray-500">{snapshots.length} mes{snapshots.length !== 1 ? 'es' : ''} registrado{snapshots.length !== 1 ? 's' : ''}</p>
-          </div>
-        </div>
-
+    <AppShell title="Historial de progreso" currentPath="/historial">
         {/* Score evolution chart */}
         <Card className="mb-6">
           <CardHeader>
@@ -240,7 +224,6 @@ export default function HistorialPage() {
             </CardContent>
           </Card>
         )}
-      </div>
-    </div>
+    </AppShell>
   );
 }

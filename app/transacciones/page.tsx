@@ -12,8 +12,8 @@ import type { VoiceExtractionResult } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
+import { AppShell } from '@/components/layout/AppShell';
 import {
-  ArrowLeft,
   Plus,
   Loader2,
   Trash2,
@@ -22,7 +22,6 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
 } from 'lucide-react';
-import Link from 'next/link';
 
 export default function TransaccionesPage() {
   const [loading, setLoading] = useState(true);
@@ -209,21 +208,11 @@ export default function TransaccionesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
+    <AppShell title="Transacciones" currentPath="/transacciones">
       <div className="max-w-3xl mx-auto">
-        {/* Header */}
+        {/* Header actions */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">Transacciones</h1>
-              <p className="text-sm text-gray-500">Este mes: {fmt(totalThisMonth)}</p>
-            </div>
-          </div>
+          <p className="text-sm text-gray-500">Este mes: {fmt(totalThisMonth)}</p>
           <div className="flex gap-2">
             <VoiceButton
               mode="expense"
@@ -443,6 +432,6 @@ export default function TransaccionesPage() {
           </Card>
         )}
       </div>
-    </div>
+    </AppShell>
   );
 }

@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ActionStep } from '@/types';
 import {
-  ArrowLeft,
   Loader2,
   CheckCircle2,
   Circle,
@@ -18,7 +17,7 @@ import {
   ChevronUp,
   Sparkles,
 } from 'lucide-react';
-import Link from 'next/link';
+import { AppShell } from '@/components/layout/AppShell';
 
 export default function PlanPage() {
   const [loading, setLoading] = useState(true);
@@ -113,20 +112,12 @@ export default function PlanPage() {
   const sortedSteps = [...steps].sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
+    <AppShell title="Plan de acción" currentPath="/plan">
       <div className="max-w-3xl mx-auto">
-        {/* Header */}
+        {/* Month and regenerate */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">Plan de acción</h1>
-              {month && <p className="text-sm text-gray-500">{month}</p>}
-            </div>
+          <div>
+            {month && <p className="text-sm text-gray-500">{month}</p>}
           </div>
           <Button variant="outline" onClick={regeneratePlan} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
@@ -257,6 +248,6 @@ export default function PlanPage() {
           </Card>
         )}
       </div>
-    </div>
+    </AppShell>
   );
 }

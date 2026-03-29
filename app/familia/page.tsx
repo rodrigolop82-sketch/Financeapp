@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AppShell } from '@/components/layout/AppShell';
 import {
-  ArrowLeft,
   Loader2,
   Users,
   UserPlus,
@@ -19,7 +19,6 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
-import Link from 'next/link';
 
 interface Member {
   user_id: string;
@@ -130,28 +129,15 @@ export default function FamiliaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">Familia</h1>
-              <p className="text-sm text-gray-500">{members.length} miembro{members.length !== 1 ? 's' : ''}</p>
-            </div>
-          </div>
-          {isOwner && (
+    <AppShell title="Familia" currentPath="/familia">
+        {isOwner && (
+          <div className="flex justify-end mb-6">
             <Button onClick={() => { setShowInvite(true); setMessage(null); }}>
               <UserPlus className="w-4 h-4 mr-2" />
               Invitar
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Status message */}
         {message && (
@@ -263,7 +249,6 @@ export default function FamiliaPage() {
             </CardContent>
           </Card>
         )}
-      </div>
-    </div>
+    </AppShell>
   );
 }

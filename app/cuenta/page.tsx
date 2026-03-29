@@ -6,8 +6,8 @@ import { createClient } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { AppShell } from '@/components/layout/AppShell';
 import {
-  ArrowLeft,
   Loader2,
   Crown,
   CheckCircle2,
@@ -18,7 +18,6 @@ import {
   Eye,
   Coins,
 } from 'lucide-react';
-import Link from 'next/link';
 
 export default function CuentaPage() {
   return (
@@ -105,17 +104,7 @@ function CuentaContent() {
   const trialDaysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold">Mi cuenta</h1>
-        </div>
-
+    <AppShell title="Mi cuenta" currentPath="/cuenta">
         {justUpgraded && (
           <div className="mb-4 p-4 bg-[#F8F9FF] border border-[#BFDBFE] rounded-lg flex gap-2">
             <CheckCircle2 className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
@@ -283,7 +272,6 @@ function CuentaContent() {
             </Button>
           </CardContent>
         </Card>
-      </div>
-    </div>
+    </AppShell>
   );
 }

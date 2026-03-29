@@ -1,0 +1,139 @@
+'use client'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase'
+import { BottomNav } from '@/components/dashboard/BottomNav'
+import {
+  BarChart3, Wallet, CreditCard, Target, Receipt,
+  MessageCircle, BookOpen, Clock, Users, Settings,
+  Menu, LogOut, ArrowLeft,
+} from 'lucide-react'
+
+const NAV_ITEMS = [
+  { href: '/dashboard', icon: BarChart3, label: 'Dashboard' },
+  { href: '/presupuesto', icon: Wallet, label: 'Presupuesto' },
+  { href: '/deudas', icon: CreditCard, label: 'Deudas' },
+  { href: '/plan', icon: Target, label: 'Plan' },
+  { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
+  { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
+  { href: '/aprende', icon: BookOpen, label: 'Aprende' },
+  { href: '/historial', icon: Clock, label: 'Historial' },
+  { href: '/familia', icon: Users, label: 'Familia' },
+  { href: '/cuenta', icon: Settings, label: 'Cuenta' },
+]
+
+interface AppShellProps {
+  children: React.ReactNode
+  title: string
+  currentPath: string
+  userName?: string
+  householdName?: string
+}
+
+export function AppShell({ children, title, currentPath, userName = '', householdName = '' }: AppShellProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const router = useRouter()
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile header */}
+      <header className="lg:hidden sticky top-0 z-40 bg-white border-b px-4 py-3 flex items-center gap-3">
+        <button onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <Menu className="w-5 h-5 text-gray-600" />
+        </button>
+        <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h1 className="text-sm font-semibold text-[#1E3A5F] flex-1">{title}</h1>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-[#2563EB] rounded-lg flex items-center justify-center">
+            <span className="text-white text-[10px] font-bold">Z</span>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex">
+        {/* Sidebar — desktop */}
+        <aside
+          className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-white border-r z-50 transform transition-transform lg:translate-x-0 ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-8">
+              <div className="w-8 h-8 bg-[#2563EB] rounded-xl flex items-center justify-center">
+                <span className="text-white text-sm font-bold">Z</span>
+              </div>
+              <span className="text-lg font-bold text-[#1E3A5F]">Zafi</span>
+            </div>
+            <nav className="space-y-1">
+              {NAV_ITEMS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    item.href === currentPath
+                      ? 'bg-[#F8F9FF] text-[#1D4ED8]'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <item.icon className="w-5 h-5" />
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+          {userName && (
+            <div className="absolute bottom-0 w-full p-4 border-t">
+              <div className="flex items-center gap-3 px-3 py-2">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium text-[#1D4ED8]">
+                    {userName[0]}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{userName}</p>
+                  {householdName && <p className="text-xs text-gray-500 truncate">{householdName}</p>}
+                </div>
+                <button onClick={handleLogout} className="text-gray-400 hover:text-gray-600">
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </aside>
+
+        {/* Overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/20 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Main content */}
+        <main className="flex-1">
+          {/* Desktop header */}
+          <div className="hidden lg:flex items-center gap-3 p-6 pb-2">
+            <h1 className="text-xl font-bold text-[#1E3A5F]">{title}</h1>
+          </div>
+          <div className="p-4 lg:p-6 lg:pt-2 pb-24 lg:pb-8">
+            {children}
+          </div>
+        </main>
+      </div>
+
+      {/* Bottom nav — mobile */}
+      <BottomNav />
+    </div>
+  )
+}

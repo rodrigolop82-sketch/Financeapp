@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Debt } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
-  ArrowLeft,
   Plus,
   Trash2,
   Loader2,
@@ -25,7 +24,7 @@ import {
   Save,
   X,
 } from 'lucide-react';
-import Link from 'next/link';
+import { AppShell } from '@/components/layout/AppShell';
 
 interface SimResult {
   totalMonths: number;
@@ -274,23 +273,13 @@ export default function DeudasPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
+    <AppShell title="Deudas" currentPath="/deudas">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
+        {/* Action button */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">Rastreador de deudas</h1>
-              <p className="text-sm text-gray-500">
-                {activeDebts.length} deuda{activeDebts.length !== 1 ? 's' : ''} activa{activeDebts.length !== 1 ? 's' : ''} - Total: {fmt(totalBalance)}
-              </p>
-            </div>
-          </div>
+          <p className="text-sm text-gray-500">
+            {activeDebts.length} deuda{activeDebts.length !== 1 ? 's' : ''} activa{activeDebts.length !== 1 ? 's' : ''} - Total: {fmt(totalBalance)}
+          </p>
           <Button onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Agregar deuda
@@ -799,6 +788,6 @@ export default function DeudasPage() {
           </Card>
         )}
       </div>
-    </div>
+    </AppShell>
   );
 }

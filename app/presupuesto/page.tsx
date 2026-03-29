@@ -11,7 +11,6 @@ import { BudgetChart } from '@/components/charts/budget-chart';
 import { BudgetCategory, BudgetSubItem } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
-  ArrowLeft,
   Save,
   Loader2,
   Plus,
@@ -23,7 +22,7 @@ import {
   Unlock,
   X,
 } from 'lucide-react';
-import Link from 'next/link';
+import { AppShell } from '@/components/layout/AppShell';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import type { VoiceExtractionResult } from '@/types';
@@ -241,21 +240,10 @@ export default function PresupuestoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
+    <AppShell title="Presupuesto 50/30/20" currentPath="/presupuesto">
+        {/* Action buttons */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">Presupuesto 50/30/20</h1>
-              <p className="text-sm text-gray-500">Ingreso mensual: {fmt(income)}</p>
-            </div>
-          </div>
+          <p className="text-sm text-gray-500">Ingreso mensual: {fmt(income)}</p>
           <div className="flex items-center gap-2">
             <VoiceButton
               mode="expense"
@@ -568,7 +556,6 @@ export default function PresupuestoPage() {
             </Card>
           );
         })}
-      </div>
-    </div>
+    </AppShell>
   );
 }
