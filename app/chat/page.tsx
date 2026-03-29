@@ -2,7 +2,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { VoiceButton } from '@/components/voice/VoiceButton'
