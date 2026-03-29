@@ -333,7 +333,7 @@ export default function DashboardPage() {
         )}
 
         {/* Main content */}
-        <main className="flex-1 max-w-2xl mx-auto lg:mx-0">
+        <main className="flex-1 max-w-3xl mx-auto lg:mx-0 lg:max-w-none lg:pr-8">
           <div style={{ background: '#F0F4FF', minHeight: '100vh', paddingBottom: 80 }}>
 
             {/* Hero marino */}

@@ -42,8 +42,8 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
   return (
     <div style={{ background: '#1E3A5F' }}>
 
-      {/* TopBar integrado */}
-      <div style={{
+      {/* TopBar integrado — solo visible en mobile */}
+      <div className="lg:hidden" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '12px 16px 0',
       }}>
