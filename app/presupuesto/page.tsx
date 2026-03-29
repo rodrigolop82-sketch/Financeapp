@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BudgetChart } from '@/components/charts/budget-chart';
 import { BudgetCategory, BudgetSubItem } from '@/types';
+import type { IncomeEntry } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
   ArrowLeft,
@@ -27,6 +28,15 @@ import Link from 'next/link';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import type { VoiceExtractionResult } from '@/types';
+
+const INCOME_SUGGESTIONS = ['Salario', 'Bonos', 'Freelance', 'Alquiler', 'Negocio', 'Pensión', 'Remesas', 'Otros'];
+
+const FREQUENCY_MULTIPLIER: Record<string, number> = {
+  mensual: 1,
+  quincenal: 2,
+  semanal: 4.33,
+  anual: 1 / 12,
+};
 
 const BUCKET_LABELS = {
   needs: { label: 'Necesidades (50%)', color: 'bg-[#1E3A5F]', textColor: 'text-[#1D4ED8]' },
@@ -52,6 +62,8 @@ export default function PresupuestoPage() {
   const [newCatName, setNewCatName] = useState('');
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [incomeCollapsed, setIncomeCollapsed] = useState(true);
+  const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -84,6 +96,49 @@ export default function PresupuestoPage() {
     }
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load income entries from localStorage
+  useEffect(() => {
+    if (!householdId) return;
+    const stored = localStorage.getItem(`income_entries_${householdId}`);
+    if (stored) setIncomeEntries(JSON.parse(stored));
+  }, [householdId]);
+
+  function saveIncomeEntries(entries: IncomeEntry[]) {
+    setIncomeEntries(entries);
+    if (householdId) {
+      localStorage.setItem(`income_entries_${householdId}`, JSON.stringify(entries));
+      // Sync total to Supabase
+      const total = entries.reduce((s, e) => s + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
+      const roundedTotal = Math.round(total * 100) / 100;
+      setIncome(roundedTotal);
+      supabase.from('financial_profiles').update({ total_income: roundedTotal }).eq('household_id', householdId);
+    }
+  }
+
+  function addIncomeEntry(source?: string) {
+    const entry: IncomeEntry = {
+      id: crypto.randomUUID(),
+      source: source || '',
+      member: 'Persona 1',
+      amount: 0,
+      frequency: 'mensual',
+    };
+    saveIncomeEntries([...incomeEntries, entry]);
+  }
+
+  function updateIncomeEntry(id: string, field: string, value: string | number) {
+    const updated = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
+    saveIncomeEntries(updated);
+  }
+
+  function deleteIncomeEntry(id: string) {
+    saveIncomeEntries(incomeEntries.filter(e => e.id !== id));
+  }
+
+  function getMonthlyTotal(): number {
+    return incomeEntries.reduce((s, e) => s + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
+  }
 
   // Calculate category total from sub-items (if any), otherwise use budgeted_amount
   function getCategoryTotal(catId: string): number {
