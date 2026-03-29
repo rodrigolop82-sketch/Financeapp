@@ -125,10 +125,10 @@ export function SmartAlert({ alert }: { alert: AlertData | null }) {
           </svg>
         </div>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 500, color: s.titleColor, marginBottom: 2 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: s.titleColor, marginBottom: 2 }}>
             {alert.title}
           </div>
-          <div style={{ fontSize: 11, color: s.subColor, lineHeight: 1.4 }}>
+          <div style={{ fontSize: 12, color: s.subColor, lineHeight: 1.4 }}>
             {alert.subtitle}
           </div>
         </div>

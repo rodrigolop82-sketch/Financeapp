@@ -20,10 +20,10 @@ export function StreakCard({ currentStreak, bestStreak, weekDays }: StreakCardPr
       }}>
         <div style={{ fontSize: 22, lineHeight: 1 }}>🔥</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, fontWeight: 500, color: '#1E3A5F' }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: '#1E3A5F' }}>
             {currentStreak} {currentStreak === 1 ? 'día' : 'días'} registrando gastos
           </div>
-          <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>
+          <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 1 }}>
             {currentStreak >= bestStreak
               ? '¡Nuevo récord personal!'
               : `Tu mejor racha fue ${bestStreak} días`
@@ -35,7 +35,7 @@ export function StreakCard({ currentStreak, bestStreak, weekDays }: StreakCardPr
               <div key={i} style={{
                 width: 22, height: 22, borderRadius: 6,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 9, fontWeight: 500,
+                fontSize: 11, fontWeight: 500,
                 background: day === 'done' ? '#DBEAFE' : day === 'today' ? '#2563EB' : '#F1F5F9',
                 color: day === 'done' ? '#1E40AF' : day === 'today' ? 'white' : '#94A3B8',
               }}>
