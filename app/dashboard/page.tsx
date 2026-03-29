@@ -9,6 +9,7 @@ import { SummaryRow } from '@/components/dashboard/SummaryRow'
 import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
 import { StreakCard } from '@/components/dashboard/StreakCard'
+import { BottomNav } from '@/components/dashboard/BottomNav'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household } from '@/types'
 import {
@@ -43,6 +44,8 @@ interface DashboardData {
   profile: FinancialProfile | null
   household: Household
   userName: string
+  userInitials: string
+  healthScore: number
   enrichedTransactions: EnrichedTransaction[]
   spentMonth: number
   spentToday: number
@@ -191,10 +194,19 @@ export default function DashboardPage() {
       daysSinceLastTransaction: daysSinceLast,
     })
 
+    const fullName = (userProfile?.full_name || 'Usuario') as string
+    const nameParts = fullName.split(' ')
+    const firstName = nameParts[0]
+    const initials = nameParts.length >= 2
+      ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+      : nameParts[0].substring(0, 2).toUpperCase()
+
     setData({
       profile,
       household: household as Household,
-      userName: userProfile?.full_name?.split(' ')[0] || 'Usuario',
+      userName: firstName,
+      userInitials: initials,
+      healthScore: profile?.health_score ?? 0,
       enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
       daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, budget,
       householdId: hid,
@@ -256,18 +268,11 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile header */}
-      <header className="lg:hidden sticky top-0 bg-white border-b z-40 px-4 py-3 flex items-center justify-between">
+      {/* Mobile header - only hamburger, hidden on desktop */}
+      <header className="lg:hidden sticky top-0 z-40 px-4 py-2 flex items-center" style={{ background: '#1E3A5F' }}>
         <button onClick={() => setSidebarOpen(!sidebarOpen)}>
-          <Menu className="w-6 h-6 text-gray-600" />
+          <Menu className="w-6 h-6 text-white/70" />
         </button>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-[#2563EB] rounded-lg flex items-center justify-center">
-            <span className="text-white text-xs font-bold">Z</span>
-          </div>
-          <span className="font-semibold text-[#1E3A5F]">Zafi</span>
-        </div>
-        <div className="w-6" />
       </header>
 
       <div className="flex">
@@ -336,6 +341,9 @@ export default function DashboardPage() {
               spent={data.spentMonth}
               budget={data.budget}
               daysLeft={data.daysLeft}
+              userName={data.userName}
+              score={data.healthScore}
+              userInitials={data.userInitials}
             />
 
             {/* Mensaje de éxito */}
@@ -393,11 +401,14 @@ export default function DashboardPage() {
               weekDays={data.weekDayStatus}
             />
 
-            {/* Espacio final */}
-            <div style={{ height: 16 }} />
+            {/* Espacio final para BottomNav */}
+            <div style={{ height: 24 }} />
           </div>
         </main>
       </div>
+
+      {/* Bottom navigation - mobile only */}
+      <BottomNav />
     </div>
   )
 }
