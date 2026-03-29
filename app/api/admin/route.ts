@@ -121,8 +121,17 @@ export async function GET() {
   // User list with activity summary (no financial data)
   const { data: allUsers } = await adminClient
     .from('users')
-    .select('id, email, created_at, last_sign_in_at')
+    .select('id, email, created_at')
     .order('created_at', { ascending: false })
+
+  // Get last_sign_in_at from auth.users via admin API
+  const { data: { users: authUsers } } = await adminClient.auth.admin.listUsers()
+  const authMap: Record<string, string | null> = {}
+  if (authUsers) {
+    for (const au of authUsers) {
+      authMap[au.id] = au.last_sign_in_at || null
+    }
+  }
 
   // Count transactions per user (via household)
   const { data: allHouseholds } = await adminClient
@@ -168,7 +177,7 @@ export async function GET() {
     return {
       email: u.email || 'Sin email',
       createdAt: u.created_at,
-      lastSignIn: u.last_sign_in_at,
+      lastSignIn: authMap[u.id] || null,
       transactionCount: hhId ? (txCountByHousehold[hhId] || 0) : 0,
       lastTransaction: hhId ? (lastTxDateByHousehold[hhId] || null) : null,
     }
