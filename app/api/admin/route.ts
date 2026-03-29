@@ -118,6 +118,62 @@ export async function GET() {
     }
   }
 
+  // User list with activity summary (no financial data)
+  const { data: allUsers } = await adminClient
+    .from('users')
+    .select('id, email, created_at, last_sign_in_at')
+    .order('created_at', { ascending: false })
+
+  // Count transactions per user (via household)
+  const { data: allHouseholds } = await adminClient
+    .from('households')
+    .select('id, owner_id')
+
+  const ownerToHousehold: Record<string, string> = {}
+  if (allHouseholds) {
+    for (const h of allHouseholds) {
+      ownerToHousehold[h.owner_id] = h.id
+    }
+  }
+
+  // Get transaction counts per household
+  const { data: txByHousehold } = await adminClient
+    .from('transactions')
+    .select('household_id')
+
+  const txCountByHousehold: Record<string, number> = {}
+  if (txByHousehold) {
+    for (const t of txByHousehold) {
+      txCountByHousehold[t.household_id] = (txCountByHousehold[t.household_id] || 0) + 1
+    }
+  }
+
+  // Get last transaction date per household
+  const { data: lastTxByHousehold } = await adminClient
+    .from('transactions')
+    .select('household_id, created_at')
+    .order('created_at', { ascending: false })
+
+  const lastTxDateByHousehold: Record<string, string> = {}
+  if (lastTxByHousehold) {
+    for (const t of lastTxByHousehold) {
+      if (!lastTxDateByHousehold[t.household_id]) {
+        lastTxDateByHousehold[t.household_id] = t.created_at
+      }
+    }
+  }
+
+  const userList = (allUsers || []).map(u => {
+    const hhId = ownerToHousehold[u.id] || ''
+    return {
+      email: u.email || 'Sin email',
+      createdAt: u.created_at,
+      lastSignIn: u.last_sign_in_at,
+      transactionCount: hhId ? (txCountByHousehold[hhId] || 0) : 0,
+      lastTransaction: hhId ? (lastTxDateByHousehold[hhId] || null) : null,
+    }
+  })
+
   return NextResponse.json({
     overview: {
       totalUsers: totalUsers ?? 0,
@@ -137,5 +193,6 @@ export async function GET() {
     sourceBreakdown,
     dailyTransactions: dailyCounts,
     registrationsByDay,
+    userList,
   })
 }

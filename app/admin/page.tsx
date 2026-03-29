@@ -19,6 +19,14 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
+interface UserInfo {
+  email: string;
+  createdAt: string | null;
+  lastSignIn: string | null;
+  transactionCount: number;
+  lastTransaction: string | null;
+}
+
 interface AdminData {
   overview: {
     totalUsers: number;
@@ -38,6 +46,7 @@ interface AdminData {
   sourceBreakdown: Record<string, number>;
   dailyTransactions: Record<string, number>;
   registrationsByDay: Record<string, number>;
+  userList: UserInfo[];
 }
 
 export default function AdminPage() {
@@ -335,6 +344,71 @@ export default function AdminPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Active users list */}
+        <Card className="mb-6 mt-6">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#2563EB]" />
+              Usuarios ({data.userList.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+              <thead>
+                <tr className="border-b-2 border-gray-200">
+                  <th className="text-left text-xs font-semibold text-gray-500 py-2 px-2">Email</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 py-2 px-2">Registro</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 py-2 px-2">Último acceso</th>
+                  <th className="text-right text-xs font-semibold text-gray-500 py-2 px-2">Transacciones</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 py-2 px-2">Última transacción</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 py-2 px-2">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.userList.map((u, i) => {
+                  const daysSinceLogin = u.lastSignIn
+                    ? Math.floor((Date.now() - new Date(u.lastSignIn).getTime()) / 86400000)
+                    : null;
+                  const isActive = daysSinceLogin !== null && daysSinceLogin <= 7;
+                  const isRecent = daysSinceLogin !== null && daysSinceLogin <= 30;
+                  const fmtDate = (d: string | null) => {
+                    if (!d) return '—';
+                    return new Date(d).toLocaleDateString('es-GT', { day: 'numeric', month: 'short', year: 'numeric' });
+                  };
+                  return (
+                    <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-2 px-2 font-medium text-[#1E3A5F]">{u.email}</td>
+                      <td className="py-2 px-2 text-gray-600">{fmtDate(u.createdAt)}</td>
+                      <td className="py-2 px-2 text-gray-600">
+                        {fmtDate(u.lastSignIn)}
+                        {daysSinceLogin !== null && (
+                          <span className="text-xs text-gray-400 ml-1">({daysSinceLogin}d)</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 text-right font-medium tabular-nums">{u.transactionCount}</td>
+                      <td className="py-2 px-2 text-gray-600">{fmtDate(u.lastTransaction)}</td>
+                      <td className="py-2 px-2 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                          isActive
+                            ? 'bg-green-50 text-green-700'
+                            : isRecent
+                            ? 'bg-yellow-50 text-yellow-700'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {isActive ? 'Activo' : isRecent ? 'Reciente' : 'Inactivo'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {data.userList.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-6">Sin usuarios registrados</p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Privacy notice */}
         <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-xl text-center">
