@@ -18,6 +18,10 @@ import {
   Mail,
   AlertCircle,
   CheckCircle2,
+  Link2,
+  Copy,
+  Check,
+  Share2,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -37,6 +41,9 @@ export default function FamiliaPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [inviteLink, setInviteLink] = useState('');
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [copied, setCopied] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -121,6 +128,44 @@ export default function FamiliaPage() {
     }
   }
 
+  async function generateInviteLink() {
+    setGeneratingLink(true);
+    setMessage(null);
+
+    const res = await fetch('/api/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ householdId }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const link = `${window.location.origin}/invite/${data.invite.invite_code}`;
+      setInviteLink(link);
+    } else {
+      setMessage({ type: 'error', text: 'Error al generar el link de invitación' });
+    }
+    setGeneratingLink(false);
+  }
+
+  async function copyLink() {
+    await navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function shareLink() {
+    if (navigator.share) {
+      await navigator.share({
+        title: 'Únete a mi hogar en Zafi',
+        text: 'Te invito a compartir el presupuesto familiar en Zafi',
+        url: inviteLink,
+      });
+    } else {
+      copyLink();
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -166,35 +211,89 @@ export default function FamiliaPage() {
           </div>
         )}
 
-        {/* Invite form */}
+        {/* Invite section */}
         {showInvite && isOwner && (
           <Card className="mb-6 border-[#BFDBFE]">
             <CardHeader>
               <CardTitle className="text-base">Invitar miembro</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-gray-500">
-                Ingresa el correo electrónico de la persona que deseas agregar a tu hogar.
-                Debe tener una cuenta registrada.
-              </p>
+            <CardContent className="space-y-5">
+              {/* Option 1: Invite link */}
               <div>
-                <Label>Correo electrónico</Label>
-                <Input
-                  type="email"
-                  className="mt-1"
-                  placeholder="ejemplo@correo.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') inviteMember(); }}
-                />
+                <div className="flex items-center gap-2 mb-2">
+                  <Link2 className="w-4 h-4 text-[#2563EB]" />
+                  <span className="text-sm font-medium text-gray-700">Compartir link de invitación</span>
+                </div>
+                <p className="text-sm text-gray-500 mb-3">
+                  Generá un link y compartilo por WhatsApp o cualquier medio. La persona puede registrarse y unirse directamente.
+                </p>
+                {!inviteLink ? (
+                  <Button onClick={generateInviteLink} disabled={generatingLink} variant="outline" className="w-full">
+                    {generatingLink
+                      ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      : <Link2 className="w-4 h-4 mr-2" />
+                    }
+                    Generar link de invitación
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border">
+                      <input
+                        readOnly
+                        value={inviteLink}
+                        className="flex-1 text-sm bg-transparent border-none outline-none text-gray-700 truncate"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={copyLink} variant="outline" size="sm" className="flex-1">
+                        {copied ? <Check className="w-4 h-4 mr-1.5 text-green-600" /> : <Copy className="w-4 h-4 mr-1.5" />}
+                        {copied ? 'Copiado' : 'Copiar'}
+                      </Button>
+                      <Button onClick={shareLink} size="sm" className="flex-1">
+                        <Share2 className="w-4 h-4 mr-1.5" />
+                        Compartir
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-400 text-center">
+                      Este link es válido por 7 días
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="flex gap-3">
-                <Button onClick={inviteMember} disabled={inviting || !inviteEmail.trim()}>
-                  {inviting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-                  Agregar miembro
-                </Button>
-                <Button variant="outline" onClick={() => setShowInvite(false)}>Cancelar</Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                <div className="relative flex justify-center">
+                  <span className="bg-white px-2 text-xs text-gray-400">o agregar directamente</span>
+                </div>
               </div>
+
+              {/* Option 2: Direct email */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Mail className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm font-medium text-gray-700">Por correo electrónico</span>
+                </div>
+                <p className="text-xs text-gray-500 mb-2">
+                  Solo funciona si la persona ya tiene cuenta en Zafi.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="correo@ejemplo.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') inviteMember(); }}
+                  />
+                  <Button onClick={inviteMember} disabled={inviting || !inviteEmail.trim()} size="sm">
+                    {inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Agregar'}
+                  </Button>
+                </div>
+              </div>
+
+              <Button variant="ghost" size="sm" className="w-full text-gray-400" onClick={() => { setShowInvite(false); setInviteLink(''); }}>
+                Cerrar
+              </Button>
             </CardContent>
           </Card>
         )}

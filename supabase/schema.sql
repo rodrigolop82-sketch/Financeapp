@@ -32,6 +32,17 @@ CREATE TABLE household_members (
   PRIMARY KEY (household_id, user_id)
 );
 
+-- Links de invitación para unirse a un hogar
+CREATE TABLE household_invites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  invite_code TEXT NOT NULL UNIQUE,
+  created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'expired')),
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '7 days',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Perfil financiero (resultado del diagnóstico)
 CREATE TABLE financial_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

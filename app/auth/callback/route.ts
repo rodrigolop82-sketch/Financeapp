@@ -29,6 +29,11 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      // If coming from an invite link, go directly to invite page (skip onboarding check)
+      if (next.startsWith('/invite/')) {
+        return NextResponse.redirect(`${origin}${next}`);
+      }
+
       // Check if user has completed onboarding (has a household)
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -38,8 +43,15 @@ export async function GET(request: Request) {
           .eq('owner_id', user.id)
           .limit(1);
 
+        // Also check if user is a member of any household
+        const { data: memberships } = await supabase
+          .from('household_members')
+          .select('household_id')
+          .eq('user_id', user.id)
+          .limit(1);
+
         // New user without household -> go to onboarding
-        if (!households || households.length === 0) {
+        if ((!households || households.length === 0) && (!memberships || memberships.length === 0)) {
           return NextResponse.redirect(`${origin}/onboarding`);
         }
       }
