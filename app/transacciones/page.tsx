@@ -21,6 +21,9 @@ import {
   Gift,
   ArrowDownCircle,
   ArrowUpCircle,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -40,6 +43,9 @@ export default function TransaccionesPage() {
   });
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState({ category_id: '', amount: 0, description: '', date: '' });
+  const [editSaving, setEditSaving] = useState(false);
   // Extraordinary income
   const [extraIncome, setExtraIncome] = useState({ amount: 0, description: 'Aguinaldo', date: new Date().toISOString().split('T')[0] });
   const router = useRouter();
@@ -176,6 +182,46 @@ export default function TransaccionesPage() {
   async function deleteTransaction(id: string) {
     await supabase.from('transactions').delete().eq('id', id);
     setTransactions(transactions.filter(t => t.id !== id));
+  }
+
+  function startEdit(tx: Transaction & { category_name?: string }) {
+    setEditingId(tx.id);
+    setEditData({
+      category_id: tx.category_id,
+      amount: Number(tx.amount),
+      description: tx.description || '',
+      date: tx.date,
+    });
+  }
+
+  async function saveEdit() {
+    if (!editingId || editData.amount <= 0) return;
+    setEditSaving(true);
+
+    const { data } = await supabase
+      .from('transactions')
+      .update({
+        category_id: editData.category_id,
+        amount: editData.amount,
+        description: editData.description,
+        date: editData.date,
+      })
+      .eq('id', editingId)
+      .select('*, budget_categories(name, bucket)')
+      .single();
+
+    if (data) {
+      const mapped = {
+        ...data,
+        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoría',
+        bucket: (data.budget_categories as { bucket: string } | null)?.bucket || '',
+      } as Transaction & { category_name?: string; bucket?: string };
+
+      setTransactions(transactions.map(t => t.id === editingId ? mapped : t));
+    }
+
+    setEditingId(null);
+    setEditSaving(false);
   }
 
   if (loading) {
@@ -396,30 +442,112 @@ export default function TransaccionesPage() {
               <Card>
                 <CardContent className="p-0 divide-y">
                   {txs.map((tx) => (
-                    <div key={tx.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group">
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Receipt className="w-5 h-5 text-gray-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {tx.description || tx.category_name}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${bucketColors[tx.bucket || ''] || 'bg-gray-100 text-gray-600'}`}>
-                            {tx.category_name}
-                          </span>
+                    editingId === tx.id ? (
+                      <div key={tx.id} className="px-4 py-3 bg-blue-50/50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-[#2563EB]">Editando transacción</span>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={saveEdit}
+                              disabled={editSaving || editData.amount <= 0}
+                              className="p-1.5 rounded-md bg-[#2563EB] text-white hover:bg-[#1D4ED8] disabled:opacity-50"
+                            >
+                              {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Categoría</Label>
+                          <select
+                            className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
+                            value={editData.category_id}
+                            onChange={(e) => setEditData({ ...editData, category_id: e.target.value })}
+                          >
+                            <optgroup label="Necesidades">
+                              {categories.filter(c => c.bucket === 'needs').map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Gustos">
+                              {categories.filter(c => c.bucket === 'wants').map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Ahorro/Deudas">
+                              {categories.filter(c => c.bucket === 'savings').map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </optgroup>
+                          </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Monto (Q)</Label>
+                            <Input
+                              type="number"
+                              className="mt-1"
+                              value={editData.amount || ''}
+                              onChange={(e) => setEditData({ ...editData, amount: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Fecha</Label>
+                            <Input
+                              type="date"
+                              className="mt-1"
+                              value={editData.date}
+                              onChange={(e) => setEditData({ ...editData, date: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Descripción</Label>
+                          <Input
+                            className="mt-1"
+                            value={editData.description}
+                            onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                            placeholder="Descripción del gasto"
+                          />
                         </div>
                       </div>
-                      <div className="text-right flex items-center gap-2">
-                        <span className="font-medium text-sm">{fmt(Number(tx.amount))}</span>
-                        <button
-                          onClick={() => deleteTransaction(tx.id)}
-                          className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                    ) : (
+                      <div key={tx.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group">
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Receipt className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {tx.description || tx.category_name}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${bucketColors[tx.bucket || ''] || 'bg-gray-100 text-gray-600'}`}>
+                              {tx.category_name}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right flex items-center gap-2">
+                          <span className="font-medium text-sm">{fmt(Number(tx.amount))}</span>
+                          <button
+                            onClick={() => startEdit(tx)}
+                            className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-gray-300 hover:text-[#2563EB] transition-all"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteTransaction(tx.id)}
+                            className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )
                   ))}
                 </CardContent>
               </Card>
