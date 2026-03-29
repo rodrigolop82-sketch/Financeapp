@@ -13,7 +13,7 @@ const NAV_ITEMS = [
 function NavIcon({ icon, active }: { icon: string; active: boolean }) {
   const color = active ? '#2563EB' : '#94A3B8'
 
-  const icons: Record<string, JSX.Element> = {
+  const icons: Record<string, React.ReactNode> = {
     grid: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <rect x="3" y="3" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.5"/>

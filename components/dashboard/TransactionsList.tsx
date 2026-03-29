@@ -34,7 +34,7 @@ function CategoryIcon({ category }: { category: string }) {
   const config = CATEGORY_ICONS[category] ?? { bg: '#F1F5F9', icon: 'card' }
   const color = '#475569'
 
-  const icons: Record<string, JSX.Element> = {
+  const icons: Record<string, React.ReactNode> = {
     restaurant: <path d="M5 3v5a2 2 0 002 2h0a2 2 0 002-2V3M6 3v2M9 13v4M5 10h4l-1 3H6l-1-3z" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>,
     cart: <path d="M3 3h1l1.5 7h7L14 5H5.5M7 13a1 1 0 100 2 1 1 0 000-2zM12 13a1 1 0 100 2 1 1 0 000-2z" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>,
     car: <path d="M3 10l1.5-4h7L13 10M3 10v3h2v-1h6v1h2v-3M3 10h10M5.5 12a.5.5 0 100-1 .5.5 0 000 1zM10.5 12a.5.5 0 100-1 .5.5 0 000 1z" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>,
