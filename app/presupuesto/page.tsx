@@ -149,10 +149,6 @@ export default function PresupuestoPage() {
     saveIncomeEntries(incomeEntries.filter(e => e.id !== id));
   }
 
-  function getMonthlyTotal(): number {
-    return incomeEntries.reduce((s, e) => s + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
-  }
-
   // Calculate category total from sub-items (if any), otherwise use budgeted_amount
   function getCategoryTotal(catId: string): number {
     const catSubs = subItems.filter(s => s.category_id === catId);
