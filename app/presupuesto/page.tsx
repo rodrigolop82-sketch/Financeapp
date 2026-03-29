@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,6 +64,7 @@ export default function PresupuestoPage() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [incomeCollapsed, setIncomeCollapsed] = useState(true);
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
+  const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({});
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -83,11 +84,22 @@ export default function PresupuestoPage() {
       if (!hh) { router.push('/onboarding'); return; }
       setHouseholdId(hh.id);
 
-      const [{ data: cats }, { data: fp }, { data: subs }] = await Promise.all([
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+
+      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
         supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
+        supabase.from('transactions').select('category_id, amount').eq('household_id', hh.id).gte('date', monthStart),
       ]);
+
+      // Aggregate spending by category
+      const spent: Record<string, number> = {};
+      (txs || []).forEach((tx: { category_id: string; amount: number }) => {
+        spent[tx.category_id] = (spent[tx.category_id] || 0) + Number(tx.amount);
+      });
+      setSpentByCategory(spent);
 
       setCategories((cats || []) as BudgetCategory[]);
       setIncome(fp ? Number(fp.total_income) : 0);
@@ -508,6 +520,88 @@ export default function PresupuestoPage() {
         </Card>
 
         {/* Categories by bucket */}
+        {/* Comparativo Real vs Presupuesto */}
+        {categories.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-base text-[#1E3A5F]">Comparativo del mes</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 overflow-x-auto">
+              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr className="border-b-2 border-gray-200">
+                    <th className="text-left text-xs font-semibold text-gray-500 py-2 px-1">Categoría</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">Presupuesto</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">Real</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">Variación</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 py-2 px-1">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(['needs', 'wants', 'savings'] as const).map((bucket) => {
+                    const info = BUCKET_LABELS[bucket];
+                    const bucketCats = categories.filter(c => c.bucket === bucket);
+                    if (bucketCats.length === 0) return null;
+                    return (
+                      <React.Fragment key={bucket}>
+                        <tr className="bg-gray-50">
+                          <td colSpan={5} className={`text-xs font-semibold py-1.5 px-1 ${info.textColor}`}>
+                            {info.label}
+                          </td>
+                        </tr>
+                        {bucketCats.map((cat) => {
+                          const budgeted = getCategoryTotal(cat.id);
+                          const actual = spentByCategory[cat.id] || 0;
+                          const diff = actual - budgeted;
+                          const pct = budgeted > 0 ? Math.round((diff / budgeted) * 100) : 0;
+                          const varClass = diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-600' : 'text-gray-400';
+                          return (
+                            <tr key={cat.id} className="border-b border-gray-100">
+                              <td className="py-2 px-1 font-medium text-[#1E3A5F]">{cat.name}</td>
+                              <td className="py-2 px-1 text-right tabular-nums">{fmt(budgeted)}</td>
+                              <td className="py-2 px-1 text-right tabular-nums">{fmt(actual)}</td>
+                              <td className={`py-2 px-1 text-right font-medium tabular-nums ${varClass}`}>
+                                {diff > 0 ? '+' : ''}{fmt(Math.abs(diff))}
+                              </td>
+                              <td className={`py-2 px-1 text-right font-medium ${varClass}`}>
+                                {diff === 0 ? '0%' : `${diff > 0 ? '+' : '-'}${Math.abs(pct)}%`}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                  {/* Total row */}
+                  <tr className="border-t-2 border-[#1E3A5F]">
+                    <td className="py-2 px-1 font-bold text-[#1E3A5F]">TOTAL</td>
+                    <td className="py-2 px-1 text-right font-bold text-[#1E3A5F] tabular-nums">{fmt(totalBudgeted)}</td>
+                    <td className="py-2 px-1 text-right font-bold text-[#1E3A5F] tabular-nums">
+                      {fmt(Object.values(spentByCategory).reduce((s, v) => s + v, 0))}
+                    </td>
+                    {(() => {
+                      const totalSpent = Object.values(spentByCategory).reduce((s, v) => s + v, 0);
+                      const totalDiff = totalSpent - totalBudgeted;
+                      const totalPct = totalBudgeted > 0 ? Math.round((totalDiff / totalBudgeted) * 100) : 0;
+                      const cls = totalDiff > 0 ? 'text-red-500' : totalDiff < 0 ? 'text-green-600' : 'text-gray-400';
+                      return (
+                        <>
+                          <td className={`py-2 px-1 text-right font-bold tabular-nums ${cls}`}>
+                            {totalDiff > 0 ? '+' : ''}{fmt(Math.abs(totalDiff))}
+                          </td>
+                          <td className={`py-2 px-1 text-right font-bold ${cls}`}>
+                            {totalDiff === 0 ? '0%' : `${totalDiff > 0 ? '+' : '-'}${Math.abs(totalPct)}%`}
+                          </td>
+                        </>
+                      );
+                    })()}
+                  </tr>
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
+
         {(['needs', 'wants', 'savings'] as const).map((bucket) => {
           const info = BUCKET_LABELS[bucket];
           const bucketCats = categories.filter(c => c.bucket === bucket);
