@@ -257,7 +257,7 @@ export default function DashboardPage() {
         <div style={{
           margin: '10px 16px 0', padding: '8px 12px',
           background: '#F0FDF4', border: '0.5px solid #BBF7D0',
-          borderRadius: 10, fontSize: 12, color: '#065F46'
+          borderRadius: 10, fontSize: 14, color: '#065F46'
         }}>
           {successMsg}
         </div>
@@ -266,7 +266,7 @@ export default function DashboardPage() {
       {/* Preview de voz (si hay) */}
       {voiceResult && (
         <div style={{ margin: '10px 16px 0', padding: 14, background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14 }}>
-          <p style={{ fontSize: 12, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisá antes de guardar</p>
+          <p style={{ fontSize: 14, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisá antes de guardar</p>
           <TransactionPreview
             result={voiceResult}
             onConfirm={handleVoiceConfirm}

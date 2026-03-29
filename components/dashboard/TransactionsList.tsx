@@ -92,12 +92,12 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
   return (
     <div style={{ padding: '10px 16px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B', letterSpacing: '.05em' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B', letterSpacing: '.05em' }}>
           ÚLTIMOS MOVIMIENTOS
         </span>
         <button
           onClick={onSeeAll}
-          style={{ fontSize: 11, color: '#2563EB', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer' }}
+          style={{ fontSize: 12, color: '#2563EB', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer' }}
         >
           Ver todos &rarr;
         </button>
@@ -105,8 +105,8 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
 
       <div style={{ background: 'white', border: '0.5px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
         {recent.length === 0 ? (
-          <div style={{ padding: '20px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 12 }}>
-            No hay gastos registrados. ¡Agrega el primero!
+          <div style={{ padding: '20px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>
+            No hay gastos registrados. ¡Agregá el primero!
           </div>
         ) : (
           recent.map((tx, i) => (
@@ -119,23 +119,23 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
-                  fontSize: 13, fontWeight: 500, color: '#1E3A5F',
+                  fontSize: 14, fontWeight: 500, color: '#1E3A5F',
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                 }}>
                   {tx.description || tx.category}
                 </div>
-                <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>
+                <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 1 }}>
                   {tx.category} &middot; {formatRelativeDate(tx.date)}
                 </div>
               </div>
 
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: '#1E3A5F' }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: '#1E3A5F' }}>
                   {money(tx.amount)}
                 </div>
                 {tx.source === 'voice' && (
                   <span style={{
-                    fontSize: 9, fontWeight: 500, padding: '1px 5px',
+                    fontSize: 10, fontWeight: 500, padding: '1px 5px',
                     borderRadius: 4, background: '#DBEAFE', color: '#1E40AF'
                   }}>
                     voz

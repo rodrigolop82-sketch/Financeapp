@@ -32,7 +32,7 @@ export function QuickAddBar({ onAdd, onVoiceResult }: QuickAddBarProps) {
     <div style={{ margin: '12px 16px 0' }}>
       {/* Label */}
       <p style={{
-        fontSize: 10, fontWeight: 600, letterSpacing: '0.05em',
+        fontSize: 12, fontWeight: 600, letterSpacing: '0.05em',
         textTransform: 'uppercase', color: '#64748B', marginBottom: 6
       }}>
         Registrar gasto
@@ -72,7 +72,7 @@ export function QuickAddBar({ onAdd, onVoiceResult }: QuickAddBarProps) {
             placeholder="Ej: Q45 Starbucks, Q200 super..."
             style={{
               flex: 1, height: 48, border: 'none', outline: 'none',
-              padding: '0 10px', fontSize: 13, color: '#334155',
+              padding: '0 10px', fontSize: 14, color: '#334155',
               background: 'transparent'
             }}
           />
@@ -98,7 +98,7 @@ export function QuickAddBar({ onAdd, onVoiceResult }: QuickAddBarProps) {
               key={i}
               onClick={() => { setValue(s); inputRef.current?.focus() }}
               style={{
-                background: '#F1F5F9', color: '#64748B', fontSize: 10,
+                background: '#F1F5F9', color: '#64748B', fontSize: 12,
                 padding: '2px 8px', borderRadius: 20, border: 'none',
                 cursor: 'pointer', fontFamily: 'inherit'
               }}
@@ -110,7 +110,7 @@ export function QuickAddBar({ onAdd, onVoiceResult }: QuickAddBarProps) {
 
         {/* Helper text */}
         <p style={{
-          padding: '2px 10px 6px', fontSize: 10, color: '#94A3B8',
+          padding: '2px 10px 6px', fontSize: 12, color: '#94A3B8',
           background: '#FAFBFF'
         }}>
           Escribí el monto y descripción, o usá el micrófono

@@ -26,7 +26,8 @@ function LoginForm() {
   const [error, setError] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/dashboard';
+  const inviteCode = searchParams.get('invite');
+  const next = inviteCode ? `/invite/${inviteCode}` : (searchParams.get('next') ?? '/dashboard');
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent) {
@@ -130,7 +131,7 @@ function LoginForm() {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             ¿No tienes cuenta?{' '}
-            <Link href="/registro" className="text-[#2563EB] font-medium hover:underline">
+            <Link href={inviteCode ? `/registro?invite=${inviteCode}` : '/registro'} className="text-[#2563EB] font-medium hover:underline">
               Regístrate gratis
             </Link>
           </p>

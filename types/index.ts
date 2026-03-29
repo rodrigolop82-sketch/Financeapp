@@ -25,6 +25,16 @@ export interface HouseholdMember {
   joined_at: string;
 }
 
+export interface HouseholdInvite {
+  id: string;
+  household_id: string;
+  invite_code: string;
+  created_by: string;
+  status: 'active' | 'expired';
+  expires_at: string;
+  created_at: string;
+}
+
 export interface FinancialProfile {
   id: string;
   household_id: string;

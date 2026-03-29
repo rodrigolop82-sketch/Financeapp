@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BudgetChart } from '@/components/charts/budget-chart';
-import { BudgetCategory, BudgetSubItem, IncomeEntry } from '@/types';
+import { BudgetCategory, BudgetSubItem } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
+  ArrowLeft,
   Save,
   Loader2,
   Plus,
@@ -22,7 +23,7 @@ import {
   Unlock,
   X,
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/AppShell';
+import Link from 'next/link';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import type { VoiceExtractionResult } from '@/types';
@@ -51,58 +52,9 @@ export default function PresupuestoPage() {
   const [newCatName, setNewCatName] = useState('');
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
-  const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
-  const [incomeCollapsed, setIncomeCollapsed] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
-
-  const INCOME_SUGGESTIONS = ['Salario', 'Bonos', 'Freelance', 'Intereses', 'Rentas', 'Dividendos', 'Pensión', 'Otros'];
-
-  const FREQUENCY_MULTIPLIER: Record<string, number> = {
-    mensual: 1,
-    quincenal: 2,
-    semanal: 4.33,
-    anual: 1 / 12,
-  };
-
-  function getMonthlyTotal(entries: IncomeEntry[]): number {
-    return entries.reduce((sum, e) => sum + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
-  }
-
-  function saveIncomeEntries(entries: IncomeEntry[], hhId: string) {
-    localStorage.setItem(`income_entries_${hhId}`, JSON.stringify(entries));
-    setIncomeEntries(entries);
-    const monthlyTotal = Math.round(getMonthlyTotal(entries) * 100) / 100;
-    setIncome(monthlyTotal);
-    // Update Supabase total_income
-    supabase.from('financial_profiles').update({ total_income: monthlyTotal }).eq('household_id', hhId).then();
-  }
-
-  function addIncomeEntry(source = '') {
-    const entry: IncomeEntry = {
-      id: crypto.randomUUID(),
-      source,
-      member: 'Persona 1',
-      amount: 0,
-      frequency: 'mensual',
-    };
-    const updated = [...incomeEntries, entry];
-    saveIncomeEntries(updated, householdId);
-    setEditingIncomeId(entry.id);
-  }
-
-  function updateIncomeEntry(id: string, field: keyof IncomeEntry, value: string | number) {
-    const updated = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
-    saveIncomeEntries(updated, householdId);
-  }
-
-  function deleteIncomeEntry(id: string) {
-    const updated = incomeEntries.filter(e => e.id !== id);
-    saveIncomeEntries(updated, householdId);
-    if (editingIncomeId === id) setEditingIncomeId(null);
-  }
 
   useEffect(() => {
     async function load() {
@@ -126,23 +78,8 @@ export default function PresupuestoPage() {
       ]);
 
       setCategories((cats || []) as BudgetCategory[]);
+      setIncome(fp ? Number(fp.total_income) : 0);
       setSubItems((subs || []) as BudgetSubItem[]);
-
-      // Load income entries from localStorage
-      try {
-        const stored = localStorage.getItem(`income_entries_${hh.id}`);
-        if (stored) {
-          const entries = JSON.parse(stored) as IncomeEntry[];
-          setIncomeEntries(entries);
-          const monthlyTotal = Math.round(entries.reduce((sum, e) => sum + e.amount * ({ mensual: 1, quincenal: 2, semanal: 4.33, anual: 1 / 12 }[e.frequency] || 1), 0) * 100) / 100;
-          setIncome(monthlyTotal);
-        } else {
-          setIncome(fp ? Number(fp.total_income) : 0);
-        }
-      } catch {
-        setIncome(fp ? Number(fp.total_income) : 0);
-      }
-
       setLoading(false);
     }
     load();
@@ -304,10 +241,21 @@ export default function PresupuestoPage() {
   }
 
   return (
-    <AppShell title="Presupuesto 50/30/20" currentPath="/presupuesto">
-        {/* Action buttons */}
+    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <p className="text-sm text-gray-500">Ingreso mensual: {fmt(income)}</p>
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold">Presupuesto 50/30/20</h1>
+              <p className="text-sm text-gray-500">Ingreso mensual: {fmt(income)}</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <VoiceButton
               mode="expense"
@@ -347,9 +295,15 @@ export default function PresupuestoPage() {
         <Card className="mb-6">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base text-[#1E3A5F]">Ingresos</CardTitle>
-              <button onClick={() => setIncomeCollapsed(!incomeCollapsed)}>
-                {incomeCollapsed ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronUp className="w-4 h-4 text-gray-400" />}
+              <div className="flex items-center gap-3">
+                <CardTitle className="text-base text-[#1E3A5F]">Ingresos</CardTitle>
+                {incomeCollapsed && incomeEntries.length > 0 && (
+                  <span className="text-sm font-bold text-[#2563EB]">{fmt(getMonthlyTotal())}/mes</span>
+                )}
+              </div>
+              <button onClick={() => setIncomeCollapsed(!incomeCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
+                <span>{incomeCollapsed ? 'Ver detalle' : 'Cerrar'}</span>
+                {incomeCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
               </button>
             </div>
           </CardHeader>
@@ -727,6 +681,7 @@ export default function PresupuestoPage() {
             </Card>
           );
         })}
-    </AppShell>
+      </div>
+    </div>
   );
 }

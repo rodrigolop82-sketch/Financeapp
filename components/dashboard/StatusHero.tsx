@@ -40,7 +40,7 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
     status.color === 'amber' ? '#F59E0B' : '#EF4444'
 
   return (
-    <div style={{ background: '#1E3A5F' }}>
+    <div style={{ background: '#1E3A5F', borderRadius: 20, margin: '12px 16px 0', overflow: 'hidden' }}>
 
       {/* TopBar integrado — solo visible en mobile */}
       <div className="lg:hidden" style={{
@@ -86,7 +86,7 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
             width: 8, height: 8, borderRadius: '50%',
             background: dotColor, flexShrink: 0
           }}/>
-          <span style={{ fontSize: 13, color: 'rgba(255,255,255,.85)' }}>
+          <span style={{ fontSize: 14, color: 'rgba(255,255,255,.85)' }}>
             {status.text}
           </span>
         </div>
@@ -97,14 +97,14 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
           {/* Gastado / total */}
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
             <div>
-              <span style={{ fontSize: 28, fontWeight: 500, color: 'white', letterSpacing: '-.02em' }}>
+              <span style={{ fontSize: 30, fontWeight: 500, color: 'white', letterSpacing: '-.02em' }}>
                 {money(spent)}
               </span>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,.45)', marginLeft: 4 }}>
+              <span style={{ fontSize: 14, color: 'rgba(255,255,255,.45)', marginLeft: 4 }}>
                 / {money(budget)}
               </span>
             </div>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,.45)' }}>
+            <span style={{ fontSize: 14, color: 'rgba(255,255,255,.45)' }}>
               {pctDisplay}%
             </span>
           </div>
@@ -124,14 +124,14 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
           {/* Dinero restante + días */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginBottom: 1 }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', marginBottom: 1 }}>
                 Te quedan
               </div>
-              <div style={{ fontSize: 20, fontWeight: 500, color: 'white' }}>
+              <div style={{ fontSize: 22, fontWeight: 500, color: 'white' }}>
                 {money(remaining)}
               </div>
             </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', textAlign: 'right' }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.35)', textAlign: 'right' }}>
               {daysLeft} días restantes
             </div>
           </div>

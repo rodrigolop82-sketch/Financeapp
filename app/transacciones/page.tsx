@@ -12,14 +12,20 @@ import type { VoiceExtractionResult } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
-import { AppShell } from '@/components/layout/AppShell';
 import {
+  ArrowLeft,
   Plus,
   Loader2,
   Trash2,
   Receipt,
+  Gift,
+  ArrowDownCircle,
   ArrowUpCircle,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function TransaccionesPage() {
   const [loading, setLoading] = useState(true);
@@ -28,6 +34,7 @@ export default function TransaccionesPage() {
   const [householdId, setHouseholdId] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isExtraordinary, setIsExtraordinary] = useState(false);
   const [newTx, setNewTx] = useState({
     category_id: '',
     amount: 0,
@@ -36,6 +43,11 @@ export default function TransaccionesPage() {
   });
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState({ category_id: '', amount: 0, description: '', date: '' });
+  const [editSaving, setEditSaving] = useState(false);
+  // Extraordinary income
+  const [extraIncome, setExtraIncome] = useState({ amount: 0, description: 'Aguinaldo', date: new Date().toISOString().split('T')[0] });
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -106,6 +118,38 @@ export default function TransaccionesPage() {
     setSaving(false);
   }
 
+  async function addExtraordinaryIncome() {
+    setSaving(true);
+    // Find or use savings category for extraordinary income
+    const savingsCat = categories.find(c => c.bucket === 'savings');
+    if (!savingsCat) { setSaving(false); return; }
+
+    const { data } = await supabase
+      .from('transactions')
+      .insert({
+        household_id: householdId,
+        category_id: savingsCat.id,
+        amount: extraIncome.amount,
+        description: extraIncome.description || 'Ingreso extraordinario',
+        date: extraIncome.date,
+        source: 'manual',
+      })
+      .select('*, budget_categories(name, bucket)')
+      .single();
+
+    if (data) {
+      const mapped = {
+        ...data,
+        category_name: (data.budget_categories as { name: string } | null)?.name || 'Ingreso extraordinario',
+        bucket: 'savings',
+      } as Transaction & { category_name?: string; bucket?: string };
+      setTransactions([mapped, ...transactions]);
+      setExtraIncome({ amount: 0, description: 'Aguinaldo', date: new Date().toISOString().split('T')[0] });
+      setIsExtraordinary(false);
+    }
+    setSaving(false);
+  }
+
   async function saveVoiceTransactions(txs: VoiceExtractionResult['transactions']) {
     if (!householdId) return;
     const { data } = await supabase
@@ -140,6 +184,46 @@ export default function TransaccionesPage() {
     setTransactions(transactions.filter(t => t.id !== id));
   }
 
+  function startEdit(tx: Transaction & { category_name?: string }) {
+    setEditingId(tx.id);
+    setEditData({
+      category_id: tx.category_id,
+      amount: Number(tx.amount),
+      description: tx.description || '',
+      date: tx.date,
+    });
+  }
+
+  async function saveEdit() {
+    if (!editingId || editData.amount <= 0) return;
+    setEditSaving(true);
+
+    const { data } = await supabase
+      .from('transactions')
+      .update({
+        category_id: editData.category_id,
+        amount: editData.amount,
+        description: editData.description,
+        date: editData.date,
+      })
+      .eq('id', editingId)
+      .select('*, budget_categories(name, bucket)')
+      .single();
+
+    if (data) {
+      const mapped = {
+        ...data,
+        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoría',
+        bucket: (data.budget_categories as { bucket: string } | null)?.bucket || '',
+      } as Transaction & { category_name?: string; bucket?: string };
+
+      setTransactions(transactions.map(t => t.id === editingId ? mapped : t));
+    }
+
+    setEditingId(null);
+    setEditSaving(false);
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -171,29 +255,36 @@ export default function TransaccionesPage() {
   };
 
   return (
-    <AppShell title="Transacciones" currentPath="/transacciones">
+    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
       <div className="max-w-3xl mx-auto">
-        {/* Month total */}
-        <p className="text-sm text-gray-500 mb-4">Este mes: {fmt(totalThisMonth)}</p>
-
-        {/* Main action buttons */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <Button
-            size="lg"
-            className="h-14 text-base"
-            onClick={() => { setShowForm(true); setVoiceResult(null); }}
-          >
-            <Plus className="w-6 h-6 mr-2" />
-            Agregar gasto
-          </Button>
-          <VoiceButton
-            mode="expense"
-            size="lg"
-            label="Dictar con voz"
-            className="h-14 text-base"
-            onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); setShowForm(false); }}
-            onError={(err) => setVoiceError(err)}
-          />
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold">Transacciones</h1>
+              <p className="text-sm text-gray-500">Este mes: {fmt(totalThisMonth)}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <VoiceButton
+              mode="expense"
+              onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); setShowForm(false); setIsExtraordinary(false); }}
+              onError={(err) => setVoiceError(err)}
+            />
+            <Button variant="outline" onClick={() => { setIsExtraordinary(true); setShowForm(false); setVoiceResult(null); }}>
+              <Gift className="w-4 h-4 mr-2" />
+              Aguinaldo
+            </Button>
+            <Button onClick={() => { setShowForm(true); setIsExtraordinary(false); setVoiceResult(null); }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Gasto
+            </Button>
+          </div>
         </div>
 
         {/* Voice transaction preview */}
@@ -210,6 +301,59 @@ export default function TransaccionesPage() {
               onCancel={() => setVoiceResult(null)}
             />
           </div>
+        )}
+
+        {/* Extraordinary income form (aguinaldo) */}
+        {isExtraordinary && (
+          <Card className="mb-6 border-blue-200">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Gift className="w-5 h-5 text-blue-600" />
+                <CardTitle className="text-base">Registrar ingreso extraordinario</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-500">
+                Registra tu aguinaldo, bono de fin de año, o cualquier ingreso extra.
+              </p>
+              <div>
+                <Label>Descripción</Label>
+                <Input
+                  className="mt-1"
+                  value={extraIncome.description}
+                  onChange={(e) => setExtraIncome({ ...extraIncome, description: e.target.value })}
+                  placeholder="Ej: Aguinaldo 2026, Bono, Comisión extra"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Monto (Q)</Label>
+                  <Input
+                    type="number"
+                    className="mt-1"
+                    value={extraIncome.amount || ''}
+                    onChange={(e) => setExtraIncome({ ...extraIncome, amount: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <Label>Fecha</Label>
+                  <Input
+                    type="date"
+                    className="mt-1"
+                    value={extraIncome.date}
+                    onChange={(e) => setExtraIncome({ ...extraIncome, date: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Button onClick={addExtraordinaryIncome} disabled={saving || extraIncome.amount <= 0}>
+                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ArrowDownCircle className="w-4 h-4 mr-2" />}
+                  Registrar ingreso
+                </Button>
+                <Button variant="outline" onClick={() => setIsExtraordinary(false)}>Cancelar</Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* New transaction form */}
@@ -298,30 +442,112 @@ export default function TransaccionesPage() {
               <Card>
                 <CardContent className="p-0 divide-y">
                   {txs.map((tx) => (
-                    <div key={tx.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group">
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Receipt className="w-5 h-5 text-gray-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {tx.description || tx.category_name}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${bucketColors[tx.bucket || ''] || 'bg-gray-100 text-gray-600'}`}>
-                            {tx.category_name}
-                          </span>
+                    editingId === tx.id ? (
+                      <div key={tx.id} className="px-4 py-3 bg-blue-50/50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-[#2563EB]">Editando transacción</span>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={saveEdit}
+                              disabled={editSaving || editData.amount <= 0}
+                              className="p-1.5 rounded-md bg-[#2563EB] text-white hover:bg-[#1D4ED8] disabled:opacity-50"
+                            >
+                              {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Categoría</Label>
+                          <select
+                            className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
+                            value={editData.category_id}
+                            onChange={(e) => setEditData({ ...editData, category_id: e.target.value })}
+                          >
+                            <optgroup label="Necesidades">
+                              {categories.filter(c => c.bucket === 'needs').map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Gustos">
+                              {categories.filter(c => c.bucket === 'wants').map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Ahorro/Deudas">
+                              {categories.filter(c => c.bucket === 'savings').map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </optgroup>
+                          </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Monto (Q)</Label>
+                            <Input
+                              type="number"
+                              className="mt-1"
+                              value={editData.amount || ''}
+                              onChange={(e) => setEditData({ ...editData, amount: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Fecha</Label>
+                            <Input
+                              type="date"
+                              className="mt-1"
+                              value={editData.date}
+                              onChange={(e) => setEditData({ ...editData, date: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Descripción</Label>
+                          <Input
+                            className="mt-1"
+                            value={editData.description}
+                            onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                            placeholder="Descripción del gasto"
+                          />
                         </div>
                       </div>
-                      <div className="text-right flex items-center gap-2">
-                        <span className="font-medium text-sm">{fmt(Number(tx.amount))}</span>
-                        <button
-                          onClick={() => deleteTransaction(tx.id)}
-                          className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                    ) : (
+                      <div key={tx.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group">
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Receipt className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {tx.description || tx.category_name}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${bucketColors[tx.bucket || ''] || 'bg-gray-100 text-gray-600'}`}>
+                              {tx.category_name}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right flex items-center gap-2">
+                          <span className="font-medium text-sm">{fmt(Number(tx.amount))}</span>
+                          <button
+                            onClick={() => startEdit(tx)}
+                            className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-gray-300 hover:text-[#2563EB] transition-all"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteTransaction(tx.id)}
+                            className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )
                   ))}
                 </CardContent>
               </Card>
@@ -329,7 +555,7 @@ export default function TransaccionesPage() {
           );
         })}
 
-        {transactions.length === 0 && !showForm && (
+        {transactions.length === 0 && !showForm && !isExtraordinary && (
           <Card>
             <CardContent className="p-8 text-center">
               <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -345,6 +571,6 @@ export default function TransaccionesPage() {
           </Card>
         )}
       </div>
-    </AppShell>
+    </div>
   );
 }

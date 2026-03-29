@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,6 +12,14 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function RegistroPage() {
+  return (
+    <Suspense>
+      <RegistroForm />
+    </Suspense>
+  );
+}
+
+function RegistroForm() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,6 +27,8 @@ export default function RegistroPage() {
   const [error, setError] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteCode = searchParams.get('invite');
   const supabase = createClient();
 
   async function handleRegister(e: React.FormEvent) {
@@ -26,12 +36,13 @@ export default function RegistroPage() {
     setLoading(true);
     setError('');
 
+    const callbackNext = inviteCode ? `/invite/${inviteCode}` : '/onboarding';
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${callbackNext}`,
       },
     });
 
@@ -43,7 +54,7 @@ export default function RegistroPage() {
 
     // If Supabase has email confirmation disabled, user is logged in immediately
     if (data.session) {
-      router.push('/onboarding');
+      router.push(callbackNext);
       router.refresh();
     } else {
       setEmailSent(true);
@@ -52,10 +63,11 @@ export default function RegistroPage() {
   }
 
   async function handleGoogleSignUp() {
+    const callbackNext = inviteCode ? `/invite/${inviteCode}` : '/onboarding';
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${callbackNext}`,
       },
     });
     if (error) setError(error.message);
@@ -167,7 +179,7 @@ export default function RegistroPage() {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             ¿Ya tienes cuenta?{' '}
-            <Link href="/login" className="text-[#2563EB] font-medium hover:underline">
+            <Link href={inviteCode ? `/login?invite=${inviteCode}` : '/login'} className="text-[#2563EB] font-medium hover:underline">
               Inicia sesión
             </Link>
           </p>
