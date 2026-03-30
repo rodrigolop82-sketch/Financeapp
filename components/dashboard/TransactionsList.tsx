@@ -1,5 +1,6 @@
 'use client'
 import { useMoneyFormat } from '@/lib/format'
+import { localToday, localDaysAgo } from '@/lib/dates'
 
 interface Transaction {
   id: string
@@ -66,16 +67,14 @@ function CategoryIcon({ category }: { category: string }) {
 }
 
 function formatRelativeDate(dateStr: string): string {
-  const now = new Date()
-  const todayStr = now.toISOString().split('T')[0]
-  const yesterdayDate = new Date(now)
-  yesterdayDate.setDate(now.getDate() - 1)
-  const yesterdayStr = yesterdayDate.toISOString().split('T')[0]
+  const todayStr = localToday()
+  const yesterdayStr = localDaysAgo(1)
 
   if (dateStr === todayStr) return 'hoy'
   if (dateStr === yesterdayStr) return 'ayer'
   const date = new Date(dateStr + 'T12:00:00')
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+  const todayDate = new Date(todayStr + 'T12:00:00')
+  const diffDays = Math.round((todayDate.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
   if (diffDays < 7) return `hace ${diffDays} dias`
   return date.toLocaleDateString('es-GT', { day: 'numeric', month: 'short' })
 }

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
 import { QuickAddBar } from '@/components/dashboard/QuickAddBar'
@@ -81,9 +82,9 @@ export default function DashboardPage() {
     const hid = household.id as string
 
     const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const today = now.toISOString().split('T')[0]
+    const monthStart = localMonthStart()
+    const weekStart = localDaysAgo(7)
+    const today = localToday()
 
     const [profileRes, txMonthRes, categoriesRes] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
@@ -138,15 +139,12 @@ export default function DashboardPage() {
     // Calcular racha de días consecutivos registrando gastos
     const txDates = new Set(txMonth.map((t) => t.date))
     let currentStreak = 0
-    const checkDate = new Date(now)
-    if (!txDates.has(today)) {
-      checkDate.setDate(checkDate.getDate() - 1)
-    }
+    let streakOffset = txDates.has(today) ? 0 : 1
     while (true) {
-      const ds = checkDate.toISOString().split('T')[0]
+      const ds = localDaysAgo(streakOffset)
       if (txDates.has(ds)) {
         currentStreak++
-        checkDate.setDate(checkDate.getDate() - 1)
+        streakOffset++
       } else {
         break
       }
@@ -154,10 +152,8 @@ export default function DashboardPage() {
 
     // Días de la semana para racha visual
     const weekDayStatus: ('done' | 'today' | 'miss')[] = Array.from({ length: 7 }, (_, i) => {
-      const dayDate = new Date(now)
       const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1
-      dayDate.setDate(now.getDate() - dayOfWeek + i)
-      const ds = dayDate.toISOString().split('T')[0]
+      const ds = localDaysAgo(dayOfWeek - i)
       if (ds === today) return 'today'
       if (txDates.has(ds)) return 'done'
       if (ds < today) return 'miss'
@@ -203,7 +199,7 @@ export default function DashboardPage() {
     const supabase = createClient()
     await supabase.from('transactions').insert({
       household_id: data.householdId, amount, description,
-      date: new Date().toISOString().split('T')[0], source: 'manual',
+      date: localToday(), source: 'manual',
     })
     setSuccessMsg(`Q ${amount} "${description}" guardado`)
     setTimeout(() => setSuccessMsg(null), 3000)
@@ -219,7 +215,7 @@ export default function DashboardPage() {
       amount: t.amount,
       description: t.description,
       category_id: t.category_id ?? null,
-      date: t.date || new Date().toISOString().split('T')[0],
+      date: t.date || localToday(),
       source: 'voice' as const,
       voice_raw_text: voiceResult?.raw_text ?? null,
     }))

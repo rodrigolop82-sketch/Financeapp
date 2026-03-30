@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { localMonthStart, localMonth } from '@/lib/dates'
 
 export async function buildZafiSystemPrompt(
   userId: string,
@@ -29,7 +30,7 @@ export async function buildZafiSystemPrompt(
       householdId
         ? supabase.from('action_plans')
             .select('*').eq('household_id', householdId)
-            .eq('month', new Date().toISOString().slice(0, 7) + '-01').single()
+            .eq('month', localMonth() + '-01').single()
         : Promise.resolve({ data: null }),
       householdId
         ? supabase.from('budget_categories')
@@ -58,8 +59,7 @@ export async function buildZafiSystemPrompt(
         `- ${d.name}: ${symbol} ${Math.round(d.balance).toLocaleString()} al ${d.interest_rate}% anual (pago mínimo ${symbol} ${Math.round(d.min_payment).toLocaleString()})`
       ).join('\n')
 
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const monthStart = localMonthStart()
   const { data: txs } = householdId
     ? await supabase
         .from('transactions')

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
+import { localToday } from '@/lib/dates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,7 +40,7 @@ export default function TransaccionesPage() {
     category_id: '',
     amount: 0,
     description: '',
-    date: new Date().toISOString().split('T')[0],
+    date: localToday(),
   });
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -47,7 +48,7 @@ export default function TransaccionesPage() {
   const [editData, setEditData] = useState({ category_id: '', amount: 0, description: '', date: '' });
   const [editSaving, setEditSaving] = useState(false);
   // Extraordinary income
-  const [extraIncome, setExtraIncome] = useState({ amount: 0, description: 'Aguinaldo', date: new Date().toISOString().split('T')[0] });
+  const [extraIncome, setExtraIncome] = useState({ amount: 0, description: 'Aguinaldo', date: localToday() });
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -144,7 +145,7 @@ export default function TransaccionesPage() {
         bucket: 'savings',
       } as Transaction & { category_name?: string; bucket?: string };
       setTransactions([mapped, ...transactions]);
-      setExtraIncome({ amount: 0, description: 'Aguinaldo', date: new Date().toISOString().split('T')[0] });
+      setExtraIncome({ amount: 0, description: 'Aguinaldo', date: localToday() });
       setIsExtraordinary(false);
     }
     setSaving(false);

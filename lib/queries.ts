@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { localMonthStart } from '@/lib/dates';
 
 export async function getUserDashboardData(supabase: SupabaseClient) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -63,7 +64,7 @@ export async function getUserDashboardData(supabase: SupabaseClient) {
       .from('transactions')
       .select('*, budget_categories(name, bucket)')
       .eq('household_id', household.id)
-      .gte('date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
+      .gte('date', localMonthStart())
       .order('date', { ascending: false }),
   ]);
 

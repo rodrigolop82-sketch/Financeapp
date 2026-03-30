@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
+import { localMonthStart } from '@/lib/dates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,8 +86,7 @@ export default function PresupuestoPage() {
       if (!hh) { router.push('/onboarding'); return; }
       setHouseholdId(hh.id);
 
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const monthStart = localMonthStart();
 
       const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),

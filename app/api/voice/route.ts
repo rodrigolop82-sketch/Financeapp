@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { localToday } from '@/lib/dates'
 import { NextRequest, NextResponse } from 'next/server'
 
 const ZAFI_CATEGORIES = [
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Paso 2: Claude extrae transacciones
-  const today = new Date().toISOString().split('T')[0]
+  const today = localToday()
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada en el servidor.' }, { status: 500 })
