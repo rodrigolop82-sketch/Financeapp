@@ -78,6 +78,7 @@ CREATE TABLE transactions (
   description TEXT,
   date DATE NOT NULL DEFAULT CURRENT_DATE,
   source TEXT DEFAULT 'manual' CHECK (source IN ('manual', 'ocr', 'csv')),
+  payment_method TEXT DEFAULT 'efectivo' CHECK (payment_method IN ('efectivo', 'tarjeta', 'cheque', 'transferencia')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -41,11 +41,12 @@ export default function TransaccionesPage() {
     amount: 0,
     description: '',
     date: localToday(),
+    payment_method: 'efectivo' as 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia',
   });
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editData, setEditData] = useState({ category_id: '', amount: 0, description: '', date: '' });
+  const [editData, setEditData] = useState({ category_id: '', amount: 0, description: '', date: '', payment_method: 'efectivo' as string });
   const [editSaving, setEditSaving] = useState(false);
   // Extraordinary income
   const [extraIncome, setExtraIncome] = useState({ amount: 0, description: 'Aguinaldo', date: localToday() });
@@ -102,6 +103,7 @@ export default function TransaccionesPage() {
         description: newTx.description,
         date: newTx.date,
         source: 'manual',
+        payment_method: newTx.payment_method,
       })
       .select('*, budget_categories(name, bucket)')
       .single();
@@ -113,7 +115,7 @@ export default function TransaccionesPage() {
         bucket: (data.budget_categories as { bucket: string } | null)?.bucket || '',
       } as Transaction & { category_name?: string; bucket?: string };
       setTransactions([mapped, ...transactions]);
-      setNewTx({ ...newTx, amount: 0, description: '' });
+      setNewTx({ ...newTx, amount: 0, description: '', payment_method: 'efectivo' });
       setShowForm(false);
     }
     setSaving(false);
@@ -192,6 +194,7 @@ export default function TransaccionesPage() {
       amount: Number(tx.amount),
       description: tx.description || '',
       date: tx.date,
+      payment_method: tx.payment_method || 'efectivo',
     });
   }
 
@@ -206,6 +209,7 @@ export default function TransaccionesPage() {
         amount: editData.amount,
         description: editData.description,
         date: editData.date,
+        payment_method: editData.payment_method,
       })
       .eq('id', editingId)
       .select('*, budget_categories(name, bucket)')
@@ -408,14 +412,29 @@ export default function TransaccionesPage() {
                   />
                 </div>
               </div>
-              <div>
-                <Label>Descripción (opcional)</Label>
-                <Input
-                  className="mt-1"
-                  placeholder="Ej: Supermercado, Gasolina, Netflix"
-                  value={newTx.description}
-                  onChange={(e) => setNewTx({ ...newTx, description: e.target.value })}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Descripción (opcional)</Label>
+                  <Input
+                    className="mt-1"
+                    placeholder="Ej: Supermercado, Gasolina"
+                    value={newTx.description}
+                    onChange={(e) => setNewTx({ ...newTx, description: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Forma de pago</Label>
+                  <select
+                    className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
+                    value={newTx.payment_method}
+                    onChange={(e) => setNewTx({ ...newTx, payment_method: e.target.value as 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia' })}
+                  >
+                    <option value="efectivo">💵 Efectivo</option>
+                    <option value="tarjeta">💳 Tarjeta</option>
+                    <option value="cheque">📝 Cheque</option>
+                    <option value="transferencia">🏦 Transferencia</option>
+                  </select>
+                </div>
               </div>
               <div className="flex gap-3">
                 <Button onClick={addTransaction} disabled={saving || newTx.amount <= 0}>
@@ -507,14 +526,29 @@ export default function TransaccionesPage() {
                             />
                           </div>
                         </div>
-                        <div>
-                          <Label className="text-xs">Descripción</Label>
-                          <Input
-                            className="mt-1"
-                            value={editData.description}
-                            onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                            placeholder="Descripción del gasto"
-                          />
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Descripción</Label>
+                            <Input
+                              className="mt-1"
+                              value={editData.description}
+                              onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                              placeholder="Descripción del gasto"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Forma de pago</Label>
+                            <select
+                              className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
+                              value={editData.payment_method}
+                              onChange={(e) => setEditData({ ...editData, payment_method: e.target.value })}
+                            >
+                              <option value="efectivo">💵 Efectivo</option>
+                              <option value="tarjeta">💳 Tarjeta</option>
+                              <option value="cheque">📝 Cheque</option>
+                              <option value="transferencia">🏦 Transferencia</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -530,6 +564,12 @@ export default function TransaccionesPage() {
                             <span className={`text-xs px-1.5 py-0.5 rounded ${bucketColors[tx.bucket || ''] || 'bg-gray-100 text-gray-600'}`}>
                               {tx.category_name}
                             </span>
+                            {tx.payment_method && tx.payment_method !== 'efectivo' && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                                {tx.payment_method === 'tarjeta' ? '💳' : tx.payment_method === 'cheque' ? '📝' : '🏦'}{' '}
+                                {tx.payment_method.charAt(0).toUpperCase() + tx.payment_method.slice(1)}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="text-right flex items-center gap-2">

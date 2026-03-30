@@ -78,6 +78,7 @@ export interface Transaction {
   description: string | null;
   date: string;
   source: 'manual' | 'voice' | 'ocr' | 'csv';
+  payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
   voice_raw_text: string | null;
   created_at: string;
 }
