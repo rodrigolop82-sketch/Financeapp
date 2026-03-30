@@ -116,7 +116,7 @@ Deudas totales: ${symbol} ${Math.round(profile?.total_debt ?? 0).toLocaleString(
 DEUDAS ACTIVAS:
 ${debtsSummary}
 
-PRESUPUESTO DEL MES (${now.toLocaleString('es-GT', { month: 'long', year: 'numeric' })}):
+PRESUPUESTO DEL MES (${new Date().toLocaleString('es-GT', { month: 'long', year: 'numeric' })}):
 ${budgetSummary}
 
 PLAN DE ACCION DEL MES:
