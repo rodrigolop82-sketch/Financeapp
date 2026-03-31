@@ -5,7 +5,7 @@ import Link from 'next/link'
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: 'grid' },
   { href: '/plan', label: 'Plan', icon: 'clock' },
-  { href: '/transacciones', label: 'Agregar', icon: 'plus', isFab: true },
+  { href: '#voice', label: 'Agregar', icon: 'plus', isFab: true },
   { href: '/aprende', label: 'Aprende', icon: 'trend' },
   { href: '/cuenta', label: 'Cuenta', icon: 'user' },
 ]
@@ -68,9 +68,12 @@ export function BottomNav() {
 
           if (item.isFab) {
             return (
-              <Link key={item.href} href={item.href} style={{
+              <button key={item.href} onClick={() => {
+                window.dispatchEvent(new CustomEvent('zafi:voice-overlay'))
+              }} style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                gap: 2, textDecoration: 'none', marginTop: -16,
+                gap: 2, background: 'none', border: 'none', cursor: 'pointer',
+                marginTop: -16, padding: 0,
               }}>
                 <div style={{
                   width: 48, height: 48, borderRadius: '50%',
@@ -83,7 +86,7 @@ export function BottomNav() {
                 <span style={{ fontSize: 9, color: '#64748B', fontWeight: 500 }}>
                   {item.label}
                 </span>
-              </Link>
+              </button>
             )
           }
 
