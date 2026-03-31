@@ -1,6 +1,5 @@
 'use client'
 import { useState, useRef } from 'react'
-import type { VoiceExtractionResult } from '@/types'
 
 // Sugerencias contextuales según la hora del día
 function getTimeSuggestions(): string[] {
@@ -13,11 +12,10 @@ function getTimeSuggestions(): string[] {
 
 interface QuickAddBarProps {
   onAdd: (text: string) => void
-  onVoiceResult: (result: VoiceExtractionResult) => void
   onVoiceOverlay?: () => void
 }
 
-export function QuickAddBar({ onAdd, onVoiceResult, onVoiceOverlay }: QuickAddBarProps) {
+export function QuickAddBar({ onAdd, onVoiceOverlay }: QuickAddBarProps) {
   const [value, setValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const suggestions = getTimeSuggestions()

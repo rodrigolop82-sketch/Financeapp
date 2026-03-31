@@ -322,7 +322,7 @@ export default function DashboardPage() {
       {/* Quick add */}
       <QuickAddBar
         onAdd={handleQuickAdd}
-        onVoiceResult={setVoiceResult}
+
         onVoiceOverlay={() => setVoiceOverlayOpen(true)}
       />
 
