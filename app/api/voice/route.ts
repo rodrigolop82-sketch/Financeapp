@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { localToday } from '@/lib/dates'
+import { cleanTransactionName } from '@/lib/format'
 import { NextRequest, NextResponse } from 'next/server'
 
 const ZAFI_CATEGORIES = [
@@ -119,7 +120,7 @@ export async function POST(req: NextRequest) {
           c.name.toLowerCase().includes(tx.category.toLowerCase()) ||
           tx.category.toLowerCase().includes(c.name.toLowerCase())
         )
-        return { ...tx, category_id: match?.id }
+        return { ...tx, category_id: match?.id, description: cleanTransactionName(tx.description || '') }
       })
     }
   }

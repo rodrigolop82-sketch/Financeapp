@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
+import { cleanTransactionName } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
 import { QuickAddBar } from '@/components/dashboard/QuickAddBar'
@@ -195,7 +196,7 @@ export default function DashboardPage() {
     const match = text.match(/^Q?\s*(\d+(?:\.\d+)?)\s+(.+)$/i)
     if (!match) return
     const amount = parseFloat(match[1])
-    const description = match[2].trim()
+    const description = cleanTransactionName(match[2])
     const supabase = createClient()
     await supabase.from('transactions').insert({
       household_id: data.householdId, amount, description,

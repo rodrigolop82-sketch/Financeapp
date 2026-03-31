@@ -107,14 +107,6 @@ export function QuickAddBar({ onAdd, onVoiceResult }: QuickAddBarProps) {
             </button>
           ))}
         </div>
-
-        {/* Helper text */}
-        <p style={{
-          padding: '2px 10px 6px', fontSize: 12, color: '#94A3B8',
-          background: '#FAFBFF'
-        }}>
-          Escribí el monto y descripción, o usá el micrófono
-        </p>
       </div>
     </div>
   )

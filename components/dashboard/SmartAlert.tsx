@@ -1,4 +1,5 @@
 'use client'
+import { useMoneyFormat } from '@/lib/format'
 
 export type AlertType = 'warning' | 'positive' | 'info' | null
 
@@ -6,6 +7,8 @@ export interface AlertData {
   type: AlertType
   title: string
   subtitle: string
+  budgetAmount?: number
+  spentAmount?: number
 }
 
 /**
@@ -45,8 +48,10 @@ export function buildSmartAlert(params: {
     const extra = Math.round(topOverBudgetCategory.spent - topOverBudgetCategory.limit)
     return {
       type: 'warning',
-      title: `Gastaste ${topOverBudgetCategory.pctOver}% más en ${topOverBudgetCategory.name}`,
-      subtitle: `Superaste el límite por Q ${extra.toLocaleString()} este mes.`,
+      title: `${topOverBudgetCategory.name} sobre el límite este mes`,
+      subtitle: `Gastaste Q ${extra.toLocaleString()} más de lo planeado.`,
+      budgetAmount: topOverBudgetCategory.limit,
+      spentAmount: topOverBudgetCategory.spent,
     }
   }
 
@@ -82,6 +87,7 @@ export function buildSmartAlert(params: {
 }
 
 export function SmartAlert({ alert }: { alert: AlertData | null }) {
+  const { money } = useMoneyFormat()
   if (!alert) return null
 
   const styles = {
@@ -131,6 +137,32 @@ export function SmartAlert({ alert }: { alert: AlertData | null }) {
           <div style={{ fontSize: 12, color: s.subColor, lineHeight: 1.4 }}>
             {alert.subtitle}
           </div>
+          {alert.budgetAmount != null && alert.spentAmount != null && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between',
+                fontSize: 9, fontWeight: 600, color: '#B45309', marginBottom: 3 }}>
+                <span>Presupuesto</span>
+                <span>Gasto real</span>
+              </div>
+              <div style={{ height: 5, background: '#FED7AA', borderRadius: 3,
+                overflow: 'visible', position: 'relative' }}>
+                <div style={{
+                  height: 5,
+                  width: `${Math.min((alert.budgetAmount / alert.spentAmount) * 100, 100)}%`,
+                  background: '#D97706', borderRadius: 3
+                }}/>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between',
+                fontSize: 9, marginTop: 3, fontWeight: 600 }}>
+                <span style={{ color: '#B45309' }}>
+                  {money(alert.budgetAmount)} planeado
+                </span>
+                <span style={{ color: '#EF4444' }}>
+                  {money(alert.spentAmount)} gastado
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

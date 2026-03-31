@@ -78,7 +78,7 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
       </div>
 
       {/* Contenido hero */}
-      <div style={{ padding: '10px 16px 18px' }}>
+      <div style={{ padding: '6px 18px 22px' }}>
 
         {/* Mensaje emocional */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
@@ -97,7 +97,7 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
           {/* Gastado / total */}
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
             <div>
-              <span style={{ fontSize: 30, fontWeight: 500, color: 'white', letterSpacing: '-.02em' }}>
+              <span style={{ fontSize: 32, fontWeight: 700, color: 'white', letterSpacing: '-.03em' }}>
                 {money(spent)}
               </span>
               <span style={{ fontSize: 14, color: 'rgba(255,255,255,.45)', marginLeft: 4 }}>
@@ -111,12 +111,12 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
 
           {/* Barra de progreso */}
           <div style={{
-            height: 8, background: 'rgba(255,255,255,.15)',
-            borderRadius: 4, overflow: 'hidden'
+            height: 9, background: 'rgba(255,255,255,.15)',
+            borderRadius: 5, overflow: 'hidden'
           }}>
             <div style={{
-              height: 8, width: `${pctDisplay}%`,
-              background: barColor, borderRadius: 4,
+              height: 9, width: `${pctDisplay}%`,
+              background: barColor, borderRadius: 5,
               transition: 'width .5s ease'
             }}/>
           </div>
@@ -127,7 +127,7 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', marginBottom: 1 }}>
                 Te quedan
               </div>
-              <div style={{ fontSize: 22, fontWeight: 500, color: 'white' }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: 'white', letterSpacing: '-.02em' }}>
                 {money(remaining)}
               </div>
             </div>

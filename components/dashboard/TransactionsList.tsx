@@ -1,5 +1,5 @@
 'use client'
-import { useMoneyFormat } from '@/lib/format'
+import { useMoneyFormat, cleanTransactionName } from '@/lib/format'
 import { localToday, localDaysAgo } from '@/lib/dates'
 
 interface Transaction {
@@ -121,7 +121,7 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
                   fontSize: 14, fontWeight: 500, color: '#1E3A5F',
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                 }}>
-                  {tx.description || tx.category}
+                  {tx.description ? cleanTransactionName(tx.description) : tx.category}
                 </div>
                 <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 1 }}>
                   {tx.category} &middot; {formatRelativeDate(tx.date)}

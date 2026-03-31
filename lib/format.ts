@@ -62,3 +62,16 @@ export function formatScore(score: number): string {
  * Re-exportado desde /lib/hooks/useFormatMoney.ts para compatibilidad.
  */
 export { useMoneyFormat } from '@/lib/hooks/useFormatMoney'
+
+/**
+ * Limpia el nombre de una transacción para mostrarlo correctamente.
+ */
+export function cleanTransactionName(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^(en |de |para |al |a la |del |en el |en la )/i, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^./, c => c.toUpperCase())
+    .slice(0, 40)
+    .trim()
+}
