@@ -12,6 +12,7 @@ import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashbo
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
 import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
+import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household } from '@/types'
 import { Loader2 } from 'lucide-react'
 
@@ -42,15 +43,24 @@ interface DashboardData {
   currentStreak: number
   budget: number
   householdId: string
+  categories: BudgetCategory[]
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const router = useRouter()
 
   useEffect(() => { loadDashboardData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for voice overlay trigger from BottomNav
+  useEffect(() => {
+    const handler = () => setVoiceOverlayOpen(true)
+    window.addEventListener('zafi:voice-overlay', handler)
+    return () => window.removeEventListener('zafi:voice-overlay', handler)
+  }, [])
 
   async function loadDashboardData() {
     const supabase = createClient()
@@ -188,7 +198,41 @@ export default function DashboardPage() {
       enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
       daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, budget,
       householdId: hid,
+      categories,
     })
+  }
+
+  // Keyword map for auto-categorizing quick-add transactions
+  const CATEGORY_KEYWORDS: Record<string, string[]> = {
+    'alimentación': ['super', 'supermercado', 'mercado', 'comida', 'pollo', 'carne', 'verdura', 'fruta', 'pan', 'leche', 'huevo', 'arroz', 'frijol', 'tortilla', 'despensa'],
+    'restaurantes': ['almuerzo', 'cena', 'desayuno', 'restaurante', 'pizza', 'hamburguesa', 'sushi', 'café', 'starbucks', 'mcdonald', 'burger', 'taco', 'comida rápida'],
+    'transporte': ['uber', 'taxi', 'bus', 'gasolina', 'gas', 'peaje', 'parqueo', 'estacionamiento', 'didi', 'indriver'],
+    'salud': ['farmacia', 'medicina', 'doctor', 'hospital', 'clínica', 'dentista', 'consulta', 'vitamina'],
+    'entretenimiento': ['cine', 'netflix', 'spotify', 'disney', 'hbo', 'juego', 'película', 'concierto', 'fiesta'],
+    'suscripciones': ['netflix', 'spotify', 'youtube', 'prime', 'hbo', 'disney', 'apple', 'icloud'],
+    'servicios': ['luz', 'agua', 'internet', 'teléfono', 'celular', 'cable', 'gas', 'basura'],
+    'educación': ['colegio', 'universidad', 'curso', 'libro', 'matrícula', 'clase', 'escuela'],
+    'ropa': ['ropa', 'zapatos', 'camisa', 'pantalón', 'vestido', 'tienda'],
+    'vivienda': ['alquiler', 'renta', 'hipoteca', 'mantenimiento', 'reparación'],
+  }
+
+  function matchCategory(description: string): string | null {
+    if (!data) return null
+    const lower = description.toLowerCase()
+    // Try direct match with category name
+    for (const cat of data.categories) {
+      if (lower.includes(cat.name.toLowerCase()) || cat.name.toLowerCase().includes(lower)) {
+        return cat.id
+      }
+    }
+    // Try keyword matching
+    for (const [catKeyword, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+      if (keywords.some(k => lower.includes(k))) {
+        const match = data.categories.find(c => c.name.toLowerCase().includes(catKeyword))
+        if (match) return match.id
+      }
+    }
+    return null
   }
 
   async function handleQuickAdd(text: string) {
@@ -197,12 +241,15 @@ export default function DashboardPage() {
     if (!match) return
     const amount = parseFloat(match[1])
     const description = cleanTransactionName(match[2])
+    const categoryId = matchCategory(description)
     const supabase = createClient()
     await supabase.from('transactions').insert({
       household_id: data.householdId, amount, description,
       date: localToday(), source: 'manual',
+      ...(categoryId ? { category_id: categoryId } : {}),
     })
-    setSuccessMsg(`Q ${amount} "${description}" guardado`)
+    const catName = categoryId ? data.categories.find(c => c.id === categoryId)?.name : null
+    setSuccessMsg(`Q ${amount} "${description}" guardado${catName ? ` en ${catName}` : ''}`)
     setTimeout(() => setSuccessMsg(null), 3000)
     loadDashboardData()
   }
@@ -276,6 +323,7 @@ export default function DashboardPage() {
       <QuickAddBar
         onAdd={handleQuickAdd}
         onVoiceResult={setVoiceResult}
+        onVoiceOverlay={() => setVoiceOverlayOpen(true)}
       />
 
       {/* Summary */}
@@ -306,6 +354,14 @@ export default function DashboardPage() {
 
       {/* Espacio final para BottomNav */}
       <div className="h-6" />
+
+      {/* Voice overlay full-screen */}
+      <VoiceOverlay
+        open={voiceOverlayOpen}
+        onClose={() => setVoiceOverlayOpen(false)}
+        onResult={(result) => { setVoiceResult(result); setVoiceOverlayOpen(false) }}
+        onError={(err) => setSuccessMsg(err)}
+      />
     </AppShell>
   )
 }

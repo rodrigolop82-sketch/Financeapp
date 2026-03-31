@@ -1,6 +1,5 @@
 'use client'
 import { useState, useRef } from 'react'
-import { VoiceButton } from '@/components/voice/VoiceButton'
 import type { VoiceExtractionResult } from '@/types'
 
 // Sugerencias contextuales según la hora del día
@@ -15,9 +14,10 @@ function getTimeSuggestions(): string[] {
 interface QuickAddBarProps {
   onAdd: (text: string) => void
   onVoiceResult: (result: VoiceExtractionResult) => void
+  onVoiceOverlay?: () => void
 }
 
-export function QuickAddBar({ onAdd, onVoiceResult }: QuickAddBarProps) {
+export function QuickAddBar({ onAdd, onVoiceResult, onVoiceOverlay }: QuickAddBarProps) {
   const [value, setValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const suggestions = getTimeSuggestions()
@@ -78,14 +78,22 @@ export function QuickAddBar({ onAdd, onVoiceResult }: QuickAddBarProps) {
           />
 
           {/* Botón de voz */}
-          <div style={{ borderLeft: '0.5px solid #F1F5F9' }}>
-            <VoiceButton
-              mode="expense"
-              onExtraction={onVoiceResult}
-              onError={() => {}}
-              className="w-11 h-11"
-            />
-          </div>
+          <button
+            onClick={onVoiceOverlay}
+            style={{
+              width: 48, height: 48, border: 'none',
+              borderLeft: '0.5px solid #F1F5F9',
+              background: 'transparent', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" fill="#2563EB"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="#2563EB" strokeWidth="2" strokeLinecap="round"/>
+              <line x1="12" y1="19" x2="12" y2="23" stroke="#2563EB" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
         </div>
 
         {/* Sugerencias contextuales */}
