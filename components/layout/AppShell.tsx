@@ -1,13 +1,14 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import { isMasterUser } from '@/lib/master-user'
 import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
   BarChart3, Wallet, CreditCard, Target, Receipt,
   MessageCircle, BookOpen, Clock, Users, Settings,
-  Menu, LogOut, ArrowLeft,
+  Menu, LogOut, ArrowLeft, ShieldCheck,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -23,17 +24,34 @@ const NAV_ITEMS = [
   { href: '/cuenta', icon: Settings, label: 'Cuenta' },
 ]
 
+const ADMIN_NAV_ITEM = { href: '/admin', icon: ShieldCheck, label: 'Admin' }
+
 interface AppShellProps {
   children: React.ReactNode
   title: string
   currentPath: string
   userName?: string
+  userEmail?: string
   householdName?: string
 }
 
-export function AppShell({ children, title, currentPath, userName = '', householdName = '' }: AppShellProps) {
+export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '' }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isMaster, setIsMaster] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    if (userEmail) {
+      setIsMaster(isMasterUser(userEmail))
+    } else {
+      const supabase = createClient()
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user?.email) setIsMaster(isMasterUser(user.email))
+      })
+    }
+  }, [userEmail])
+
+  const navItems = isMaster ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS
 
   async function handleLogout() {
     const supabase = createClient()
@@ -75,7 +93,7 @@ export function AppShell({ children, title, currentPath, userName = '', househol
               <span className="text-lg font-bold text-[#1E3A5F]">Zafi</span>
             </div>
             <nav className="space-y-1">
-              {NAV_ITEMS.map((item) => (
+              {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
