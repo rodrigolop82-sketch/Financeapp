@@ -1,11 +1,13 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { MASTER_EMAIL } from '@/lib/master-user'
 
-// Admin emails — only these users can access admin metrics
+// Admin emails — master user + any additional admins from env
 const ADMIN_EMAILS = [
+  MASTER_EMAIL,
   process.env.ADMIN_EMAIL || '',
-]
+].filter(Boolean)
 
 export async function GET() {
   // 1. Check auth — must be logged in

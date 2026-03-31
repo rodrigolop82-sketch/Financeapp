@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -58,8 +59,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Solo el dueño puede invitar miembros' }, { status: 403 });
   }
 
-  // Find the user by email
-  const { data: targetUser } = await supabase
+  // Find the user by email — use service role to bypass RLS on users table
+  const adminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+  const { data: targetUser } = await adminClient
     .from('users')
     .select('id, email')
     .eq('email', email.toLowerCase().trim())

@@ -27,10 +27,12 @@ export default function CapsulePage() {
   const [loading, setLoading] = useState(true)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ReactMarkdown, setReactMarkdown] = useState<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [remarkGfm, setRemarkGfm] = useState<any>(null)
 
   useEffect(() => {
-    // Dynamic import of react-markdown
     import('react-markdown').then(mod => setReactMarkdown(() => mod.default))
+    import('remark-gfm').then(mod => setRemarkGfm(() => mod.default))
   }, [])
 
   useEffect(() => {
@@ -154,14 +156,29 @@ export default function CapsulePage() {
         </div>
       )}
 
-      {/* Markdown content */}
-      <div className="prose prose-sm max-w-none text-foreground">
-        {ReactMarkdown ? (
-          <ReactMarkdown>{capsule.content_md}</ReactMarkdown>
+      {/* Markdown content — article style */}
+      <article className="prose prose-sm max-w-none
+        prose-headings:text-[#1E3A5F] prose-headings:font-semibold
+        prose-h2:text-lg prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:border-gray-200 prose-h2:pb-2
+        prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2
+        prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4
+        prose-strong:text-[#1E3A5F]
+        prose-ul:my-3 prose-li:text-gray-700 prose-li:leading-relaxed
+        prose-ol:my-3
+        prose-table:border-collapse prose-table:w-full prose-table:text-sm prose-table:my-4
+        prose-thead:bg-[#F8F9FF] prose-thead:border-b-2 prose-thead:border-[#BFDBFE]
+        prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-[#1E3A5F] prose-th:font-semibold prose-th:text-xs prose-th:uppercase prose-th:tracking-wide
+        prose-td:px-3 prose-td:py-2 prose-td:border-b prose-td:border-gray-100
+        prose-tr:even:bg-gray-50/50
+        prose-blockquote:border-l-[#2563EB] prose-blockquote:bg-[#F8F9FF] prose-blockquote:py-1 prose-blockquote:rounded-r-lg
+        prose-a:text-[#2563EB] prose-a:no-underline hover:prose-a:underline
+      ">
+        {ReactMarkdown && remarkGfm ? (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{capsule.content_md}</ReactMarkdown>
         ) : (
-          <div className="whitespace-pre-wrap">{capsule.content_md}</div>
+          <div className="whitespace-pre-wrap text-gray-700">{capsule.content_md}</div>
         )}
-      </div>
+      </article>
 
       {/* CTA: ask Zafi */}
       <div className="mt-8 p-4 bg-secondary rounded-xl">
