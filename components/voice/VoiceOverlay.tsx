@@ -109,7 +109,7 @@ export function VoiceOverlay({ open, onClose, onResult, onError }: VoiceOverlayP
       position: 'fixed', inset: 0, zIndex: 100,
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
-      background: 'linear-gradient(160deg, #E8D5B7 0%, #E8A87C 25%, #E07A6A 50%, #D4687A 75%, #B8A9C9 100%)',
+      background: 'linear-gradient(160deg, #0F2027 0%, #1E3A5F 35%, #2C5282 65%, #3B82F6 100%)',
     }}>
       {/* Content */}
       <div style={{
@@ -138,14 +138,15 @@ export function VoiceOverlay({ open, onClose, onResult, onError }: VoiceOverlayP
             {/* Animated pulse ring */}
             <div style={{
               width: 80, height: 80, borderRadius: '50%',
-              background: 'rgba(255,255,255,.15)',
+              background: 'rgba(59,130,246,.3)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               marginBottom: 40,
               animation: 'pulse 2s ease-in-out infinite',
+              boxShadow: '0 0 40px rgba(59,130,246,.25)',
             }}>
               <div style={{
                 width: 48, height: 48, borderRadius: '50%',
-                background: 'rgba(255,255,255,.25)',
+                background: 'rgba(59,130,246,.45)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -185,8 +186,9 @@ export function VoiceOverlay({ open, onClose, onResult, onError }: VoiceOverlayP
           onClick={handleCancel}
           style={{
             width: 56, height: 56, borderRadius: '50%',
-            background: 'rgba(255,255,255,.2)',
-            border: 'none', cursor: 'pointer',
+            background: 'rgba(255,255,255,.12)',
+            border: '1px solid rgba(255,255,255,.2)',
+            cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
@@ -201,8 +203,9 @@ export function VoiceOverlay({ open, onClose, onResult, onError }: VoiceOverlayP
           disabled={state === 'processing'}
           style={{
             width: 64, height: 64, borderRadius: '50%',
-            background: state === 'processing' ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.3)',
-            border: 'none', cursor: state === 'processing' ? 'default' : 'pointer',
+            background: state === 'processing' ? 'rgba(59,130,246,.3)' : 'rgba(59,130,246,.5)',
+            border: '1px solid rgba(255,255,255,.25)',
+            cursor: state === 'processing' ? 'default' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             opacity: state === 'processing' ? 0.5 : 1,
           }}
