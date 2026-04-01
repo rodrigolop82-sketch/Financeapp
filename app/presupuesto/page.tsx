@@ -59,6 +59,7 @@ export default function PresupuestoPage() {
   const [newSubAmount, setNewSubAmount] = useState(0);
   const [newSubFixed, setNewSubFixed] = useState(false);
   const [newSubPayment, setNewSubPayment] = useState<'efectivo' | 'tarjeta' | 'cheque' | 'transferencia'>('efectivo');
+  const [newSubRecurrence, setNewSubRecurrence] = useState<BudgetSubItem['recurrence']>('mensual');
   const [addingCatBucket, setAddingCatBucket] = useState<'needs' | 'wants' | 'savings' | null>(null);
   const [newCatName, setNewCatName] = useState('');
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
@@ -224,6 +225,7 @@ export default function PresupuestoPage() {
         name: newSubName.trim(),
         amount: newSubAmount,
         is_fixed: newSubFixed,
+        recurrence: newSubRecurrence,
         payment_method: newSubPayment,
       })
       .select()
@@ -234,6 +236,7 @@ export default function PresupuestoPage() {
       setNewSubName('');
       setNewSubAmount(0);
       setNewSubFixed(false);
+      setNewSubRecurrence('mensual');
       setNewSubPayment('efectivo');
       setAddingSubItem(null);
       setSaved(false);
@@ -244,6 +247,12 @@ export default function PresupuestoPage() {
     await supabase.from('budget_sub_items').update({ payment_method: method }).eq('id', id);
     setSubItems(items => items.map(s => s.id === id ? { ...s, payment_method: method } : s));
   }
+
+  async function updateSubRecurrence(id: string, recurrence: BudgetSubItem['recurrence']) {
+    await supabase.from('budget_sub_items').update({ recurrence }).eq('id', id);
+    setSubItems(items => items.map(s => s.id === id ? { ...s, recurrence } : s));
+  }
+
 
   async function addCategoryToBucket(bucket: 'needs' | 'wants' | 'savings') {
     if (!newCatName.trim()) return;
@@ -628,6 +637,17 @@ export default function PresupuestoPage() {
                                     <option value="cheque">Cheque</option>
                                     <option value="transferencia">Transferencia</option>
                                   </select>
+                                  <select
+                                    className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                                    value={sub.recurrence || 'mensual'}
+                                    onChange={(e) => updateSubRecurrence(sub.id, e.target.value as BudgetSubItem['recurrence'])}
+                                  >
+                                    <option value="mensual">Mensual</option>
+                                    <option value="trimestral">Trimestral</option>
+                                    <option value="semestral">Semestral</option>
+                                    <option value="anual">Anual</option>
+                                    <option value="unica">Única vez</option>
+                                  </select>
                                   <div className="relative w-24 flex-shrink-0">
                                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
                                     <Input
@@ -689,12 +709,23 @@ export default function PresupuestoPage() {
                                     <option value="cheque">Cheque</option>
                                     <option value="transferencia">Transferencia</option>
                                   </select>
+                                  <select
+                                    className="text-xs border rounded px-2 py-1 bg-white text-gray-600"
+                                    value={newSubRecurrence}
+                                    onChange={(e) => setNewSubRecurrence(e.target.value as BudgetSubItem['recurrence'])}
+                                  >
+                                    <option value="mensual">Mensual</option>
+                                    <option value="trimestral">Trimestral</option>
+                                    <option value="semestral">Semestral</option>
+                                    <option value="anual">Anual</option>
+                                    <option value="unica">Única vez</option>
+                                  </select>
                                   <div className="flex gap-2 ml-auto">
                                     <Button size="sm" className="h-7 text-xs" onClick={() => addSubItem(cat.id)} disabled={!newSubName.trim()}>
                                       <Plus className="w-3 h-3 mr-1" />
                                       Agregar
                                     </Button>
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); setNewSubPayment('efectivo'); }}>
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); setNewSubPayment('efectivo'); setNewSubRecurrence('mensual'); }}>
                                       <X className="w-3 h-3 mr-1" />
                                       Cancelar
                                     </Button>

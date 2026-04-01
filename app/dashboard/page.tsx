@@ -52,9 +52,24 @@ export default function DashboardPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState<string>(localMonth()) // YYYY-MM
+  const [dateMode, setDateMode] = useState<'month' | 'range'>('month')
+  const [dateFrom, setDateFrom] = useState<string>('')
+  const [dateTo, setDateTo] = useState<string>('')
   const router = useRouter()
 
-  useEffect(() => { loadDashboardData(selectedMonth) }, [selectedMonth]) // eslint-disable-line react-hooks/exhaustive-deps
+  function reloadData() {
+    if (dateMode === 'range' && dateFrom && dateTo) {
+      loadDashboardData(undefined, dateFrom, dateTo)
+    } else {
+      loadDashboardData(selectedMonth)
+    }
+  }
+
+  useEffect(() => {
+    if (dateMode === 'month') {
+      loadDashboardData(selectedMonth)
+    }
+  }, [selectedMonth]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for voice overlay trigger from BottomNav
   useEffect(() => {
@@ -63,7 +78,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener('zafi:voice-overlay', handler)
   }, [])
 
-  async function loadDashboardData(month?: string) {
+  async function loadDashboardData(month?: string, rangeFrom?: string, rangeTo?: string) {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -95,14 +110,27 @@ export default function DashboardPage() {
 
     const now = new Date()
     const currentMonth = localMonth()
+    const isRangeMode = !!(rangeFrom && rangeTo)
     const viewMonth = month || currentMonth
-    const isCurrentMonth = viewMonth === currentMonth
+    const isCurrentMonth = !isRangeMode && viewMonth === currentMonth
 
-    // Calculate month start/end for the selected month
-    const monthStart = viewMonth + '-01'
-    const [yyyy, mm] = viewMonth.split('-').map(Number)
-    const monthEndDate = new Date(yyyy, mm, 0) // last day of selected month
-    const monthEnd = `${yyyy}-${String(mm).padStart(2, '0')}-${String(monthEndDate.getDate()).padStart(2, '0')}`
+    // Calculate date boundaries
+    let monthStart: string
+    let monthEnd: string
+    let daysInMonth: number
+
+    if (isRangeMode) {
+      monthStart = rangeFrom
+      monthEnd = rangeTo
+      const diffMs = new Date(rangeTo + 'T12:00:00').getTime() - new Date(rangeFrom + 'T12:00:00').getTime()
+      daysInMonth = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1)
+    } else {
+      monthStart = viewMonth + '-01'
+      const [yyyy, mm] = viewMonth.split('-').map(Number)
+      const monthEndDate = new Date(yyyy, mm, 0)
+      monthEnd = `${yyyy}-${String(mm).padStart(2, '0')}-${String(monthEndDate.getDate()).padStart(2, '0')}`
+      daysInMonth = monthEndDate.getDate()
+    }
 
     const weekStart = localDaysAgo(7)
     const today = localToday()
@@ -123,7 +151,6 @@ export default function DashboardPage() {
     const categoryMap: Record<string, string> = {}
     categories.forEach((c) => { categoryMap[c.id] = c.name })
 
-    const daysInMonth = monthEndDate.getDate()
     const daysLeft = isCurrentMonth ? daysInMonth - now.getDate() : 0
 
     const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
@@ -263,7 +290,7 @@ export default function DashboardPage() {
     const catName = categoryId ? data.categories.find(c => c.id === categoryId)?.name : null
     setSuccessMsg(`Q ${amount} "${description}" guardado${catName ? ` en ${catName}` : ''}`)
     setTimeout(() => setSuccessMsg(null), 3000)
-    loadDashboardData(selectedMonth)
+    reloadData()
   }
 
   async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
@@ -285,7 +312,7 @@ export default function DashboardPage() {
     const count = transactions.length
     setSuccessMsg(`${count} gasto${count > 1 ? 's' : ''} guardado${count > 1 ? 's' : ''}`)
     setTimeout(() => setSuccessMsg(null), 3000)
-    loadDashboardData(selectedMonth)
+    reloadData()
   }
 
   if (!data) {
@@ -297,7 +324,7 @@ export default function DashboardPage() {
   }
 
   const currentMonth = localMonth()
-  const isViewingCurrent = selectedMonth === currentMonth
+  const isViewingCurrent = dateMode === 'month' && selectedMonth === currentMonth
 
   // Generate month options (current + 11 previous months)
   const monthOptions: { value: string; label: string }[] = []
@@ -317,68 +344,150 @@ export default function DashboardPage() {
     setSelectedMonth(newMonth)
   }
 
+  function applyRange() {
+    if (dateFrom && dateTo && dateFrom <= dateTo) {
+      loadDashboardData(undefined, dateFrom, dateTo)
+    }
+  }
+
   return (
     <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
-      {/* Month selector */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        gap: 8, padding: '10px 16px 0',
-      }}>
-        <button
-          onClick={() => navigateMonth(-1)}
-          style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: '#F1F5F9', border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M15 18l-6-6 6-6" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-
-        <select
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 15, fontWeight: 600, color: '#1E3A5F',
-            textAlign: 'center', appearance: 'none',
-            padding: '4px 8px',
-          }}
-        >
-          {monthOptions.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-
-        <button
-          onClick={() => navigateMonth(1)}
-          disabled={isViewingCurrent}
-          style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: isViewingCurrent ? '#F8FAFC' : '#F1F5F9',
-            border: 'none', cursor: isViewingCurrent ? 'default' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            opacity: isViewingCurrent ? 0.3 : 1,
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M9 18l6-6-6-6" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-
-        {!isViewingCurrent && (
+      {/* Date filter */}
+      <div style={{ padding: '10px 16px 0' }}>
+        {/* Mode toggle */}
+        <div style={{
+          display: 'flex', justifyContent: 'center', gap: 4,
+          marginBottom: 8,
+        }}>
           <button
-            onClick={() => setSelectedMonth(currentMonth)}
+            onClick={() => { setDateMode('month'); loadDashboardData(selectedMonth) }}
             style={{
-              fontSize: 12, color: '#2563EB', background: '#EFF6FF',
-              border: '1px solid #BFDBFE', borderRadius: 16,
-              padding: '3px 10px', cursor: 'pointer', fontWeight: 500,
+              fontSize: 12, fontWeight: 500, padding: '4px 14px',
+              borderRadius: 16, border: 'none', cursor: 'pointer',
+              background: dateMode === 'month' ? '#1E3A5F' : '#F1F5F9',
+              color: dateMode === 'month' ? 'white' : '#64748B',
             }}
           >
-            Hoy
+            Mes
           </button>
+          <button
+            onClick={() => setDateMode('range')}
+            style={{
+              fontSize: 12, fontWeight: 500, padding: '4px 14px',
+              borderRadius: 16, border: 'none', cursor: 'pointer',
+              background: dateMode === 'range' ? '#1E3A5F' : '#F1F5F9',
+              color: dateMode === 'range' ? 'white' : '#64748B',
+            }}
+          >
+            Rango
+          </button>
+        </div>
+
+        {dateMode === 'month' ? (
+          /* Month selector */
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>
+            <button
+              onClick={() => navigateMonth(-1)}
+              style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: '#F1F5F9', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M15 18l-6-6 6-6" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 15, fontWeight: 600, color: '#1E3A5F',
+                textAlign: 'center', appearance: 'none',
+                padding: '4px 8px',
+              }}
+            >
+              {monthOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+
+            <button
+              onClick={() => navigateMonth(1)}
+              disabled={isViewingCurrent}
+              style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: isViewingCurrent ? '#F8FAFC' : '#F1F5F9',
+                border: 'none', cursor: isViewingCurrent ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                opacity: isViewingCurrent ? 0.3 : 1,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M9 18l6-6-6-6" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+
+            {!isViewingCurrent && (
+              <button
+                onClick={() => setSelectedMonth(currentMonth)}
+                style={{
+                  fontSize: 12, color: '#2563EB', background: '#EFF6FF',
+                  border: '1px solid #BFDBFE', borderRadius: 16,
+                  padding: '3px 10px', cursor: 'pointer', fontWeight: 500,
+                }}
+              >
+                Hoy
+              </button>
+            )}
+          </div>
+        ) : (
+          /* Date range selector */
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 8, flexWrap: 'wrap',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={{ fontSize: 12, color: '#64748B' }}>Desde</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                style={{
+                  fontSize: 13, border: '1px solid #E2E8F0', borderRadius: 8,
+                  padding: '4px 8px', color: '#1E3A5F', background: 'white',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={{ fontSize: 12, color: '#64748B' }}>Hasta</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                style={{
+                  fontSize: 13, border: '1px solid #E2E8F0', borderRadius: 8,
+                  padding: '4px 8px', color: '#1E3A5F', background: 'white',
+                }}
+              />
+            </div>
+            <button
+              onClick={applyRange}
+              disabled={!dateFrom || !dateTo || dateFrom > dateTo}
+              style={{
+                fontSize: 12, fontWeight: 600, padding: '5px 14px',
+                borderRadius: 16, border: 'none', cursor: 'pointer',
+                background: (!dateFrom || !dateTo || dateFrom > dateTo) ? '#CBD5E1' : '#2563EB',
+                color: 'white',
+              }}
+            >
+              Aplicar
+            </button>
+          </div>
         )}
       </div>
 
