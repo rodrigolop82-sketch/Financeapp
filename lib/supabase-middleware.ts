@@ -44,7 +44,7 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const protectedRoutes = ['/dashboard', '/presupuesto', '/deudas', '/plan', '/historial', '/transacciones', '/familia', '/cuenta', '/onboarding', '/chat', '/capture', '/admin'];
+  const protectedRoutes = ['/dashboard', '/presupuesto', '/deudas', '/plan', '/historial', '/transacciones', '/familia', '/cuenta', '/onboarding', '/chat', '/capture', '/admin', '/notificacion'];
   const authRoutes = ['/login', '/registro'];
   const path = request.nextUrl.pathname;
 

@@ -17,6 +17,13 @@ export const metadata: Metadata = {
   title: "Zafi — Ordená tu dinero. Construí tu futuro.",
   description:
     "Tu planner financiero personal para Latinoamérica. Diagnóstico honesto, plan de acción priorizado, y acompañamiento proactivo mes a mes.",
+  manifest: "/manifest.json",
+  themeColor: "#1E3A5F",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Zafi",
+  },
 };
 
 export default function RootLayout({

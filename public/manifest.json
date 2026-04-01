@@ -1,0 +1,33 @@
+{
+  "name": "Zafi - Finanzas Personales",
+  "short_name": "Zafi",
+  "description": "Tu asistente financiero personal",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#F8F9FF",
+  "theme_color": "#1E3A5F",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "share_target": {
+    "action": "/notificacion",
+    "method": "GET",
+    "params": {
+      "text": "text",
+      "title": "title"
+    }
+  },
+  "categories": ["finance"],
+  "lang": "es",
+  "dir": "ltr"
+}
