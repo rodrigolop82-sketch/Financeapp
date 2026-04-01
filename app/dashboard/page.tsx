@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { localToday, localMonthStart, localDaysAgo, localMonth } from '@/lib/dates'
+import { localToday, localDaysAgo, localMonth } from '@/lib/dates'
 import { cleanTransactionName } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
