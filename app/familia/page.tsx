@@ -21,6 +21,8 @@ import {
   Copy,
   Check,
   Share2,
+  Clock,
+  XCircle,
 } from 'lucide-react';
 
 interface Member {
@@ -30,9 +32,18 @@ interface Member {
   users: { email: string; display_name: string | null } | null;
 }
 
+interface PendingInvite {
+  id: string;
+  invite_code: string;
+  status: 'pendiente' | 'expirada';
+  created_at: string;
+  expires_at: string;
+}
+
 export default function FamiliaPage() {
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Member[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [householdId, setHouseholdId] = useState('');
   const [isOwner, setIsOwner] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
@@ -50,6 +61,8 @@ export default function FamiliaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
+      let hhId = '';
+
       const { data: hh } = await supabase
         .from('households').select('id, owner_id').eq('owner_id', user.id).limit(1).single();
 
@@ -64,19 +77,21 @@ export default function FamiliaPage() {
 
         if (!membership) { router.push('/onboarding'); return; }
         const household = membership.households as unknown as { id: string; owner_id: string };
+        hhId = household.id;
         setHouseholdId(household.id);
         setIsOwner(household.owner_id === user.id);
       } else {
+        hhId = hh.id;
         setHouseholdId(hh.id);
         setIsOwner(true);
       }
 
-      const hhId = hh?.id || '';
       if (hhId) {
         const res = await fetch(`/api/familia?householdId=${hhId}`);
         if (res.ok) {
           const data = await res.json();
-          setMembers(data.members);
+          setMembers(data.members || []);
+          setPendingInvites(data.invites || []);
         }
       }
       setLoading(false);
@@ -101,11 +116,12 @@ export default function FamiliaPage() {
       setMessage({ type: 'success', text: 'Miembro agregado exitosamente' });
       setInviteEmail('');
       setShowInvite(false);
-      // Reload members
+      // Reload members and invites
       const listRes = await fetch(`/api/familia?householdId=${householdId}`);
       if (listRes.ok) {
         const listData = await listRes.json();
-        setMembers(listData.members);
+        setMembers(listData.members || []);
+        setPendingInvites(listData.invites || []);
       }
     } else {
       setMessage({ type: 'error', text: data.error || 'Error al invitar' });
@@ -286,32 +302,41 @@ export default function FamiliaPage() {
         {/* Members list */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-gray-500" />
-              <CardTitle className="text-base">Miembros del hogar</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-gray-500" />
+                <CardTitle className="text-base">Miembros del hogar</CardTitle>
+              </div>
+              <span className="text-xs text-gray-400">{members.length} miembro{members.length !== 1 ? 's' : ''}</span>
             </div>
           </CardHeader>
           <CardContent className="p-0 divide-y">
             {members.map((member) => (
               <div key={member.user_id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  member.role === 'owner' ? 'bg-amber-100' : 'bg-gray-100'
+                  member.role === 'owner' ? 'bg-amber-100' : 'bg-[#EFF6FF]'
                 }`}>
                   {member.role === 'owner'
                     ? <Crown className="w-5 h-5 text-amber-600" />
-                    : <User className="w-5 h-5 text-gray-400" />
+                    : <User className="w-5 h-5 text-[#2563EB]" />
                   }
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
                     {member.users?.display_name || member.users?.email || 'Usuario'}
                   </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{member.users?.email}</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {member.users?.display_name && (
+                      <span className="text-xs text-gray-400">{member.users?.email}</span>
+                    )}
                     <span className={`text-xs px-1.5 py-0.5 rounded ${
-                      member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                      member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-[#EFF6FF] text-[#2563EB]'
                     }`}>
                       {member.role === 'owner' ? 'Dueño' : 'Miembro'}
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-green-600">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Activo
                     </span>
                   </div>
                 </div>
@@ -337,8 +362,90 @@ export default function FamiliaPage() {
           </CardContent>
         </Card>
 
+        {/* Pending invites */}
+        {isOwner && pendingInvites.length > 0 && (
+          <Card className="mt-4">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-gray-500" />
+                  <CardTitle className="text-base">Invitaciones enviadas</CardTitle>
+                </div>
+                <span className="text-xs text-gray-400">
+                  {pendingInvites.filter(i => i.status === 'pendiente').length} pendiente{pendingInvites.filter(i => i.status === 'pendiente').length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 divide-y">
+              {pendingInvites.map((inv) => {
+                const isPending = inv.status === 'pendiente';
+                const createdDate = new Date(inv.created_at).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
+                const expiresDate = new Date(inv.expires_at).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
+                const daysLeft = Math.max(0, Math.ceil((new Date(inv.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+
+                return (
+                  <div key={inv.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      isPending ? 'bg-amber-50' : 'bg-gray-100'
+                    }`}>
+                      {isPending
+                        ? <Clock className="w-5 h-5 text-amber-500" />
+                        : <XCircle className="w-5 h-5 text-gray-400" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        Link de invitación
+                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-gray-400">
+                          Enviada el {createdDate}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                          isPending
+                            ? 'bg-amber-50 text-amber-600'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {isPending ? (
+                            <>
+                              <Clock className="w-3 h-3" />
+                              Pendiente · {daysLeft}d restantes
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-3 h-3" />
+                              Expirada
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    {isPending && (
+                      <button
+                        onClick={async () => {
+                          const link = `${window.location.origin}/invite/${inv.invite_code}`;
+                          if (navigator.share) {
+                            await navigator.share({ title: 'Únete a mi hogar en Zafi', text: 'Te invito a compartir el presupuesto familiar', url: link });
+                          } else {
+                            await navigator.clipboard.writeText(link);
+                            setMessage({ type: 'success', text: 'Link copiado al portapapeles' });
+                            setTimeout(() => setMessage(null), 2000);
+                          }
+                        }}
+                        className="text-[#2563EB] hover:text-[#1D4ED8] flex-shrink-0"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Info card */}
-        {isOwner && members.length > 0 && (
+        {isOwner && (
           <Card className="mt-4 bg-blue-50 border-blue-200">
             <CardContent className="p-4">
               <p className="text-sm text-blue-700">

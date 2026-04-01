@@ -22,7 +22,7 @@ function createSupabase() {
   );
 }
 
-// GET: list household members
+// GET: list household members + pending invites
 export async function GET(request: Request) {
   const supabase = createSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -32,12 +32,69 @@ export async function GET(request: Request) {
   const householdId = searchParams.get('householdId');
   if (!householdId) return NextResponse.json({ error: 'householdId requerido' }, { status: 400 });
 
+  // Get household owner info
+  const adminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { data: household } = await supabase
+    .from('households')
+    .select('id, owner_id')
+    .eq('id', householdId)
+    .single();
+
+  // Get members from household_members
   const { data: members } = await supabase
     .from('household_members')
     .select('user_id, role, joined_at, users(email, display_name)')
     .eq('household_id', householdId);
 
-  return NextResponse.json({ members: members || [] });
+  const memberList = members || [];
+
+  // Ensure owner is included in the list
+  if (household) {
+    const ownerInList = memberList.some(m => m.user_id === household.owner_id);
+    if (!ownerInList) {
+      const { data: ownerProfile } = await adminClient
+        .from('users')
+        .select('email, full_name')
+        .eq('id', household.owner_id)
+        .single();
+
+      if (ownerProfile) {
+        memberList.unshift({
+          user_id: household.owner_id,
+          role: 'owner',
+          joined_at: '',
+          users: { email: ownerProfile.email, display_name: ownerProfile.full_name },
+        });
+      }
+    }
+  }
+
+  // Get pending invites (active, not expired)
+  const { data: invites } = await adminClient
+    .from('household_invites')
+    .select('id, invite_code, status, created_at, expires_at')
+    .eq('household_id', householdId)
+    .order('created_at', { ascending: false });
+
+  // Classify invites
+  const now = new Date();
+  const pendingInvites = (invites || []).map(inv => {
+    const expired = new Date(inv.expires_at) < now;
+    const status = inv.status === 'active' && !expired ? 'pendiente' : 'expirada';
+    return {
+      id: inv.id,
+      invite_code: inv.invite_code,
+      status,
+      created_at: inv.created_at,
+      expires_at: inv.expires_at,
+    };
+  });
+
+  return NextResponse.json({ members: memberList, invites: pendingInvites });
 }
 
 // POST: invite a member by email
