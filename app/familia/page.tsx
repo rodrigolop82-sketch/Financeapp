@@ -380,7 +380,6 @@ export default function FamiliaPage() {
               {pendingInvites.map((inv) => {
                 const isPending = inv.status === 'pendiente';
                 const createdDate = new Date(inv.created_at).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
-                const expiresDate = new Date(inv.expires_at).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
                 const daysLeft = Math.max(0, Math.ceil((new Date(inv.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
                 return (
