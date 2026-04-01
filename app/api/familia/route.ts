@@ -63,12 +63,13 @@ export async function GET(request: Request) {
         .single();
 
       if (ownerProfile) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         memberList.unshift({
           user_id: household.owner_id,
           role: 'owner',
           joined_at: '',
           users: { email: ownerProfile.email, display_name: ownerProfile.full_name },
-        });
+        } as any);
       }
     }
   }
