@@ -1,5 +1,8 @@
 'use client'
 import { useMoneyFormat } from '@/lib/format'
+import { Wordmark } from '@/components/brand/Wordmark'
+import { AppIcon } from '@/components/brand/AppIcon'
+import { ScoreRing } from '@/components/ui/ScoreRing'
 
 interface StatusHeroProps {
   spent: number
@@ -40,45 +43,35 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
     status.color === 'amber' ? '#F59E0B' : '#EF4444'
 
   return (
-    <div style={{ background: '#1E3A5F', borderRadius: 20, margin: '12px 16px 0', overflow: 'hidden' }}>
+    <div className="relative overflow-hidden" style={{ background: '#1E3A5F', borderRadius: 20, margin: '12px 16px 0' }}>
+      {/* Decorative rings */}
+      <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full border border-electric/20 pointer-events-none" />
+      <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full border border-electric/[0.12] pointer-events-none" />
 
       {/* TopBar integrado — solo visible en mobile */}
-      <div className="lg:hidden" style={{
+      <div className="lg:hidden relative z-10" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '12px 16px 0',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 32, height: 32, background: '#2563EB', borderRadius: 10,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ color: 'white', fontSize: 14, fontWeight: 700 }}>Z</span>
-          </div>
-          <span style={{ color: 'white', fontSize: 16, fontWeight: 600 }}>Zafi</span>
+          <AppIcon size="xs" variant="electric" />
+          <Wordmark variant="dark" size="xs" />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            background: 'rgba(255,255,255,.12)', borderRadius: 20,
-            padding: '4px 10px',
-          }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor }} />
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,.9)', fontWeight: 500 }}>
-              {score} pts
-            </span>
-          </div>
+          <ScoreRing score={score} size={34} strokeWidth={3} variant="dark" showLabel={false} />
+          <span className="font-outfit font-bold text-caption text-white">{score}</span>
           <div style={{
             width: 30, height: 30, borderRadius: '50%',
-            background: '#2563EB', display: 'flex',
+            background: 'rgba(37,99,235,0.3)', display: 'flex',
             alignItems: 'center', justifyContent: 'center',
           }}>
-            <span style={{ color: 'white', fontSize: 11, fontWeight: 600 }}>{userInitials}</span>
+            <span className="font-sans font-semibold text-caption text-electric-pale">{userInitials}</span>
           </div>
         </div>
       </div>
 
       {/* Contenido hero */}
-      <div style={{ padding: '6px 18px 22px' }}>
+      <div className="relative z-10" style={{ padding: '6px 18px 22px' }}>
 
         {/* Mensaje emocional */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
@@ -86,7 +79,7 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
             width: 8, height: 8, borderRadius: '50%',
             background: dotColor, flexShrink: 0
           }}/>
-          <span style={{ fontSize: 14, color: 'rgba(255,255,255,.85)' }}>
+          <span className="font-sans text-body-sm text-white/[0.85]">
             {status.text}
           </span>
         </div>
@@ -97,21 +90,21 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
           {/* Gastado / total */}
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
             <div>
-              <span style={{ fontSize: 32, fontWeight: 700, color: 'white', letterSpacing: '-.03em' }}>
+              <span className="font-outfit font-extrabold text-white tracking-[-0.03em]" style={{ fontSize: 32 }}>
                 {money(spent)}
               </span>
-              <span style={{ fontSize: 14, color: 'rgba(255,255,255,.45)', marginLeft: 4 }}>
+              <span className="font-sans text-body-sm text-white/[0.45]" style={{ marginLeft: 4 }}>
                 / {money(budget)}
               </span>
             </div>
-            <span style={{ fontSize: 14, color: 'rgba(255,255,255,.45)' }}>
+            <span className="font-outfit font-bold text-body-sm text-white/[0.45]">
               {pctDisplay}%
             </span>
           </div>
 
           {/* Barra de progreso */}
           <div style={{
-            height: 9, background: 'rgba(255,255,255,.15)',
+            height: 9, background: 'rgba(255,255,255,.12)',
             borderRadius: 5, overflow: 'hidden'
           }}>
             <div style={{
@@ -124,14 +117,14 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
           {/* Dinero restante + días */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', marginBottom: 1 }}>
+              <div className="font-sans text-caption text-white/[0.45]" style={{ marginBottom: 1 }}>
                 Te quedan
               </div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: 'white', letterSpacing: '-.02em' }}>
+              <div className="font-outfit font-extrabold text-white tracking-[-0.02em]" style={{ fontSize: 24 }}>
                 {money(remaining)}
               </div>
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.35)', textAlign: 'right' }}>
+            <div className="font-sans text-caption text-white/[0.35] text-right">
               {daysLeft} días restantes
             </div>
           </div>

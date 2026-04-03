@@ -23,7 +23,7 @@ const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Se
 const MONTH_NAMES_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 function getScoreColor(score: number) {
-  if (score >= 85) return 'text-[#3B82F6]';
+  if (score >= 85) return 'text-electric-light';
   if (score >= 65) return 'text-green-500';
   if (score >= 45) return 'text-yellow-500';
   if (score >= 25) return 'text-orange-500';
@@ -60,8 +60,8 @@ export default function HistorialPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
       </div>
     );
   }
@@ -89,14 +89,14 @@ export default function HistorialPage() {
                 <ScoreHistoryChart data={chartData} />
                 {scoreDiff !== 0 && (
                   <div className={`mt-4 p-3 rounded-lg flex items-center gap-2 ${
-                    scoreDiff > 0 ? 'bg-[#F8F9FF]' : 'bg-red-50'
+                    scoreDiff > 0 ? 'bg-surface-tint' : 'bg-red-50'
                   }`}>
                     {scoreDiff > 0 ? (
-                      <TrendingUp className="w-5 h-5 text-[#2563EB]" />
+                      <TrendingUp className="w-5 h-5 text-electric" />
                     ) : (
                       <TrendingDown className="w-5 h-5 text-red-500" />
                     )}
-                    <p className={`text-sm ${scoreDiff > 0 ? 'text-[#1E40AF]' : 'text-red-700'}`}>
+                    <p className={`text-sm ${scoreDiff > 0 ? 'text-electric-dark' : 'text-red-700'}`}>
                       Tu puntaje {scoreDiff > 0 ? 'subió' : 'bajó'} <strong>{Math.abs(scoreDiff)} puntos</strong> respecto al mes anterior.
                     </p>
                   </div>
@@ -122,7 +122,7 @@ export default function HistorialPage() {
             <Card>
               <CardContent className="p-4 text-center">
                 <p className="text-xs text-gray-500">Mejor puntaje</p>
-                <p className="text-2xl font-bold text-[#2563EB]">
+                <p className="text-2xl font-bold text-electric">
                   {Math.max(...snapshots.map(s => s.health_score ?? 0))}
                 </p>
               </CardContent>
@@ -164,10 +164,10 @@ export default function HistorialPage() {
                       <div>
                         <p className="font-semibold">{monthLabel}</p>
                         <div className="flex items-center gap-1">
-                          {diff > 0 && <TrendingUp className="w-3 h-3 text-[#3B82F6]" />}
+                          {diff > 0 && <TrendingUp className="w-3 h-3 text-electric-light" />}
                           {diff < 0 && <TrendingDown className="w-3 h-3 text-red-500" />}
                           {diff === 0 && <Minus className="w-3 h-3 text-gray-400" />}
-                          <span className={`text-xs ${diff > 0 ? 'text-[#2563EB]' : diff < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                          <span className={`text-xs ${diff > 0 ? 'text-electric' : diff < 0 ? 'text-red-500' : 'text-gray-400'}`}>
                             {diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : 'Sin cambio'}
                           </span>
                         </div>
@@ -180,8 +180,8 @@ export default function HistorialPage() {
                       <div className="flex items-center gap-1">
                         {snap.plan_completed ? (
                           <>
-                            <CheckCircle2 className="w-3 h-3 text-[#3B82F6]" />
-                            <span className="text-xs text-[#2563EB]">Plan completado</span>
+                            <CheckCircle2 className="w-3 h-3 text-electric-light" />
+                            <span className="text-xs text-electric">Plan completado</span>
                           </>
                         ) : (
                           <>

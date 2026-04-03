@@ -17,12 +17,12 @@ export function CapsuleRecommendations({ recommendations }: CapsuleRecommendatio
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-[#3B82F6]" />
+            <BookOpen className="w-5 h-5 text-electric-light" />
             <CardTitle className="text-lg">Aprende</CardTitle>
           </div>
           <Link
             href="/aprende"
-            className="text-sm text-[#2563EB] hover:text-[#1D4ED8] flex items-center gap-1"
+            className="text-sm text-electric hover:text-electric-dark flex items-center gap-1"
           >
             Ver todo <ArrowRight className="w-3.5 h-3.5" />
           </Link>
@@ -37,12 +37,12 @@ export function CapsuleRecommendations({ recommendations }: CapsuleRecommendatio
             <Link
               key={rec.capsule_id}
               href={`/aprende/${rec.module_slug}/${rec.slug}`}
-              className="block p-3 bg-[#F8F9FF] border border-[#DBEAFE] rounded-xl
-                         hover:border-[#93C5FD] transition-colors"
+              className="block p-3 bg-surface-tint border border-[#DBEAFE] rounded-xl
+                         hover:border-electric-soft transition-colors"
             >
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <BookOpen className="w-4 h-4 text-[#2563EB]" />
+                  <BookOpen className="w-4 h-4 text-electric" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground">{rec.title}</p>
@@ -50,7 +50,7 @@ export function CapsuleRecommendations({ recommendations }: CapsuleRecommendatio
                     {rec.subtitle}
                   </p>
                   <div className="flex items-center gap-3 mt-1.5">
-                    <span className="text-xs text-[#2563EB] font-medium">
+                    <span className="text-xs text-electric font-medium">
                       {rec.module_title}
                     </span>
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -58,7 +58,7 @@ export function CapsuleRecommendations({ recommendations }: CapsuleRecommendatio
                       {rec.read_time_minutes} min
                     </span>
                   </div>
-                  <p className="text-xs text-[#1D4ED8] mt-1 italic">
+                  <p className="text-xs text-electric-dark mt-1 italic">
                     {rec.reason}
                   </p>
                 </div>

@@ -82,15 +82,15 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#2563EB] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric animate-spin" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
         <Card className="max-w-md">
           <CardContent className="p-8 text-center">
             <ShieldCheck className="w-12 h-12 text-red-400 mx-auto mb-3" />
@@ -131,7 +131,7 @@ export default function AdminPage() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
+    <div className="min-h-screen bg-surface-bg p-4 lg:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
@@ -155,7 +155,7 @@ export default function AdminPage() {
           <Card>
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
-                <Users className="w-4 h-4 text-[#2563EB]" />
+                <Users className="w-4 h-4 text-electric" />
                 <p className="text-xs text-gray-500">Usuarios totales</p>
               </div>
               <p className="text-3xl font-bold">{overview.totalUsers}</p>
@@ -164,7 +164,7 @@ export default function AdminPage() {
           <Card>
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
-                <Home className="w-4 h-4 text-[#2563EB]" />
+                <Home className="w-4 h-4 text-electric" />
                 <p className="text-xs text-gray-500">Hogares</p>
               </div>
               <p className="text-3xl font-bold">{overview.totalHouseholds}</p>
@@ -173,7 +173,7 @@ export default function AdminPage() {
           <Card>
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
-                <Receipt className="w-4 h-4 text-[#2563EB]" />
+                <Receipt className="w-4 h-4 text-electric" />
                 <p className="text-xs text-gray-500">Transacciones</p>
               </div>
               <p className="text-3xl font-bold">{overview.totalTransactions}</p>
@@ -182,7 +182,7 @@ export default function AdminPage() {
           <Card>
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
-                <MessageSquare className="w-4 h-4 text-[#2563EB]" />
+                <MessageSquare className="w-4 h-4 text-electric" />
                 <p className="text-xs text-gray-500">Mensajes al chat</p>
               </div>
               <p className="text-3xl font-bold">{overview.totalChatMessages}</p>
@@ -195,7 +195,7 @@ export default function AdminPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-[#2563EB]" />
+                <TrendingUp className="w-4 h-4 text-electric" />
                 Actividad
               </CardTitle>
             </CardHeader>
@@ -226,7 +226,7 @@ export default function AdminPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Mic className="w-4 h-4 text-[#2563EB]" />
+                <Mic className="w-4 h-4 text-electric" />
                 Fuente de transacciones
               </CardTitle>
             </CardHeader>
@@ -243,7 +243,7 @@ export default function AdminPage() {
                     </div>
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-[#2563EB] rounded-full"
+                        className="h-full bg-electric rounded-full"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -255,7 +255,7 @@ export default function AdminPage() {
               )}
               <div className="pt-3 border-t">
                 <div className="flex items-center gap-2">
-                  <Mic className="w-4 h-4 text-[#3B82F6]" />
+                  <Mic className="w-4 h-4 text-electric-light" />
                   <span className="text-sm text-gray-600">Adopción de voz:</span>
                   <span className="text-sm font-bold">{voicePct}%</span>
                 </div>
@@ -279,7 +279,7 @@ export default function AdminPage() {
                     <div key={date} className="flex-1 flex flex-col items-center gap-1">
                       <span className="text-xs font-medium text-gray-700">{count}</span>
                       <div
-                        className="w-full bg-[#2563EB] rounded-t-sm min-h-[4px]"
+                        className="w-full bg-electric rounded-t-sm min-h-[4px]"
                         style={{ height: `${height}%` }}
                       />
                       <span className="text-[10px] text-gray-400 whitespace-nowrap">{dayLabel}</span>
@@ -308,7 +308,7 @@ export default function AdminPage() {
                       <span className="text-xs text-gray-500 w-24">{dayLabel}</span>
                       <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
                         <div
-                          className="h-full bg-[#3B82F6] rounded-full"
+                          className="h-full bg-electric-light rounded-full"
                           style={{ width: `${Math.max(count * 20, 5)}%` }}
                         />
                       </div>
@@ -328,7 +328,7 @@ export default function AdminPage() {
           <Card>
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
-                <CreditCard className="w-4 h-4 text-[#2563EB]" />
+                <CreditCard className="w-4 h-4 text-electric" />
                 <p className="text-xs text-gray-500">Deudas registradas</p>
               </div>
               <p className="text-2xl font-bold">{overview.totalDebts}</p>
@@ -337,7 +337,7 @@ export default function AdminPage() {
           <Card>
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
-                <Mic className="w-4 h-4 text-[#2563EB]" />
+                <Mic className="w-4 h-4 text-electric" />
                 <p className="text-xs text-gray-500">Transacciones por voz</p>
               </div>
               <p className="text-2xl font-bold">{activity.voiceTransactions}</p>
@@ -349,7 +349,7 @@ export default function AdminPage() {
         <Card className="mb-6 mt-6">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Users className="w-4 h-4 text-[#2563EB]" />
+              <Users className="w-4 h-4 text-electric" />
               Usuarios ({data.userList.length})
             </CardTitle>
           </CardHeader>
@@ -378,7 +378,7 @@ export default function AdminPage() {
                   };
                   return (
                     <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-2 px-2 font-medium text-[#1E3A5F]">{u.email}</td>
+                      <td className="py-2 px-2 font-medium text-navy">{u.email}</td>
                       <td className="py-2 px-2 text-gray-600">{fmtDate(u.createdAt)}</td>
                       <td className="py-2 px-2 text-gray-600">
                         {fmtDate(u.lastSignIn)}

@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { Wordmark } from '@/components/brand/Wordmark';
+import { AppIcon } from '@/components/brand/AppIcon';
 
 export default function LoginPage() {
   return (
@@ -62,16 +64,14 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F8F9FF] to-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-surface-bg flex items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-[#2563EB] rounded-xl flex items-center justify-center">
-              <span className="text-white text-sm font-bold">Z</span>
-            </div>
-            <span className="text-xl font-bold text-[#1E3A5F]">Zafi</span>
+          <div className="flex items-center justify-center gap-2.5 mb-4">
+            <AppIcon size="sm" variant="electric" />
+            <Wordmark size="sm" />
           </div>
-          <CardTitle>Iniciar sesión</CardTitle>
+          <CardTitle className="font-serif">Iniciar sesión</CardTitle>
           <CardDescription>Ingresa a tu cuenta para continuar</CardDescription>
         </CardHeader>
         <CardContent>
@@ -131,7 +131,7 @@ function LoginForm() {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             ¿No tienes cuenta?{' '}
-            <Link href={inviteCode ? `/registro?invite=${inviteCode}` : '/registro'} className="text-[#2563EB] font-medium hover:underline">
+            <Link href={inviteCode ? `/registro?invite=${inviteCode}` : '/registro'} className="text-electric font-medium hover:underline">
               Regístrate gratis
             </Link>
           </p>

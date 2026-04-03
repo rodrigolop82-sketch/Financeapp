@@ -73,20 +73,20 @@ export default function InvitePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F8F9FF] to-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-surface-bg flex items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardContent className="p-8 text-center">
           {/* Logo */}
           <div className="flex items-center justify-center gap-2 mb-6">
-            <div className="w-10 h-10 bg-[#2563EB] rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-electric rounded-xl flex items-center justify-center">
               <span className="text-white text-lg font-bold">Z</span>
             </div>
-            <span className="text-2xl font-bold text-[#1E3A5F]">Zafi</span>
+            <span className="text-2xl font-bold text-navy">Zafi</span>
           </div>
 
           {state === 'loading' && (
             <div className="py-8">
-              <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin mx-auto" />
+              <Loader2 className="w-8 h-8 text-electric-light animate-spin mx-auto" />
               <p className="text-gray-500 mt-3">Verificando invitación...</p>
             </div>
           )}
@@ -107,13 +107,13 @@ export default function InvitePage() {
           {state === 'needs_auth' && (
             <div className="py-4">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-[#2563EB]" />
+                <Users className="w-8 h-8 text-electric" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Te invitaron a un hogar</h2>
               <p className="text-gray-600 mb-1">
                 <strong>{ownerName}</strong> te invita a unirte al hogar
               </p>
-              <p className="text-lg font-semibold text-[#1E3A5F] mb-6">
+              <p className="text-lg font-semibold text-navy mb-6">
                 &ldquo;{householdName}&rdquo;
               </p>
               <p className="text-sm text-gray-500 mb-6">
@@ -133,13 +133,13 @@ export default function InvitePage() {
           {state === 'valid' && (
             <div className="py-4">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-[#2563EB]" />
+                <Users className="w-8 h-8 text-electric" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Te invitaron a un hogar</h2>
               <p className="text-gray-600 mb-1">
                 <strong>{ownerName}</strong> te invita a unirte al hogar
               </p>
-              <p className="text-lg font-semibold text-[#1E3A5F] mb-6">
+              <p className="text-lg font-semibold text-navy mb-6">
                 &ldquo;{householdName}&rdquo;
               </p>
               <p className="text-sm text-gray-500 mb-6">
@@ -153,7 +153,7 @@ export default function InvitePage() {
 
           {state === 'joining' && (
             <div className="py-8">
-              <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin mx-auto" />
+              <Loader2 className="w-8 h-8 text-electric-light animate-spin mx-auto" />
               <p className="text-gray-500 mt-3">Uniéndote al hogar...</p>
             </div>
           )}
@@ -174,7 +174,7 @@ export default function InvitePage() {
           {state === 'already_member' && (
             <div className="py-4">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8 text-[#2563EB]" />
+                <CheckCircle2 className="w-8 h-8 text-electric" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Ya eres miembro</h2>
               <p className="text-gray-600 mb-6">

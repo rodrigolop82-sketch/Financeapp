@@ -97,8 +97,8 @@ export default function PlanPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
       </div>
     );
   }
@@ -132,7 +132,7 @@ export default function PlanPage() {
               <div className="flex items-center gap-3">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center ${allCompleted ? 'bg-blue-100' : 'bg-gray-100'}`}>
                   {allCompleted ? (
-                    <Sparkles className="w-6 h-6 text-[#2563EB]" />
+                    <Sparkles className="w-6 h-6 text-electric" />
                   ) : (
                     <Target className="w-6 h-6 text-gray-400" />
                   )}
@@ -148,7 +148,7 @@ export default function PlanPage() {
                   </p>
                 </div>
               </div>
-              <span className="text-2xl font-bold text-[#2563EB]">{Math.round(progress)}%</span>
+              <span className="text-2xl font-bold text-electric">{Math.round(progress)}%</span>
             </div>
             <Progress value={progress} className="h-3" />
           </CardContent>
@@ -197,9 +197,9 @@ export default function PlanPage() {
                             className="mt-0.5 flex-shrink-0"
                           >
                             {isCompleted ? (
-                              <CheckCircle2 className="w-6 h-6 text-[#3B82F6]" />
+                              <CheckCircle2 className="w-6 h-6 text-electric-light" />
                             ) : (
-                              <Circle className="w-6 h-6 text-gray-300 hover:text-[#60A5FA] transition-colors" />
+                              <Circle className="w-6 h-6 text-gray-300 hover:text-electric-pale transition-colors" />
                             )}
                           </button>
                           <div className="flex-1 min-w-0">

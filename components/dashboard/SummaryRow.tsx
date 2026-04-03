@@ -5,7 +5,7 @@ interface SummaryRowProps {
   today: number
   todayCount: number
   week: number
-  weekVsPrev: number    // porcentaje vs semana anterior (ej: 12 = +12%)
+  weekVsPrev: number
   month: number
   monthBudget: number
 }
@@ -16,24 +16,24 @@ export function SummaryRow({ today, todayCount, week, weekVsPrev, month, monthBu
   return (
     <div style={{ padding: '12px 16px 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
 
-      <div style={{ background: 'white', border: '0.5px solid #E2E8F0', borderRadius: 12, padding: '10px 10px 8px', textAlign: 'center' }}>
-        <div style={{ fontSize: 12, color: '#1E3A5F', fontWeight: 700, letterSpacing: '.06em', marginBottom: 6 }}>HOY</div>
-        <div style={{ fontSize: 16, fontWeight: 500, color: '#1E3A5F' }}>{money(today)}</div>
-        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{todayCount} gasto{todayCount !== 1 ? 's' : ''}</div>
+      <div className="card-zafi" style={{ padding: '10px 10px 8px', textAlign: 'center' }}>
+        <div className="eyebrow-muted" style={{ marginBottom: 6 }}>HOY</div>
+        <div className="font-outfit font-bold text-navy" style={{ fontSize: 16 }}>{money(today)}</div>
+        <div className="font-sans text-caption text-ink-400" style={{ marginTop: 2 }}>{todayCount} gasto{todayCount !== 1 ? 's' : ''}</div>
       </div>
 
-      <div style={{ background: 'white', border: '0.5px solid #E2E8F0', borderRadius: 12, padding: '10px 10px 8px', textAlign: 'center' }}>
-        <div style={{ fontSize: 12, color: '#1E3A5F', fontWeight: 700, letterSpacing: '.06em', marginBottom: 6 }}>SEMANA</div>
-        <div style={{ fontSize: 16, fontWeight: 500, color: '#1E3A5F' }}>{money(week)}</div>
-        <div style={{ fontSize: 11, marginTop: 2, color: weekVsPrev > 0 ? '#D97706' : '#10B981' }}>
-          {weekVsPrev > 0 ? '↑' : '↓'} {Math.abs(weekVsPrev)}% vs ant.
+      <div className="card-zafi" style={{ padding: '10px 10px 8px', textAlign: 'center' }}>
+        <div className="eyebrow-muted" style={{ marginBottom: 6 }}>SEMANA</div>
+        <div className="font-outfit font-bold text-navy" style={{ fontSize: 16 }}>{money(week)}</div>
+        <div className="font-sans text-caption" style={{ marginTop: 2, color: weekVsPrev > 0 ? '#F59E0B' : '#10B981' }}>
+          {weekVsPrev > 0 ? '\u2191' : '\u2193'} {Math.abs(weekVsPrev)}% vs ant.
         </div>
       </div>
 
-      <div style={{ background: 'white', border: '0.5px solid #E2E8F0', borderRadius: 12, padding: '10px 10px 8px', textAlign: 'center' }}>
-        <div style={{ fontSize: 12, color: '#1E3A5F', fontWeight: 700, letterSpacing: '.06em', marginBottom: 6 }}>MES</div>
-        <div style={{ fontSize: 16, fontWeight: 500, color: '#1E3A5F' }}>{money(month)}</div>
-        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>de {money(monthBudget)}</div>
+      <div className="card-zafi" style={{ padding: '10px 10px 8px', textAlign: 'center' }}>
+        <div className="eyebrow-muted" style={{ marginBottom: 6 }}>MES</div>
+        <div className="font-outfit font-bold text-navy" style={{ fontSize: 16 }}>{money(month)}</div>
+        <div className="font-sans text-caption text-ink-400" style={{ marginTop: 2 }}>de {money(monthBudget)}</div>
       </div>
 
     </div>

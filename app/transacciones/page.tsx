@@ -231,8 +231,8 @@ export default function TransaccionesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
       </div>
     );
   }
@@ -254,13 +254,13 @@ export default function TransaccionesPage() {
     .reduce((s, t) => s + Number(t.amount), 0);
 
   const bucketColors: Record<string, string> = {
-    needs: 'bg-blue-100 text-[#1D4ED8]',
-    wants: 'bg-blue-100 text-[#1D4ED8]',
+    needs: 'bg-blue-100 text-electric-dark',
+    wants: 'bg-blue-100 text-electric-dark',
     savings: 'bg-blue-100 text-blue-700',
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
+    <div className="min-h-screen bg-surface-bg p-4 lg:p-8">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -465,12 +465,12 @@ export default function TransaccionesPage() {
                     editingId === tx.id ? (
                       <div key={tx.id} className="px-4 py-3 bg-blue-50/50 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-[#2563EB]">Editando transacción</span>
+                          <span className="text-xs font-medium text-electric">Editando transacción</span>
                           <div className="flex gap-1">
                             <button
                               onClick={saveEdit}
                               disabled={editSaving || editData.amount <= 0}
-                              className="p-1.5 rounded-md bg-[#2563EB] text-white hover:bg-[#1D4ED8] disabled:opacity-50"
+                              className="p-1.5 rounded-md bg-electric text-white hover:bg-electric-dark disabled:opacity-50"
                             >
                               {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                             </button>
@@ -576,7 +576,7 @@ export default function TransaccionesPage() {
                           <span className="font-medium text-sm">{fmt(Number(tx.amount))}</span>
                           <button
                             onClick={() => startEdit(tx)}
-                            className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-gray-300 hover:text-[#2563EB] transition-all"
+                            className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-gray-300 hover:text-electric transition-all"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>

@@ -23,6 +23,8 @@ import {
   Trash2,
   Loader2,
 } from 'lucide-react';
+import { Wordmark } from '@/components/brand/Wordmark';
+import { AppIcon } from '@/components/brand/AppIcon';
 import { OnboardingData } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { calculateHealthScore, ScoreBreakdown } from '@/lib/scoring';
@@ -168,7 +170,7 @@ export default function OnboardingPage() {
         orange: 'text-orange-500',
         yellow: 'text-yellow-500',
         green: 'text-green-500',
-        emerald: 'text-[#3B82F6]',
+        emerald: 'text-electric-light',
       }[score.color]
     : '';
 
@@ -183,16 +185,14 @@ export default function OnboardingPage() {
     : '';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F8F9FF] to-white">
+    <div className="min-h-screen bg-surface-bg">
       {/* Top bar */}
       <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b z-40">
         <div className="max-w-2xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-[#2563EB] rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs font-bold">Z</span>
-              </div>
-              <span className="font-semibold text-[#1E3A5F]">Zafi</span>
+              <AppIcon size="xs" variant="electric" />
+              <Wordmark size="xs" />
             </div>
             <span className="text-sm text-gray-500">
               Paso {step} de {TOTAL_STEPS}
@@ -209,7 +209,7 @@ export default function OnboardingPage() {
             <Card>
               <CardHeader className="text-center">
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-[#2563EB]" />
+                  <Sparkles className="w-8 h-8 text-electric" />
                 </div>
                 <CardTitle className="text-2xl">Hola, soy Zafi</CardTitle>
                 <CardDescription className="text-base">
@@ -257,12 +257,12 @@ export default function OnboardingPage() {
                     onClick={() => setData({ ...data, householdType: opt.value })}
                     className={`w-full flex items-center gap-4 p-4 rounded-lg border-2 transition-all text-left ${
                       data.householdType === opt.value && (opt.label !== 'Familia' || data.householdType === 'family')
-                        ? 'border-[#3B82F6] bg-[#F8F9FF]'
+                        ? 'border-electric-light bg-surface-tint'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <opt.icon className="w-5 h-5 text-[#2563EB]" />
+                      <opt.icon className="w-5 h-5 text-electric" />
                     </div>
                     <div>
                       <p className="font-medium">{opt.label}</p>
@@ -281,7 +281,7 @@ export default function OnboardingPage() {
             <Card>
               <CardHeader>
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
-                  <Wallet className="w-6 h-6 text-[#2563EB]" />
+                  <Wallet className="w-6 h-6 text-electric" />
                 </div>
                 <CardTitle>¿Cuál es tu ingreso mensual?</CardTitle>
                 <CardDescription>
@@ -321,7 +321,7 @@ export default function OnboardingPage() {
                         onClick={() => setData({ ...data, incomeType: opt.value })}
                         className={`p-3 rounded-lg border-2 text-center transition-all ${
                           data.incomeType === opt.value
-                            ? 'border-[#3B82F6] bg-[#F8F9FF]'
+                            ? 'border-electric-light bg-surface-tint'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
@@ -429,7 +429,7 @@ export default function OnboardingPage() {
                     onClick={() => setData({ ...data, hasDebts: true })}
                     className={`p-4 rounded-lg border-2 text-center transition-all ${
                       data.hasDebts
-                        ? 'border-[#3B82F6] bg-[#F8F9FF]'
+                        ? 'border-electric-light bg-surface-tint'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -439,7 +439,7 @@ export default function OnboardingPage() {
                     onClick={() => setData({ ...data, hasDebts: false, debts: [] })}
                     className={`p-4 rounded-lg border-2 text-center transition-all ${
                       !data.hasDebts
-                        ? 'border-[#3B82F6] bg-[#F8F9FF]'
+                        ? 'border-electric-light bg-surface-tint'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -480,7 +480,7 @@ export default function OnboardingPage() {
                                 onClick={() => updateDebt(i, 'type', t.value)}
                                 className={`py-1.5 px-2 rounded border text-sm transition-all ${
                                   debt.type === t.value
-                                    ? 'border-[#3B82F6] bg-[#F8F9FF]'
+                                    ? 'border-electric-light bg-surface-tint'
                                     : 'border-gray-200'
                                 }`}
                               >
@@ -552,7 +552,7 @@ export default function OnboardingPage() {
             <Card>
               <CardHeader>
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
-                  <PiggyBank className="w-6 h-6 text-[#2563EB]" />
+                  <PiggyBank className="w-6 h-6 text-electric" />
                 </div>
                 <CardTitle>¿Tienes ahorros?</CardTitle>
                 <CardDescription>
@@ -623,7 +623,7 @@ export default function OnboardingPage() {
                       onClick={() => setData({ ...data, hasEmergencyFund: true })}
                       className={`p-3 rounded-lg border-2 text-center transition-all ${
                         data.hasEmergencyFund
-                          ? 'border-[#3B82F6] bg-[#F8F9FF]'
+                          ? 'border-electric-light bg-surface-tint'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
@@ -633,7 +633,7 @@ export default function OnboardingPage() {
                       onClick={() => setData({ ...data, hasEmergencyFund: false })}
                       className={`p-3 rounded-lg border-2 text-center transition-all ${
                         !data.hasEmergencyFund
-                          ? 'border-[#3B82F6] bg-[#F8F9FF]'
+                          ? 'border-electric-light bg-surface-tint'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
@@ -693,7 +693,7 @@ export default function OnboardingPage() {
                       </div>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-[#3B82F6] rounded-full transition-all duration-1000"
+                          className="h-full bg-electric-light rounded-full transition-all duration-1000"
                           style={{ width: `${(comp.value / comp.max) * 100}%` }}
                         />
                       </div>
@@ -744,7 +744,7 @@ export default function OnboardingPage() {
             <Card>
               <CardHeader className="text-center">
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-[#2563EB]" />
+                  <Sparkles className="w-8 h-8 text-electric" />
                 </div>
                 <CardTitle className="text-2xl">Tu plan de acción</CardTitle>
                 <CardDescription>

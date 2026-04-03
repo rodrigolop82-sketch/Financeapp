@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
+import { Wordmark } from '@/components/brand/Wordmark';
+import { AppIcon } from '@/components/brand/AppIcon';
 
 export default function RegistroPage() {
   return (
@@ -75,11 +77,11 @@ function RegistroForm() {
 
   if (emailSent) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#F8F9FF] to-white flex items-center justify-center px-4">
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8 text-[#2563EB]" />
+              <CheckCircle2 className="w-8 h-8 text-electric" />
             </div>
             <h2 className="text-xl font-bold mb-2">Revisa tu correo</h2>
             <p className="text-gray-600 mb-4">
@@ -96,16 +98,14 @@ function RegistroForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F8F9FF] to-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-surface-bg flex items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-[#2563EB] rounded-xl flex items-center justify-center">
-              <span className="text-white text-sm font-bold">Z</span>
-            </div>
-            <span className="text-xl font-bold text-[#1E3A5F]">Zafi</span>
+          <div className="flex items-center justify-center gap-2.5 mb-4">
+            <AppIcon size="sm" variant="electric" />
+            <Wordmark size="sm" />
           </div>
-          <CardTitle>Crea tu cuenta</CardTitle>
+          <CardTitle className="font-serif">Crea tu cuenta</CardTitle>
           <CardDescription>
             Empieza tu prueba gratuita de 14 días. Sin tarjeta de crédito.
           </CardDescription>
@@ -179,7 +179,7 @@ function RegistroForm() {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             ¿Ya tienes cuenta?{' '}
-            <Link href={inviteCode ? `/login?invite=${inviteCode}` : '/login'} className="text-[#2563EB] font-medium hover:underline">
+            <Link href={inviteCode ? `/login?invite=${inviteCode}` : '/login'} className="text-electric font-medium hover:underline">
               Inicia sesión
             </Link>
           </p>

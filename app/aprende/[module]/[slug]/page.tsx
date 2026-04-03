@@ -101,8 +101,8 @@ export default function CapsulePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
       </div>
     )
   }
@@ -122,11 +122,11 @@ export default function CapsulePage() {
         </Link>
         <button
           onClick={toggleBookmark}
-          className="text-muted-foreground hover:text-[#2563EB] transition-colors"
+          className="text-muted-foreground hover:text-electric transition-colors"
           title={bookmarked ? 'Quitar marcador' : 'Guardar'}
         >
           {bookmarked ? (
-            <BookmarkCheck className="w-5 h-5 text-[#2563EB]" />
+            <BookmarkCheck className="w-5 h-5 text-electric" />
           ) : (
             <Bookmark className="w-5 h-5" />
           )}
@@ -150,28 +150,28 @@ export default function CapsulePage() {
 
       {/* Key takeaway */}
       {capsule.key_takeaway && (
-        <div className="mb-6 p-4 bg-[#F8F9FF] border border-[#BFDBFE] rounded-xl">
-          <p className="text-xs font-medium text-[#1D4ED8] mb-1">Lo mas importante</p>
-          <p className="text-sm font-medium text-[#1E3A5F]">{capsule.key_takeaway}</p>
+        <div className="mb-6 p-4 bg-surface-tint border border-electric-soft rounded-xl">
+          <p className="text-xs font-medium text-electric-dark mb-1">Lo mas importante</p>
+          <p className="text-sm font-medium text-navy">{capsule.key_takeaway}</p>
         </div>
       )}
 
       {/* Markdown content — article style */}
       <article className="prose prose-sm max-w-none
-        prose-headings:text-[#1E3A5F] prose-headings:font-semibold
+        prose-headings:text-navy prose-headings:font-semibold
         prose-h2:text-lg prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:border-gray-200 prose-h2:pb-2
         prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2
         prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4
-        prose-strong:text-[#1E3A5F]
+        prose-strong:text-navy
         prose-ul:my-3 prose-li:text-gray-700 prose-li:leading-relaxed
         prose-ol:my-3
         prose-table:border-collapse prose-table:w-full prose-table:text-sm prose-table:my-4
-        prose-thead:bg-[#F8F9FF] prose-thead:border-b-2 prose-thead:border-[#BFDBFE]
-        prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-[#1E3A5F] prose-th:font-semibold prose-th:text-xs prose-th:uppercase prose-th:tracking-wide
+        prose-thead:bg-surface-tint prose-thead:border-b-2 prose-thead:border-electric-soft
+        prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-navy prose-th:font-semibold prose-th:text-xs prose-th:uppercase prose-th:tracking-wide
         prose-td:px-3 prose-td:py-2 prose-td:border-b prose-td:border-gray-100
         prose-tr:even:bg-gray-50/50
-        prose-blockquote:border-l-[#2563EB] prose-blockquote:bg-[#F8F9FF] prose-blockquote:py-1 prose-blockquote:rounded-r-lg
-        prose-a:text-[#2563EB] prose-a:no-underline hover:prose-a:underline
+        prose-blockquote:border-l-[#2563EB] prose-blockquote:bg-surface-tint prose-blockquote:py-1 prose-blockquote:rounded-r-lg
+        prose-a:text-electric prose-a:no-underline hover:prose-a:underline
       ">
         {ReactMarkdown && remarkGfm ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{capsule.content_md}</ReactMarkdown>
@@ -190,8 +190,8 @@ export default function CapsulePage() {
         </p>
         <Link
           href={`/chat?q=Leí sobre ${encodeURIComponent(capsule.title)} — ¿cómo aplica esto a mi situación?`}
-          className="inline-block text-sm font-medium text-white bg-[#2563EB]
-                     px-4 py-2 rounded-lg hover:bg-[#1E3A5F] transition-colors"
+          className="inline-block text-sm font-medium text-white bg-electric
+                     px-4 py-2 rounded-lg hover:bg-navy transition-colors"
         >
           Preguntarle a Zafi →
         </Link>

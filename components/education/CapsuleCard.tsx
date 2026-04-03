@@ -21,8 +21,8 @@ export function CapsuleCard({
   return (
     <Link
       href={isLocked ? '/cuenta?upgrade=true' : `/aprende/${moduleSlug}/${slug}`}
-      className={`block p-4 border rounded-xl transition-colors hover:border-[#93C5FD]
-        ${isRead ? 'bg-[#F8F9FF]/50 border-[#DBEAFE]' : 'bg-background'}`}
+      className={`block p-4 border rounded-xl transition-colors hover:border-electric-soft
+        ${isRead ? 'bg-surface-tint/50 border-[#DBEAFE]' : 'bg-background'}`}
     >
       <div className="flex items-start gap-3">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5
@@ -30,14 +30,14 @@ export function CapsuleCard({
           {isLocked ? (
             <Lock className="w-4 h-4 text-amber-600" />
           ) : isRead ? (
-            <Check className="w-4 h-4 text-[#2563EB]" />
+            <Check className="w-4 h-4 text-electric" />
           ) : (
             <BookOpen className="w-4 h-4 text-gray-500" />
           )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className={`text-sm font-medium ${isRead ? 'text-[#1D4ED8]' : 'text-foreground'}`}>
+            <p className={`text-sm font-medium ${isRead ? 'text-electric-dark' : 'text-foreground'}`}>
               {title}
             </p>
             {isPremium && isLocked && (

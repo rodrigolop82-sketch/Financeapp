@@ -10,6 +10,55 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // ── MARCA PRINCIPAL ──────────────────────────────
+        navy: {
+          deep:    "#0D1F36",
+          darker:  "#152B48",
+          DEFAULT: "#1E3A5F",
+          mid:     "#264878",
+          light:   "#315899",
+        },
+        electric: {
+          dark:    "#1D4ED8",
+          DEFAULT: "#2563EB",
+          light:   "#3B82F6",
+          pale:    "#60A5FA",
+          soft:    "#93C5FD",
+          ghost:   "#DBEAFE",
+        },
+        // ── SUPERFICIE ───────────────────────────────────
+        surface: {
+          DEFAULT: "#FFFFFF",
+          tint:    "#F8FAFF",
+          bg:      "#EEF2FB",
+        },
+        // ── SEMÁNTICOS ───────────────────────────────────
+        success: {
+          DEFAULT: "#10B981",
+          light:   "#D1FAE5",
+          text:    "#065F46",
+        },
+        warning: {
+          DEFAULT: "#F59E0B",
+          light:   "#FEF3C7",
+          text:    "#92400E",
+        },
+        danger: {
+          DEFAULT: "#EF4444",
+          light:   "#FEE2E2",
+          text:    "#991B1B",
+        },
+        // ── NEUTRALES ────────────────────────────────────
+        ink: {
+          900: "#0F172A",
+          700: "#334155",
+          500: "#64748B",
+          400: "#94A3B8",
+          200: "#CBD5E1",
+          100: "#E2E8F0",
+          50:  "#F8FAFF",
+        },
+        // ── SHADCN COMPAT ────────────────────────────────
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -39,19 +88,23 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        navy: {
-          50: "#F8F9FF",
-          100: "#DBEAFE",
-          200: "#BFDBFE",
-          300: "#93C5FD",
-          400: "#60A5FA",
-          500: "#3B82F6",
-          600: "#2563EB",
-          700: "#1D4ED8",
-          800: "#1E40AF",
-          900: "#1E3A5F",
-          950: "#162D4A",
-        },
+      },
+      fontFamily: {
+        outfit: ["Outfit", "sans-serif"],
+        serif:  ["DM Serif Display", "Georgia", "serif"],
+        sans:   ["DM Sans", "system-ui", "sans-serif"],
+      },
+      fontSize: {
+        "hero":    ["52px", { lineHeight: "1.05", letterSpacing: "-0.03em" }],
+        "display": ["38px", { lineHeight: "1.1",  letterSpacing: "-0.02em" }],
+        "title":   ["28px", { lineHeight: "1.2",  letterSpacing: "-0.01em" }],
+        "heading": ["22px", { lineHeight: "1.3",  letterSpacing: "-0.01em" }],
+        "subhead": ["18px", { lineHeight: "1.4" }],
+        "body-lg": ["16px", { lineHeight: "1.6" }],
+        "body":    ["15px", { lineHeight: "1.65" }],
+        "body-sm": ["14px", { lineHeight: "1.6" }],
+        "caption": ["12px", { lineHeight: "1.5",  letterSpacing: "0.01em" }],
+        "label":   ["11px", { lineHeight: "1.4",  letterSpacing: "0.15em" }],
       },
       borderRadius: {
         lg: "var(--radius)",

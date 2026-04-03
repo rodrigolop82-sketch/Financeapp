@@ -4,32 +4,126 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 262 10% 10%;
+    --background: 220 30% 96%;
+    --foreground: 213 53% 24%;
     --card: 0 0% 100%;
-    --card-foreground: 262 10% 10%;
-    --primary: 262 83% 58%;
+    --card-foreground: 213 53% 24%;
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 262 20% 95%;
-    --secondary-foreground: 262 10% 10%;
-    --muted: 262 10% 96%;
-    --muted-foreground: 262 5% 45%;
-    --accent: 262 20% 93%;
-    --accent-foreground: 262 10% 10%;
+    --secondary: 220 30% 96%;
+    --secondary-foreground: 213 53% 24%;
+    --muted: 220 20% 94%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 220 20% 93%;
+    --accent-foreground: 213 53% 24%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 262 10% 90%;
-    --input: 262 10% 90%;
-    --ring: 262 83% 58%;
+    --border: 214 20% 88%;
+    --input: 214 20% 88%;
+    --ring: 217 91% 60%;
     --radius: 0.75rem;
+
+    --color-navy:     #1E3A5F;
+    --color-electric: #2563EB;
+    --color-surface:  #FFFFFF;
+    --color-bg:       #EEF2FB;
+    --radius-card:    16px;
+    --radius-btn:     100px;
+    --radius-input:   12px;
   }
+
+  * {
+    @apply border-border antialiased;
+  }
+
+  body {
+    @apply bg-surface-bg text-navy font-sans;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { border-radius: 9999px; background: rgba(37, 99, 235, 0.2); }
 }
 
-@layer base {
-  * {
-    @apply border-border;
+@layer components {
+  /* ── WORDMARK ────────────────────────────── */
+  .zafi-wordmark {
+    @apply font-outfit font-extrabold tracking-[-0.04em] leading-none;
   }
-  body {
-    @apply bg-background text-foreground;
+
+  /* ── BOTONES ─────────────────────────────── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2
+           bg-electric text-white font-sans font-semibold text-body-sm
+           px-5 py-3 rounded-full
+           hover:bg-electric-dark active:scale-[0.98]
+           transition-all duration-150
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2
+           bg-navy text-white font-sans font-semibold text-body-sm
+           px-5 py-3 rounded-full
+           hover:bg-navy-light active:scale-[0.98]
+           transition-all duration-150;
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2
+           border-[1.5px] border-electric text-electric font-sans font-semibold text-body-sm
+           px-5 py-3 rounded-full
+           hover:bg-electric/5 active:scale-[0.98]
+           transition-all duration-150;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2
+           text-navy/60 font-sans font-medium text-body-sm
+           px-4 py-2.5 rounded-full
+           hover:bg-navy/5 active:scale-[0.98]
+           transition-all duration-150;
+  }
+
+  /* ── CARDS ───────────────────────────────── */
+  .card-zafi {
+    @apply bg-surface rounded-[16px] border border-navy/[0.08]
+           shadow-[0_2px_16px_rgba(30,58,95,0.06)];
+  }
+  .card-dark {
+    @apply bg-navy rounded-[16px];
+  }
+
+  /* ── INPUTS ──────────────────────────────── */
+  .input-base {
+    @apply w-full bg-surface-tint border border-ink-200 rounded-[12px]
+           px-4 py-3 font-sans text-body text-navy
+           placeholder:text-ink-400
+           focus:outline-none focus:ring-2 focus:ring-electric/30 focus:border-electric
+           transition-all duration-150;
+  }
+
+  /* ── LABELS / EYEBROWS ───────────────────── */
+  .eyebrow {
+    @apply font-sans font-bold text-label uppercase tracking-[0.15em] text-electric;
+  }
+  .eyebrow-muted {
+    @apply font-sans font-semibold text-label uppercase tracking-[0.12em] text-ink-400;
+  }
+
+  /* ── BADGES ──────────────────────────────── */
+  .badge-electric { @apply inline-flex items-center gap-1 font-sans font-bold text-label uppercase tracking-wider px-2.5 py-1 rounded-full bg-electric-ghost text-electric; }
+  .badge-success  { @apply inline-flex items-center gap-1 font-sans font-bold text-label uppercase tracking-wider px-2.5 py-1 rounded-full bg-success-light text-success-text; }
+  .badge-warning  { @apply inline-flex items-center gap-1 font-sans font-bold text-label uppercase tracking-wider px-2.5 py-1 rounded-full bg-warning-light text-warning-text; }
+  .badge-danger   { @apply inline-flex items-center gap-1 font-sans font-bold text-label uppercase tracking-wider px-2.5 py-1 rounded-full bg-danger-light text-danger-text; }
+
+  /* ── DIVIDER ─────────────────────────────── */
+  .divider       { @apply border-t border-navy/[0.08]; }
+  .divider-dark  { @apply border-t border-white/[0.08]; }
+
+  /* ── STAT NUMBER ─────────────────────────── */
+  .stat-number {
+    @apply font-outfit font-extrabold leading-none tracking-tight text-navy;
+  }
+  .stat-number-light {
+    @apply font-outfit font-extrabold leading-none tracking-tight text-white;
   }
 }

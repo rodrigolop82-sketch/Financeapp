@@ -92,8 +92,8 @@ function CuentaContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
       </div>
     );
   }
@@ -106,9 +106,9 @@ function CuentaContent() {
   return (
     <AppShell title="Mi cuenta" currentPath="/cuenta">
         {justUpgraded && (
-          <div className="mb-4 p-4 bg-[#F8F9FF] border border-[#BFDBFE] rounded-lg flex gap-2">
-            <CheckCircle2 className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
-            <p className="text-sm text-[#1E40AF]">Tu plan Premium se ha activado correctamente.</p>
+          <div className="mb-4 p-4 bg-surface-tint border border-electric-soft rounded-lg flex gap-2">
+            <CheckCircle2 className="w-5 h-5 text-electric flex-shrink-0" />
+            <p className="text-sm text-electric-dark">Tu plan Premium se ha activado correctamente.</p>
           </div>
         )}
 
@@ -152,7 +152,7 @@ function CuentaContent() {
               <button
                 onClick={() => toggleDecimals(!showDecimals)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  showDecimals ? 'bg-[#2563EB]' : 'bg-gray-200'
+                  showDecimals ? 'bg-electric' : 'bg-gray-200'
                 }`}
               >
                 <span

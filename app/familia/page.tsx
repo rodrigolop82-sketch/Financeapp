@@ -166,8 +166,8 @@ export default function FamiliaPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
       </div>
     );
   }
@@ -186,7 +186,7 @@ export default function FamiliaPage() {
         {/* Status message */}
         {message && (
           <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
-            message.type === 'success' ? 'bg-[#F8F9FF] text-[#1D4ED8]' : 'bg-red-50 text-red-700'
+            message.type === 'success' ? 'bg-surface-tint text-electric-dark' : 'bg-red-50 text-red-700'
           }`}>
             {message.type === 'success'
               ? <CheckCircle2 className="w-4 h-4" />
@@ -198,7 +198,7 @@ export default function FamiliaPage() {
 
         {/* Invite section */}
         {showInvite && isOwner && (
-          <Card className="mb-6 border-[#BFDBFE]">
+          <Card className="mb-6 border-electric-soft">
             <CardHeader>
               <CardTitle className="text-base">Invitar miembro</CardTitle>
             </CardHeader>
@@ -206,7 +206,7 @@ export default function FamiliaPage() {
               {/* Option 1: Invite link */}
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <Link2 className="w-4 h-4 text-[#2563EB]" />
+                  <Link2 className="w-4 h-4 text-electric" />
                   <span className="text-sm font-medium text-gray-700">Compartir link de invitación</span>
                 </div>
                 <p className="text-sm text-gray-500 mb-3">

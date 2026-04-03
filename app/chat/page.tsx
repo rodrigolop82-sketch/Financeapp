@@ -86,8 +86,8 @@ export default function ChatPage() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
       </div>
     )
   }
@@ -107,7 +107,7 @@ export default function ChatPage() {
                 key={i}
                 onClick={() => sendMessage(q)}
                 className="w-full text-left text-sm px-4 py-3 rounded-xl border border-border
-                           hover:border-[#93C5FD] hover:bg-[#F8F9FF] transition-colors"
+                           hover:border-electric-soft hover:bg-surface-tint transition-colors"
               >
                 {q}
               </button>
@@ -119,7 +119,7 @@ export default function ChatPage() {
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap
               ${msg.role === 'user'
-                ? 'bg-[#2563EB] text-white rounded-br-sm'
+                ? 'bg-electric text-white rounded-br-sm'
                 : 'bg-secondary text-foreground rounded-bl-sm'
               }`}>
               {msg.content || (isStreaming && i === messages.length - 1
@@ -150,13 +150,13 @@ export default function ChatPage() {
             placeholder="Preguntale algo a Zafi..."
             disabled={isStreaming}
             className="flex-1 px-4 py-2.5 rounded-xl border text-sm
-                       focus:outline-none focus:border-[#3B82F6]"
+                       focus:outline-none focus:border-electric-light"
           />
           <button
             onClick={() => sendMessage(input)}
             disabled={isStreaming || !input.trim()}
-            className="px-4 py-2.5 bg-[#2563EB] text-white rounded-xl text-sm
-                       disabled:opacity-40 hover:bg-[#1E3A5F] transition-colors"
+            className="px-4 py-2.5 bg-electric text-white rounded-xl text-sm
+                       disabled:opacity-40 hover:bg-navy transition-colors"
           >
             Enviar
           </button>

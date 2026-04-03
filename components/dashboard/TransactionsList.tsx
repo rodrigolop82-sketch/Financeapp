@@ -91,18 +91,17 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
   return (
     <div style={{ padding: '10px 16px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B', letterSpacing: '.05em' }}>
-          ÚLTIMOS MOVIMIENTOS
-        </span>
+        <span className="eyebrow-muted">ÚLTIMOS MOVIMIENTOS</span>
         <button
           onClick={onSeeAll}
-          style={{ fontSize: 12, color: '#2563EB', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer' }}
+          className="font-sans font-medium text-caption text-electric"
+          style={{ background: 'none', border: 'none', cursor: 'pointer' }}
         >
           Ver todos &rarr;
         </button>
       </div>
 
-      <div style={{ background: 'white', border: '0.5px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+      <div className="card-zafi" style={{ overflow: 'hidden' }}>
         {recent.length === 0 ? (
           <div style={{ padding: '20px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>
             No hay gastos registrados. ¡Agregá el primero!

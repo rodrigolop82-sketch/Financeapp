@@ -92,19 +92,19 @@ export function SmartAlert({ alert }: { alert: AlertData | null }) {
 
   const styles = {
     warning: {
-      bg: '#FFF7ED', border: '#FED7AA',
-      iconBg: '#FED7AA', iconColor: '#92400E',
+      bg: '#FEF3C7', border: '#F59E0B40',
+      iconBg: '#F59E0B20', iconColor: '#92400E',
       titleColor: '#92400E', subColor: '#B45309',
     },
     positive: {
-      bg: '#F0FDF4', border: '#BBF7D0',
-      iconBg: '#BBF7D0', iconColor: '#065F46',
+      bg: '#D1FAE5', border: '#10B98140',
+      iconBg: '#10B98120', iconColor: '#065F46',
       titleColor: '#065F46', subColor: '#047857',
     },
     info: {
-      bg: '#EFF6FF', border: '#BFDBFE',
-      iconBg: '#BFDBFE', iconColor: '#1E40AF',
-      titleColor: '#1E40AF', subColor: '#2563EB',
+      bg: '#DBEAFE', border: '#2563EB40',
+      iconBg: '#2563EB20', iconColor: '#1D4ED8',
+      titleColor: '#1E3A5F', subColor: '#2563EB',
     },
   }
 

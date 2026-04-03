@@ -40,9 +40,9 @@ const FREQUENCY_MULTIPLIER: Record<string, number> = {
 };
 
 const BUCKET_LABELS = {
-  needs: { label: 'Necesidades (50%)', color: 'bg-[#1E3A5F]', textColor: 'text-[#1D4ED8]' },
-  wants: { label: 'Gustos (30%)', color: 'bg-[#3B82F6]', textColor: 'text-[#3B82F6]' },
-  savings: { label: 'Ahorro/Deudas (20%)', color: 'bg-[#93C5FD]', textColor: 'text-[#1D4ED8]' },
+  needs: { label: 'Necesidades (50%)', color: 'bg-navy', textColor: 'text-electric-dark' },
+  wants: { label: 'Gustos (30%)', color: 'bg-electric-light', textColor: 'text-electric-light' },
+  savings: { label: 'Ahorro/Deudas (20%)', color: 'bg-electric-soft', textColor: 'text-electric-dark' },
 };
 
 export default function PresupuestoPage() {
@@ -298,14 +298,14 @@ export default function PresupuestoPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
+    <div className="min-h-screen bg-surface-bg p-4 lg:p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -330,7 +330,7 @@ export default function PresupuestoPage() {
             {saving ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : saved ? (
-              <CheckCircle2 className="w-4 h-4 mr-2 text-[#3B82F6]" />
+              <CheckCircle2 className="w-4 h-4 mr-2 text-electric-light" />
             ) : (
               <Save className="w-4 h-4 mr-2" />
             )}
@@ -358,7 +358,7 @@ export default function PresupuestoPage() {
         {/* ─── SECCIÓN 1: Gráfica y medidores ─── */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-base text-[#1E3A5F]">Distribución del presupuesto</CardTitle>
+            <CardTitle className="text-base text-navy">Distribución del presupuesto</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -396,7 +396,7 @@ export default function PresupuestoPage() {
                 <div className="pt-2 border-t">
                   <div className="flex justify-between font-medium">
                     <span>Sin asignar</span>
-                    <span className={remaining < 0 ? 'text-red-500' : 'text-[#2563EB]'}>
+                    <span className={remaining < 0 ? 'text-red-500' : 'text-electric'}>
                       {fmt(remaining)}
                     </span>
                   </div>
@@ -410,7 +410,7 @@ export default function PresupuestoPage() {
         <Card className="mb-6">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base text-[#1E3A5F]">Definición del presupuesto</CardTitle>
+              <CardTitle className="text-base text-navy">Definición del presupuesto</CardTitle>
               <button onClick={() => setBudgetDefCollapsed(!budgetDefCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
                 <span>{budgetDefCollapsed ? 'Ver detalle' : 'Cerrar'}</span>
                 {budgetDefCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -428,8 +428,8 @@ export default function PresupuestoPage() {
               <Card className="mb-4">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base text-[#10B981]">Ingresos</CardTitle>
-                    <span className="text-sm font-bold text-[#10B981]">{fmt(income)}/mes</span>
+                    <CardTitle className="text-base text-success">Ingresos</CardTitle>
+                    <span className="text-sm font-bold text-success">{fmt(income)}/mes</span>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -439,7 +439,7 @@ export default function PresupuestoPage() {
                       <button
                         key={s}
                         onClick={() => addIncomeEntry(s)}
-                        className="px-2.5 py-1 text-xs rounded-full border border-[#BFDBFE] text-[#2563EB] hover:bg-[#EFF6FF] transition-colors"
+                        className="px-2.5 py-1 text-xs rounded-full border border-electric-soft text-electric hover:bg-electric-ghost transition-colors"
                       >
                         <Plus className="w-3 h-3 inline mr-0.5 -mt-0.5" />
                         {s}
@@ -505,7 +505,7 @@ export default function PresupuestoPage() {
 
                   <button
                     onClick={() => addIncomeEntry()}
-                    className="mt-3 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
+                    className="mt-3 flex items-center gap-1 text-xs text-electric hover:text-electric-dark font-medium"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Agregar ingreso
@@ -514,7 +514,7 @@ export default function PresupuestoPage() {
                   {incomeEntries.length > 0 && (
                     <div className="mt-4 pt-3 border-t flex justify-between items-center">
                       <span className="text-sm font-medium text-gray-700">Ingreso mensual total</span>
-                      <span className="text-sm font-bold text-[#1E3A5F]">{fmt(income)}</span>
+                      <span className="text-sm font-bold text-navy">{fmt(income)}</span>
                     </div>
                   )}
                 </CardContent>
@@ -649,7 +649,7 @@ export default function PresupuestoPage() {
 
                             {/* Add sub-item form */}
                             {addingSubItem === cat.id ? (
-                              <div className="mt-2 bg-white rounded-lg p-3 space-y-2 border border-[#BFDBFE]">
+                              <div className="mt-2 bg-white rounded-lg p-3 space-y-2 border border-electric-soft">
                                 <div className="flex gap-2">
                                   <Input
                                     placeholder="Nombre del sub-item"
@@ -704,7 +704,7 @@ export default function PresupuestoPage() {
                             ) : (
                               <button
                                 onClick={() => { setAddingSubItem(cat.id); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); }}
-                                className="mt-2 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
+                                className="mt-2 flex items-center gap-1 text-xs text-electric hover:text-electric-dark font-medium"
                               >
                                 <Plus className="w-3.5 h-3.5" />
                                 Agregar detalle
@@ -739,7 +739,7 @@ export default function PresupuestoPage() {
                 ) : (
                   <button
                     onClick={() => { setAddingCatBucket(bucket); setNewCatName(''); }}
-                    className="mt-3 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
+                    className="mt-3 flex items-center gap-1 text-xs text-electric hover:text-electric-dark font-medium"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Agregar categoría
@@ -762,7 +762,7 @@ export default function PresupuestoPage() {
           <Card className="mb-6">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base text-[#1E3A5F]">Comparativo del mes</CardTitle>
+                <CardTitle className="text-base text-navy">Comparativo del mes</CardTitle>
                 <button onClick={() => setComparativoCollapsed(!comparativoCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
                   <span>{comparativoCollapsed ? 'Ver detalle' : 'Cerrar'}</span>
                   {comparativoCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -815,7 +815,7 @@ export default function PresupuestoPage() {
                           const varClass = diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-600' : 'text-gray-400';
                           return (
                             <tr key={cat.id} className="border-b border-gray-100">
-                              <td className="py-2 px-1 font-medium text-[#1E3A5F]">{cat.name}</td>
+                              <td className="py-2 px-1 font-medium text-navy">{cat.name}</td>
                               <td className="py-2 px-1 text-right tabular-nums">{fmtNum(budgeted)}</td>
                               <td className="py-2 px-1 text-right tabular-nums">{fmtNum(actual)}</td>
                               <td className={`py-2 px-1 text-right font-medium tabular-nums ${varClass}`}>
@@ -848,9 +848,9 @@ export default function PresupuestoPage() {
                     const cls = totalDiff > 0 ? 'text-red-500' : totalDiff < 0 ? 'text-green-600' : 'text-gray-400';
                     return (
                       <tr className="border-t-2 border-[#1E3A5F]">
-                        <td className="py-2 px-1 font-bold text-[#1E3A5F]">TOTAL</td>
-                        <td className="py-2 px-1 text-right font-bold text-[#1E3A5F] tabular-nums">{fmtNum(totalBudgeted)}</td>
-                        <td className="py-2 px-1 text-right font-bold text-[#1E3A5F] tabular-nums">{fmtNum(totalSpent)}</td>
+                        <td className="py-2 px-1 font-bold text-navy">TOTAL</td>
+                        <td className="py-2 px-1 text-right font-bold text-navy tabular-nums">{fmtNum(totalBudgeted)}</td>
+                        <td className="py-2 px-1 text-right font-bold text-navy tabular-nums">{fmtNum(totalSpent)}</td>
                         <td className={`py-2 px-1 text-right font-bold tabular-nums ${cls}`}>
                           {totalDiff > 0 ? '+' : totalDiff < 0 ? '-' : ''}{fmtNum(Math.abs(totalDiff))}
                         </td>

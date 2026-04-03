@@ -11,7 +11,7 @@ const NAV_ITEMS = [
 ]
 
 function NavIcon({ icon, active }: { icon: string; active: boolean }) {
-  const color = active ? '#2563EB' : '#94A3B8'
+  const color = active ? '#60A5FA' : 'rgba(255,255,255,0.4)'
 
   const icons: Record<string, React.ReactNode> = {
     grid: (
@@ -56,7 +56,8 @@ export function BottomNav() {
   return (
     <div className="lg:hidden" style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
-      background: 'white', borderTop: '0.5px solid #E2E8F0',
+      background: 'rgba(13,31,54,0.98)', backdropFilter: 'blur(12px)',
+      borderTop: '1px solid rgba(255,255,255,0.08)',
       paddingBottom: 'env(safe-area-inset-bottom)',
     }}>
       <div style={{
@@ -79,11 +80,11 @@ export function BottomNav() {
                   width: 48, height: 48, borderRadius: '50%',
                   background: '#2563EB', display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(37,99,235,.35)',
+                  boxShadow: '0 2px 12px rgba(37,99,235,.4)',
                 }}>
                   <NavIcon icon={item.icon} active={false} />
                 </div>
-                <span style={{ fontSize: 9, color: '#64748B', fontWeight: 500 }}>
+                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>
                   {item.label}
                 </span>
               </button>
@@ -97,15 +98,16 @@ export function BottomNav() {
             }}>
               <NavIcon icon={item.icon} active={active} />
               <span style={{
-                fontSize: 9, fontWeight: 500,
-                color: active ? '#2563EB' : '#94A3B8',
+                fontSize: 9, fontWeight: 600,
+                color: active ? '#60A5FA' : 'rgba(255,255,255,0.4)',
+                letterSpacing: '0.02em',
               }}>
                 {item.label}
               </span>
               {active && (
                 <div style={{
-                  width: 4, height: 4, borderRadius: '50%',
-                  background: '#2563EB', marginTop: -1,
+                  width: 20, height: 2, borderRadius: 9999,
+                  background: '#60A5FA', marginTop: -1,
                 }} />
               )}
             </Link>
