@@ -202,11 +202,15 @@ export default function PresupuestoPage() {
         .update({ budgeted_amount: getCategoryTotal(cat.id) })
         .eq('id', cat.id)
     );
-    // Save sub-item amounts and frequency
+    // Save sub-item amounts
     for (const sub of subItems) {
+      const updateData: Record<string, unknown> = { amount: sub.amount };
+      if (sub.frequency && sub.frequency !== 'mensual') {
+        updateData.frequency = sub.frequency;
+      }
       promises.push(
         supabase.from('budget_sub_items')
-          .update({ amount: sub.amount, frequency: sub.frequency || 'mensual' })
+          .update(updateData)
           .eq('id', sub.id)
       );
     }
@@ -224,19 +228,43 @@ export default function PresupuestoPage() {
 
   async function addSubItem(categoryId: string) {
     if (!newSubName.trim()) return;
-    const { data } = await supabase
+    // Build insert object — try with all columns, fallback gracefully
+    const baseData = {
+      category_id: categoryId,
+      household_id: householdId,
+      name: newSubName.trim(),
+      amount: newSubAmount,
+      is_fixed: newSubFixed,
+    };
+
+    // Try full insert first
+    let result = await supabase
       .from('budget_sub_items')
-      .insert({
-        category_id: categoryId,
-        household_id: householdId,
-        name: newSubName.trim(),
-        amount: newSubAmount,
-        is_fixed: newSubFixed,
-        payment_method: newSubPayment,
-        frequency: newSubFrequency,
-      })
+      .insert({ ...baseData, payment_method: newSubPayment, frequency: newSubFrequency })
       .select()
       .single();
+
+    // If it fails (missing columns), try without optional columns
+    if (result.error) {
+      result = await supabase
+        .from('budget_sub_items')
+        .insert({ ...baseData, payment_method: newSubPayment })
+        .select()
+        .single();
+    }
+    if (result.error) {
+      result = await supabase
+        .from('budget_sub_items')
+        .insert(baseData)
+        .select()
+        .single();
+    }
+
+    const { data, error } = result;
+    if (error) {
+      console.error('Error adding sub-item:', error);
+      return;
+    }
 
     if (data) {
       setSubItems([...subItems, data as BudgetSubItem]);
