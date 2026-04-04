@@ -59,6 +59,7 @@ export default function PresupuestoPage() {
   const [newSubAmount, setNewSubAmount] = useState(0);
   const [newSubFixed, setNewSubFixed] = useState(false);
   const [newSubPayment, setNewSubPayment] = useState<'efectivo' | 'tarjeta' | 'cheque' | 'transferencia'>('efectivo');
+  const [newSubFrequency, setNewSubFrequency] = useState<'mensual' | 'trimestral' | 'anual'>('mensual');
   const [addingCatBucket, setAddingCatBucket] = useState<'needs' | 'wants' | 'savings' | null>(null);
   const [newCatName, setNewCatName] = useState('');
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
@@ -149,11 +150,18 @@ export default function PresupuestoPage() {
     saveIncomeEntries(incomeEntries.filter(e => e.id !== id));
   }
 
-  // Calculate category total from sub-items (if any), otherwise use budgeted_amount
+  // Monthly multiplier for frequency
+  function monthlyAmount(amount: number, freq: string): number {
+    if (freq === 'trimestral') return amount / 3;
+    if (freq === 'anual') return amount / 12;
+    return amount;
+  }
+
+  // Calculate category total from sub-items (monthly equivalent), otherwise use budgeted_amount
   function getCategoryTotal(catId: string): number {
     const catSubs = subItems.filter(s => s.category_id === catId);
     if (catSubs.length > 0) {
-      return catSubs.reduce((s, sub) => s + Number(sub.amount), 0);
+      return catSubs.reduce((s, sub) => s + monthlyAmount(Number(sub.amount), sub.frequency || 'mensual'), 0);
     }
     const cat = categories.find(c => c.id === catId);
     return cat ? Number(cat.budgeted_amount) : 0;
@@ -194,11 +202,11 @@ export default function PresupuestoPage() {
         .update({ budgeted_amount: getCategoryTotal(cat.id) })
         .eq('id', cat.id)
     );
-    // Save sub-item amounts
+    // Save sub-item amounts and frequency
     for (const sub of subItems) {
       promises.push(
         supabase.from('budget_sub_items')
-          .update({ amount: sub.amount })
+          .update({ amount: sub.amount, frequency: sub.frequency || 'mensual' })
           .eq('id', sub.id)
       );
     }
@@ -225,6 +233,7 @@ export default function PresupuestoPage() {
         amount: newSubAmount,
         is_fixed: newSubFixed,
         payment_method: newSubPayment,
+        frequency: newSubFrequency,
       })
       .select()
       .single();
@@ -235,6 +244,7 @@ export default function PresupuestoPage() {
       setNewSubAmount(0);
       setNewSubFixed(false);
       setNewSubPayment('efectivo');
+      setNewSubFrequency('mensual');
       setAddingSubItem(null);
       setSaved(false);
     }
@@ -243,6 +253,12 @@ export default function PresupuestoPage() {
   async function updateSubPayment(id: string, method: BudgetSubItem['payment_method']) {
     await supabase.from('budget_sub_items').update({ payment_method: method }).eq('id', id);
     setSubItems(items => items.map(s => s.id === id ? { ...s, payment_method: method } : s));
+  }
+
+  async function updateSubFrequency(id: string, frequency: BudgetSubItem['frequency']) {
+    await supabase.from('budget_sub_items').update({ frequency }).eq('id', id);
+    setSubItems(items => items.map(s => s.id === id ? { ...s, frequency } : s));
+    setSaved(false);
   }
 
   async function addCategoryToBucket(bucket: 'needs' | 'wants' | 'savings') {
@@ -628,6 +644,15 @@ export default function PresupuestoPage() {
                                     <option value="cheque">Cheque</option>
                                     <option value="transferencia">Transferencia</option>
                                   </select>
+                                  <select
+                                    className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                                    value={sub.frequency || 'mensual'}
+                                    onChange={(e) => updateSubFrequency(sub.id, e.target.value as BudgetSubItem['frequency'])}
+                                  >
+                                    <option value="mensual">Mensual</option>
+                                    <option value="trimestral">Trimestral</option>
+                                    <option value="anual">Anual</option>
+                                  </select>
                                   <div className="relative w-24 flex-shrink-0">
                                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
                                     <Input
@@ -637,6 +662,11 @@ export default function PresupuestoPage() {
                                       onChange={(e) => updateSubAmount(sub.id, parseFloat(e.target.value) || 0)}
                                     />
                                   </div>
+                                  {(sub.frequency || 'mensual') !== 'mensual' && sub.amount > 0 && (
+                                    <span className="text-[10px] text-ink-400 flex-shrink-0 whitespace-nowrap">
+                                      {fmt(Math.round(monthlyAmount(sub.amount, sub.frequency || 'mensual')))}/mes
+                                    </span>
+                                  )}
                                   <button
                                     onClick={() => deleteSubItem(sub.id)}
                                     className="text-gray-300 hover:text-red-500 flex-shrink-0"
@@ -689,12 +719,21 @@ export default function PresupuestoPage() {
                                     <option value="cheque">Cheque</option>
                                     <option value="transferencia">Transferencia</option>
                                   </select>
+                                  <select
+                                    className="text-xs border rounded px-2 py-1 bg-white text-gray-600"
+                                    value={newSubFrequency}
+                                    onChange={(e) => setNewSubFrequency(e.target.value as BudgetSubItem['frequency'])}
+                                  >
+                                    <option value="mensual">Mensual</option>
+                                    <option value="trimestral">Trimestral</option>
+                                    <option value="anual">Anual</option>
+                                  </select>
                                   <div className="flex gap-2 ml-auto">
                                     <Button size="sm" className="h-7 text-xs" onClick={() => addSubItem(cat.id)} disabled={!newSubName.trim()}>
                                       <Plus className="w-3 h-3 mr-1" />
                                       Agregar
                                     </Button>
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); setNewSubPayment('efectivo'); }}>
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); setNewSubPayment('efectivo'); setNewSubFrequency('mensual'); }}>
                                       <X className="w-3 h-3 mr-1" />
                                       Cancelar
                                     </Button>

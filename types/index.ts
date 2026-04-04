@@ -67,6 +67,7 @@ export interface BudgetSubItem {
   amount: number;
   is_fixed: boolean;
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
+  frequency: 'mensual' | 'trimestral' | 'anual';
   created_at: string;
 }
 
