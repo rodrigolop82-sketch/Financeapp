@@ -35,6 +35,7 @@ interface DashboardData {
   spentMonth: number
   spentToday: number
   spentWeek: number
+  weekVsPrev: number
   todayCount: number
   daysLeft: number
   daysInMonth: number
@@ -95,16 +96,19 @@ export default function DashboardPage() {
     const now = new Date()
     const monthStart = localMonthStart()
     const weekStart = localDaysAgo(7)
+    const prevWeekStart = localDaysAgo(14)
     const today = localToday()
 
-    const [profileRes, txMonthRes, categoriesRes] = await Promise.all([
+    const [profileRes, txMonthRes, txPrevWeekRes, categoriesRes] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
       supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).order('date', { ascending: false }),
+      supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
     ])
 
     const profile = profileRes.data as FinancialProfile | null
     const txMonth = (txMonthRes.data ?? []) as Transaction[]
+    const txPrevWeek = (txPrevWeekRes.data ?? []) as { amount: number }[]
     const categories = (categoriesRes.data ?? []) as BudgetCategory[]
 
     // Build category lookup map
@@ -117,6 +121,10 @@ export default function DashboardPage() {
     const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
     const spentToday = txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0)
     const spentWeek  = txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0)
+    const spentPrevWeek = txPrevWeek.reduce((s, t) => s + Number(t.amount), 0)
+    const weekVsPrev = spentPrevWeek === 0
+      ? (spentWeek > 0 ? 100 : 0)
+      : Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
     const todayCount = txMonth.filter((t) => t.date === today).length
 
     // Enrich transactions with category name for display
@@ -195,7 +203,7 @@ export default function DashboardPage() {
       userName: firstName,
       userInitials: initials,
       healthScore: profile?.health_score ?? 0,
-      enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
+      enrichedTransactions, spentMonth, spentToday, spentWeek, weekVsPrev, todayCount,
       daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, budget,
       householdId: hid,
       categories,
@@ -330,7 +338,7 @@ export default function DashboardPage() {
         today={data.spentToday}
         todayCount={data.todayCount}
         week={data.spentWeek}
-        weekVsPrev={12}
+        weekVsPrev={data.weekVsPrev}
         month={data.spentMonth}
         monthBudget={data.budget}
       />
