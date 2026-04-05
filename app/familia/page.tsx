@@ -21,6 +21,7 @@ import {
   Copy,
   Check,
   Share2,
+  Lock,
 } from 'lucide-react';
 
 interface Member {
@@ -42,6 +43,7 @@ export default function FamiliaPage() {
   const [inviteLink, setInviteLink] = useState('');
   const [generatingLink, setGeneratingLink] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -50,8 +52,15 @@ export default function FamiliaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
+      // Load user plan
+      const { data: profile } = await supabase
+        .from('users').select('plan').eq('id', user.id).single();
+      setIsPremium(profile?.plan === 'premium');
+
       const { data: hh } = await supabase
         .from('households').select('id, owner_id').eq('owner_id', user.id).limit(1).single();
+
+      let resolvedHouseholdId = hh?.id || '';
 
       if (!hh) {
         // Try as member
@@ -64,6 +73,7 @@ export default function FamiliaPage() {
 
         if (!membership) { router.push('/onboarding'); return; }
         const household = membership.households as unknown as { id: string; owner_id: string };
+        resolvedHouseholdId = household.id;
         setHouseholdId(household.id);
         setIsOwner(household.owner_id === user.id);
       } else {
@@ -71,9 +81,8 @@ export default function FamiliaPage() {
         setIsOwner(true);
       }
 
-      const hhId = hh?.id || '';
-      if (hhId) {
-        const res = await fetch(`/api/familia?householdId=${hhId}`);
+      if (resolvedHouseholdId) {
+        const res = await fetch(`/api/familia?householdId=${resolvedHouseholdId}`);
         if (res.ok) {
           const data = await res.json();
           setMembers(data.members);
@@ -174,7 +183,30 @@ export default function FamiliaPage() {
 
   return (
     <AppShell title="Familia" currentPath="/familia">
-        {isOwner && (
+        {/* Premium gate for non-premium owners */}
+        {isOwner && !isPremium && (
+          <Card className="mb-6 border-yellow-200 bg-yellow-50">
+            <CardContent className="p-4 flex items-start gap-3">
+              <Lock className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-yellow-800">Función Premium</p>
+                <p className="text-sm text-yellow-700 mt-0.5">
+                  El modo familia requiere un plan Premium. Activa tu suscripción para invitar miembros y compartir el presupuesto.
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => router.push('/cuenta')}
+                >
+                  <Crown className="w-4 h-4 mr-2" />
+                  Ver planes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isOwner && isPremium && (
           <div className="flex justify-end mb-6">
             <Button onClick={() => { setShowInvite(true); setMessage(null); }}>
               <UserPlus className="w-4 h-4 mr-2" />

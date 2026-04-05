@@ -59,6 +59,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Solo el dueño puede invitar miembros' }, { status: 403 });
   }
 
+  // Verify caller has a premium plan
+  const { data: ownerProfile } = await supabase
+    .from('users')
+    .select('plan')
+    .eq('id', user.id)
+    .single();
+
+  if (ownerProfile?.plan !== 'premium') {
+    return NextResponse.json({ error: 'Se requiere plan Premium para usar el modo familia' }, { status: 403 });
+  }
+
   // Find the user by email — use service role to bypass RLS on users table
   const adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
