@@ -41,6 +41,8 @@ interface DashboardData {
   alert: AlertData | null
   weekDayStatus: ('done' | 'today' | 'miss')[]
   currentStreak: number
+  bestStreak: number
+  weekVsPrev: number
   budget: number
   householdId: string
   categories: BudgetCategory[]
@@ -133,11 +135,14 @@ export default function DashboardPage() {
     }
 
     const weekStart = localDaysAgo(7)
+    const prevWeekStart = localDaysAgo(14)
     const today = localToday()
 
-    const [profileRes, txMonthRes, categoriesRes, lastTxRes] = await Promise.all([
+    const [profileRes, txMonthRes, txPrevWeekRes, txAllDatesRes, categoriesRes, lastTxRes] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
       supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).lte('date', monthEnd).order('date', { ascending: false }),
+      supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
+      supabase.from('transactions').select('date').eq('household_id', hid).order('date', { ascending: true }),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
       // Get last transaction globally (not just this month) for streak calculation
       supabase.from('transactions').select('date').eq('household_id', hid).order('date', { ascending: false }).limit(1).single(),
@@ -145,6 +150,8 @@ export default function DashboardPage() {
 
     const profile = profileRes.data as FinancialProfile | null
     const txMonth = (txMonthRes.data ?? []) as Transaction[]
+    const txPrevWeek = (txPrevWeekRes.data ?? []) as { amount: number }[]
+    const txAllDates = (txAllDatesRes.data ?? []) as { date: string }[]
     const categories = (categoriesRes.data ?? []) as BudgetCategory[]
 
     // Build category lookup map
@@ -156,6 +163,10 @@ export default function DashboardPage() {
     const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
     const spentToday = isCurrentMonth ? txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0) : 0
     const spentWeek  = isCurrentMonth ? txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0) : 0
+    const spentPrevWeek = txPrevWeek.reduce((s, t) => s + Number(t.amount), 0)
+    const weekVsPrev = spentPrevWeek === 0
+      ? (spentWeek > 0 ? 100 : 0)
+      : Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
     const todayCount = isCurrentMonth ? txMonth.filter((t) => t.date === today).length : 0
 
     // Enrich transactions with category name for display
@@ -200,6 +211,23 @@ export default function DashboardPage() {
       }
     }
 
+    // Calcular mejor racha histórica
+    const uniqueDates = [...new Set(txAllDates.map((t) => t.date))].sort()
+    let bestStreak = 0
+    let tempStreak = 0
+    for (let i = 0; i < uniqueDates.length; i++) {
+      if (i === 0) {
+        tempStreak = 1
+      } else {
+        const prev = new Date(uniqueDates[i - 1] + 'T12:00:00')
+        const curr = new Date(uniqueDates[i] + 'T12:00:00')
+        const diffDays = Math.round((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24))
+        tempStreak = diffDays === 1 ? tempStreak + 1 : 1
+      }
+      if (tempStreak > bestStreak) bestStreak = tempStreak
+    }
+    bestStreak = Math.max(bestStreak, currentStreak)
+
     // Días de la semana para racha visual
     const weekDayStatus: ('done' | 'today' | 'miss')[] = Array.from({ length: 7 }, (_, i) => {
       const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1
@@ -234,8 +262,8 @@ export default function DashboardPage() {
       userName: firstName,
       userInitials: initials,
       healthScore: profile?.health_score ?? 0,
-      enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
-      daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, budget,
+      enrichedTransactions, spentMonth, spentToday, spentWeek, weekVsPrev, todayCount,
+      daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, bestStreak, budget,
       householdId: hid,
       categories,
     })
@@ -535,7 +563,7 @@ export default function DashboardPage() {
         today={data.spentToday}
         todayCount={data.todayCount}
         week={data.spentWeek}
-        weekVsPrev={12}
+        weekVsPrev={data.weekVsPrev}
         month={data.spentMonth}
         monthBudget={data.budget}
       />
@@ -552,7 +580,7 @@ export default function DashboardPage() {
       {/* Racha */}
       <StreakCard
         currentStreak={data.currentStreak}
-        bestStreak={12}
+        bestStreak={data.bestStreak}
         weekDays={data.weekDayStatus}
       />
 
