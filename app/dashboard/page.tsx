@@ -212,7 +212,7 @@ export default function DashboardPage() {
     }
 
     // Calcular mejor racha histórica
-    const uniqueDates = [...new Set(txAllDates.map((t) => t.date))].sort()
+    const uniqueDates = Array.from(new Set(txAllDates.map((t) => t.date))).sort()
     let bestStreak = 0
     let tempStreak = 0
     for (let i = 0; i < uniqueDates.length; i++) {
