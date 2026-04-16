@@ -1,195 +1,151 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Wordmark } from '@/components/brand/Wordmark';
-import { AppIcon } from '@/components/brand/AppIcon';
-import {
-  ArrowRight,
-  BarChart3,
-  PiggyBank,
-  Shield,
-  Target,
-  Users,
-  MessageCircle,
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { BarChart3, CheckCircle, Sparkles } from 'lucide-react';
+import { Wordmark } from '@/components/brand/Wordmark';
+import { createClient } from '@/lib/supabase';
 
-export default function LandingPage() {
+const SLIDES = [
+  {
+    icon: BarChart3,
+    headline: 'El planificador financiero que el 95% nunca pudo pagar',
+    subtitle: 'Ahora en tu bolsillo. Gratis.',
+  },
+  {
+    icon: CheckCircle,
+    headline: 'Tu situación financiera, analizada en 2 minutos',
+    subtitle: 'Ingresos, gastos, deudas — sin juicios. Solo soluciones.',
+  },
+  {
+    icon: Sparkles,
+    headline: 'Tu plan personalizado, listo al instante',
+    subtitle: 'Y si te convence, lo guardamos gratis.',
+    isCta: true,
+  },
+];
+
+export default function OnboardingPage() {
+  const router = useRouter();
+  const [slide, setSlide] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  const [direction, setDirection] = useState<'forward' | 'back'>('forward');
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.replace('/dashboard');
+    });
+  }, [router]);
+
+  function goToSlide(index: number) {
+    if (animating || index === slide) return;
+    setDirection(index > slide ? 'forward' : 'back');
+    setAnimating(true);
+    setTimeout(() => {
+      setSlide(index);
+      setAnimating(false);
+    }, 250);
+  }
+
+  function next() {
+    if (slide < SLIDES.length - 1) {
+      goToSlide(slide + 1);
+    }
+  }
+
+  const current = SLIDES[slide];
+  const Icon = current.icon;
+
+  const slideClass = animating
+    ? direction === 'forward'
+      ? 'opacity-0 translate-y-3'
+      : 'opacity-0 -translate-y-3'
+    : 'opacity-100 translate-y-0';
+
   return (
-    <div className="min-h-screen bg-surface-bg">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#1E3A5F' }}>
       {/* Header */}
-      <header className="border-b border-navy/[0.08] bg-white/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <AppIcon size="sm" variant="electric" />
-            <Wordmark size="sm" />
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/login">
-              <Button variant="ghost" className="text-navy/60 hover:text-navy">Iniciar sesión</Button>
-            </Link>
-            <Link href="/registro">
-              <button className="btn-primary">Empezar gratis</button>
-            </Link>
-          </div>
-        </div>
+      <header className="flex items-center justify-between px-6 py-5">
+        <Wordmark size="sm" variant="dark" />
+        <Link
+          href="/login"
+          className="text-sm text-white/60 hover:text-white transition-colors"
+        >
+          Ya tengo cuenta
+        </Link>
       </header>
 
-      {/* Hero */}
-      <section className="relative max-w-6xl mx-auto px-4 py-20 text-center overflow-hidden">
-        {/* Decorative rings */}
-        <div className="absolute top-10 right-0 w-72 h-72 rounded-full border border-electric/10 pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-56 h-56 rounded-full border border-electric/[0.08] pointer-events-none" />
+      {/* Slide content */}
+      <div className="flex-1 flex flex-col items-center justify-center px-8 pb-8">
+        <div
+          className={`flex flex-col items-center text-center transition-all duration-250 ease-out ${slideClass}`}
+          style={{ transitionDuration: '250ms' }}
+        >
+          {/* Icon */}
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-8"
+            style={{ backgroundColor: 'rgba(37,99,235,0.2)' }}>
+            <Icon className="w-10 h-10" style={{ color: '#60A5FA' }} />
+          </div>
 
-        <div className="badge-electric mb-6">
-          <PiggyBank className="w-3.5 h-3.5" />
-          14 DÍAS DE PRUEBA GRATIS
-        </div>
-        <h1 className="font-serif text-4xl md:text-hero text-navy mb-6 leading-tight">
-          Ordená tu dinero.
-          <br />
-          <span className="text-electric">Construí tu futuro.</span>
-        </h1>
-        <p className="font-sans text-body-lg text-ink-500 max-w-2xl mx-auto mb-8">
-          El planner financiero que el 95% de latinoamericanos nunca pudo pagar.
-          Diagnóstico honesto, plan de acción, y acompañamiento mes a mes.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/registro">
-            <button className="btn-primary btn-lg text-body-lg">
-              Diagnostica tus finanzas gratis
-              <ArrowRight className="w-5 h-5" />
-            </button>
-          </Link>
-        </div>
-        <p className="font-sans text-caption text-ink-400 mt-4">
-          No necesitas tarjeta de crédito para empezar
-        </p>
-      </section>
+          {/* Text */}
+          <h1 className="font-serif text-3xl text-white leading-tight mb-4 max-w-xs">
+            {current.headline}
+          </h1>
+          <p className="text-white/60 text-base leading-relaxed max-w-xs">
+            {current.subtitle}
+          </p>
 
-      {/* Features */}
-      <section className="max-w-6xl mx-auto px-4 py-16">
-        <h2 className="font-serif text-title text-center text-navy mb-12">
-          Todo lo que necesitas para tomar el control
-        </h2>
-        <div className="grid md:grid-cols-3 gap-6">
-          {[
-            {
-              icon: BarChart3,
-              title: 'Diagnóstico honesto',
-              description:
-                'Conocé tu puntaje Zafi en minutos. Sin rodeos — te decimos exactamente dónde estás y qué hacer primero.',
-            },
-            {
-              icon: Target,
-              title: 'Plan priorizado cada mes',
-              description:
-                '3-5 acciones ordenadas por impacto real. Cada una con un "por qué" y números concretos de tu situación.',
-            },
-            {
-              icon: Shield,
-              title: 'Salí de deudas',
-              description:
-                'Estrategias bola de nieve y avalancha. Incluye deudas informales (préstamos familiares, tandas).',
-            },
-            {
-              icon: MessageCircle,
-              title: 'Zafi AI — tu planner personal',
-              description:
-                'Preguntale lo que quieras. Zafi ya conoce tus números y responde con consejos específicos, no genéricos.',
-            },
-            {
-              icon: PiggyBank,
-              title: 'Fondo de emergencia',
-              description:
-                'Construí tu colchón financiero paso a paso. Te guiamos hasta llegar a 6 meses de gastos.',
-            },
-            {
-              icon: Users,
-              title: 'Modo familia',
-              description:
-                'Administrá las finanzas del hogar en equipo. Ideal para parejas y familias.',
-            },
-          ].map((feature) => (
-            <Card
-              key={feature.title}
-              className="border border-navy/[0.08] shadow-[0_2px_16px_rgba(30,58,95,0.06)] hover:shadow-[0_4px_24px_rgba(30,58,95,0.12)] hover:-translate-y-0.5 transition-all duration-200"
-            >
-              <CardContent className="p-6">
-                <div className="w-12 h-12 bg-electric-ghost rounded-xl flex items-center justify-center mb-4">
-                  <feature.icon className="w-6 h-6 text-electric" />
-                </div>
-                <h3 className="font-sans text-subhead font-semibold text-navy mb-2">
-                  {feature.title}
-                </h3>
-                <p className="font-sans text-body text-ink-500">{feature.description}</p>
-              </CardContent>
-            </Card>
+          {/* CTA on last slide */}
+          {current.isCta && (
+            <div className="mt-10 w-full max-w-xs">
+              <Link
+                href="/analisis"
+                className="block w-full py-4 rounded-2xl text-white font-semibold text-base text-center transition-opacity hover:opacity-90"
+                style={{ backgroundColor: '#2563EB' }}
+              >
+                Comenzar mi análisis →
+              </Link>
+              <Link
+                href="/login"
+                className="block text-center text-sm text-white/50 hover:text-white/80 mt-4 transition-colors"
+              >
+                ¿Ya tenés cuenta? Entrar
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Next button for non-last slides */}
+        {!current.isCta && (
+          <button
+            onClick={next}
+            className="mt-10 py-3.5 px-8 rounded-2xl text-white font-medium text-sm transition-opacity hover:opacity-80"
+            style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}
+          >
+            Siguiente →
+          </button>
+        )}
+
+        {/* Dot navigation */}
+        <div className="flex gap-2 mt-8">
+          {SLIDES.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goToSlide(i)}
+              className="rounded-full transition-all duration-300"
+              style={{
+                width: i === slide ? '24px' : '8px',
+                height: '8px',
+                backgroundColor: i === slide ? '#2563EB' : 'rgba(255,255,255,0.25)',
+              }}
+              aria-label={`Ir al slide ${i + 1}`}
+            />
           ))}
         </div>
-      </section>
-
-      {/* Pricing */}
-      <section className="max-w-4xl mx-auto px-4 py-16">
-        <h2 className="font-serif text-title text-center text-navy mb-4">
-          Simple y accesible
-        </h2>
-        <p className="text-center font-sans text-body-lg text-ink-500 mb-12">
-          Empezá gratis. Mejorá cuando estés listo.
-        </p>
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card className="border-2 border-navy/[0.08]">
-            <CardContent className="p-8">
-              <h3 className="font-sans text-subhead font-semibold mb-2">Gratis</h3>
-              <p className="font-outfit font-extrabold text-display text-navy mb-4">
-                Q 0<span className="font-sans text-body-sm font-normal text-ink-400">/mes</span>
-              </p>
-              <ul className="space-y-2 font-sans text-body text-ink-500 mb-6">
-                <li>&#10003; Diagnóstico financiero</li>
-                <li>&#10003; Presupuesto básico</li>
-                <li>&#10003; Hasta 3 deudas</li>
-              </ul>
-            </CardContent>
-          </Card>
-          <Card className="border-2 border-electric relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-electric text-white text-caption font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-              Popular
-            </div>
-            <CardContent className="p-8">
-              <h3 className="font-sans text-subhead font-semibold mb-2">Premium</h3>
-              <p className="font-outfit font-extrabold text-display text-navy mb-1">
-                $4.99<span className="font-sans text-body-sm font-normal text-ink-400">/mes</span>
-              </p>
-              <p className="font-sans text-caption text-ink-400 mb-4">
-                o $39.99/año (ahorra 33%)
-              </p>
-              <ul className="space-y-2 font-sans text-body text-ink-500 mb-6">
-                <li>&#10003; Todo lo del plan gratis</li>
-                <li>&#10003; Deudas ilimitadas</li>
-                <li>&#10003; Modo familia</li>
-                <li>&#10003; Zafi AI — planner personal</li>
-                <li>&#10003; Historial completo</li>
-                <li>&#10003; Soporte prioritario</li>
-              </ul>
-              <Link href="/registro">
-                <button className="btn-primary w-full">Prueba 14 días gratis</button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-navy/[0.08] bg-surface-tint mt-16">
-        <div className="max-w-6xl mx-auto px-4 py-8 text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <AppIcon size="xs" variant="electric" />
-            <Wordmark size="xs" />
-          </div>
-          <p className="font-sans text-caption text-ink-400">&copy; 2026 Zafi. Hecho con cariño en Guatemala.</p>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }
