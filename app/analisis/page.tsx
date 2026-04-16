@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Lock } from 'lucide-react';
 import { Wordmark } from '@/components/brand/Wordmark';
-import { sessionAnalisis, AnalisisData } from '@/lib/session-analisis';
+import { sessionAnalisis } from '@/lib/session-analisis';
 import { calculateHealthScore } from '@/lib/scoring';
 
 const TOTAL_STEPS = 4;

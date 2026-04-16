@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertCircle, CheckCircle2, Lock, Shield } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Shield } from 'lucide-react';
 import { Wordmark } from '@/components/brand/Wordmark';
 import { sessionAnalisis, AnalisisData } from '@/lib/session-analisis';
 import { createClient } from '@/lib/supabase';
@@ -80,7 +80,7 @@ export default function GuardarPage() {
     if (data.session) {
       // Immediate session — migrate analysis data then go to dashboard
       try {
-        await sessionAnalisis.migrarASupabase(data.session.user.id, supabase);
+        await sessionAnalisis.migrarASupabase();
       } catch {
         // Migration failure is non-fatal — user can re-enter data in onboarding
       }

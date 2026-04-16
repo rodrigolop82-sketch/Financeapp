@@ -26,7 +26,7 @@ export const sessionAnalisis = {
 
   limpiar: () => sessionStorage.removeItem(KEY),
 
-  migrarASupabase: async (_userId: string, _supabase: unknown) => {
+  migrarASupabase: async () => {
     const data = sessionAnalisis.leer()
     if (!data) return
 
