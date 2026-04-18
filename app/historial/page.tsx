@@ -9,6 +9,7 @@ import { ScoreHistoryChart } from '@/components/charts/score-history-chart';
 import { MonthlySnapshot } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { AppShell } from '@/components/layout/AppShell';
+import { getUserHousehold } from '@/lib/household';
 import {
   Loader2,
   TrendingUp,
@@ -42,8 +43,7 @@ export default function HistorialPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
-      const { data: hh } = await supabase
-        .from('households').select('id').eq('owner_id', user.id).limit(1).single();
+      const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
 
       const { data } = await supabase

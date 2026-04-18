@@ -15,6 +15,7 @@ import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household } from '@/types'
 import { Loader2 } from 'lucide-react'
+import { getUserHousehold } from '@/lib/household'
 
 interface EnrichedTransaction {
   id: string
@@ -77,13 +78,8 @@ export default function DashboardPage() {
       .eq('id', user.id)
       .single()
 
-    // Get household (owner)
-    const { data: household } = await supabase
-      .from('households')
-      .select('*')
-      .eq('owner_id', user.id)
-      .limit(1)
-      .single()
+    // Get household (owner or member)
+    const household = await getUserHousehold(supabase, user.id)
 
     if (!household) {
       router.push('/onboarding')

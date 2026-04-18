@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { localMonthStart } from '@/lib/dates';
+import { getUserHousehold } from '@/lib/household';
 
 export async function getUserDashboardData(supabase: SupabaseClient) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -12,13 +13,8 @@ export async function getUserDashboardData(supabase: SupabaseClient) {
     .eq('id', user.id)
     .single();
 
-  // Get household (owner)
-  const { data: household } = await supabase
-    .from('households')
-    .select('*')
-    .eq('owner_id', user.id)
-    .limit(1)
-    .single();
+  // Get household (owner or member)
+  const household = await getUserHousehold(supabase, user.id);
 
   if (!household) return { user: userProfile, household: null };
 

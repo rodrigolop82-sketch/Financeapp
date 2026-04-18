@@ -14,6 +14,7 @@ import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import { AppShell } from '@/components/layout/AppShell';
+import { getUserHousehold } from '@/lib/household';
 import {
   Plus,
   Loader2,
@@ -55,8 +56,7 @@ export default function TransaccionesPage() {
       if (!user) { router.push('/login'); return; }
       setUserId(user.id);
 
-      const { data: hh } = await supabase
-        .from('households').select('id').eq('owner_id', user.id).limit(1).single();
+      const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
       setHouseholdId(hh.id);
 

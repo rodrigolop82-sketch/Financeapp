@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { localToday } from '@/lib/dates'
 import { cleanTransactionName } from '@/lib/format'
+import { getUserHousehold } from '@/lib/household'
 import { NextRequest, NextResponse } from 'next/server'
 
 const ZAFI_CATEGORIES = [
@@ -100,12 +101,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Paso 3: Enriquecer con category_id del household del usuario
-  const { data: household } = await supabase
-    .from('households')
-    .select('id')
-    .eq('owner_id', user.id)
-    .limit(1)
-    .single()
+  const household = await getUserHousehold(supabase, user.id)
 
   if (household) {
     const { data: categories } = await supabase

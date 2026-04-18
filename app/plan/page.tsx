@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
+import { getUserHousehold } from '@/lib/household';
 
 export default function PlanPage() {
   const [loading, setLoading] = useState(true);
@@ -36,8 +37,7 @@ export default function PlanPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
-      const { data: hh } = await supabase
-        .from('households').select('id').eq('owner_id', user.id).limit(1).single();
+      const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
       setHouseholdId(hh.id);
 

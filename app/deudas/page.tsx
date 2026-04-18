@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
+import { getUserHousehold } from '@/lib/household';
 
 interface SimResult {
   totalMonths: number;
@@ -163,8 +164,7 @@ export default function DeudasPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
-      const { data: hh } = await supabase
-        .from('households').select('id').eq('owner_id', user.id).limit(1).single();
+      const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
       setHouseholdId(hh.id);
 

@@ -28,6 +28,7 @@ import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import type { VoiceExtractionResult } from '@/types';
 import { AppShell } from '@/components/layout/AppShell';
+import { getUserHousehold } from '@/lib/household';
 
 const INCOME_SUGGESTIONS = ['Salario', 'Bonos', 'Freelance', 'Alquiler', 'Negocio', 'Pensión', 'Remesas', 'Otros'];
 
@@ -78,12 +79,7 @@ export default function PresupuestoPage() {
       if (!user) { router.push('/login'); return; }
       setUserId(user.id);
 
-      const { data: hh } = await supabase
-        .from('households')
-        .select('id')
-        .eq('owner_id', user.id)
-        .limit(1)
-        .single();
+      const hh = await getUserHousehold(supabase, user.id);
 
       if (!hh) { router.push('/onboarding'); return; }
       setHouseholdId(hh.id);
