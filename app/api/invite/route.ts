@@ -51,6 +51,9 @@ export async function POST(request: Request) {
   // Generate a short, shareable code (8 chars, URL-safe)
   const inviteCode = randomBytes(6).toString('base64url').substring(0, 8);
 
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
   const { data: invite, error } = await supabase
     .from('household_invites')
     .insert({
@@ -58,6 +61,7 @@ export async function POST(request: Request) {
       invite_code: inviteCode,
       created_by: user.id,
       status: 'active',
+      expires_at: expiresAt.toISOString(),
     })
     .select()
     .single();

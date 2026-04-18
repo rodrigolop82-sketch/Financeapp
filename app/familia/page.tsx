@@ -53,8 +53,10 @@ export default function FamiliaPage() {
       const { data: hh } = await supabase
         .from('households').select('id, owner_id').eq('owner_id', user.id).limit(1).single();
 
+      let resolvedId = hh?.id || '';
+      let resolvedIsOwner = !!hh;
+
       if (!hh) {
-        // Try as member
         const { data: membership } = await supabase
           .from('household_members')
           .select('household_id, households(id, owner_id)')
@@ -63,17 +65,16 @@ export default function FamiliaPage() {
           .single();
 
         if (!membership) { router.push('/onboarding'); return; }
-        const household = membership.households as unknown as { id: string; owner_id: string };
-        setHouseholdId(household.id);
-        setIsOwner(household.owner_id === user.id);
-      } else {
-        setHouseholdId(hh.id);
-        setIsOwner(true);
+        const joined = membership.households as unknown as { id: string; owner_id: string };
+        resolvedId = joined.id;
+        resolvedIsOwner = joined.owner_id === user.id;
       }
 
-      const hhId = hh?.id || '';
-      if (hhId) {
-        const res = await fetch(`/api/familia?householdId=${hhId}`);
+      setHouseholdId(resolvedId);
+      setIsOwner(resolvedIsOwner);
+
+      if (resolvedId) {
+        const res = await fetch(`/api/familia?householdId=${resolvedId}`);
         if (res.ok) {
           const data = await res.json();
           setMembers(data.members);

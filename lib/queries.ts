@@ -12,13 +12,25 @@ export async function getUserDashboardData(supabase: SupabaseClient) {
     .eq('id', user.id)
     .single();
 
-  // Get household (owner)
-  const { data: household } = await supabase
+  // Get household — owner first, then member fallback
+  let { data: household } = await supabase
     .from('households')
     .select('*')
     .eq('owner_id', user.id)
     .limit(1)
     .single();
+
+  if (!household) {
+    const { data: membership } = await supabase
+      .from('household_members')
+      .select('households(*)')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single();
+    if (membership?.households) {
+      household = membership.households as typeof household;
+    }
+  }
 
   if (!household) return { user: userProfile, household: null };
 
