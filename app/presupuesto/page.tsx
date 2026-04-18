@@ -13,7 +13,6 @@ import { BudgetCategory, BudgetSubItem } from '@/types';
 import type { IncomeEntry } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
-  ArrowLeft,
   Save,
   Loader2,
   Plus,
@@ -25,10 +24,10 @@ import {
   Unlock,
   X,
 } from 'lucide-react';
-import Link from 'next/link';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import type { VoiceExtractionResult } from '@/types';
+import { AppShell } from '@/components/layout/AppShell';
 
 const INCOME_SUGGESTIONS = ['Salario', 'Bonos', 'Freelance', 'Alquiler', 'Negocio', 'Pensión', 'Remesas', 'Otros'];
 
@@ -68,6 +67,7 @@ export default function PresupuestoPage() {
   const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({});
   const [budgetDefCollapsed, setBudgetDefCollapsed] = useState(true);
   const [comparativoCollapsed, setComparativoCollapsed] = useState(true);
+  const [userId, setUserId] = useState('');
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -76,6 +76,7 @@ export default function PresupuestoPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
+      setUserId(user.id);
 
       const { data: hh } = await supabase
         .from('households')
@@ -335,6 +336,7 @@ export default function PresupuestoPage() {
         date: tx.date,
         source: 'voice',
         voice_raw_text: voiceResult?.raw_text ?? null,
+        created_by: userId || null,
       }))
     );
     setVoiceResult(null);
@@ -349,21 +351,10 @@ export default function PresupuestoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-bg p-4 lg:p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
+    <AppShell title="Presupuesto 50/30/20" currentPath="/presupuesto">
+        {/* Action bar */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">Presupuesto 50/30/20</h1>
-              <p className="text-sm text-gray-500">Ingreso mensual: {fmt(income)}</p>
-            </div>
-          </div>
+          <p className="text-sm text-gray-500">Ingreso mensual: {fmt(income)}</p>
           <div className="flex items-center gap-2">
             <VoiceButton
               mode="expense"
@@ -371,14 +362,14 @@ export default function PresupuestoPage() {
               onError={(err) => setVoiceError(err)}
             />
             <Button onClick={saveAll} disabled={saving}>
-            {saving ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : saved ? (
-              <CheckCircle2 className="w-4 h-4 mr-2 text-electric-light" />
-            ) : (
-              <Save className="w-4 h-4 mr-2" />
-            )}
-            {saved ? 'Guardado' : 'Guardar'}
+              {saving ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : saved ? (
+                <CheckCircle2 className="w-4 h-4 mr-2 text-electric-light" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
+              {saved ? 'Guardado' : 'Guardar'}
             </Button>
           </div>
         </div>
@@ -934,7 +925,6 @@ export default function PresupuestoPage() {
           </Card>
           );
         })()}
-      </div>
-    </div>
+    </AppShell>
   );
 }

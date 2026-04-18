@@ -21,7 +21,9 @@ import {
   Copy,
   Check,
   Share2,
+  Receipt,
 } from 'lucide-react';
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 
 interface Member {
   user_id: string;
@@ -42,8 +44,12 @@ export default function FamiliaPage() {
   const [inviteLink, setInviteLink] = useState('');
   const [generatingLink, setGeneratingLink] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [spendingByMember, setSpendingByMember] = useState<Record<string, number>>({});
+  const [txCountByMember, setTxCountByMember] = useState<Record<string, number>>({});
+  const [unattributedSpending, setUnattributedSpending] = useState(0);
   const router = useRouter();
   const supabase = createClient();
+  const fmt = useFormatMoney();
 
   useEffect(() => {
     async function load() {
@@ -73,11 +79,33 @@ export default function FamiliaPage() {
 
       const hhId = hh?.id || '';
       if (hhId) {
-        const res = await fetch(`/api/familia?householdId=${hhId}`);
-        if (res.ok) {
-          const data = await res.json();
+        const [membersRes, { data: txData }] = await Promise.all([
+          fetch(`/api/familia?householdId=${hhId}`),
+          supabase
+            .from('transactions')
+            .select('created_by, amount')
+            .eq('household_id', hhId),
+        ]);
+
+        if (membersRes.ok) {
+          const data = await membersRes.json();
           setMembers(data.members);
         }
+
+        const byMember: Record<string, number> = {};
+        const countByMember: Record<string, number> = {};
+        let unattributed = 0;
+        (txData || []).forEach((tx: { created_by: string | null; amount: number }) => {
+          if (tx.created_by) {
+            byMember[tx.created_by] = (byMember[tx.created_by] || 0) + Number(tx.amount);
+            countByMember[tx.created_by] = (countByMember[tx.created_by] || 0) + 1;
+          } else {
+            unattributed += Number(tx.amount);
+          }
+        });
+        setSpendingByMember(byMember);
+        setTxCountByMember(countByMember);
+        setUnattributedSpending(unattributed);
       }
       setLoading(false);
     }
@@ -347,6 +375,80 @@ export default function FamiliaPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Spending breakdown by member */}
+        {members.length > 0 && (() => {
+          const totalSpending = Object.values(spendingByMember).reduce((s, v) => s + v, 0) + unattributedSpending;
+          if (totalSpending === 0) return null;
+          return (
+            <Card className="mt-4">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-gray-500" />
+                  <CardTitle className="text-base">Gastos por miembro</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between text-sm border-b pb-3">
+                  <span className="text-gray-500">Total del hogar</span>
+                  <span className="font-bold text-navy">{fmt(totalSpending)}</span>
+                </div>
+                {members.map(member => {
+                  const amount = spendingByMember[member.user_id] || 0;
+                  const pct = totalSpending > 0 ? Math.round((amount / totalSpending) * 100) : 0;
+                  const count = txCountByMember[member.user_id] || 0;
+                  const name = member.users?.display_name || member.users?.email?.split('@')[0] || 'Usuario';
+                  return (
+                    <div key={member.user_id}>
+                      <div className="flex items-center justify-between text-sm mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {name[0]?.toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="font-medium">{name}</span>
+                            <span className="text-xs text-gray-400 ml-1.5">{count} tx</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-semibold">{fmt(amount)}</span>
+                          <span className="text-gray-400 text-xs ml-1.5">{pct}%</span>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-electric"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                {unattributedSpending > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between text-sm mb-1.5">
+                      <span className="text-gray-400 italic">Sin atribuir</span>
+                      <div className="text-right">
+                        <span className="text-gray-500">{fmt(unattributedSpending)}</span>
+                        <span className="text-gray-400 text-xs ml-1.5">
+                          {Math.round((unattributedSpending / totalSpending) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gray-300"
+                        style={{ width: `${Math.round((unattributedSpending / totalSpending) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
     </AppShell>
   );
 }

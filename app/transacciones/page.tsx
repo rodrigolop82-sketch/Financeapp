@@ -13,20 +13,17 @@ import type { VoiceExtractionResult } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
+import { AppShell } from '@/components/layout/AppShell';
 import {
-  ArrowLeft,
   Plus,
   Loader2,
   Trash2,
   Receipt,
-  Gift,
-  ArrowDownCircle,
   ArrowUpCircle,
   Pencil,
   Check,
   X,
 } from 'lucide-react';
-import Link from 'next/link';
 
 export default function TransaccionesPage() {
   const [loading, setLoading] = useState(true);
@@ -35,7 +32,7 @@ export default function TransaccionesPage() {
   const [householdId, setHouseholdId] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [isExtraordinary, setIsExtraordinary] = useState(false);
+  const [userId, setUserId] = useState('');
   const [newTx, setNewTx] = useState({
     category_id: '',
     amount: 0,
@@ -48,8 +45,6 @@ export default function TransaccionesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState({ category_id: '', amount: 0, description: '', date: '', payment_method: 'efectivo' as string });
   const [editSaving, setEditSaving] = useState(false);
-  // Extraordinary income
-  const [extraIncome, setExtraIncome] = useState({ amount: 0, description: 'Aguinaldo', date: localToday() });
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -58,6 +53,7 @@ export default function TransaccionesPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
+      setUserId(user.id);
 
       const { data: hh } = await supabase
         .from('households').select('id').eq('owner_id', user.id).limit(1).single();
@@ -104,6 +100,7 @@ export default function TransaccionesPage() {
         date: newTx.date,
         source: 'manual',
         payment_method: newTx.payment_method,
+        created_by: userId || null,
       })
       .select('*, budget_categories(name, bucket)')
       .single();
@@ -121,38 +118,6 @@ export default function TransaccionesPage() {
     setSaving(false);
   }
 
-  async function addExtraordinaryIncome() {
-    setSaving(true);
-    // Find or use savings category for extraordinary income
-    const savingsCat = categories.find(c => c.bucket === 'savings');
-    if (!savingsCat) { setSaving(false); return; }
-
-    const { data } = await supabase
-      .from('transactions')
-      .insert({
-        household_id: householdId,
-        category_id: savingsCat.id,
-        amount: extraIncome.amount,
-        description: extraIncome.description || 'Ingreso extraordinario',
-        date: extraIncome.date,
-        source: 'manual',
-      })
-      .select('*, budget_categories(name, bucket)')
-      .single();
-
-    if (data) {
-      const mapped = {
-        ...data,
-        category_name: (data.budget_categories as { name: string } | null)?.name || 'Ingreso extraordinario',
-        bucket: 'savings',
-      } as Transaction & { category_name?: string; bucket?: string };
-      setTransactions([mapped, ...transactions]);
-      setExtraIncome({ amount: 0, description: 'Aguinaldo', date: localToday() });
-      setIsExtraordinary(false);
-    }
-    setSaving(false);
-  }
-
   async function saveVoiceTransactions(txs: VoiceExtractionResult['transactions']) {
     if (!householdId) return;
     const { data } = await supabase
@@ -166,6 +131,7 @@ export default function TransaccionesPage() {
           date: tx.date,
           source: 'voice',
           voice_raw_text: voiceResult?.raw_text ?? null,
+          created_by: userId || null,
         }))
       )
       .select('*, budget_categories(name, bucket)');
@@ -260,32 +226,17 @@ export default function TransaccionesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-bg p-4 lg:p-8">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
+    <AppShell title="Transacciones" currentPath="/transacciones">
+        {/* Action bar */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">Transacciones</h1>
-              <p className="text-sm text-gray-500">Este mes: {fmt(totalThisMonth)}</p>
-            </div>
-          </div>
+          <p className="text-sm text-gray-500">Este mes: {fmt(totalThisMonth)}</p>
           <div className="flex gap-2">
             <VoiceButton
               mode="expense"
-              onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); setShowForm(false); setIsExtraordinary(false); }}
+              onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); setShowForm(false); }}
               onError={(err) => setVoiceError(err)}
             />
-            <Button variant="outline" onClick={() => { setIsExtraordinary(true); setShowForm(false); setVoiceResult(null); }}>
-              <Gift className="w-4 h-4 mr-2" />
-              Aguinaldo
-            </Button>
-            <Button onClick={() => { setShowForm(true); setIsExtraordinary(false); setVoiceResult(null); }}>
+            <Button onClick={() => { setShowForm(true); setVoiceResult(null); }}>
               <Plus className="w-4 h-4 mr-2" />
               Gasto
             </Button>
@@ -306,59 +257,6 @@ export default function TransaccionesPage() {
               onCancel={() => setVoiceResult(null)}
             />
           </div>
-        )}
-
-        {/* Extraordinary income form (aguinaldo) */}
-        {isExtraordinary && (
-          <Card className="mb-6 border-blue-200">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Gift className="w-5 h-5 text-blue-600" />
-                <CardTitle className="text-base">Registrar ingreso extraordinario</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-gray-500">
-                Registra tu aguinaldo, bono de fin de año, o cualquier ingreso extra.
-              </p>
-              <div>
-                <Label>Descripción</Label>
-                <Input
-                  className="mt-1"
-                  value={extraIncome.description}
-                  onChange={(e) => setExtraIncome({ ...extraIncome, description: e.target.value })}
-                  placeholder="Ej: Aguinaldo 2026, Bono, Comisión extra"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Monto (Q)</Label>
-                  <Input
-                    type="number"
-                    className="mt-1"
-                    value={extraIncome.amount || ''}
-                    onChange={(e) => setExtraIncome({ ...extraIncome, amount: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-                <div>
-                  <Label>Fecha</Label>
-                  <Input
-                    type="date"
-                    className="mt-1"
-                    value={extraIncome.date}
-                    onChange={(e) => setExtraIncome({ ...extraIncome, date: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <Button onClick={addExtraordinaryIncome} disabled={saving || extraIncome.amount <= 0}>
-                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ArrowDownCircle className="w-4 h-4 mr-2" />}
-                  Registrar ingreso
-                </Button>
-                <Button variant="outline" onClick={() => setIsExtraordinary(false)}>Cancelar</Button>
-              </div>
-            </CardContent>
-          </Card>
         )}
 
         {/* New transaction form */}
@@ -596,7 +494,7 @@ export default function TransaccionesPage() {
           );
         })}
 
-        {transactions.length === 0 && !showForm && !isExtraordinary && (
+        {transactions.length === 0 && !showForm && (
           <Card>
             <CardContent className="p-8 text-center">
               <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -611,7 +509,6 @@ export default function TransaccionesPage() {
             </CardContent>
           </Card>
         )}
-      </div>
-    </div>
+    </AppShell>
   );
 }
