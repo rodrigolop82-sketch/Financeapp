@@ -74,7 +74,7 @@ export default function PresupuestoPage() {
   const [newIncomeSource, setNewIncomeSource] = useState('');
   const [newIncomeAmount, setNewIncomeAmount] = useState(0);
   const [newIncomeMember, setNewIncomeMember] = useState('Persona 1');
-  const [newIncomeFrequency, setNewIncomeFrequency] = useState('mensual');
+  const [newIncomeFrequency, setNewIncomeFrequency] = useState<'mensual' | 'quincenal' | 'semanal' | 'anual'>('mensual');
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
