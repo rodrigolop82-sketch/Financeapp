@@ -23,7 +23,7 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     share_target: {
       action: '/transacciones',
-      method: 'GET',
+      method: 'get',
       params: {
         text: 'shared_text',
       },
