@@ -92,11 +92,12 @@ export default function PresupuestoPage() {
 
       const monthStart = localMonthStart();
 
-      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }] = await Promise.all([
+      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }, { data: entries }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
         supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
         supabase.from('transactions').select('category_id, amount').eq('household_id', hh.id).gte('date', monthStart),
+        supabase.from('income_entries').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
       ]);
 
       // Aggregate spending by category
@@ -107,62 +108,79 @@ export default function PresupuestoPage() {
       setSpentByCategory(spent);
 
       setCategories((cats || []) as BudgetCategory[]);
-      setIncome(fp ? Number(fp.total_income) : 0);
       setSubItems((subs || []) as BudgetSubItem[]);
+
+      const totalIncome = fp ? Number(fp.total_income) : 0;
+
+      if (entries && entries.length > 0) {
+        setIncomeEntries(entries as IncomeEntry[]);
+        setIncome(entries.reduce((s: number, e: IncomeEntry) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0));
+      } else {
+        // Migrate: if total_income set but no entries yet, seed one default entry
+        if (totalIncome > 0) {
+          const { data: seeded } = await supabase
+            .from('income_entries')
+            .insert({ household_id: hh.id, source: 'Ingreso principal', member: 'Persona 1', amount: totalIncome, frequency: 'mensual' })
+            .select()
+            .single();
+          if (seeded) setIncomeEntries([seeded as IncomeEntry]);
+        }
+        setIncome(totalIncome);
+      }
+
       setLoading(false);
     }
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load income entries from localStorage
-  useEffect(() => {
-    if (!householdId) return;
-    const stored = localStorage.getItem(`income_entries_${householdId}`);
-    if (stored) setIncomeEntries(JSON.parse(stored));
-  }, [householdId]);
-
-  function saveIncomeEntries(entries: IncomeEntry[]) {
-    setIncomeEntries(entries);
+  function syncIncomeTotal(entries: IncomeEntry[]) {
+    const total = Math.round(entries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0) * 100) / 100;
+    setIncome(total);
     if (householdId) {
-      localStorage.setItem(`income_entries_${householdId}`, JSON.stringify(entries));
-      // Sync total to Supabase
-      const total = entries.reduce((s, e) => s + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
-      const roundedTotal = Math.round(total * 100) / 100;
-      setIncome(roundedTotal);
-      supabase.from('financial_profiles').update({ total_income: roundedTotal }).eq('household_id', householdId);
+      supabase.from('financial_profiles').update({ total_income: total }).eq('household_id', householdId);
     }
   }
 
-  function addIncomeEntry(source?: string) {
-    const entry: IncomeEntry = {
-      id: crypto.randomUUID(),
-      source: source || '',
-      member: 'Persona 1',
-      amount: 0,
-      frequency: 'mensual',
-    };
-    saveIncomeEntries([...incomeEntries, entry]);
+  async function addIncomeEntry(source?: string) {
+    if (!householdId) return;
+    const { data } = await supabase
+      .from('income_entries')
+      .insert({ household_id: householdId, source: source || '', member: 'Persona 1', amount: 0, frequency: 'mensual' })
+      .select()
+      .single();
+    if (data) {
+      const next = [...incomeEntries, data as IncomeEntry];
+      setIncomeEntries(next);
+      syncIncomeTotal(next);
+    }
   }
 
-  function updateIncomeEntry(id: string, field: string, value: string | number) {
-    const updated = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
-    saveIncomeEntries(updated);
+  async function updateIncomeEntry(id: string, field: string, value: string | number) {
+    const next = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
+    setIncomeEntries(next);
+    syncIncomeTotal(next);
+    await supabase.from('income_entries').update({ [field]: value }).eq('id', id);
   }
 
-  function deleteIncomeEntry(id: string) {
-    saveIncomeEntries(incomeEntries.filter(e => e.id !== id));
+  async function deleteIncomeEntry(id: string) {
+    await supabase.from('income_entries').delete().eq('id', id);
+    const next = incomeEntries.filter(e => e.id !== id);
+    setIncomeEntries(next);
+    syncIncomeTotal(next);
   }
 
-  function addNewIncomeEntry() {
-    if (!newIncomeSource.trim()) return;
-    const entry: IncomeEntry = {
-      id: crypto.randomUUID(),
-      source: newIncomeSource.trim(),
-      member: newIncomeMember,
-      amount: newIncomeAmount,
-      frequency: newIncomeFrequency,
-    };
-    saveIncomeEntries([...incomeEntries, entry]);
+  async function addNewIncomeEntry() {
+    if (!newIncomeSource.trim() || !householdId) return;
+    const { data } = await supabase
+      .from('income_entries')
+      .insert({ household_id: householdId, source: newIncomeSource.trim(), member: newIncomeMember, amount: newIncomeAmount, frequency: newIncomeFrequency })
+      .select()
+      .single();
+    if (data) {
+      const next = [...incomeEntries, data as IncomeEntry];
+      setIncomeEntries(next);
+      syncIncomeTotal(next);
+    }
     setNewIncomeSource('');
     setNewIncomeAmount(0);
     setNewIncomeMember('Persona 1');
