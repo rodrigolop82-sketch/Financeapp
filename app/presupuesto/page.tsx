@@ -69,6 +69,12 @@ export default function PresupuestoPage() {
   const [budgetDefCollapsed, setBudgetDefCollapsed] = useState(true);
   const [comparativoCollapsed, setComparativoCollapsed] = useState(true);
   const [userId, setUserId] = useState('');
+  const [incomeExpanded, setIncomeExpanded] = useState(true);
+  const [addingIncome, setAddingIncome] = useState(false);
+  const [newIncomeSource, setNewIncomeSource] = useState('');
+  const [newIncomeAmount, setNewIncomeAmount] = useState(0);
+  const [newIncomeMember, setNewIncomeMember] = useState('Persona 1');
+  const [newIncomeFrequency, setNewIncomeFrequency] = useState('mensual');
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -145,6 +151,23 @@ export default function PresupuestoPage() {
 
   function deleteIncomeEntry(id: string) {
     saveIncomeEntries(incomeEntries.filter(e => e.id !== id));
+  }
+
+  function addNewIncomeEntry() {
+    if (!newIncomeSource.trim()) return;
+    const entry: IncomeEntry = {
+      id: crypto.randomUUID(),
+      source: newIncomeSource.trim(),
+      member: newIncomeMember,
+      amount: newIncomeAmount,
+      frequency: newIncomeFrequency,
+    };
+    saveIncomeEntries([...incomeEntries, entry]);
+    setNewIncomeSource('');
+    setNewIncomeAmount(0);
+    setNewIncomeMember('Persona 1');
+    setNewIncomeFrequency('mensual');
+    setAddingIncome(false);
   }
 
   // Monthly multiplier for frequency
@@ -455,101 +478,176 @@ export default function PresupuestoPage() {
           </CardHeader>
           {!budgetDefCollapsed && (
             <CardContent className="pt-0 space-y-4">
-              {/* ── Ingresos ── */}
-              <Card className="mb-4">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base text-success">Ingresos</CardTitle>
-                    <span className="text-sm font-bold text-success">{fmt(income)}/mes</span>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* Quick-add chips */}
-                  <div className="flex flex-wrap gap-1.5 mb-4">
-                    {INCOME_SUGGESTIONS.filter(s => !incomeEntries.some(e => e.source === s)).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => addIncomeEntry(s)}
-                        className="px-2.5 py-1 text-xs rounded-full border border-electric-soft text-electric hover:bg-electric-ghost transition-colors"
-                      >
-                        <Plus className="w-3 h-3 inline mr-0.5 -mt-0.5" />
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Income entries */}
-                  <div className="space-y-1">
-                    {incomeEntries.map((entry) => (
-                      <div key={entry.id} className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white">
-                        <div className="w-1.5 h-6 rounded-full bg-[#10B981] flex-shrink-0" />
-                        <Input
-                          className="flex-1 h-7 text-sm min-w-0"
-                          placeholder="Fuente"
-                          value={entry.source}
-                          onChange={(e) => updateIncomeEntry(entry.id, 'source', e.target.value)}
-                        />
-                        <select
-                          className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
-                          value={entry.member}
-                          onChange={(e) => updateIncomeEntry(entry.id, 'member', e.target.value)}
-                        >
-                          <option value="Persona 1">Persona 1</option>
-                          <option value="Persona 2">Persona 2</option>
-                          <option value="Persona 3">Persona 3</option>
-                          <option value="Hogar">Hogar</option>
-                        </select>
-                        <select
-                          className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
-                          value={entry.frequency}
-                          onChange={(e) => updateIncomeEntry(entry.id, 'frequency', e.target.value)}
-                        >
-                          <option value="mensual">Mensual</option>
-                          <option value="quincenal">Quincenal</option>
-                          <option value="semanal">Semanal</option>
-                          <option value="anual">Anual</option>
-                        </select>
-                        <div className="relative w-28 flex-shrink-0">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
-                          <Input
-                            type="number"
-                            className="pl-6 h-7 text-xs text-right"
-                            placeholder="0"
-                            value={entry.amount || ''}
-                            onChange={(e) => updateIncomeEntry(entry.id, 'amount', parseFloat(e.target.value) || 0)}
-                          />
-                        </div>
-                        {entry.frequency !== 'mensual' && entry.amount > 0 && (
-                          <span className="text-[10px] text-gray-400 flex-shrink-0 w-16 text-right">
-                            {fmt(Math.round(entry.amount * (FREQUENCY_MULTIPLIER[entry.frequency] || 1) * 100) / 100)}/mes
-                          </span>
-                        )}
-                        <button
-                          onClick={() => deleteIncomeEntry(entry.id)}
-                          className="text-gray-300 hover:text-red-500 flex-shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
+              {/* ── Ingresos (mismo patrón que categorías) ── */}
+              <div className="border rounded-lg overflow-hidden mb-4">
+                {/* Header row — igual que una fila de categoría */}
+                <div className="flex items-center gap-2 p-3 hover:bg-gray-50 transition-colors">
                   <button
-                    onClick={() => addIncomeEntry()}
-                    className="mt-3 flex items-center gap-1 text-xs text-electric hover:text-electric-dark font-medium"
+                    onClick={() => setIncomeExpanded(!incomeExpanded)}
+                    className="flex items-center gap-2 flex-1 min-w-0"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    Agregar ingreso
+                    <div className="w-1.5 h-6 rounded-full bg-[#10B981] flex-shrink-0" />
+                    <span className="text-sm font-medium">Ingresos</span>
+                    {incomeEntries.length > 0 && (
+                      <span className="text-xs text-gray-400 flex-shrink-0">
+                        ({incomeEntries.length} concepto{incomeEntries.length !== 1 ? 's' : ''})
+                      </span>
+                    )}
+                    {incomeExpanded
+                      ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />}
                   </button>
+                  <span className="text-sm font-bold text-[#10B981] flex-shrink-0">{fmt(income)}/mes</span>
+                </div>
 
-                  {incomeEntries.length > 0 && (
-                    <div className="mt-4 pt-3 border-t flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700">Ingreso mensual total</span>
-                      <span className="text-sm font-bold text-navy">{fmt(income)}</span>
+                {/* Expanded: conceptos de ingreso como sub-items */}
+                {incomeExpanded && (
+                  <div className="border-t bg-gray-50 px-3 pb-3">
+                    {/* Quick-add chips */}
+                    <div className="flex flex-wrap gap-1.5 py-2">
+                      {INCOME_SUGGESTIONS.filter(s => !incomeEntries.some(e => e.source === s)).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => addIncomeEntry(s)}
+                          className="px-2.5 py-1 text-xs rounded-full border border-electric-soft text-electric hover:bg-electric-ghost transition-colors"
+                        >
+                          <Plus className="w-3 h-3 inline mr-0.5 -mt-0.5" />
+                          {s}
+                        </button>
+                      ))}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+
+                    {/* Lista de conceptos — estilo sub-item */}
+                    <div className="space-y-1">
+                      {incomeEntries.map((entry) => (
+                        <div key={entry.id} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2">
+                          <div className="w-1.5 h-4 rounded-full bg-[#10B981] flex-shrink-0" />
+                          <Input
+                            className="flex-1 h-7 text-sm min-w-0"
+                            placeholder="Fuente"
+                            value={entry.source}
+                            onChange={(e) => updateIncomeEntry(entry.id, 'source', e.target.value)}
+                          />
+                          <select
+                            className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                            value={entry.member}
+                            onChange={(e) => updateIncomeEntry(entry.id, 'member', e.target.value)}
+                          >
+                            <option value="Persona 1">Persona 1</option>
+                            <option value="Persona 2">Persona 2</option>
+                            <option value="Persona 3">Persona 3</option>
+                            <option value="Hogar">Hogar</option>
+                          </select>
+                          <select
+                            className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                            value={entry.frequency}
+                            onChange={(e) => updateIncomeEntry(entry.id, 'frequency', e.target.value)}
+                          >
+                            <option value="mensual">Mensual</option>
+                            <option value="quincenal">Quincenal</option>
+                            <option value="semanal">Semanal</option>
+                            <option value="anual">Anual</option>
+                          </select>
+                          <div className="relative w-28 flex-shrink-0">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
+                            <Input
+                              type="number"
+                              className="pl-6 h-7 text-xs text-right"
+                              placeholder="0"
+                              value={entry.amount || ''}
+                              onChange={(e) => updateIncomeEntry(entry.id, 'amount', parseFloat(e.target.value) || 0)}
+                            />
+                          </div>
+                          {entry.frequency !== 'mensual' && entry.amount > 0 && (
+                            <span className="text-[10px] text-gray-400 flex-shrink-0 w-16 text-right">
+                              {fmt(Math.round(entry.amount * (FREQUENCY_MULTIPLIER[entry.frequency] || 1) * 100) / 100)}/mes
+                            </span>
+                          )}
+                          <button
+                            onClick={() => deleteIncomeEntry(entry.id)}
+                            className="text-gray-300 hover:text-red-500 flex-shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Formulario para agregar nuevo concepto — igual que addSubItem */}
+                    {addingIncome ? (
+                      <div className="mt-2 bg-white rounded-lg p-3 space-y-2 border border-electric-soft">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Fuente (ej: Salario, Freelance)"
+                            className="flex-1 h-8 text-sm"
+                            value={newIncomeSource}
+                            onChange={(e) => setNewIncomeSource(e.target.value)}
+                            autoFocus
+                            onKeyDown={(e) => { if (e.key === 'Enter') addNewIncomeEntry(); }}
+                          />
+                          <div className="relative w-24">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
+                            <Input
+                              type="number"
+                              className="pl-6 h-8 text-sm text-right"
+                              placeholder="0"
+                              value={newIncomeAmount || ''}
+                              onChange={(e) => setNewIncomeAmount(parseFloat(e.target.value) || 0)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <select
+                            className="text-xs border rounded px-2 py-1 bg-white text-gray-600"
+                            value={newIncomeMember}
+                            onChange={(e) => setNewIncomeMember(e.target.value)}
+                          >
+                            <option value="Persona 1">Persona 1</option>
+                            <option value="Persona 2">Persona 2</option>
+                            <option value="Persona 3">Persona 3</option>
+                            <option value="Hogar">Hogar</option>
+                          </select>
+                          <select
+                            className="text-xs border rounded px-2 py-1 bg-white text-gray-600"
+                            value={newIncomeFrequency}
+                            onChange={(e) => setNewIncomeFrequency(e.target.value)}
+                          >
+                            <option value="mensual">Mensual</option>
+                            <option value="quincenal">Quincenal</option>
+                            <option value="semanal">Semanal</option>
+                            <option value="anual">Anual</option>
+                          </select>
+                          <div className="flex gap-2 ml-auto">
+                            <Button size="sm" className="h-7 text-xs" onClick={addNewIncomeEntry} disabled={!newIncomeSource.trim()}>
+                              <Plus className="w-3 h-3 mr-1" />
+                              Agregar
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingIncome(false); setNewIncomeSource(''); setNewIncomeAmount(0); }}>
+                              <X className="w-3 h-3 mr-1" />
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setAddingIncome(true)}
+                        className="mt-2 flex items-center gap-1 text-xs text-electric hover:text-electric-dark font-medium"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Agregar concepto de ingreso
+                      </button>
+                    )}
+
+                    {incomeEntries.length > 0 && (
+                      <div className="mt-4 pt-3 border-t flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-700">Ingreso mensual total</span>
+                        <span className="text-sm font-bold text-navy">{fmt(income)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* ── Necesidades / Gustos / Ahorro ── */}
               {(['needs', 'wants', 'savings'] as const).map((bucket) => {
