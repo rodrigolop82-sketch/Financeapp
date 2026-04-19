@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 
-function createSupabase() {
+function createUserSupabase() {
   const cookieStore = cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,9 +23,18 @@ function createSupabase() {
   );
 }
 
-// POST: generate a new invite link
+// Service role client — bypasses RLS for invite operations
+function createAdminSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+// POST: generate a new invite link (owner only)
 export async function POST(request: Request) {
-  const supabase = createSupabase();
+  const supabase = createUserSupabase();
+  const admin = createAdminSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
 
@@ -42,17 +51,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Solo el dueño puede generar invitaciones' }, { status: 403 });
   }
 
-  // Expire any existing active invites for this household
-  await supabase
+  // Expire existing active invites
+  await admin
     .from('household_invites')
     .update({ status: 'expired' })
     .eq('household_id', householdId)
     .eq('status', 'active');
 
-  // Generate a short, shareable code (8 chars, URL-safe)
   const inviteCode = randomBytes(6).toString('base64url').substring(0, 8);
 
-  const { data: invite, error } = await supabase
+  const { data: invite, error } = await admin
     .from('household_invites')
     .insert({
       household_id: householdId,
@@ -70,9 +78,9 @@ export async function POST(request: Request) {
   return NextResponse.json({ invite });
 }
 
-// GET: validate an invite code and return household info
+// GET: validate an invite code and return household info (public — anyone with the code)
 export async function GET(request: Request) {
-  const supabase = createSupabase();
+  const admin = createAdminSupabase();
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
 
@@ -80,7 +88,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Código requerido' }, { status: 400 });
   }
 
-  const { data: invite } = await supabase
+  const { data: invite } = await admin
     .from('household_invites')
     .select('id, household_id, invite_code, status, expires_at, created_by')
     .eq('invite_code', code)
@@ -91,24 +99,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Invitación no encontrada o expirada' }, { status: 404 });
   }
 
-  // Check expiration
   if (new Date(invite.expires_at) < new Date()) {
-    await supabase
+    await admin
       .from('household_invites')
       .update({ status: 'expired' })
       .eq('id', invite.id);
     return NextResponse.json({ error: 'Esta invitación ha expirado' }, { status: 410 });
   }
 
-  // Get household info
-  const { data: household } = await supabase
+  const { data: household } = await admin
     .from('households')
     .select('id, name, owner_id')
     .eq('id', invite.household_id)
     .single();
 
-  // Get owner name
-  const { data: owner } = await supabase
+  const { data: owner } = await admin
     .from('users')
     .select('full_name, email')
     .eq('id', household?.owner_id)
@@ -121,16 +126,19 @@ export async function GET(request: Request) {
   });
 }
 
-// PUT: accept an invite (join the household)
+// PUT: accept an invite (authenticated user joins the household)
 export async function PUT(request: Request) {
-  const supabase = createSupabase();
+  const supabase = createUserSupabase();
+  const admin = createAdminSupabase();
+
+  // Identify who is accepting
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
 
   const { code } = await request.json();
 
-  // Validate invite
-  const { data: invite } = await supabase
+  // Validate invite using admin client (bypasses RLS)
+  const { data: invite } = await admin
     .from('household_invites')
     .select('id, household_id, status, expires_at')
     .eq('invite_code', code)
@@ -142,7 +150,7 @@ export async function PUT(request: Request) {
   }
 
   if (new Date(invite.expires_at) < new Date()) {
-    await supabase
+    await admin
       .from('household_invites')
       .update({ status: 'expired' })
       .eq('id', invite.id);
@@ -150,7 +158,7 @@ export async function PUT(request: Request) {
   }
 
   // Check if already a member
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from('household_members')
     .select('user_id')
     .eq('household_id', invite.household_id)
@@ -161,12 +169,8 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Ya eres miembro de este hogar', alreadyMember: true }, { status: 409 });
   }
 
-  // Use service role to bypass RLS — the invite validation above is the auth check
-  const adminClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-  const { error } = await adminClient
+  // Insert member using admin client (bypasses RLS)
+  const { error } = await admin
     .from('household_members')
     .insert({
       household_id: invite.household_id,
