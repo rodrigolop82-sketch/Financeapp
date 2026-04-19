@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { localToday } from '@/lib/dates';
@@ -27,7 +27,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 
-export default function TransaccionesPage() {
+function TransaccionesPageInner() {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<(Transaction & { category_name?: string; bucket?: string })[]>([]);
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
@@ -595,5 +595,13 @@ export default function TransaccionesPage() {
           </Card>
         )}
     </AppShell>
+  );
+}
+
+export default function TransaccionesPage() {
+  return (
+    <Suspense>
+      <TransaccionesPageInner />
+    </Suspense>
   );
 }
