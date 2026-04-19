@@ -30,7 +30,7 @@ interface Member {
   user_id: string;
   role: string;
   joined_at: string;
-  users: { email: string; display_name: string | null } | null;
+  users: { email: string; full_name: string | null } | null;
 }
 
 export default function FamiliaPage() {
@@ -318,7 +318,7 @@ export default function FamiliaPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
-                    {member.users?.display_name || member.users?.email || 'Usuario'}
+                    {member.users?.full_name || member.users?.email || 'Usuario'}
                   </p>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">{member.users?.email}</span>
@@ -383,7 +383,7 @@ export default function FamiliaPage() {
                   const amount = spendingByMember[member.user_id] || 0;
                   const pct = totalSpending > 0 ? Math.round((amount / totalSpending) * 100) : 0;
                   const count = txCountByMember[member.user_id] || 0;
-                  const name = member.users?.display_name || member.users?.email?.split('@')[0] || 'Usuario';
+                  const name = member.users?.full_name || member.users?.email?.split('@')[0] || 'Usuario';
                   return (
                     <div key={member.user_id}>
                       <div className="flex items-center justify-between text-sm mb-1.5">

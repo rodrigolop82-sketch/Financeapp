@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 
   const { data: members } = await supabase
     .from('household_members')
-    .select('user_id, role, joined_at, users(email, display_name)')
+    .select('user_id, role, joined_at, users(email, full_name)')
     .eq('household_id', householdId);
 
   return NextResponse.json({ members: members || [] });
