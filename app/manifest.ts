@@ -21,12 +21,11 @@ export default function manifest(): MetadataRoute.Manifest {
         type: 'image/png',
       },
     ],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     share_target: {
       action: '/transacciones',
       method: 'get',
-      params: {
-        text: 'shared_text',
-      },
-    },
+      params: { text: 'shared_text' },
+    } as any,
   }
 }
