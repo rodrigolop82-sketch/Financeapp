@@ -92,12 +92,11 @@ export default function PresupuestoPage() {
 
       const monthStart = localMonthStart();
 
-      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }, { data: entries }] = await Promise.all([
+      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
         supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
         supabase.from('transactions').select('category_id, amount').eq('household_id', hh.id).gte('date', monthStart),
-        supabase.from('income_entries').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
       ]);
 
       // Aggregate spending by category
@@ -112,18 +111,34 @@ export default function PresupuestoPage() {
 
       const totalIncome = fp ? Number(fp.total_income) : 0;
 
-      if (entries && entries.length > 0) {
+      // Try loading from income_entries table (may not exist yet if migration pending)
+      const { data: entries, error: entriesError } = await supabase
+        .from('income_entries')
+        .select('*')
+        .eq('household_id', hh.id)
+        .order('created_at', { ascending: true });
+
+      if (!entriesError && entries && entries.length > 0) {
         setIncomeEntries(entries as IncomeEntry[]);
         setIncome(entries.reduce((s: number, e: IncomeEntry) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0));
+      } else if (!entriesError && totalIncome > 0) {
+        // Table exists but empty — seed a default entry from financial_profiles total
+        const { data: seeded } = await supabase
+          .from('income_entries')
+          .insert({ household_id: hh.id, source: 'Ingreso principal', member: 'Persona 1', amount: totalIncome, frequency: 'mensual' })
+          .select()
+          .single();
+        if (seeded) {
+          setIncomeEntries([seeded as IncomeEntry]);
+        } else {
+          // Insert failed — show synthetic in-memory entry so UI is still usable
+          setIncomeEntries([{ id: 'temp-' + Date.now(), source: 'Ingreso principal', member: 'Persona 1', amount: totalIncome, frequency: 'mensual' }]);
+        }
+        setIncome(totalIncome);
       } else {
-        // Migrate: if total_income set but no entries yet, seed one default entry
+        // Table doesn't exist yet (migration pending) — show synthetic in-memory entry
         if (totalIncome > 0) {
-          const { data: seeded } = await supabase
-            .from('income_entries')
-            .insert({ household_id: hh.id, source: 'Ingreso principal', member: 'Persona 1', amount: totalIncome, frequency: 'mensual' })
-            .select()
-            .single();
-          if (seeded) setIncomeEntries([seeded as IncomeEntry]);
+          setIncomeEntries([{ id: 'temp-' + Date.now(), source: 'Ingreso principal', member: 'Persona 1', amount: totalIncome, frequency: 'mensual' }]);
         }
         setIncome(totalIncome);
       }
@@ -159,11 +174,16 @@ export default function PresupuestoPage() {
     const next = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
     setIncomeEntries(next);
     syncIncomeTotal(next);
-    await supabase.from('income_entries').update({ [field]: value }).eq('id', id);
+    // temp IDs mean table doesn't exist yet — skip DB update
+    if (!id.startsWith('temp-')) {
+      await supabase.from('income_entries').update({ [field]: value }).eq('id', id);
+    }
   }
 
   async function deleteIncomeEntry(id: string) {
-    await supabase.from('income_entries').delete().eq('id', id);
+    if (!id.startsWith('temp-')) {
+      await supabase.from('income_entries').delete().eq('id', id);
+    }
     const next = incomeEntries.filter(e => e.id !== id);
     setIncomeEntries(next);
     syncIncomeTotal(next);
@@ -176,11 +196,12 @@ export default function PresupuestoPage() {
       .insert({ household_id: householdId, source: newIncomeSource.trim(), member: newIncomeMember, amount: newIncomeAmount, frequency: newIncomeFrequency })
       .select()
       .single();
-    if (data) {
-      const next = [...incomeEntries, data as IncomeEntry];
-      setIncomeEntries(next);
-      syncIncomeTotal(next);
-    }
+    const newEntry: IncomeEntry = data
+      ? (data as IncomeEntry)
+      : { id: 'temp-' + Date.now(), source: newIncomeSource.trim(), member: newIncomeMember, amount: newIncomeAmount, frequency: newIncomeFrequency };
+    const next = [...incomeEntries, newEntry];
+    setIncomeEntries(next);
+    syncIncomeTotal(next);
     setNewIncomeSource('');
     setNewIncomeAmount(0);
     setNewIncomeMember('Persona 1');
