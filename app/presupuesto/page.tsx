@@ -610,7 +610,7 @@ export default function PresupuestoPage() {
                           <select
                             className="text-xs border rounded px-2 py-1 bg-white text-gray-600"
                             value={newIncomeFrequency}
-                            onChange={(e) => setNewIncomeFrequency(e.target.value)}
+                            onChange={(e) => setNewIncomeFrequency(e.target.value as 'mensual' | 'quincenal' | 'semanal' | 'anual')}
                           >
                             <option value="mensual">Mensual</option>
                             <option value="quincenal">Quincenal</option>
