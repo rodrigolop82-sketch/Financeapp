@@ -14,8 +14,10 @@ import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household } from '@/types'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getUserHousehold } from '@/lib/household'
+
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 interface EnrichedTransaction {
   id: string
@@ -45,6 +47,7 @@ interface DashboardData {
   budget: number
   householdId: string
   categories: BudgetCategory[]
+  isCurrentMonth: boolean
 }
 
 export default function DashboardPage() {
@@ -52,9 +55,10 @@ export default function DashboardPage() {
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
+  const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
   const router = useRouter()
 
-  useEffect(() => { loadDashboardData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadDashboardData(selectedMonthStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for voice overlay trigger from BottomNav
   useEffect(() => {
@@ -63,7 +67,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener('zafi:voice-overlay', handler)
   }, [])
 
-  async function loadDashboardData() {
+  async function loadDashboardData(ms?: string) {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -89,13 +93,21 @@ export default function DashboardPage() {
     const hid = household.id as string
 
     const now = new Date()
-    const monthStart = localMonthStart()
+    const currentMs = localMonthStart()
+    const monthStart = ms ?? currentMs
+    const isCurrentMonth = monthStart === currentMs
+
+    // Calculate the last day of the selected month
+    const msDate = new Date(monthStart + 'T12:00:00')
+    const nextMonthDate = new Date(msDate.getFullYear(), msDate.getMonth() + 1, 1)
+    const nextMonthStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-01`
+
     const weekStart = localDaysAgo(7)
     const today = localToday()
 
     const [profileRes, txMonthRes, categoriesRes] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
-      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).order('date', { ascending: false }),
+      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).lt('date', nextMonthStr).order('date', { ascending: false }),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
     ])
 
@@ -107,13 +119,13 @@ export default function DashboardPage() {
     const categoryMap: Record<string, string> = {}
     categories.forEach((c) => { categoryMap[c.id] = c.name })
 
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-    const daysLeft = daysInMonth - now.getDate()
+    const daysInMonth = new Date(msDate.getFullYear(), msDate.getMonth() + 1, 0).getDate()
+    const daysLeft = isCurrentMonth ? daysInMonth - now.getDate() : 0
 
     const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
-    const spentToday = txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0)
-    const spentWeek  = txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0)
-    const todayCount = txMonth.filter((t) => t.date === today).length
+    const spentToday = isCurrentMonth ? txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0) : 0
+    const spentWeek  = isCurrentMonth ? txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0) : 0
+    const todayCount = isCurrentMonth ? txMonth.filter((t) => t.date === today).length : 0
 
     // Enrich transactions with category name for display
     const enrichedTransactions: EnrichedTransaction[] = txMonth.map((t) => ({
@@ -195,7 +207,33 @@ export default function DashboardPage() {
       daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, budget,
       householdId: hid,
       categories,
+      isCurrentMonth,
     })
+  }
+
+  function getMonthLabel(ms: string) {
+    const d = new Date(ms + 'T12:00:00')
+    return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
+  }
+
+  function goToPrevMonth() {
+    const d = new Date(selectedMonthStart + 'T12:00:00')
+    d.setMonth(d.getMonth() - 1)
+    const newMs = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    setSelectedMonthStart(newMs)
+    setData(null)
+    loadDashboardData(newMs)
+  }
+
+  function goToNextMonth() {
+    const d = new Date(selectedMonthStart + 'T12:00:00')
+    d.setMonth(d.getMonth() + 1)
+    const newMs = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    if (newMs <= localMonthStart()) {
+      setSelectedMonthStart(newMs)
+      setData(null)
+      loadDashboardData(newMs)
+    }
   }
 
   // Keyword map for auto-categorizing quick-add transactions
@@ -280,8 +318,36 @@ export default function DashboardPage() {
     )
   }
 
+  const isCurrentMonth = data.isCurrentMonth
+
   return (
     <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
+
+      {/* Navegador de mes */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 0' }}>
+        <button
+          onClick={goToPrevMonth}
+          className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/5 transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <div style={{ textAlign: 'center' }}>
+          <span className="font-outfit font-semibold text-navy" style={{ fontSize: 15 }}>
+            {getMonthLabel(selectedMonthStart)}
+          </span>
+          {!isCurrentMonth && (
+            <span className="text-xs text-gray-400 ml-2">histórico</span>
+          )}
+        </div>
+        <button
+          onClick={goToNextMonth}
+          disabled={isCurrentMonth}
+          className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/5 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
+
       {/* Hero marino */}
       <StatusHero
         spent={data.spentMonth}
@@ -290,6 +356,7 @@ export default function DashboardPage() {
         userName={data.userName}
         score={data.healthScore}
         userInitials={data.userInitials}
+        isPastMonth={!isCurrentMonth}
       />
 
       {/* Mensaje de éxito */}
@@ -303,8 +370,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Preview de voz (si hay) */}
-      {voiceResult && (
+      {/* Preview de voz (solo mes actual) */}
+      {voiceResult && isCurrentMonth && (
         <div style={{ margin: '10px 16px 0', padding: 14, background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14 }}>
           <p style={{ fontSize: 14, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisá antes de guardar</p>
           <TransactionPreview
@@ -315,11 +382,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Quick add */}
-      <QuickAddBar
-        onAdd={handleQuickAdd}
-        onVoiceOverlay={() => setVoiceOverlayOpen(true)}
-      />
+      {/* Quick add — solo mes actual */}
+      {isCurrentMonth && (
+        <QuickAddBar
+          onAdd={handleQuickAdd}
+          onVoiceOverlay={() => setVoiceOverlayOpen(true)}
+        />
+      )}
 
       {/* Summary */}
       <SummaryRow
@@ -329,23 +398,26 @@ export default function DashboardPage() {
         weekVsPrev={12}
         month={data.spentMonth}
         monthBudget={data.budget}
+        isPastMonth={!isCurrentMonth}
       />
 
-      {/* Alerta inteligente */}
-      <SmartAlert alert={data.alert} />
+      {/* Alerta inteligente — solo mes actual */}
+      {isCurrentMonth && <SmartAlert alert={data.alert} />}
 
-      {/* Últimos movimientos */}
+      {/* Transacciones del período */}
       <TransactionsList
         transactions={data.enrichedTransactions}
         onSeeAll={() => router.push('/transacciones')}
       />
 
-      {/* Racha */}
-      <StreakCard
-        currentStreak={data.currentStreak}
-        bestStreak={12}
-        weekDays={data.weekDayStatus}
-      />
+      {/* Racha — solo mes actual */}
+      {isCurrentMonth && (
+        <StreakCard
+          currentStreak={data.currentStreak}
+          bestStreak={12}
+          weekDays={data.weekDayStatus}
+        />
+      )}
 
       {/* Espacio final para BottomNav */}
       <div className="h-6" />

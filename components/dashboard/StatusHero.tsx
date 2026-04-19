@@ -11,6 +11,7 @@ interface StatusHeroProps {
   userName: string
   score: number
   userInitials: string
+  isPastMonth?: boolean
 }
 
 function getStatusMessage(pct: number, daysLeft: number, userName: string): {
@@ -27,7 +28,7 @@ function getStatusMessage(pct: number, daysLeft: number, userName: string): {
   return { text: `Superaste el presupuesto este mes, ${userName}`, color: 'red' }
 }
 
-export function StatusHero({ spent, budget, daysLeft, userName, score, userInitials }: StatusHeroProps) {
+export function StatusHero({ spent, budget, daysLeft, userName, score, userInitials, isPastMonth = false }: StatusHeroProps) {
   const { money } = useMoneyFormat()
   const remaining = Math.max(budget - spent, 0)
   const pct = budget > 0 ? spent / budget : 0
@@ -118,14 +119,14 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
               <div className="font-sans text-caption text-white/[0.45]" style={{ marginBottom: 1 }}>
-                Te quedan
+                {isPastMonth ? 'Disponible no usado' : 'Te quedan'}
               </div>
               <div className="font-outfit font-extrabold text-white tracking-[-0.02em]" style={{ fontSize: 24 }}>
                 {money(remaining)}
               </div>
             </div>
             <div className="font-sans text-caption text-white/[0.35] text-right">
-              {daysLeft} días restantes
+              {isPastMonth ? 'Mes completado' : `${daysLeft} días restantes`}
             </div>
           </div>
         </div>
