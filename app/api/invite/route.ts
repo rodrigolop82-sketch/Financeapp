@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
@@ -160,9 +161,12 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Ya eres miembro de este hogar', alreadyMember: true }, { status: 409 });
   }
 
-  // Check if user owns a different household — if so, they can still join as member
-  // Add user as member
-  const { error } = await supabase
+  // Use service role to bypass RLS — the invite validation above is the auth check
+  const adminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+  const { error } = await adminClient
     .from('household_members')
     .insert({
       household_id: invite.household_id,
@@ -171,6 +175,7 @@ export async function PUT(request: Request) {
     });
 
   if (error) {
+    console.error('household_members insert error:', error);
     return NextResponse.json({ error: 'Error al unirse al hogar' }, { status: 500 });
   }
 

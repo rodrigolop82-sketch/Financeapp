@@ -24,6 +24,7 @@ import {
   Receipt,
 } from 'lucide-react';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
+import { getUserHousehold } from '@/lib/household';
 
 interface Member {
   user_id: string;
@@ -56,28 +57,13 @@ export default function FamiliaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
-      const { data: hh } = await supabase
-        .from('households').select('id, owner_id').eq('owner_id', user.id).limit(1).single();
+      const hh = await getUserHousehold(supabase, user.id);
+      if (!hh) { router.push('/onboarding'); return; }
 
-      if (!hh) {
-        // Try as member
-        const { data: membership } = await supabase
-          .from('household_members')
-          .select('household_id, households(id, owner_id)')
-          .eq('user_id', user.id)
-          .limit(1)
-          .single();
+      const hhId = hh.id;
+      setHouseholdId(hhId);
+      setIsOwner(hh.owner_id === user.id);
 
-        if (!membership) { router.push('/onboarding'); return; }
-        const household = membership.households as unknown as { id: string; owner_id: string };
-        setHouseholdId(household.id);
-        setIsOwner(household.owner_id === user.id);
-      } else {
-        setHouseholdId(hh.id);
-        setIsOwner(true);
-      }
-
-      const hhId = hh?.id || '';
       if (hhId) {
         const [membersRes, { data: txData }] = await Promise.all([
           fetch(`/api/familia?householdId=${hhId}`),
