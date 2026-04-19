@@ -44,6 +44,8 @@ interface DashboardData {
   alert: AlertData | null
   weekDayStatus: ('done' | 'today' | 'miss')[]
   currentStreak: number
+  bestStreak: number
+  weekVsPrev: number
   budget: number
   householdId: string
   categories: BudgetCategory[]
@@ -105,15 +107,22 @@ export default function DashboardPage() {
     const weekStart = localDaysAgo(7)
     const today = localToday()
 
-    const [profileRes, txMonthRes, categoriesRes] = await Promise.all([
+    const prevWeekStart = localDaysAgo(14)
+    const [profileRes, txMonthRes, categoriesRes, prevWeekRes, allDatesRes] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
       supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).lt('date', nextMonthStr).order('date', { ascending: false }),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
+      isCurrentMonth
+        ? supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart)
+        : Promise.resolve({ data: [] }),
+      supabase.from('transactions').select('date').eq('household_id', hid),
     ])
 
     const profile = profileRes.data as FinancialProfile | null
     const txMonth = (txMonthRes.data ?? []) as Transaction[]
     const categories = (categoriesRes.data ?? []) as BudgetCategory[]
+    const prevWeekTx = (prevWeekRes.data ?? []) as { amount: number }[]
+    const allDates = (allDatesRes.data ?? []) as { date: string }[]
 
     // Build category lookup map
     const categoryMap: Record<string, string> = {}
@@ -169,6 +178,32 @@ export default function DashboardPage() {
       }
     }
 
+    // Mejor racha histórica
+    const allTxDatesSet = new Set(allDates.map((r) => r.date))
+    const sortedAllDates = Array.from(allTxDatesSet).sort()
+    let bestStreak = 0
+    let bStreak = 0
+    let prevD: string | null = null
+    for (const d of sortedAllDates) {
+      if (prevD) {
+        const diffDays = Math.round(
+          (new Date(d + 'T12:00:00').getTime() - new Date(prevD + 'T12:00:00').getTime()) / 86400000
+        )
+        bStreak = diffDays === 1 ? bStreak + 1 : 1
+      } else {
+        bStreak = 1
+      }
+      if (bStreak > bestStreak) bestStreak = bStreak
+      prevD = d
+    }
+    bestStreak = Math.max(bestStreak, currentStreak)
+
+    // Variación semana vs semana anterior
+    const spentPrevWeek = prevWeekTx.reduce((s, t) => s + Number(t.amount), 0)
+    const weekVsPrev = spentPrevWeek > 0
+      ? Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
+      : 0
+
     // Días de la semana para racha visual
     const weekDayStatus: ('done' | 'today' | 'miss')[] = Array.from({ length: 7 }, (_, i) => {
       const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1
@@ -204,7 +239,7 @@ export default function DashboardPage() {
       userInitials: initials,
       healthScore: profile?.health_score ?? 0,
       enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
-      daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, budget,
+      daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, bestStreak, weekVsPrev, budget,
       householdId: hid,
       categories,
       isCurrentMonth,
@@ -395,7 +430,7 @@ export default function DashboardPage() {
         today={data.spentToday}
         todayCount={data.todayCount}
         week={data.spentWeek}
-        weekVsPrev={12}
+        weekVsPrev={data.weekVsPrev}
         month={data.spentMonth}
         monthBudget={data.budget}
         isPastMonth={!isCurrentMonth}
@@ -414,7 +449,7 @@ export default function DashboardPage() {
       {isCurrentMonth && (
         <StreakCard
           currentStreak={data.currentStreak}
-          bestStreak={12}
+          bestStreak={data.bestStreak}
           weekDays={data.weekDayStatus}
         />
       )}
