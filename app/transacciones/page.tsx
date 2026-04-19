@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { localToday } from '@/lib/dates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,7 @@ import {
   Pencil,
   Check,
   X,
+  MessageSquare,
 } from 'lucide-react';
 
 export default function TransaccionesPage() {
@@ -46,7 +47,12 @@ export default function TransaccionesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState({ category_id: '', amount: 0, description: '', date: '', payment_method: 'efectivo' as string });
   const [editSaving, setEditSaving] = useState(false);
+  const [showSmsForm, setShowSmsForm] = useState(false);
+  const [smsText, setSmsText] = useState('');
+  const [smsParsing, setSmsParsing] = useState(false);
+  const [smsError, setSmsError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const fmt = useFormatMoney();
 
@@ -87,6 +93,40 @@ export default function TransaccionesPage() {
     }
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-populate SMS form from PWA Web Share Target (?shared_text=...)
+  useEffect(() => {
+    const shared = searchParams.get('shared_text');
+    if (shared) {
+      setSmsText(shared);
+      setShowSmsForm(true);
+    }
+  }, [searchParams]);
+
+  async function parseSms() {
+    if (!smsText.trim()) return;
+    setSmsParsing(true);
+    setSmsError(null);
+    try {
+      const res = await fetch('/api/parse-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: smsText }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSmsError(data.error || 'Error al interpretar el mensaje.');
+      } else {
+        setVoiceResult(data);
+        setShowSmsForm(false);
+        setSmsText('');
+        setShowForm(false);
+      }
+    } catch {
+      setSmsError('Error de conexión. Intentá de nuevo.');
+    }
+    setSmsParsing(false);
+  }
 
   async function addTransaction() {
     setSaving(true);
@@ -228,22 +268,67 @@ export default function TransaccionesPage() {
   return (
     <AppShell title="Transacciones" currentPath="/transacciones">
         {/* Action bar */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-gray-500">Este mes: {fmt(totalThisMonth)}</p>
           <div className="flex gap-2">
             <VoiceButton
               mode="expense"
-              onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); setShowForm(false); }}
+              onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); setShowForm(false); setShowSmsForm(false); }}
               onError={(err) => setVoiceError(err)}
             />
-            <Button onClick={() => { setShowForm(true); setVoiceResult(null); }}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowSmsForm(v => !v); setShowForm(false); setVoiceResult(null); }}
+              title="Pegar SMS o notificación de banco"
+            >
+              <MessageSquare className="w-4 h-4" />
+            </Button>
+            <Button onClick={() => { setShowForm(true); setVoiceResult(null); setShowSmsForm(false); }}>
               <Plus className="w-4 h-4 mr-2" />
               Gasto
             </Button>
           </div>
         </div>
 
-        {/* Voice transaction preview */}
+        {/* SMS paste form */}
+        {showSmsForm && (
+          <Card className="mb-4 border-blue-200 bg-blue-50/40">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-electric" />
+                Pegar notificación de banco / Apple Pay / Google Pay
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <textarea
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-electric/30"
+                rows={4}
+                placeholder={'Ej: "Compra aprobada por Q250.00 en WALMART"\n"Apple Pay: Q89.50 at Starbucks"\n"VISA: Compra por Q125.00 en AMAZON"'}
+                value={smsText}
+                onChange={(e) => setSmsText(e.target.value)}
+              />
+              {smsError && (
+                <p className="text-xs text-red-600">{smsError}</p>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={parseSms}
+                  disabled={smsParsing || !smsText.trim()}
+                >
+                  {smsParsing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-1" />}
+                  Identificar gasto
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => { setShowSmsForm(false); setSmsText(''); setSmsError(null); }}>
+                  Cancelar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Voice/SMS transaction preview */}
         {voiceError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
             {voiceError}
