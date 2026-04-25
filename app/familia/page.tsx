@@ -50,6 +50,8 @@ export default function FamiliaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
+      let hhId = '';
+
       const { data: hh } = await supabase
         .from('households').select('id, owner_id').eq('owner_id', user.id).limit(1).single();
 
@@ -64,14 +66,15 @@ export default function FamiliaPage() {
 
         if (!membership) { router.push('/onboarding'); return; }
         const household = membership.households as unknown as { id: string; owner_id: string };
+        hhId = household.id;
         setHouseholdId(household.id);
         setIsOwner(household.owner_id === user.id);
       } else {
+        hhId = hh.id;
         setHouseholdId(hh.id);
         setIsOwner(true);
       }
 
-      const hhId = hh?.id || '';
       if (hhId) {
         const res = await fetch(`/api/familia?householdId=${hhId}`);
         if (res.ok) {

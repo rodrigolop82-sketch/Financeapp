@@ -32,7 +32,14 @@ export async function GET(request: Request) {
   const householdId = searchParams.get('householdId');
   if (!householdId) return NextResponse.json({ error: 'householdId requerido' }, { status: 400 });
 
-  const { data: members } = await supabase
+  // Use admin client to bypass the "Users can view own data" RLS policy so we
+  // can read all household members' email and display_name, not just the caller's.
+  const adminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { data: members } = await adminClient
     .from('household_members')
     .select('user_id, role, joined_at, users(email, display_name)')
     .eq('household_id', householdId);
