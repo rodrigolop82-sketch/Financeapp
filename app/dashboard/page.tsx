@@ -41,6 +41,8 @@ interface DashboardData {
   alert: AlertData | null
   weekDayStatus: ('done' | 'today' | 'miss')[]
   currentStreak: number
+  bestStreak: number
+  weekVsPrev: number
   budget: number
   householdId: string
   categories: BudgetCategory[]
@@ -96,17 +98,21 @@ export default function DashboardPage() {
     const now = new Date()
     const monthStart = localMonthStart()
     const weekStart = localDaysAgo(7)
+    const prevWeekStart = localDaysAgo(14)
     const today = localToday()
 
-    const [profileRes, txMonthRes, categoriesRes] = await Promise.all([
+    const [profileRes, txMonthRes, categoriesRes, txPrevWeekRes, tx90Res] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
       supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).order('date', { ascending: false }),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
+      supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
+      supabase.from('transactions').select('date').eq('household_id', hid).gte('date', localDaysAgo(90)),
     ])
 
     const profile = profileRes.data as FinancialProfile | null
     const txMonth = (txMonthRes.data ?? []) as Transaction[]
     const categories = (categoriesRes.data ?? []) as BudgetCategory[]
+    const spentPrevWeek = (txPrevWeekRes.data ?? []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
 
     // Build category lookup map
     const categoryMap: Record<string, string> = {}
@@ -162,6 +168,28 @@ export default function DashboardPage() {
       }
     }
 
+    // Calcular mejor racha histórica (últimos 90 días)
+    const tx90Dates = Array.from(new Set((tx90Res.data ?? []).map((t: { date: string }) => t.date))).sort()
+    let bestStreak = currentStreak
+    let tempStreak = 0
+    let prevDate: string | null = null
+    for (const dateStr of tx90Dates) {
+      if (prevDate === null) {
+        tempStreak = 1
+      } else {
+        const diffMs = new Date(dateStr + 'T12:00:00').getTime() - new Date(prevDate + 'T12:00:00').getTime()
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+        tempStreak = diffDays === 1 ? tempStreak + 1 : 1
+      }
+      bestStreak = Math.max(bestStreak, tempStreak)
+      prevDate = dateStr
+    }
+
+    // % gasto esta semana vs semana anterior
+    const weekVsPrev = spentPrevWeek > 0
+      ? Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
+      : 0
+
     // Días de la semana para racha visual
     const weekDayStatus: ('done' | 'today' | 'miss')[] = Array.from({ length: 7 }, (_, i) => {
       const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1
@@ -197,7 +225,7 @@ export default function DashboardPage() {
       userInitials: initials,
       healthScore: profile?.health_score ?? 0,
       enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
-      daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, budget,
+      daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, bestStreak, weekVsPrev, budget,
       householdId: hid,
       categories,
     })
@@ -351,7 +379,7 @@ export default function DashboardPage() {
         today={data.spentToday}
         todayCount={data.todayCount}
         week={data.spentWeek}
-        weekVsPrev={12}
+        weekVsPrev={data.weekVsPrev}
         month={data.spentMonth}
         monthBudget={data.budget}
       />
@@ -368,7 +396,7 @@ export default function DashboardPage() {
       {/* Racha */}
       <StreakCard
         currentStreak={data.currentStreak}
-        bestStreak={12}
+        bestStreak={data.bestStreak}
         weekDays={data.weekDayStatus}
       />
 
