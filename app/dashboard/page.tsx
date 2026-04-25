@@ -50,6 +50,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const router = useRouter()
 
@@ -238,16 +239,25 @@ export default function DashboardPage() {
   async function handleQuickAdd(text: string) {
     if (!data) return
     const match = text.match(/^Q?\s*(\d+(?:\.\d+)?)\s+(.+)$/i)
-    if (!match) return
+    if (!match) {
+      setErrorMsg('Formato incorrecto. Usá: Q45 descripción — ej: Q85 almuerzo')
+      setTimeout(() => setErrorMsg(null), 4000)
+      return
+    }
     const amount = parseFloat(match[1])
     const description = cleanTransactionName(match[2])
     const categoryId = matchCategory(description)
     const supabase = createClient()
-    await supabase.from('transactions').insert({
+    const { error } = await supabase.from('transactions').insert({
       household_id: data.householdId, amount, description,
       date: localToday(), source: 'manual',
       ...(categoryId ? { category_id: categoryId } : {}),
     })
+    if (error) {
+      setErrorMsg('No se pudo guardar el gasto. Intentá de nuevo.')
+      setTimeout(() => setErrorMsg(null), 4000)
+      return
+    }
     const catName = categoryId ? data.categories.find(c => c.id === categoryId)?.name : null
     setSuccessMsg(`Q ${amount} "${description}" guardado${catName ? ` en ${catName}` : ''}`)
     setTimeout(() => setSuccessMsg(null), 3000)
@@ -304,6 +314,17 @@ export default function DashboardPage() {
           borderRadius: 10, fontSize: 14, color: '#065F46'
         }}>
           {successMsg}
+        </div>
+      )}
+
+      {/* Mensaje de error */}
+      {errorMsg && (
+        <div style={{
+          margin: '10px 16px 0', padding: '8px 12px',
+          background: '#FEF2F2', border: '0.5px solid #FECACA',
+          borderRadius: 10, fontSize: 14, color: '#991B1B'
+        }}>
+          {errorMsg}
         </div>
       )}
 

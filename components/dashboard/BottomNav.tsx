@@ -1,5 +1,5 @@
 'use client'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 const NAV_ITEMS = [
@@ -52,6 +52,7 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
 
 export function BottomNav() {
   const pathname = usePathname()
+  const router = useRouter()
 
   return (
     <div className="lg:hidden" style={{
@@ -70,7 +71,11 @@ export function BottomNav() {
           if (item.isFab) {
             return (
               <button key={item.href} onClick={() => {
-                window.dispatchEvent(new CustomEvent('zafi:voice-overlay'))
+                if (pathname === '/dashboard') {
+                  window.dispatchEvent(new CustomEvent('zafi:voice-overlay'))
+                } else {
+                  router.push('/dashboard')
+                }
               }} style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 gap: 2, background: 'none', border: 'none', cursor: 'pointer',
