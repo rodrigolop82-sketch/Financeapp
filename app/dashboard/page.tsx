@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { localToday, localMonthStart, localMonth, localDaysAgo } from '@/lib/dates'
+import { localToday, localMonth, localDaysAgo } from '@/lib/dates'
 import { MonthPicker } from '@/components/ui/MonthPicker'
 import { cleanTransactionName } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
