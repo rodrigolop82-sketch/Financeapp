@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
+import { localToday, localMonthStart, localMonth, localDaysAgo } from '@/lib/dates'
+import { MonthPicker } from '@/components/ui/MonthPicker'
 import { cleanTransactionName } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
@@ -50,13 +51,14 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
+  const [selectedMonth, setSelectedMonth] = useState<string>(localMonth())
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const router = useRouter()
 
-  useEffect(() => { loadDashboardData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadDashboardData(selectedMonth) }, [selectedMonth]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for voice overlay trigger from BottomNav
   useEffect(() => {
@@ -65,7 +67,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener('zafi:voice-overlay', handler)
   }, [])
 
-  async function loadDashboardData() {
+  async function loadDashboardData(month?: string) {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -96,14 +98,19 @@ export default function DashboardPage() {
     const hid = household.id as string
 
     const now = new Date()
-    const monthStart = localMonthStart()
+    const currentMonth = month ?? localMonth()
+    const [mYear, mMonth] = currentMonth.split('-').map(Number)
+    const monthStart = `${currentMonth}-01`
+    const daysInSelectedMonth = new Date(mYear, mMonth, 0).getDate()
+    const monthEnd = `${currentMonth}-${String(daysInSelectedMonth).padStart(2, '0')}`
+    const isCurrentMonth = currentMonth === localMonth()
     const weekStart = localDaysAgo(7)
     const prevWeekStart = localDaysAgo(14)
     const today = localToday()
 
     const [profileRes, txMonthRes, categoriesRes, txPrevWeekRes, tx90Res] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
-      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).order('date', { ascending: false }),
+      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).lte('date', monthEnd).order('date', { ascending: false }),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
       supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
       supabase.from('transactions').select('date').eq('household_id', hid).gte('date', localDaysAgo(90)),
@@ -118,8 +125,8 @@ export default function DashboardPage() {
     const categoryMap: Record<string, string> = {}
     categories.forEach((c) => { categoryMap[c.id] = c.name })
 
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-    const daysLeft = daysInMonth - now.getDate()
+    const daysInMonth = daysInSelectedMonth
+    const daysLeft = isCurrentMonth ? daysInMonth - now.getDate() : 0
 
     const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
     const spentToday = txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0)
@@ -289,7 +296,7 @@ export default function DashboardPage() {
     const catName = categoryId ? data.categories.find(c => c.id === categoryId)?.name : null
     setSuccessMsg(`Q ${amount} "${description}" guardado${catName ? ` en ${catName}` : ''}`)
     setTimeout(() => setSuccessMsg(null), 3000)
-    loadDashboardData()
+    loadDashboardData(selectedMonth)
   }
 
   async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
@@ -311,7 +318,7 @@ export default function DashboardPage() {
     const count = transactions.length
     setSuccessMsg(`${count} gasto${count > 1 ? 's' : ''} guardado${count > 1 ? 's' : ''}`)
     setTimeout(() => setSuccessMsg(null), 3000)
-    loadDashboardData()
+    loadDashboardData(selectedMonth)
   }
 
   if (!data) {
@@ -324,6 +331,22 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
+      {/* Selector de mes */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+        <MonthPicker
+          value={selectedMonth}
+          onChange={(m) => { setData(null); setSelectedMonth(m) }}
+        />
+        {selectedMonth !== localMonth() && (
+          <button
+            onClick={() => { setData(null); setSelectedMonth(localMonth()) }}
+            className="text-xs text-electric hover:underline"
+          >
+            Mes actual
+          </button>
+        )}
+      </div>
+
       {/* Hero marino */}
       <StatusHero
         spent={data.spentMonth}

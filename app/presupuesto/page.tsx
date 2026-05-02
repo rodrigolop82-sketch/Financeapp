@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
-import { localMonthStart } from '@/lib/dates';
+import { localMonth } from '@/lib/dates';
+import { MonthPicker } from '@/components/ui/MonthPicker';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,6 +66,8 @@ export default function PresupuestoPage() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({});
+  const [comparativoMonth, setComparativoMonth] = useState<string>(localMonth());
+  const [loadingComparativo, setLoadingComparativo] = useState(false);
   const [budgetDefCollapsed, setBudgetDefCollapsed] = useState(true);
   const [comparativoCollapsed, setComparativoCollapsed] = useState(true);
   const router = useRouter();
@@ -86,21 +89,11 @@ export default function PresupuestoPage() {
       if (!hh) { router.push('/onboarding'); return; }
       setHouseholdId(hh.id);
 
-      const monthStart = localMonthStart();
-
-      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }] = await Promise.all([
+      const [{ data: cats }, { data: fp }, { data: subs }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
         supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
-        supabase.from('transactions').select('category_id, amount').eq('household_id', hh.id).gte('date', monthStart),
       ]);
-
-      // Aggregate spending by category
-      const spent: Record<string, number> = {};
-      (txs || []).forEach((tx: { category_id: string; amount: number }) => {
-        spent[tx.category_id] = (spent[tx.category_id] || 0) + Number(tx.amount);
-      });
-      setSpentByCategory(spent);
 
       setCategories((cats || []) as BudgetCategory[]);
       setIncome(fp ? Number(fp.total_income) : 0);
@@ -116,6 +109,31 @@ export default function PresupuestoPage() {
     const stored = localStorage.getItem(`income_entries_${householdId}`);
     if (stored) setIncomeEntries(JSON.parse(stored));
   }, [householdId]);
+
+  // Reload transactions when comparativo month changes
+  useEffect(() => {
+    if (!householdId) return;
+    async function loadComparativo() {
+      setLoadingComparativo(true);
+      const [mYear, mMonth] = comparativoMonth.split('-').map(Number);
+      const daysInMonth = new Date(mYear, mMonth, 0).getDate();
+      const monthStart = `${comparativoMonth}-01`;
+      const monthEnd = `${comparativoMonth}-${String(daysInMonth).padStart(2, '0')}`;
+      const { data: txs } = await supabase
+        .from('transactions')
+        .select('category_id, amount')
+        .eq('household_id', householdId)
+        .gte('date', monthStart)
+        .lte('date', monthEnd);
+      const spent: Record<string, number> = {};
+      (txs || []).forEach((tx: { category_id: string; amount: number }) => {
+        spent[tx.category_id] = (spent[tx.category_id] || 0) + Number(tx.amount);
+      });
+      setSpentByCategory(spent);
+      setLoadingComparativo(false);
+    }
+    loadComparativo();
+  }, [householdId, comparativoMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function saveIncomeEntries(entries: IncomeEntry[]) {
     setIncomeEntries(entries);
@@ -817,26 +835,37 @@ export default function PresupuestoPage() {
           return (
           <Card className="mb-6">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base text-navy">Comparativo del mes</CardTitle>
-                <button onClick={() => setComparativoCollapsed(!comparativoCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
-                  <span>{comparativoCollapsed ? 'Ver detalle' : 'Cerrar'}</span>
-                  {comparativoCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                </button>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <CardTitle className="text-base text-navy">Comparativo</CardTitle>
+                <div className="flex items-center gap-2">
+                  <MonthPicker
+                    value={comparativoMonth}
+                    onChange={setComparativoMonth}
+                  />
+                  <button onClick={() => setComparativoCollapsed(!comparativoCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
+                    <span>{comparativoCollapsed ? 'Ver' : 'Cerrar'}</span>
+                    {comparativoCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               {comparativoCollapsed && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Presupuesto: {fmtNum(totalBudgeted)} &middot; Real: {fmtNum(totalSpent)} &middot;{' '}
+                  {loadingComparativo ? 'Cargando...' : <>Presupuesto: {fmtNum(totalBudgeted)} &middot; Real: {fmtNum(totalSpent)} &middot;{' '}
                   <span className={totalDiff > 0 ? 'text-red-500' : totalDiff < 0 ? 'text-green-600' : ''}>
                     Variación: {totalDiff > 0 ? '+' : totalDiff < 0 ? '-' : ''}{fmtNum(Math.abs(totalDiff))}
-                  </span>
+                  </span></>}
                 </p>
               )}
               <p className="text-xs text-gray-400 mt-1">Todas las cifras están en Quetzales (GTQ)</p>
             </CardHeader>
             {!comparativoCollapsed && (
             <CardContent className="pt-0 overflow-x-auto">
-              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+              {loadingComparativo && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="w-5 h-5 text-electric animate-spin" />
+                </div>
+              )}
+              <table className="w-full text-sm" style={{ borderCollapse: 'collapse', opacity: loadingComparativo ? 0.4 : 1 }}>
                 <thead>
                   <tr className="border-b-2 border-gray-200">
                     <th className="text-left text-xs font-semibold text-gray-500 py-2 px-1">Categoría</th>
