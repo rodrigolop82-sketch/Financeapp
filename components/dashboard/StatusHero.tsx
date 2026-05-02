@@ -1,4 +1,5 @@
 'use client'
+import React from 'react'
 import { useMoneyFormat } from '@/lib/format'
 import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
@@ -11,12 +12,19 @@ interface StatusHeroProps {
   userName: string
   score: number
   userInitials: string
+  filterSlot?: React.ReactNode
+  isHistorical?: boolean
 }
 
-function getStatusMessage(pct: number, daysLeft: number, userName: string): {
+function getStatusMessage(pct: number, daysLeft: number, userName: string, isHistorical?: boolean): {
   text: string
   color: 'green' | 'amber' | 'red'
 } {
+  if (isHistorical) {
+    if (pct < 0.9) return { text: `Buen control ese período, ${userName}`, color: 'green' }
+    if (pct < 1.0) return { text: `Casi al límite ese período, ${userName}`, color: 'amber' }
+    return { text: `Superaste el presupuesto ese período, ${userName}`, color: 'red' }
+  }
   if (pct < 0.6) return { text: `Vas muy bien este mes, ${userName}`, color: 'green' }
   if (pct < 0.75) return { text: `Vas bien este mes, ${userName}`, color: 'green' }
   if (pct < 0.90) {
@@ -27,12 +35,12 @@ function getStatusMessage(pct: number, daysLeft: number, userName: string): {
   return { text: `Superaste el presupuesto este mes, ${userName}`, color: 'red' }
 }
 
-export function StatusHero({ spent, budget, daysLeft, userName, score, userInitials }: StatusHeroProps) {
+export function StatusHero({ spent, budget, daysLeft, userName, score, userInitials, filterSlot, isHistorical }: StatusHeroProps) {
   const { money } = useMoneyFormat()
   const remaining = Math.max(budget - spent, 0)
   const pct = budget > 0 ? spent / budget : 0
   const pctDisplay = Math.min(Math.round(pct * 100), 100)
-  const status = getStatusMessage(pct, daysLeft, userName)
+  const status = getStatusMessage(pct, daysLeft, userName, isHistorical)
 
   const barColor =
     status.color === 'green' ? '#2563EB' :
@@ -125,11 +133,14 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
               </div>
             </div>
             <div className="font-sans text-caption text-white/[0.35] text-right">
-              {daysLeft} días restantes
+              {isHistorical ? 'período anterior' : `${daysLeft} días restantes`}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Filter slot — rendered at bottom of hero card */}
+      {filterSlot}
     </div>
   )
 }

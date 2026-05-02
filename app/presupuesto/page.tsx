@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { localMonth } from '@/lib/dates';
-import { MonthPicker } from '@/components/ui/MonthPicker';
+import { DateFilter } from '@/components/ui/DateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,7 +66,11 @@ export default function PresupuestoPage() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({});
-  const [comparativoMonth, setComparativoMonth] = useState<string>(localMonth());
+  const [comparativoFrom, setComparativoFrom] = useState<string>(() => `${localMonth()}-01`);
+  const [comparativoTo, setComparativoTo] = useState<string>(() => {
+    const ym = localMonth(); const [y,m] = ym.split('-').map(Number);
+    return `${ym}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
+  });
   const [loadingComparativo, setLoadingComparativo] = useState(false);
   const [budgetDefCollapsed, setBudgetDefCollapsed] = useState(true);
   const [comparativoCollapsed, setComparativoCollapsed] = useState(true);
@@ -110,21 +114,17 @@ export default function PresupuestoPage() {
     if (stored) setIncomeEntries(JSON.parse(stored));
   }, [householdId]);
 
-  // Reload transactions when comparativo month changes
+  // Reload transactions when comparativo date range changes
   useEffect(() => {
     if (!householdId) return;
     async function loadComparativo() {
       setLoadingComparativo(true);
-      const [mYear, mMonth] = comparativoMonth.split('-').map(Number);
-      const daysInMonth = new Date(mYear, mMonth, 0).getDate();
-      const monthStart = `${comparativoMonth}-01`;
-      const monthEnd = `${comparativoMonth}-${String(daysInMonth).padStart(2, '0')}`;
       const { data: txs } = await supabase
         .from('transactions')
         .select('category_id, amount')
         .eq('household_id', householdId)
-        .gte('date', monthStart)
-        .lte('date', monthEnd);
+        .gte('date', comparativoFrom)
+        .lte('date', comparativoTo);
       const spent: Record<string, number> = {};
       (txs || []).forEach((tx: { category_id: string; amount: number }) => {
         spent[tx.category_id] = (spent[tx.category_id] || 0) + Number(tx.amount);
@@ -133,7 +133,7 @@ export default function PresupuestoPage() {
       setLoadingComparativo(false);
     }
     loadComparativo();
-  }, [householdId, comparativoMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [householdId, comparativoFrom, comparativoTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function saveIncomeEntries(entries: IncomeEntry[]) {
     setIncomeEntries(entries);
@@ -836,17 +836,21 @@ export default function PresupuestoPage() {
           <Card className="mb-6">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <CardTitle className="text-base text-navy">Comparativo</CardTitle>
                 <div className="flex items-center gap-2">
-                  <MonthPicker
-                    value={comparativoMonth}
-                    onChange={setComparativoMonth}
-                  />
-                  <button onClick={() => setComparativoCollapsed(!comparativoCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
-                    <span>{comparativoCollapsed ? 'Ver' : 'Cerrar'}</span>
+                  <CardTitle className="text-base text-navy">Comparativo</CardTitle>
+                  <button onClick={() => setComparativoCollapsed(!comparativoCollapsed)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
                     {comparativoCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                   </button>
                 </div>
+              </div>
+              <div className="mt-2 border border-gray-100 rounded-xl bg-gray-50">
+                <DateFilter
+                  dateFrom={comparativoFrom}
+                  dateTo={comparativoTo}
+                  onChange={(from, to) => { setComparativoFrom(from); setComparativoTo(to); }}
+                  variant="light"
+                  showBorder={false}
+                />
               </div>
               {comparativoCollapsed && (
                 <p className="text-xs text-gray-400 mt-1">
