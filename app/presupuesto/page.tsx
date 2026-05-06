@@ -95,24 +95,41 @@ export default function PresupuestoPage() {
 
       const [{ data: cats }, { data: fp }, { data: subs }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
-        supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
+        supabase.from('financial_profiles').select('total_income, income_entries').eq('household_id', hh.id).limit(1).single(),
         supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
       ]);
 
       setCategories((cats || []) as BudgetCategory[]);
       setIncome(fp ? Number(fp.total_income) : 0);
       setSubItems((subs || []) as BudgetSubItem[]);
+
+      // Load income entries: prefer Supabase, fallback to localStorage for migration
+      if (fp && Array.isArray(fp.income_entries) && fp.income_entries.length > 0) {
+        setIncomeEntries(fp.income_entries as IncomeEntry[]);
+        // Migrate: clear localStorage now that data is in Supabase
+        localStorage.removeItem(`income_entries_${hh.id}`);
+      } else {
+        // Fallback: check localStorage (old data from before this fix)
+        const stored = localStorage.getItem(`income_entries_${hh.id}`);
+        if (stored) {
+          const parsed: IncomeEntry[] = JSON.parse(stored);
+          if (parsed.length > 0) {
+            // Migrate localStorage data to Supabase immediately
+            setIncomeEntries(parsed);
+            const total = parsed.reduce((s, e) => s + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
+            supabase.from('financial_profiles').update({
+              income_entries: parsed,
+              total_income: Math.round(total * 100) / 100,
+            }).eq('household_id', hh.id);
+            localStorage.removeItem(`income_entries_${hh.id}`);
+          }
+        }
+      }
+
       setLoading(false);
     }
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load income entries from localStorage
-  useEffect(() => {
-    if (!householdId) return;
-    const stored = localStorage.getItem(`income_entries_${householdId}`);
-    if (stored) setIncomeEntries(JSON.parse(stored));
-  }, [householdId]);
 
   // Reload transactions when comparativo date range changes
   useEffect(() => {
@@ -138,12 +155,14 @@ export default function PresupuestoPage() {
   function saveIncomeEntries(entries: IncomeEntry[]) {
     setIncomeEntries(entries);
     if (householdId) {
-      localStorage.setItem(`income_entries_${householdId}`, JSON.stringify(entries));
-      // Sync total to Supabase
       const total = entries.reduce((s, e) => s + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
       const roundedTotal = Math.round(total * 100) / 100;
       setIncome(roundedTotal);
-      supabase.from('financial_profiles').update({ total_income: roundedTotal }).eq('household_id', householdId);
+      // Save both the entries detail and the total to Supabase
+      supabase.from('financial_profiles').update({
+        income_entries: entries,
+        total_income: roundedTotal,
+      }).eq('household_id', householdId);
     }
   }
 
