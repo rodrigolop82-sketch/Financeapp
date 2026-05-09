@@ -241,7 +241,6 @@ export interface CapsuleRecommendation {
   reason: string;
 }
 
-// Income entry (stored in localStorage)
 export interface IncomeEntry {
   id: string;
   source: string;
