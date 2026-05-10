@@ -3,10 +3,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
-import { cleanTransactionName } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
-import { QuickAddBar } from '@/components/dashboard/QuickAddBar'
 import { SummaryRow } from '@/components/dashboard/SummaryRow'
 import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
@@ -230,67 +228,6 @@ export default function DashboardPage() {
       householdId: hid,
       categories,
     })
-  }
-
-  // Keyword map for auto-categorizing quick-add transactions
-  const CATEGORY_KEYWORDS: Record<string, string[]> = {
-    'alimentación': ['super', 'supermercado', 'mercado', 'comida', 'pollo', 'carne', 'verdura', 'fruta', 'pan', 'leche', 'huevo', 'arroz', 'frijol', 'tortilla', 'despensa'],
-    'restaurantes': ['almuerzo', 'cena', 'desayuno', 'restaurante', 'pizza', 'hamburguesa', 'sushi', 'café', 'starbucks', 'mcdonald', 'burger', 'taco', 'comida rápida'],
-    'transporte': ['uber', 'taxi', 'bus', 'gasolina', 'gas', 'peaje', 'parqueo', 'estacionamiento', 'didi', 'indriver'],
-    'salud': ['farmacia', 'medicina', 'doctor', 'hospital', 'clínica', 'dentista', 'consulta', 'vitamina'],
-    'entretenimiento': ['cine', 'netflix', 'spotify', 'disney', 'hbo', 'juego', 'película', 'concierto', 'fiesta'],
-    'suscripciones': ['netflix', 'spotify', 'youtube', 'prime', 'hbo', 'disney', 'apple', 'icloud'],
-    'servicios': ['luz', 'agua', 'internet', 'teléfono', 'celular', 'cable', 'gas', 'basura'],
-    'educación': ['colegio', 'universidad', 'curso', 'libro', 'matrícula', 'clase', 'escuela'],
-    'ropa': ['ropa', 'zapatos', 'camisa', 'pantalón', 'vestido', 'tienda'],
-    'vivienda': ['alquiler', 'renta', 'hipoteca', 'mantenimiento', 'reparación'],
-  }
-
-  function matchCategory(description: string): string | null {
-    if (!data) return null
-    const lower = description.toLowerCase()
-    // Try direct match with category name
-    for (const cat of data.categories) {
-      if (lower.includes(cat.name.toLowerCase()) || cat.name.toLowerCase().includes(lower)) {
-        return cat.id
-      }
-    }
-    // Try keyword matching
-    for (const [catKeyword, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-      if (keywords.some(k => lower.includes(k))) {
-        const match = data.categories.find(c => c.name.toLowerCase().includes(catKeyword))
-        if (match) return match.id
-      }
-    }
-    return null
-  }
-
-  async function handleQuickAdd(text: string) {
-    if (!data) return
-    const match = text.match(/^Q?\s*(\d+(?:\.\d+)?)\s+(.+)$/i)
-    if (!match) {
-      setErrorMsg('Formato incorrecto. Usá: Q45 descripción — ej: Q85 almuerzo')
-      setTimeout(() => setErrorMsg(null), 4000)
-      return
-    }
-    const amount = parseFloat(match[1])
-    const description = cleanTransactionName(match[2])
-    const categoryId = matchCategory(description)
-    const supabase = createClient()
-    const { error } = await supabase.from('transactions').insert({
-      household_id: data.householdId, amount, description,
-      date: localToday(), source: 'manual',
-      ...(categoryId ? { category_id: categoryId } : {}),
-    })
-    if (error) {
-      setErrorMsg('No se pudo guardar el gasto. Intentá de nuevo.')
-      setTimeout(() => setErrorMsg(null), 4000)
-      return
-    }
-    const catName = categoryId ? data.categories.find(c => c.id === categoryId)?.name : null
-    setSuccessMsg(`Q ${amount} "${description}" guardado${catName ? ` en ${catName}` : ''}`)
-    setTimeout(() => setSuccessMsg(null), 3000)
-    loadDashboardData()
   }
 
   async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
