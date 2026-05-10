@@ -88,11 +88,12 @@ export default function PresupuestoPage() {
 
       const monthStart = localMonthStart();
 
-      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }] = await Promise.all([
+      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }, { data: entries }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
         supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
         supabase.from('transactions').select('category_id, amount').eq('household_id', hh.id).gte('date', monthStart),
+        supabase.from('income_entries').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
       ]);
 
       // Aggregate spending by category
@@ -103,50 +104,59 @@ export default function PresupuestoPage() {
       setSpentByCategory(spent);
 
       setCategories((cats || []) as BudgetCategory[]);
-      setIncome(fp ? Number(fp.total_income) : 0);
       setSubItems((subs || []) as BudgetSubItem[]);
+
+      const loadedEntries = (entries || []) as IncomeEntry[];
+      setIncomeEntries(loadedEntries);
+      // Always calculate income from entries; fall back to financial_profiles only if no entries exist
+      if (loadedEntries.length > 0) {
+        const total = loadedEntries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
+        setIncome(Math.round(total * 100) / 100);
+      } else {
+        setIncome(fp ? Number(fp.total_income) : 0);
+      }
       setLoading(false);
     }
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load income entries from localStorage
-  useEffect(() => {
-    if (!householdId) return;
-    const stored = localStorage.getItem(`income_entries_${householdId}`);
-    if (stored) setIncomeEntries(JSON.parse(stored));
-  }, [householdId]);
-
-  function saveIncomeEntries(entries: IncomeEntry[]) {
-    setIncomeEntries(entries);
+  function recalcAndSyncIncome(entries: IncomeEntry[]) {
+    const total = entries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
+    const rounded = Math.round(total * 100) / 100;
+    setIncome(rounded);
+    // Keep financial_profiles.total_income in sync for the dashboard hero
     if (householdId) {
-      localStorage.setItem(`income_entries_${householdId}`, JSON.stringify(entries));
-      // Sync total to Supabase
-      const total = entries.reduce((s, e) => s + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
-      const roundedTotal = Math.round(total * 100) / 100;
-      setIncome(roundedTotal);
-      supabase.from('financial_profiles').update({ total_income: roundedTotal }).eq('household_id', householdId);
+      void supabase.from('financial_profiles').update({ total_income: rounded }).eq('household_id', householdId);
     }
   }
 
-  function addIncomeEntry(source?: string) {
-    const entry: IncomeEntry = {
-      id: crypto.randomUUID(),
-      source: source || '',
-      member: 'Persona 1',
-      amount: 0,
-      frequency: 'mensual',
-    };
-    saveIncomeEntries([...incomeEntries, entry]);
+  async function addIncomeEntry(source?: string) {
+    if (!householdId) return;
+    const { data } = await supabase
+      .from('income_entries')
+      .insert({ household_id: householdId, source: source || '', member: 'Persona 1', amount: 0, frequency: 'mensual' })
+      .select()
+      .single();
+    if (data) {
+      const updated = [...incomeEntries, data as IncomeEntry];
+      setIncomeEntries(updated);
+      recalcAndSyncIncome(updated);
+    }
   }
 
   function updateIncomeEntry(id: string, field: string, value: string | number) {
     const updated = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
-    saveIncomeEntries(updated);
+    setIncomeEntries(updated);
+    recalcAndSyncIncome(updated);
+    // Fire-and-forget persist — same pattern as the rest of the page
+    void supabase.from('income_entries').update({ [field]: value }).eq('id', id);
   }
 
-  function deleteIncomeEntry(id: string) {
-    saveIncomeEntries(incomeEntries.filter(e => e.id !== id));
+  async function deleteIncomeEntry(id: string) {
+    await supabase.from('income_entries').delete().eq('id', id);
+    const updated = incomeEntries.filter(e => e.id !== id);
+    setIncomeEntries(updated);
+    recalcAndSyncIncome(updated);
   }
 
   // Monthly multiplier for frequency
