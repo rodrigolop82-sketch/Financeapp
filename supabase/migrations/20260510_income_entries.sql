@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS income_entries (
 
 ALTER TABLE income_entries ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "household members can manage income_entries" ON income_entries;
+
 CREATE POLICY "household members can manage income_entries" ON income_entries
   FOR ALL USING (
     household_id IN (
