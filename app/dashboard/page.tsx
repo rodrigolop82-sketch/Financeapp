@@ -51,7 +51,6 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const router = useRouter()
 
@@ -283,16 +282,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Mensaje de error */}
-      {errorMsg && (
-        <div style={{
-          margin: '10px 16px 0', padding: '8px 12px',
-          background: '#FEF2F2', border: '0.5px solid #FECACA',
-          borderRadius: 10, fontSize: 14, color: '#991B1B'
-        }}>
-          {errorMsg}
-        </div>
-      )}
 
       {/* Preview de voz (si hay) */}
       {voiceResult && (
