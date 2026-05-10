@@ -13,6 +13,7 @@ import { TransactionsList } from '@/components/dashboard/TransactionsList'
 import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
+import { ExpenseDrawer } from '@/components/expenses/ExpenseDrawer'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household } from '@/types'
 import { Loader2 } from 'lucide-react'
 
@@ -368,9 +369,11 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Quick add */}
-      <QuickAddBar
-        onAdd={handleQuickAdd}
+      {/* Expense drawer */}
+      <ExpenseDrawer
+        householdId={data.householdId}
+        categories={data.categories}
+        onSuccess={loadDashboardData}
         onVoiceOverlay={() => setVoiceOverlayOpen(true)}
       />
 
