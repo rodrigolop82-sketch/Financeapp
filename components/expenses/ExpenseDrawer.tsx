@@ -6,7 +6,9 @@ import { ExpenseCategoryPicker } from './ExpenseCategoryPicker'
 import { useExpenseForm } from './useExpenseForm'
 import type { BudgetCategory } from '@/types'
 
-const KEYFRAMES = `
+// Injected once into <head> — never re-injected on re-renders
+const STYLE_ID = 'zafi-expense-drawer-styles'
+const GLOBAL_CSS = `
   @keyframes zafiCoinDrop {
     0%   { transform: translateY(-80px) scale(0.6); opacity: 0; }
     60%  { transform: translateY(8px)   scale(1.1); opacity: 1; }
@@ -21,6 +23,12 @@ const KEYFRAMES = `
     0%   { transform: translateY(12px); opacity: 0; }
     100% { transform: translateY(0);    opacity: 1; }
   }
+  .zafi-coin   { animation: zafiCoinDrop  550ms cubic-bezier(0.25,0.46,0.45,0.94)  50ms  both; }
+  .zafi-check  { animation: zafiCheckPop  350ms cubic-bezier(0.34,1.56,0.64,1)     600ms both; }
+  .zafi-amt    { animation: zafiFadeUp    300ms ease                                800ms both; }
+  .zafi-cat    { animation: zafiFadeUp    300ms ease                                900ms both; }
+  .zafi-ok     { animation: zafiFadeUp    300ms ease                               1000ms both; }
+  .zafi-btns   { animation: zafiFadeUp    300ms ease                               1200ms both; }
 `
 
 interface ExpenseDrawerProps {
@@ -38,9 +46,17 @@ export function ExpenseDrawer({
 }: ExpenseDrawerProps) {
   const [open, setOpen]       = useState(false)
   const [closing, setClosing] = useState(false)
-  const [stage, setStage]     = useState(0)
 
   const form = useExpenseForm({ householdId, categories, onSuccess })
+
+  // Inject CSS once into <head> — avoids style recalc on every render
+  useEffect(() => {
+    if (document.getElementById(STYLE_ID)) return
+    const el = document.createElement('style')
+    el.id = STYLE_ID
+    el.textContent = GLOBAL_CSS
+    document.head.appendChild(el)
+  }, [])
 
   const handleClose = useCallback(() => {
     setClosing(true)
@@ -59,101 +75,64 @@ export function ExpenseDrawer({
     return () => window.removeEventListener('keydown', handler)
   }, [open, handleClose])
 
-  // Success animation staging
-  useEffect(() => {
-    if (!form.isSuccess) { setStage(0); return }
-    const timers = [
-      setTimeout(() => setStage(1), 50),
-      setTimeout(() => setStage(2), 600),
-      setTimeout(() => setStage(3), 800),
-      setTimeout(() => setStage(4), 900),
-      setTimeout(() => setStage(5), 1000),
-      setTimeout(() => setStage(6), 1200),
-    ]
-    return () => timers.forEach(clearTimeout)
-  }, [form.isSuccess])
-
   const amountNum  = parseFloat(form.amount) || 0
   const canSubmit  = amountNum > 0 && !form.isSubmitting
 
   /* ── Success screen ──────────────────────────────────────── */
+  // All timing is handled by CSS animation-delay — zero JS re-renders during animation
   const successScreen = (
     <div style={{
       flex: 1, display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       padding: '40px 24px', textAlign: 'center',
     }}>
-      <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
-
-      {/* Coin → checkmark */}
-      <div style={{ height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-        {stage === 1 && (
-          <span style={{
-            fontSize: 52, display: 'block',
-            animation: 'zafiCoinDrop 550ms cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards',
-          }}>💰</span>
-        )}
-        {stage >= 2 && (
-          <span style={{
-            fontSize: 52, display: 'block',
-            animation: 'zafiCheckPop 350ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
-          }}>✅</span>
-        )}
+      {/* Coin drops, then check pops — stacked in same slot via absolute */}
+      <div style={{ position: 'relative', height: 72, width: 72, marginBottom: 20 }}>
+        <span className="zafi-coin" style={{ fontSize: 52, position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          💰
+        </span>
+        <span className="zafi-check" style={{ fontSize: 52, position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          ✅
+        </span>
       </div>
 
-      {stage >= 3 && (
-        <p style={{
-          fontSize: 30, fontWeight: 700, color: '#1E3A5F',
-          margin: '0 0 4px', fontFamily: 'Outfit, sans-serif',
-          animation: 'zafiFadeUp 300ms ease forwards',
-        }}>
-          {formatMoney(amountNum)}
-        </p>
-      )}
+      <p className="zafi-amt" style={{ fontSize: 30, fontWeight: 700, color: '#1E3A5F', margin: '0 0 4px', fontFamily: 'Outfit, sans-serif' }}>
+        {formatMoney(amountNum)}
+      </p>
 
-      {stage >= 4 && form.selectedCategory && (
-        <p style={{
-          fontSize: 14, color: '#2563EB', margin: '0 0 16px',
-          animation: 'zafiFadeUp 300ms ease forwards',
-        }}>
+      {form.selectedCategory && (
+        <p className="zafi-cat" style={{ fontSize: 14, color: '#2563EB', margin: '0 0 16px' }}>
           {form.selectedCategory.name}
         </p>
       )}
 
-      {stage >= 5 && (
-        <p style={{
-          fontSize: 17, fontWeight: 600, color: '#059669', margin: '0 0 32px',
-          animation: 'zafiFadeUp 300ms ease forwards',
-        }}>
-          ¡Gasto registrado!
-        </p>
-      )}
+      <p className="zafi-ok" style={{ fontSize: 17, fontWeight: 600, color: '#059669', margin: '0 0 32px' }}>
+        ¡Gasto registrado!
+      </p>
 
-      {stage >= 6 && (
-        <div style={{ display: 'flex', gap: 12, animation: 'zafiFadeUp 300ms ease forwards' }}>
-          <button
-            onClick={handleClose}
-            style={{
-              padding: '12px 28px', borderRadius: 12,
-              background: '#2563EB', color: '#fff',
-              border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14,
-              boxShadow: '0 4px 12px rgba(37,99,235,0.25)',
-            }}
-          >
-            Listo
-          </button>
-          <button
-            onClick={() => { form.reset(); setStage(0) }}
-            style={{
-              padding: '12px 28px', borderRadius: 12,
-              background: '#F1F5F9', color: '#1E3A5F',
-              border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14,
-            }}
-          >
-            Agregar otro
-          </button>
-        </div>
-      )}
+      <div className="zafi-btns" style={{ display: 'flex', gap: 12 }}>
+        <button
+          onClick={handleClose}
+          style={{
+            padding: '12px 28px', borderRadius: 12,
+            background: '#2563EB', color: '#fff',
+            border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14,
+            boxShadow: '0 4px 12px rgba(37,99,235,0.25)',
+          }}
+        >
+          Listo
+        </button>
+        <button
+          onClick={form.reset}
+          style={{
+            padding: '12px 28px', borderRadius: 12,
+            background: '#F1F5F9', color: '#1E3A5F',
+            border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14,
+          }}
+        >
+          Agregar otro
+        </button>
+      </div>
     </div>
   )
 
@@ -337,6 +316,7 @@ export function ExpenseDrawer({
               paddingBottom: 'env(safe-area-inset-bottom, 0px)',
               transform: closing ? 'translateY(100%)' : 'translateY(0)',
               transition: 'transform 0.28s cubic-bezier(0.32,0,0,1)',
+              willChange: 'transform',
             }}>
               {/* Drag handle */}
               <div style={{ width: 36, height: 4, background: '#CBD5E1', borderRadius: 2, margin: '12px auto 4px', flexShrink: 0 }} />
@@ -365,6 +345,7 @@ export function ExpenseDrawer({
               overflow: 'hidden',
               transform: closing ? 'translateX(100%)' : 'translateX(0)',
               transition: 'transform 0.28s cubic-bezier(0.32,0,0,1)',
+              willChange: 'transform',
             }}>
               {panelContent}
             </div>
