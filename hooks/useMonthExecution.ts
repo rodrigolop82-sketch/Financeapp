@@ -84,7 +84,7 @@ export function useMonthExecution() {
           ...c,
           spentAmount: spent,
           percentage: pct,
-          status: pct >= 100 ? 'over' : pct >= 80 ? 'near' : 'ok',
+          status: (pct >= 100 ? 'over' : pct >= 80 ? 'near' : 'ok') as 'ok' | 'near' | 'over',
         }
       }).sort((a, b) => b.spentAmount - a.spentAmount)
 
