@@ -42,7 +42,7 @@ export function HorizontalBarChart({ categories }: HorizontalBarChartProps) {
           tickLine={false}
         />
         <Tooltip
-          formatter={(value: number) => [formatMoney(value), 'Gasto']}
+          formatter={(value) => [formatMoney(Number(value)), 'Gasto']}
           contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }}
         />
         <Bar dataKey="amount" radius={[0, 4, 4, 0]} maxBarSize={16} label={{ position: 'right', fontSize: 10, fill: '#94A3B8', formatter: (v: number) => formatMoney(v) }}>

@@ -37,7 +37,7 @@ export function TrendLineChart({ data, avgMonthly }: TrendLineChartProps) {
           width={36}
         />
         <Tooltip
-          formatter={(value: number, name: string) => [formatMoney(value), name === 'total' ? 'Total' : name === 'fixed' ? 'Fijo' : 'Variable']}
+          formatter={(value, name) => [formatMoney(Number(value)), name === 'total' ? 'Total' : name === 'fixed' ? 'Fijo' : 'Variable']}
           contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }}
         />
         <ReferenceLine y={avgMonthly} stroke="#94A3B8" strokeDasharray="4 2" label={{ value: 'Promedio', position: 'insideTopRight', fontSize: 10, fill: '#94A3B8' }} />
