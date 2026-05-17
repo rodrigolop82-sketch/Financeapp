@@ -17,7 +17,6 @@ export function EjecucionTab({ data }: EjecucionTabProps) {
         spent={data.spentMonth}
         budget={data.budget}
         daysLeft={data.daysLeft}
-        daysInMonth={data.daysInMonth}
       />
       <StatsRow
         dailyAvg={data.dailyAvg}

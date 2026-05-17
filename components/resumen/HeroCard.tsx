@@ -5,10 +5,9 @@ interface HeroCardProps {
   spent: number
   budget: number
   daysLeft: number
-  daysInMonth: number
 }
 
-export function HeroCard({ spent, budget, daysLeft, daysInMonth }: HeroCardProps) {
+export function HeroCard({ spent, budget, daysLeft }: HeroCardProps) {
   const pct = budget > 0 ? Math.min(spent / budget * 100, 100) : 0
   const remaining = budget - spent
   const isOver = remaining < 0
