@@ -45,7 +45,7 @@ export function HorizontalBarChart({ categories }: HorizontalBarChartProps) {
           formatter={(value) => [formatMoney(Number(value)), 'Gasto']}
           contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }}
         />
-        <Bar dataKey="amount" radius={[0, 4, 4, 0]} maxBarSize={16} label={{ position: 'right', fontSize: 10, fill: '#94A3B8', formatter: (v: number) => formatMoney(v) }}>
+        <Bar dataKey="amount" radius={[0, 4, 4, 0]} maxBarSize={16} label={{ position: 'right', fontSize: 10, fill: '#94A3B8', formatter: (v: unknown) => formatMoney(Number(v)) }}>
           {data.map((entry, index) => (
             <Cell key={index} fill={BUCKET_COLORS[entry.bucket] ?? '#94A3B8'} />
           ))}
