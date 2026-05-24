@@ -2,17 +2,16 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { localToday, localDaysAgo, localMonth } from '@/lib/dates'
-import { cleanTransactionName } from '@/lib/format'
+import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
-import { QuickAddBar } from '@/components/dashboard/QuickAddBar'
 import { SummaryRow } from '@/components/dashboard/SummaryRow'
 import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
 import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
+import { ExpenseDrawer } from '@/components/expenses/ExpenseDrawer'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household } from '@/types'
 import { Loader2 } from 'lucide-react'
 
@@ -53,25 +52,9 @@ export default function DashboardPage() {
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
-  const [selectedMonth, setSelectedMonth] = useState<string>(localMonth()) // YYYY-MM
-  const [dateMode, setDateMode] = useState<'month' | 'range'>('month')
-  const [dateFrom, setDateFrom] = useState<string>('')
-  const [dateTo, setDateTo] = useState<string>('')
   const router = useRouter()
 
-  function reloadData() {
-    if (dateMode === 'range' && dateFrom && dateTo) {
-      loadDashboardData(undefined, dateFrom, dateTo)
-    } else {
-      loadDashboardData(selectedMonth)
-    }
-  }
-
-  useEffect(() => {
-    if (dateMode === 'month') {
-      loadDashboardData(selectedMonth)
-    }
-  }, [selectedMonth]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadDashboardData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for voice overlay trigger from BottomNav
   useEffect(() => {
@@ -80,7 +63,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener('zafi:voice-overlay', handler)
   }, [])
 
-  async function loadDashboardData(month?: string, rangeFrom?: string, rangeTo?: string) {
+  async function loadDashboardData() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -111,63 +94,35 @@ export default function DashboardPage() {
     const hid = household.id as string
 
     const now = new Date()
-    const currentMonth = localMonth()
-    const isRangeMode = !!(rangeFrom && rangeTo)
-    const viewMonth = month || currentMonth
-    const isCurrentMonth = !isRangeMode && viewMonth === currentMonth
-
-    // Calculate date boundaries
-    let monthStart: string
-    let monthEnd: string
-    let daysInMonth: number
-
-    if (isRangeMode) {
-      monthStart = rangeFrom
-      monthEnd = rangeTo
-      const diffMs = new Date(rangeTo + 'T12:00:00').getTime() - new Date(rangeFrom + 'T12:00:00').getTime()
-      daysInMonth = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1)
-    } else {
-      monthStart = viewMonth + '-01'
-      const [yyyy, mm] = viewMonth.split('-').map(Number)
-      const monthEndDate = new Date(yyyy, mm, 0)
-      monthEnd = `${yyyy}-${String(mm).padStart(2, '0')}-${String(monthEndDate.getDate()).padStart(2, '0')}`
-      daysInMonth = monthEndDate.getDate()
-    }
-
+    const monthStart = localMonthStart()
     const weekStart = localDaysAgo(7)
     const prevWeekStart = localDaysAgo(14)
     const today = localToday()
 
-    const [profileRes, txMonthRes, txPrevWeekRes, txAllDatesRes, categoriesRes, lastTxRes] = await Promise.all([
+    const [profileRes, txMonthRes, categoriesRes, txPrevWeekRes, tx90Res] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
-      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).lte('date', monthEnd).order('date', { ascending: false }),
-      supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
-      supabase.from('transactions').select('date').eq('household_id', hid).order('date', { ascending: true }),
+      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).order('date', { ascending: false }),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
-      // Get last transaction globally (not just this month) for streak calculation
-      supabase.from('transactions').select('date').eq('household_id', hid).order('date', { ascending: false }).limit(1).single(),
+      supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
+      supabase.from('transactions').select('date').eq('household_id', hid).gte('date', localDaysAgo(90)),
     ])
 
     const profile = profileRes.data as FinancialProfile | null
     const txMonth = (txMonthRes.data ?? []) as Transaction[]
-    const txPrevWeek = (txPrevWeekRes.data ?? []) as { amount: number }[]
-    const txAllDates = (txAllDatesRes.data ?? []) as { date: string }[]
     const categories = (categoriesRes.data ?? []) as BudgetCategory[]
+    const spentPrevWeek = (txPrevWeekRes.data ?? []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
 
     // Build category lookup map
     const categoryMap: Record<string, string> = {}
     categories.forEach((c) => { categoryMap[c.id] = c.name })
 
-    const daysLeft = isCurrentMonth ? daysInMonth - now.getDate() : 0
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const daysLeft = daysInMonth - now.getDate()
 
     const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
-    const spentToday = isCurrentMonth ? txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0) : 0
-    const spentWeek  = isCurrentMonth ? txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0) : 0
-    const spentPrevWeek = txPrevWeek.reduce((s, t) => s + Number(t.amount), 0)
-    const weekVsPrev = spentPrevWeek === 0
-      ? (spentWeek > 0 ? 100 : 0)
-      : Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
-    const todayCount = isCurrentMonth ? txMonth.filter((t) => t.date === today).length : 0
+    const spentToday = txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0)
+    const spentWeek  = txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0)
+    const todayCount = txMonth.filter((t) => t.date === today).length
 
     // Enrich transactions with category name for display
     const enrichedTransactions: EnrichedTransaction[] = txMonth.map((t) => ({
@@ -191,11 +146,11 @@ export default function DashboardPage() {
       }
     })
 
-    // Días sin registrar (para alerta) — usa la última transacción global, no solo del mes
-    const lastTxDateGlobal = lastTxRes.data?.date || txMonth[0]?.date
-    const daysSinceLast = lastTxDateGlobal
-      ? Math.max(0, Math.floor((now.getTime() - new Date(lastTxDateGlobal + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24)))
-      : (isCurrentMonth ? 0 : -1) // No alert for past months or new users
+    // Días sin registrar (para alerta)
+    const lastTxDate = txMonth[0]?.date
+    const daysSinceLast = lastTxDate
+      ? Math.floor((now.getTime() - new Date(lastTxDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24))
+      : 999
 
     // Calcular racha de días consecutivos registrando gastos
     const txDates = new Set(txMonth.map((t) => t.date))
@@ -211,22 +166,27 @@ export default function DashboardPage() {
       }
     }
 
-    // Calcular mejor racha histórica
-    const uniqueDates = Array.from(new Set(txAllDates.map((t) => t.date))).sort()
-    let bestStreak = 0
+    // Calcular mejor racha histórica (últimos 90 días)
+    const tx90Dates = Array.from(new Set((tx90Res.data ?? []).map((t: { date: string }) => t.date))).sort()
+    let bestStreak = currentStreak
     let tempStreak = 0
-    for (let i = 0; i < uniqueDates.length; i++) {
-      if (i === 0) {
+    let prevDate: string | null = null
+    for (const dateStr of tx90Dates) {
+      if (prevDate === null) {
         tempStreak = 1
       } else {
-        const prev = new Date(uniqueDates[i - 1] + 'T12:00:00')
-        const curr = new Date(uniqueDates[i] + 'T12:00:00')
-        const diffDays = Math.round((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24))
+        const diffMs = new Date(dateStr + 'T12:00:00').getTime() - new Date(prevDate + 'T12:00:00').getTime()
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
         tempStreak = diffDays === 1 ? tempStreak + 1 : 1
       }
-      if (tempStreak > bestStreak) bestStreak = tempStreak
+      bestStreak = Math.max(bestStreak, tempStreak)
+      prevDate = dateStr
     }
-    bestStreak = Math.max(bestStreak, currentStreak)
+
+    // % gasto esta semana vs semana anterior
+    const weekVsPrev = spentPrevWeek > 0
+      ? Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
+      : 0
 
     // Días de la semana para racha visual
     const weekDayStatus: ('done' | 'today' | 'miss')[] = Array.from({ length: 7 }, (_, i) => {
@@ -262,63 +222,11 @@ export default function DashboardPage() {
       userName: firstName,
       userInitials: initials,
       healthScore: profile?.health_score ?? 0,
-      enrichedTransactions, spentMonth, spentToday, spentWeek, weekVsPrev, todayCount,
-      daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, bestStreak, budget,
+      enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
+      daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, bestStreak, weekVsPrev, budget,
       householdId: hid,
       categories,
     })
-  }
-
-  // Keyword map for auto-categorizing quick-add transactions
-  const CATEGORY_KEYWORDS: Record<string, string[]> = {
-    'alimentación': ['super', 'supermercado', 'mercado', 'comida', 'pollo', 'carne', 'verdura', 'fruta', 'pan', 'leche', 'huevo', 'arroz', 'frijol', 'tortilla', 'despensa'],
-    'restaurantes': ['almuerzo', 'cena', 'desayuno', 'restaurante', 'pizza', 'hamburguesa', 'sushi', 'café', 'starbucks', 'mcdonald', 'burger', 'taco', 'comida rápida'],
-    'transporte': ['uber', 'taxi', 'bus', 'gasolina', 'gas', 'peaje', 'parqueo', 'estacionamiento', 'didi', 'indriver'],
-    'salud': ['farmacia', 'medicina', 'doctor', 'hospital', 'clínica', 'dentista', 'consulta', 'vitamina'],
-    'entretenimiento': ['cine', 'netflix', 'spotify', 'disney', 'hbo', 'juego', 'película', 'concierto', 'fiesta'],
-    'suscripciones': ['netflix', 'spotify', 'youtube', 'prime', 'hbo', 'disney', 'apple', 'icloud'],
-    'servicios': ['luz', 'agua', 'internet', 'teléfono', 'celular', 'cable', 'gas', 'basura'],
-    'educación': ['colegio', 'universidad', 'curso', 'libro', 'matrícula', 'clase', 'escuela'],
-    'ropa': ['ropa', 'zapatos', 'camisa', 'pantalón', 'vestido', 'tienda'],
-    'vivienda': ['alquiler', 'renta', 'hipoteca', 'mantenimiento', 'reparación'],
-  }
-
-  function matchCategory(description: string): string | null {
-    if (!data) return null
-    const lower = description.toLowerCase()
-    // Try direct match with category name
-    for (const cat of data.categories) {
-      if (lower.includes(cat.name.toLowerCase()) || cat.name.toLowerCase().includes(lower)) {
-        return cat.id
-      }
-    }
-    // Try keyword matching
-    for (const [catKeyword, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-      if (keywords.some(k => lower.includes(k))) {
-        const match = data.categories.find(c => c.name.toLowerCase().includes(catKeyword))
-        if (match) return match.id
-      }
-    }
-    return null
-  }
-
-  async function handleQuickAdd(text: string) {
-    if (!data) return
-    const match = text.match(/^Q?\s*(\d+(?:\.\d+)?)\s+(.+)$/i)
-    if (!match) return
-    const amount = parseFloat(match[1])
-    const description = cleanTransactionName(match[2])
-    const categoryId = matchCategory(description)
-    const supabase = createClient()
-    await supabase.from('transactions').insert({
-      household_id: data.householdId, amount, description,
-      date: localToday(), source: 'manual',
-      ...(categoryId ? { category_id: categoryId } : {}),
-    })
-    const catName = categoryId ? data.categories.find(c => c.id === categoryId)?.name : null
-    setSuccessMsg(`Q ${amount} "${description}" guardado${catName ? ` en ${catName}` : ''}`)
-    setTimeout(() => setSuccessMsg(null), 3000)
-    reloadData()
   }
 
   async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
@@ -340,185 +248,19 @@ export default function DashboardPage() {
     const count = transactions.length
     setSuccessMsg(`${count} gasto${count > 1 ? 's' : ''} guardado${count > 1 ? 's' : ''}`)
     setTimeout(() => setSuccessMsg(null), 3000)
-    reloadData()
+    loadDashboardData()
   }
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric animate-spin" />
       </div>
     )
   }
 
-  const currentMonth = localMonth()
-  const isViewingCurrent = dateMode === 'month' && selectedMonth === currentMonth
-
-  // Generate month options (current + 11 previous months)
-  const monthOptions: { value: string; label: string }[] = []
-  for (let i = 0; i < 12; i++) {
-    const d = new Date()
-    d.setDate(1)
-    d.setMonth(d.getMonth() - i)
-    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const label = d.toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })
-    monthOptions.push({ value: val, label: label.charAt(0).toUpperCase() + label.slice(1) })
-  }
-
-  function navigateMonth(dir: -1 | 1) {
-    const [y, m] = selectedMonth.split('-').map(Number)
-    const d = new Date(y, m - 1 + dir, 1)
-    const newMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    setSelectedMonth(newMonth)
-  }
-
-  function applyRange() {
-    if (dateFrom && dateTo && dateFrom <= dateTo) {
-      loadDashboardData(undefined, dateFrom, dateTo)
-    }
-  }
-
   return (
     <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
-      {/* Date filter */}
-      <div style={{ padding: '10px 16px 0' }}>
-        {/* Mode toggle */}
-        <div style={{
-          display: 'flex', justifyContent: 'center', gap: 4,
-          marginBottom: 8,
-        }}>
-          <button
-            onClick={() => { setDateMode('month'); loadDashboardData(selectedMonth) }}
-            style={{
-              fontSize: 12, fontWeight: 500, padding: '4px 14px',
-              borderRadius: 16, border: 'none', cursor: 'pointer',
-              background: dateMode === 'month' ? '#1E3A5F' : '#F1F5F9',
-              color: dateMode === 'month' ? 'white' : '#64748B',
-            }}
-          >
-            Mes
-          </button>
-          <button
-            onClick={() => setDateMode('range')}
-            style={{
-              fontSize: 12, fontWeight: 500, padding: '4px 14px',
-              borderRadius: 16, border: 'none', cursor: 'pointer',
-              background: dateMode === 'range' ? '#1E3A5F' : '#F1F5F9',
-              color: dateMode === 'range' ? 'white' : '#64748B',
-            }}
-          >
-            Rango
-          </button>
-        </div>
-
-        {dateMode === 'month' ? (
-          /* Month selector */
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}>
-            <button
-              onClick={() => navigateMonth(-1)}
-              style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: '#F1F5F9', border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M15 18l-6-6 6-6" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 15, fontWeight: 600, color: '#1E3A5F',
-                textAlign: 'center', appearance: 'none',
-                padding: '4px 8px',
-              }}
-            >
-              {monthOptions.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-
-            <button
-              onClick={() => navigateMonth(1)}
-              disabled={isViewingCurrent}
-              style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: isViewingCurrent ? '#F8FAFC' : '#F1F5F9',
-                border: 'none', cursor: isViewingCurrent ? 'default' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                opacity: isViewingCurrent ? 0.3 : 1,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M9 18l6-6-6-6" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-
-            {!isViewingCurrent && (
-              <button
-                onClick={() => setSelectedMonth(currentMonth)}
-                style={{
-                  fontSize: 12, color: '#2563EB', background: '#EFF6FF',
-                  border: '1px solid #BFDBFE', borderRadius: 16,
-                  padding: '3px 10px', cursor: 'pointer', fontWeight: 500,
-                }}
-              >
-                Hoy
-              </button>
-            )}
-          </div>
-        ) : (
-          /* Date range selector */
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 8, flexWrap: 'wrap',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <label style={{ fontSize: 12, color: '#64748B' }}>Desde</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                style={{
-                  fontSize: 13, border: '1px solid #E2E8F0', borderRadius: 8,
-                  padding: '4px 8px', color: '#1E3A5F', background: 'white',
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <label style={{ fontSize: 12, color: '#64748B' }}>Hasta</label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                style={{
-                  fontSize: 13, border: '1px solid #E2E8F0', borderRadius: 8,
-                  padding: '4px 8px', color: '#1E3A5F', background: 'white',
-                }}
-              />
-            </div>
-            <button
-              onClick={applyRange}
-              disabled={!dateFrom || !dateTo || dateFrom > dateTo}
-              style={{
-                fontSize: 12, fontWeight: 600, padding: '5px 14px',
-                borderRadius: 16, border: 'none', cursor: 'pointer',
-                background: (!dateFrom || !dateTo || dateFrom > dateTo) ? '#CBD5E1' : '#2563EB',
-                color: 'white',
-              }}
-            >
-              Aplicar
-            </button>
-          </div>
-        )}
-      </div>
-
       {/* Hero marino */}
       <StatusHero
         spent={data.spentMonth}
@@ -540,6 +282,7 @@ export default function DashboardPage() {
         </div>
       )}
 
+
       {/* Preview de voz (si hay) */}
       {voiceResult && (
         <div style={{ margin: '10px 16px 0', padding: 14, background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14 }}>
@@ -552,9 +295,11 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Quick add */}
-      <QuickAddBar
-        onAdd={handleQuickAdd}
+      {/* Expense drawer */}
+      <ExpenseDrawer
+        householdId={data.householdId}
+        categories={data.categories}
+        onSuccess={loadDashboardData}
         onVoiceOverlay={() => setVoiceOverlayOpen(true)}
       />
 
