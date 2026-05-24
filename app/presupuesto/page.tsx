@@ -13,7 +13,6 @@ import { BudgetCategory, BudgetSubItem } from '@/types';
 import type { IncomeEntry } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import {
-  ArrowLeft,
   Save,
   Loader2,
   Plus,
@@ -25,7 +24,7 @@ import {
   Unlock,
   X,
 } from 'lucide-react';
-import Link from 'next/link';
+import { AppShell } from '@/components/layout/AppShell';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import type { VoiceExtractionResult } from '@/types';
@@ -40,9 +39,9 @@ const FREQUENCY_MULTIPLIER: Record<string, number> = {
 };
 
 const BUCKET_LABELS = {
-  needs: { label: 'Necesidades (50%)', color: 'bg-[#1E3A5F]', textColor: 'text-[#1D4ED8]' },
-  wants: { label: 'Gustos (30%)', color: 'bg-[#3B82F6]', textColor: 'text-[#3B82F6]' },
-  savings: { label: 'Ahorro/Deudas (20%)', color: 'bg-[#93C5FD]', textColor: 'text-[#1D4ED8]' },
+  needs: { label: 'Necesidades (50%)', color: 'bg-navy', textColor: 'text-electric-dark' },
+  wants: { label: 'Gustos (30%)', color: 'bg-electric-light', textColor: 'text-electric-light' },
+  savings: { label: 'Ahorro/Deudas (20%)', color: 'bg-electric-soft', textColor: 'text-electric-dark' },
 };
 
 export default function PresupuestoPage() {
@@ -59,7 +58,7 @@ export default function PresupuestoPage() {
   const [newSubAmount, setNewSubAmount] = useState(0);
   const [newSubFixed, setNewSubFixed] = useState(false);
   const [newSubPayment, setNewSubPayment] = useState<'efectivo' | 'tarjeta' | 'cheque' | 'transferencia'>('efectivo');
-  const [newSubRecurrence, setNewSubRecurrence] = useState<BudgetSubItem['recurrence']>('mensual');
+  const [newSubFrequency, setNewSubFrequency] = useState<'mensual' | 'trimestral' | 'anual'>('mensual');
   const [addingCatBucket, setAddingCatBucket] = useState<'needs' | 'wants' | 'savings' | null>(null);
   const [newCatName, setNewCatName] = useState('');
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
@@ -89,11 +88,12 @@ export default function PresupuestoPage() {
 
       const monthStart = localMonthStart();
 
-      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }] = await Promise.all([
+      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }, { data: entries }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
         supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
         supabase.from('transactions').select('category_id, amount').eq('household_id', hh.id).gte('date', monthStart),
+        supabase.from('income_entries').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
       ]);
 
       // Aggregate spending by category
@@ -104,57 +104,73 @@ export default function PresupuestoPage() {
       setSpentByCategory(spent);
 
       setCategories((cats || []) as BudgetCategory[]);
-      setIncome(fp ? Number(fp.total_income) : 0);
       setSubItems((subs || []) as BudgetSubItem[]);
+
+      const loadedEntries = (entries || []) as IncomeEntry[];
+      setIncomeEntries(loadedEntries);
+      // Always calculate income from entries; fall back to financial_profiles only if no entries exist
+      if (loadedEntries.length > 0) {
+        const total = loadedEntries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
+        setIncome(Math.round(total * 100) / 100);
+      } else {
+        setIncome(fp ? Number(fp.total_income) : 0);
+      }
       setLoading(false);
     }
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load income entries from localStorage
-  useEffect(() => {
-    if (!householdId) return;
-    const stored = localStorage.getItem(`income_entries_${householdId}`);
-    if (stored) setIncomeEntries(JSON.parse(stored));
-  }, [householdId]);
-
-  function saveIncomeEntries(entries: IncomeEntry[]) {
-    setIncomeEntries(entries);
+  function recalcAndSyncIncome(entries: IncomeEntry[]) {
+    const total = entries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
+    const rounded = Math.round(total * 100) / 100;
+    setIncome(rounded);
+    // Keep financial_profiles.total_income in sync for the dashboard hero
     if (householdId) {
-      localStorage.setItem(`income_entries_${householdId}`, JSON.stringify(entries));
-      // Sync total to Supabase
-      const total = entries.reduce((s, e) => s + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
-      const roundedTotal = Math.round(total * 100) / 100;
-      setIncome(roundedTotal);
-      supabase.from('financial_profiles').update({ total_income: roundedTotal }).eq('household_id', householdId);
+      void supabase.from('financial_profiles').update({ total_income: rounded }).eq('household_id', householdId);
     }
   }
 
-  function addIncomeEntry(source?: string) {
-    const entry: IncomeEntry = {
-      id: crypto.randomUUID(),
-      source: source || '',
-      member: 'Persona 1',
-      amount: 0,
-      frequency: 'mensual',
-    };
-    saveIncomeEntries([...incomeEntries, entry]);
+  async function addIncomeEntry(source?: string) {
+    if (!householdId) return;
+    const { data } = await supabase
+      .from('income_entries')
+      .insert({ household_id: householdId, source: source || '', member: 'Persona 1', amount: 0, frequency: 'mensual' })
+      .select()
+      .single();
+    if (data) {
+      const updated = [...incomeEntries, data as IncomeEntry];
+      setIncomeEntries(updated);
+      recalcAndSyncIncome(updated);
+    }
   }
 
   function updateIncomeEntry(id: string, field: string, value: string | number) {
     const updated = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
-    saveIncomeEntries(updated);
+    setIncomeEntries(updated);
+    recalcAndSyncIncome(updated);
+    // Fire-and-forget persist — same pattern as the rest of the page
+    void supabase.from('income_entries').update({ [field]: value }).eq('id', id);
   }
 
-  function deleteIncomeEntry(id: string) {
-    saveIncomeEntries(incomeEntries.filter(e => e.id !== id));
+  async function deleteIncomeEntry(id: string) {
+    await supabase.from('income_entries').delete().eq('id', id);
+    const updated = incomeEntries.filter(e => e.id !== id);
+    setIncomeEntries(updated);
+    recalcAndSyncIncome(updated);
   }
 
-  // Calculate category total from sub-items (if any), otherwise use budgeted_amount
+  // Monthly multiplier for frequency
+  function monthlyAmount(amount: number, freq: string): number {
+    if (freq === 'trimestral') return amount / 3;
+    if (freq === 'anual') return amount / 12;
+    return amount;
+  }
+
+  // Calculate category total from sub-items (monthly equivalent), otherwise use budgeted_amount
   function getCategoryTotal(catId: string): number {
     const catSubs = subItems.filter(s => s.category_id === catId);
     if (catSubs.length > 0) {
-      return catSubs.reduce((s, sub) => s + Number(sub.amount), 0);
+      return catSubs.reduce((s, sub) => s + monthlyAmount(Number(sub.amount), sub.frequency || 'mensual'), 0);
     }
     const cat = categories.find(c => c.id === catId);
     return cat ? Number(cat.budgeted_amount) : 0;
@@ -197,9 +213,13 @@ export default function PresupuestoPage() {
     );
     // Save sub-item amounts
     for (const sub of subItems) {
+      const updateData: Record<string, unknown> = { amount: sub.amount };
+      if (sub.frequency && sub.frequency !== 'mensual') {
+        updateData.frequency = sub.frequency;
+      }
       promises.push(
         supabase.from('budget_sub_items')
-          .update({ amount: sub.amount })
+          .update(updateData)
           .eq('id', sub.id)
       );
     }
@@ -217,27 +237,51 @@ export default function PresupuestoPage() {
 
   async function addSubItem(categoryId: string) {
     if (!newSubName.trim()) return;
-    const { data } = await supabase
+    // Build insert object — try with all columns, fallback gracefully
+    const baseData = {
+      category_id: categoryId,
+      household_id: householdId,
+      name: newSubName.trim(),
+      amount: newSubAmount,
+      is_fixed: newSubFixed,
+    };
+
+    // Try full insert first
+    let result = await supabase
       .from('budget_sub_items')
-      .insert({
-        category_id: categoryId,
-        household_id: householdId,
-        name: newSubName.trim(),
-        amount: newSubAmount,
-        is_fixed: newSubFixed,
-        recurrence: newSubRecurrence,
-        payment_method: newSubPayment,
-      })
+      .insert({ ...baseData, payment_method: newSubPayment, frequency: newSubFrequency })
       .select()
       .single();
+
+    // If it fails (missing columns), try without optional columns
+    if (result.error) {
+      result = await supabase
+        .from('budget_sub_items')
+        .insert({ ...baseData, payment_method: newSubPayment })
+        .select()
+        .single();
+    }
+    if (result.error) {
+      result = await supabase
+        .from('budget_sub_items')
+        .insert(baseData)
+        .select()
+        .single();
+    }
+
+    const { data, error } = result;
+    if (error) {
+      console.error('Error adding sub-item:', error);
+      return;
+    }
 
     if (data) {
       setSubItems([...subItems, data as BudgetSubItem]);
       setNewSubName('');
       setNewSubAmount(0);
       setNewSubFixed(false);
-      setNewSubRecurrence('mensual');
       setNewSubPayment('efectivo');
+      setNewSubFrequency('mensual');
       setAddingSubItem(null);
       setSaved(false);
     }
@@ -248,11 +292,11 @@ export default function PresupuestoPage() {
     setSubItems(items => items.map(s => s.id === id ? { ...s, payment_method: method } : s));
   }
 
-  async function updateSubRecurrence(id: string, recurrence: BudgetSubItem['recurrence']) {
-    await supabase.from('budget_sub_items').update({ recurrence }).eq('id', id);
-    setSubItems(items => items.map(s => s.id === id ? { ...s, recurrence } : s));
+  async function updateSubFrequency(id: string, frequency: BudgetSubItem['frequency']) {
+    await supabase.from('budget_sub_items').update({ frequency }).eq('id', id);
+    setSubItems(items => items.map(s => s.id === id ? { ...s, frequency } : s));
+    setSaved(false);
   }
-
 
   async function addCategoryToBucket(bucket: 'needs' | 'wants' | 'savings') {
     if (!newCatName.trim()) return;
@@ -307,28 +351,18 @@ export default function PresupuestoPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#3B82F6] animate-spin" />
+      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
+    <AppShell title="Presupuesto" currentPath="/presupuesto">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
+        {/* Action row */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">Presupuesto 50/30/20</h1>
-              <p className="text-sm text-gray-500">Ingreso mensual: {fmt(income)}</p>
-            </div>
-          </div>
+          <p className="text-sm text-gray-500">Ingreso mensual: {fmt(income)}</p>
           <div className="flex items-center gap-2">
             <VoiceButton
               mode="expense"
@@ -336,14 +370,14 @@ export default function PresupuestoPage() {
               onError={(err) => setVoiceError(err)}
             />
             <Button onClick={saveAll} disabled={saving}>
-            {saving ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : saved ? (
-              <CheckCircle2 className="w-4 h-4 mr-2 text-[#3B82F6]" />
-            ) : (
-              <Save className="w-4 h-4 mr-2" />
-            )}
-            {saved ? 'Guardado' : 'Guardar'}
+              {saving ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : saved ? (
+                <CheckCircle2 className="w-4 h-4 mr-2 text-electric-light" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
+              {saved ? 'Guardado' : 'Guardar'}
             </Button>
           </div>
         </div>
@@ -367,7 +401,7 @@ export default function PresupuestoPage() {
         {/* ─── SECCIÓN 1: Gráfica y medidores ─── */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-base text-[#1E3A5F]">Distribución del presupuesto</CardTitle>
+            <CardTitle className="text-base text-navy">Distribución del presupuesto</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -405,7 +439,7 @@ export default function PresupuestoPage() {
                 <div className="pt-2 border-t">
                   <div className="flex justify-between font-medium">
                     <span>Sin asignar</span>
-                    <span className={remaining < 0 ? 'text-red-500' : 'text-[#2563EB]'}>
+                    <span className={remaining < 0 ? 'text-red-500' : 'text-electric'}>
                       {fmt(remaining)}
                     </span>
                   </div>
@@ -419,7 +453,7 @@ export default function PresupuestoPage() {
         <Card className="mb-6">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base text-[#1E3A5F]">Definición del presupuesto</CardTitle>
+              <CardTitle className="text-base text-navy">Definición del presupuesto</CardTitle>
               <button onClick={() => setBudgetDefCollapsed(!budgetDefCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
                 <span>{budgetDefCollapsed ? 'Ver detalle' : 'Cerrar'}</span>
                 {budgetDefCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -437,8 +471,8 @@ export default function PresupuestoPage() {
               <Card className="mb-4">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base text-[#10B981]">Ingresos</CardTitle>
-                    <span className="text-sm font-bold text-[#10B981]">{fmt(income)}/mes</span>
+                    <CardTitle className="text-base text-success">Ingresos</CardTitle>
+                    <span className="text-sm font-bold text-success">{fmt(income)}/mes</span>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -448,7 +482,7 @@ export default function PresupuestoPage() {
                       <button
                         key={s}
                         onClick={() => addIncomeEntry(s)}
-                        className="px-2.5 py-1 text-xs rounded-full border border-[#BFDBFE] text-[#2563EB] hover:bg-[#EFF6FF] transition-colors"
+                        className="px-2.5 py-1 text-xs rounded-full border border-electric-soft text-electric hover:bg-electric-ghost transition-colors"
                       >
                         <Plus className="w-3 h-3 inline mr-0.5 -mt-0.5" />
                         {s}
@@ -514,7 +548,7 @@ export default function PresupuestoPage() {
 
                   <button
                     onClick={() => addIncomeEntry()}
-                    className="mt-3 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
+                    className="mt-3 flex items-center gap-1 text-xs text-electric hover:text-electric-dark font-medium"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Agregar ingreso
@@ -523,7 +557,7 @@ export default function PresupuestoPage() {
                   {incomeEntries.length > 0 && (
                     <div className="mt-4 pt-3 border-t flex justify-between items-center">
                       <span className="text-sm font-medium text-gray-700">Ingreso mensual total</span>
-                      <span className="text-sm font-bold text-[#1E3A5F]">{fmt(income)}</span>
+                      <span className="text-sm font-bold text-navy">{fmt(income)}</span>
                     </div>
                   )}
                 </CardContent>
@@ -639,14 +673,12 @@ export default function PresupuestoPage() {
                                   </select>
                                   <select
                                     className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
-                                    value={sub.recurrence || 'mensual'}
-                                    onChange={(e) => updateSubRecurrence(sub.id, e.target.value as BudgetSubItem['recurrence'])}
+                                    value={sub.frequency || 'mensual'}
+                                    onChange={(e) => updateSubFrequency(sub.id, e.target.value as BudgetSubItem['frequency'])}
                                   >
                                     <option value="mensual">Mensual</option>
                                     <option value="trimestral">Trimestral</option>
-                                    <option value="semestral">Semestral</option>
                                     <option value="anual">Anual</option>
-                                    <option value="unica">Única vez</option>
                                   </select>
                                   <div className="relative w-24 flex-shrink-0">
                                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Q</span>
@@ -657,6 +689,11 @@ export default function PresupuestoPage() {
                                       onChange={(e) => updateSubAmount(sub.id, parseFloat(e.target.value) || 0)}
                                     />
                                   </div>
+                                  {(sub.frequency || 'mensual') !== 'mensual' && sub.amount > 0 && (
+                                    <span className="text-[10px] text-ink-400 flex-shrink-0 whitespace-nowrap">
+                                      {fmt(Math.round(monthlyAmount(sub.amount, sub.frequency || 'mensual')))}/mes
+                                    </span>
+                                  )}
                                   <button
                                     onClick={() => deleteSubItem(sub.id)}
                                     className="text-gray-300 hover:text-red-500 flex-shrink-0"
@@ -669,7 +706,7 @@ export default function PresupuestoPage() {
 
                             {/* Add sub-item form */}
                             {addingSubItem === cat.id ? (
-                              <div className="mt-2 bg-white rounded-lg p-3 space-y-2 border border-[#BFDBFE]">
+                              <div className="mt-2 bg-white rounded-lg p-3 space-y-2 border border-electric-soft">
                                 <div className="flex gap-2">
                                   <Input
                                     placeholder="Nombre del sub-item"
@@ -711,21 +748,19 @@ export default function PresupuestoPage() {
                                   </select>
                                   <select
                                     className="text-xs border rounded px-2 py-1 bg-white text-gray-600"
-                                    value={newSubRecurrence}
-                                    onChange={(e) => setNewSubRecurrence(e.target.value as BudgetSubItem['recurrence'])}
+                                    value={newSubFrequency}
+                                    onChange={(e) => setNewSubFrequency(e.target.value as BudgetSubItem['frequency'])}
                                   >
                                     <option value="mensual">Mensual</option>
                                     <option value="trimestral">Trimestral</option>
-                                    <option value="semestral">Semestral</option>
                                     <option value="anual">Anual</option>
-                                    <option value="unica">Única vez</option>
                                   </select>
                                   <div className="flex gap-2 ml-auto">
                                     <Button size="sm" className="h-7 text-xs" onClick={() => addSubItem(cat.id)} disabled={!newSubName.trim()}>
                                       <Plus className="w-3 h-3 mr-1" />
                                       Agregar
                                     </Button>
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); setNewSubPayment('efectivo'); setNewSubRecurrence('mensual'); }}>
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); setNewSubPayment('efectivo'); setNewSubFrequency('mensual'); }}>
                                       <X className="w-3 h-3 mr-1" />
                                       Cancelar
                                     </Button>
@@ -735,7 +770,7 @@ export default function PresupuestoPage() {
                             ) : (
                               <button
                                 onClick={() => { setAddingSubItem(cat.id); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); }}
-                                className="mt-2 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
+                                className="mt-2 flex items-center gap-1 text-xs text-electric hover:text-electric-dark font-medium"
                               >
                                 <Plus className="w-3.5 h-3.5" />
                                 Agregar detalle
@@ -770,7 +805,7 @@ export default function PresupuestoPage() {
                 ) : (
                   <button
                     onClick={() => { setAddingCatBucket(bucket); setNewCatName(''); }}
-                    className="mt-3 flex items-center gap-1 text-xs text-[#2563EB] hover:text-[#1D4ED8] font-medium"
+                    className="mt-3 flex items-center gap-1 text-xs text-electric hover:text-electric-dark font-medium"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Agregar categoría
@@ -793,7 +828,7 @@ export default function PresupuestoPage() {
           <Card className="mb-6">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base text-[#1E3A5F]">Comparativo del mes</CardTitle>
+                <CardTitle className="text-base text-navy">Comparativo del mes</CardTitle>
                 <button onClick={() => setComparativoCollapsed(!comparativoCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
                   <span>{comparativoCollapsed ? 'Ver detalle' : 'Cerrar'}</span>
                   {comparativoCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -846,7 +881,7 @@ export default function PresupuestoPage() {
                           const varClass = diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-600' : 'text-gray-400';
                           return (
                             <tr key={cat.id} className="border-b border-gray-100">
-                              <td className="py-2 px-1 font-medium text-[#1E3A5F]">{cat.name}</td>
+                              <td className="py-2 px-1 font-medium text-navy">{cat.name}</td>
                               <td className="py-2 px-1 text-right tabular-nums">{fmtNum(budgeted)}</td>
                               <td className="py-2 px-1 text-right tabular-nums">{fmtNum(actual)}</td>
                               <td className={`py-2 px-1 text-right font-medium tabular-nums ${varClass}`}>
@@ -879,9 +914,9 @@ export default function PresupuestoPage() {
                     const cls = totalDiff > 0 ? 'text-red-500' : totalDiff < 0 ? 'text-green-600' : 'text-gray-400';
                     return (
                       <tr className="border-t-2 border-[#1E3A5F]">
-                        <td className="py-2 px-1 font-bold text-[#1E3A5F]">TOTAL</td>
-                        <td className="py-2 px-1 text-right font-bold text-[#1E3A5F] tabular-nums">{fmtNum(totalBudgeted)}</td>
-                        <td className="py-2 px-1 text-right font-bold text-[#1E3A5F] tabular-nums">{fmtNum(totalSpent)}</td>
+                        <td className="py-2 px-1 font-bold text-navy">TOTAL</td>
+                        <td className="py-2 px-1 text-right font-bold text-navy tabular-nums">{fmtNum(totalBudgeted)}</td>
+                        <td className="py-2 px-1 text-right font-bold text-navy tabular-nums">{fmtNum(totalSpent)}</td>
                         <td className={`py-2 px-1 text-right font-bold tabular-nums ${cls}`}>
                           {totalDiff > 0 ? '+' : totalDiff < 0 ? '-' : ''}{fmtNum(Math.abs(totalDiff))}
                         </td>
@@ -899,6 +934,6 @@ export default function PresupuestoPage() {
           );
         })()}
       </div>
-    </div>
+    </AppShell>
   );
 }
