@@ -34,6 +34,7 @@ interface DashboardData {
   spentMonth: number
   spentToday: number
   spentWeek: number
+  weekVsPrev: number
   todayCount: number
   daysLeft: number
   daysInMonth: number
@@ -41,7 +42,6 @@ interface DashboardData {
   weekDayStatus: ('done' | 'today' | 'miss')[]
   currentStreak: number
   bestStreak: number
-  weekVsPrev: number
   budget: number
   householdId: string
   categories: BudgetCategory[]
@@ -109,9 +109,8 @@ export default function DashboardPage() {
 
     const profile = profileRes.data as FinancialProfile | null
     const txMonth = (txMonthRes.data ?? []) as Transaction[]
+    const txPrevWeek = (txPrevWeekRes.data ?? []) as { amount: number }[]
     const categories = (categoriesRes.data ?? []) as BudgetCategory[]
-    const spentPrevWeek = (txPrevWeekRes.data ?? []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
-
     // Build category lookup map
     const categoryMap: Record<string, string> = {}
     categories.forEach((c) => { categoryMap[c.id] = c.name })
@@ -122,6 +121,10 @@ export default function DashboardPage() {
     const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
     const spentToday = txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0)
     const spentWeek  = txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0)
+    const spentPrevWeek = txPrevWeek.reduce((s, t) => s + Number(t.amount), 0)
+    const weekVsPrev = spentPrevWeek === 0
+      ? (spentWeek > 0 ? 100 : 0)
+      : Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
     const todayCount = txMonth.filter((t) => t.date === today).length
 
     // Enrich transactions with category name for display
@@ -182,11 +185,6 @@ export default function DashboardPage() {
       bestStreak = Math.max(bestStreak, tempStreak)
       prevDate = dateStr
     }
-
-    // % gasto esta semana vs semana anterior
-    const weekVsPrev = spentPrevWeek > 0
-      ? Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
-      : 0
 
     // Días de la semana para racha visual
     const weekDayStatus: ('done' | 'today' | 'miss')[] = Array.from({ length: 7 }, (_, i) => {
