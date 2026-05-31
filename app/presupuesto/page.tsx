@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
-import { localMonthStart } from '@/lib/dates';
+import { localMonth } from '@/lib/dates';
+import { DateFilter } from '@/components/ui/DateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,6 +66,12 @@ export default function PresupuestoPage() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({});
+  const [comparativoFrom, setComparativoFrom] = useState<string>(() => `${localMonth()}-01`);
+  const [comparativoTo, setComparativoTo] = useState<string>(() => {
+    const ym = localMonth(); const [y,m] = ym.split('-').map(Number);
+    return `${ym}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
+  });
+  const [loadingComparativo, setLoadingComparativo] = useState(false);
   const [budgetDefCollapsed, setBudgetDefCollapsed] = useState(true);
   const [comparativoCollapsed, setComparativoCollapsed] = useState(true);
   const router = useRouter();
@@ -86,29 +93,18 @@ export default function PresupuestoPage() {
       if (!hh) { router.push('/onboarding'); return; }
       setHouseholdId(hh.id);
 
-      const monthStart = localMonthStart();
-
-      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }, { data: entries }] = await Promise.all([
+      const [{ data: cats }, { data: fp }, { data: subs }, { data: entries }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
         supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
-        supabase.from('transactions').select('category_id, amount').eq('household_id', hh.id).gte('date', monthStart),
         supabase.from('income_entries').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
       ]);
-
-      // Aggregate spending by category
-      const spent: Record<string, number> = {};
-      (txs || []).forEach((tx: { category_id: string; amount: number }) => {
-        spent[tx.category_id] = (spent[tx.category_id] || 0) + Number(tx.amount);
-      });
-      setSpentByCategory(spent);
 
       setCategories((cats || []) as BudgetCategory[]);
       setSubItems((subs || []) as BudgetSubItem[]);
 
       const loadedEntries = (entries || []) as IncomeEntry[];
       setIncomeEntries(loadedEntries);
-      // Always calculate income from entries; fall back to financial_profiles only if no entries exist
       if (loadedEntries.length > 0) {
         const total = loadedEntries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
         setIncome(Math.round(total * 100) / 100);
@@ -120,11 +116,31 @@ export default function PresupuestoPage() {
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Reload transactions when comparativo date range changes
+  useEffect(() => {
+    if (!householdId) return;
+    async function loadComparativo() {
+      setLoadingComparativo(true);
+      const { data: txs } = await supabase
+        .from('transactions')
+        .select('category_id, amount')
+        .eq('household_id', householdId)
+        .gte('date', comparativoFrom)
+        .lte('date', comparativoTo);
+      const spent: Record<string, number> = {};
+      (txs || []).forEach((tx: { category_id: string; amount: number }) => {
+        spent[tx.category_id] = (spent[tx.category_id] || 0) + Number(tx.amount);
+      });
+      setSpentByCategory(spent);
+      setLoadingComparativo(false);
+    }
+    loadComparativo();
+  }, [householdId, comparativoFrom, comparativoTo]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function recalcAndSyncIncome(entries: IncomeEntry[]) {
     const total = entries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
     const rounded = Math.round(total * 100) / 100;
     setIncome(rounded);
-    // Keep financial_profiles.total_income in sync for the dashboard hero
     if (householdId) {
       void supabase.from('financial_profiles').update({ total_income: rounded }).eq('household_id', householdId);
     }
@@ -827,26 +843,41 @@ export default function PresupuestoPage() {
           return (
           <Card className="mb-6">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base text-navy">Comparativo del mes</CardTitle>
-                <button onClick={() => setComparativoCollapsed(!comparativoCollapsed)} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
-                  <span>{comparativoCollapsed ? 'Ver detalle' : 'Cerrar'}</span>
-                  {comparativoCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                </button>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base text-navy">Comparativo</CardTitle>
+                  <button onClick={() => setComparativoCollapsed(!comparativoCollapsed)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+                    {comparativoCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="mt-2 border border-gray-100 rounded-xl bg-gray-50">
+                <DateFilter
+                  dateFrom={comparativoFrom}
+                  dateTo={comparativoTo}
+                  onChange={(from, to) => { setComparativoFrom(from); setComparativoTo(to); }}
+                  variant="light"
+                  showBorder={false}
+                />
               </div>
               {comparativoCollapsed && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Presupuesto: {fmtNum(totalBudgeted)} &middot; Real: {fmtNum(totalSpent)} &middot;{' '}
+                  {loadingComparativo ? 'Cargando...' : <>Presupuesto: {fmtNum(totalBudgeted)} &middot; Real: {fmtNum(totalSpent)} &middot;{' '}
                   <span className={totalDiff > 0 ? 'text-red-500' : totalDiff < 0 ? 'text-green-600' : ''}>
                     Variación: {totalDiff > 0 ? '+' : totalDiff < 0 ? '-' : ''}{fmtNum(Math.abs(totalDiff))}
-                  </span>
+                  </span></>}
                 </p>
               )}
               <p className="text-xs text-gray-400 mt-1">Todas las cifras están en Quetzales (GTQ)</p>
             </CardHeader>
             {!comparativoCollapsed && (
             <CardContent className="pt-0 overflow-x-auto">
-              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+              {loadingComparativo && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="w-5 h-5 text-electric animate-spin" />
+                </div>
+              )}
+              <table className="w-full text-sm" style={{ borderCollapse: 'collapse', opacity: loadingComparativo ? 0.4 : 1 }}>
                 <thead>
                   <tr className="border-b-2 border-gray-200">
                     <th className="text-left text-xs font-semibold text-gray-500 py-2 px-1">Categoría</th>

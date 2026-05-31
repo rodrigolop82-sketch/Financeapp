@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
+import { localToday, localMonth, localDaysAgo } from '@/lib/dates'
+import { DateFilter } from '@/components/ui/DateFilter'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
 import { SummaryRow } from '@/components/dashboard/SummaryRow'
@@ -47,14 +48,24 @@ interface DashboardData {
   categories: BudgetCategory[]
 }
 
+function currentMonthRange(): { from: string; to: string } {
+  const ym = localMonth()
+  const [y, m] = ym.split('-').map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
+  return { from: `${ym}-01`, to: `${ym}-${String(lastDay).padStart(2, '0')}` }
+}
+
 export default function DashboardPage() {
+  const init = currentMonthRange()
   const [data, setData] = useState<DashboardData | null>(null)
+  const [dateFrom, setDateFrom] = useState(init.from)
+  const [dateTo, setDateTo] = useState(init.to)
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const router = useRouter()
 
-  useEffect(() => { loadDashboardData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadDashboardData(dateFrom, dateTo) }, [dateFrom, dateTo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for voice overlay trigger from BottomNav
   useEffect(() => {
@@ -63,7 +74,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener('zafi:voice-overlay', handler)
   }, [])
 
-  async function loadDashboardData() {
+  async function loadDashboardData(from: string, to: string) {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -94,14 +105,15 @@ export default function DashboardPage() {
     const hid = household.id as string
 
     const now = new Date()
-    const monthStart = localMonthStart()
+    const today = localToday()
+    const currentRange = currentMonthRange()
+    const isCurrentMonth = from === currentRange.from && to === currentRange.to
     const weekStart = localDaysAgo(7)
     const prevWeekStart = localDaysAgo(14)
-    const today = localToday()
 
     const [profileRes, txMonthRes, categoriesRes, txPrevWeekRes, tx90Res] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
-      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).order('date', { ascending: false }),
+      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', from).lte('date', to).order('date', { ascending: false }),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
       supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
       supabase.from('transactions').select('date').eq('household_id', hid).gte('date', localDaysAgo(90)),
@@ -115,8 +127,12 @@ export default function DashboardPage() {
     const categoryMap: Record<string, string> = {}
     categories.forEach((c) => { categoryMap[c.id] = c.name })
 
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-    const daysLeft = daysInMonth - now.getDate()
+    const daysInMonth = (() => {
+      // Use the to-date's month for daysInMonth
+      const [ty, tm] = to.split('-').map(Number)
+      return new Date(ty, tm, 0).getDate()
+    })()
+    const daysLeft = isCurrentMonth ? daysInMonth - now.getDate() : 0
 
     const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
     const spentToday = txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0)
@@ -246,7 +262,7 @@ export default function DashboardPage() {
     const count = transactions.length
     setSuccessMsg(`${count} gasto${count > 1 ? 's' : ''} guardado${count > 1 ? 's' : ''}`)
     setTimeout(() => setSuccessMsg(null), 3000)
-    loadDashboardData()
+    loadDashboardData(dateFrom, dateTo)
   }
 
   if (!data) {
@@ -257,9 +273,11 @@ export default function DashboardPage() {
     )
   }
 
+  const isCurrentMonth = dateFrom === currentMonthRange().from && dateTo === currentMonthRange().to
+
   return (
     <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
-      {/* Hero marino */}
+      {/* Hero marino — el filtro vive dentro de la card */}
       <StatusHero
         spent={data.spentMonth}
         budget={data.budget}
@@ -267,6 +285,15 @@ export default function DashboardPage() {
         userName={data.userName}
         score={data.healthScore}
         userInitials={data.userInitials}
+        isHistorical={!isCurrentMonth}
+        filterSlot={
+          <DateFilter
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onChange={(from, to) => { setData(null); setDateFrom(from); setDateTo(to) }}
+            variant="dark"
+          />
+        }
       />
 
       {/* Mensaje de éxito */}

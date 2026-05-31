@@ -242,7 +242,7 @@ export interface CapsuleRecommendation {
   reason: string;
 }
 
-// Income entry (stored in localStorage)
+// Income entry (persisted in financial_profiles.income_entries JSONB)
 export interface IncomeEntry {
   id: string;
   source: string;
