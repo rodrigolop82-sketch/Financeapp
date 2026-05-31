@@ -369,6 +369,7 @@ export default function DashboardPage() {
         householdId={data.householdId}
         categories={data.categories}
         onSuccess={() => loadDashboardData()}
+        onVoiceOverlay={() => setVoiceOverlayOpen(true)}
       />
 
       {/* Summary */}
