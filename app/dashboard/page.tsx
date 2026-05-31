@@ -368,7 +368,7 @@ export default function DashboardPage() {
       <ExpenseDrawer
         householdId={data.householdId}
         categories={data.categories}
-        onSaved={() => loadDashboardData()}
+        onSuccess={() => loadDashboardData()}
       />
 
       {/* Summary */}
