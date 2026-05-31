@@ -2,19 +2,21 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { localToday, localMonth, localDaysAgo } from '@/lib/dates'
-import { DateFilter } from '@/components/ui/DateFilter'
+import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
+import { ExpenseDrawer } from '@/components/expenses/ExpenseDrawer'
 import { SummaryRow } from '@/components/dashboard/SummaryRow'
 import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
 import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
-import { ExpenseDrawer } from '@/components/expenses/ExpenseDrawer'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household } from '@/types'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { getUserHousehold } from '@/lib/household'
+
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 interface EnrichedTransaction {
   id: string
@@ -35,7 +37,6 @@ interface DashboardData {
   spentMonth: number
   spentToday: number
   spentWeek: number
-  weekVsPrev: number
   todayCount: number
   daysLeft: number
   daysInMonth: number
@@ -43,29 +44,22 @@ interface DashboardData {
   weekDayStatus: ('done' | 'today' | 'miss')[]
   currentStreak: number
   bestStreak: number
+  weekVsPrev: number
   budget: number
   householdId: string
   categories: BudgetCategory[]
-}
-
-function currentMonthRange(): { from: string; to: string } {
-  const ym = localMonth()
-  const [y, m] = ym.split('-').map(Number)
-  const lastDay = new Date(y, m, 0).getDate()
-  return { from: `${ym}-01`, to: `${ym}-${String(lastDay).padStart(2, '0')}` }
+  isCurrentMonth: boolean
 }
 
 export default function DashboardPage() {
-  const init = currentMonthRange()
   const [data, setData] = useState<DashboardData | null>(null)
-  const [dateFrom, setDateFrom] = useState(init.from)
-  const [dateTo, setDateTo] = useState(init.to)
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
+  const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
   const router = useRouter()
 
-  useEffect(() => { loadDashboardData(dateFrom, dateTo) }, [dateFrom, dateTo]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadDashboardData(selectedMonthStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for voice overlay trigger from BottomNav
   useEffect(() => {
@@ -74,7 +68,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener('zafi:voice-overlay', handler)
   }, [])
 
-  async function loadDashboardData(from: string, to: string) {
+  async function loadDashboardData(ms?: string) {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -89,13 +83,8 @@ export default function DashboardPage() {
       .eq('id', user.id)
       .single()
 
-    // Get household (owner)
-    const { data: household } = await supabase
-      .from('households')
-      .select('*')
-      .eq('owner_id', user.id)
-      .limit(1)
-      .single()
+    // Get household (owner or member)
+    const household = await getUserHousehold(supabase, user.id)
 
     if (!household) {
       router.push('/onboarding')
@@ -105,43 +94,46 @@ export default function DashboardPage() {
     const hid = household.id as string
 
     const now = new Date()
-    const today = localToday()
-    const currentRange = currentMonthRange()
-    const isCurrentMonth = from === currentRange.from && to === currentRange.to
-    const weekStart = localDaysAgo(7)
-    const prevWeekStart = localDaysAgo(14)
+    const currentMs = localMonthStart()
+    const monthStart = ms ?? currentMs
+    const isCurrentMonth = monthStart === currentMs
 
-    const [profileRes, txMonthRes, categoriesRes, txPrevWeekRes, tx90Res] = await Promise.all([
+    // Calculate the last day of the selected month
+    const msDate = new Date(monthStart + 'T12:00:00')
+    const nextMonthDate = new Date(msDate.getFullYear(), msDate.getMonth() + 1, 1)
+    const nextMonthStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-01`
+
+    const weekStart = localDaysAgo(7)
+    const today = localToday()
+
+    const prevWeekStart = localDaysAgo(14)
+    const [profileRes, txMonthRes, categoriesRes, prevWeekRes, allDatesRes] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
-      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', from).lte('date', to).order('date', { ascending: false }),
+      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).lt('date', nextMonthStr).order('date', { ascending: false }),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
-      supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
-      supabase.from('transactions').select('date').eq('household_id', hid).gte('date', localDaysAgo(90)),
+      isCurrentMonth
+        ? supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart)
+        : Promise.resolve({ data: [] }),
+      supabase.from('transactions').select('date').eq('household_id', hid),
     ])
 
     const profile = profileRes.data as FinancialProfile | null
     const txMonth = (txMonthRes.data ?? []) as Transaction[]
-    const txPrevWeek = (txPrevWeekRes.data ?? []) as { amount: number }[]
     const categories = (categoriesRes.data ?? []) as BudgetCategory[]
+    const prevWeekTx = (prevWeekRes.data ?? []) as { amount: number }[]
+    const allDates = (allDatesRes.data ?? []) as { date: string }[]
+
     // Build category lookup map
     const categoryMap: Record<string, string> = {}
     categories.forEach((c) => { categoryMap[c.id] = c.name })
 
-    const daysInMonth = (() => {
-      // Use the to-date's month for daysInMonth
-      const [ty, tm] = to.split('-').map(Number)
-      return new Date(ty, tm, 0).getDate()
-    })()
+    const daysInMonth = new Date(msDate.getFullYear(), msDate.getMonth() + 1, 0).getDate()
     const daysLeft = isCurrentMonth ? daysInMonth - now.getDate() : 0
 
     const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
-    const spentToday = txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0)
-    const spentWeek  = txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0)
-    const spentPrevWeek = txPrevWeek.reduce((s, t) => s + Number(t.amount), 0)
-    const weekVsPrev = spentPrevWeek === 0
-      ? (spentWeek > 0 ? 100 : 0)
-      : Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
-    const todayCount = txMonth.filter((t) => t.date === today).length
+    const spentToday = isCurrentMonth ? txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0) : 0
+    const spentWeek  = isCurrentMonth ? txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0) : 0
+    const todayCount = isCurrentMonth ? txMonth.filter((t) => t.date === today).length : 0
 
     // Enrich transactions with category name for display
     const enrichedTransactions: EnrichedTransaction[] = txMonth.map((t) => ({
@@ -185,22 +177,31 @@ export default function DashboardPage() {
       }
     }
 
-    // Calcular mejor racha histórica (últimos 90 días)
-    const tx90Dates = Array.from(new Set((tx90Res.data ?? []).map((t: { date: string }) => t.date))).sort()
-    let bestStreak = currentStreak
-    let tempStreak = 0
-    let prevDate: string | null = null
-    for (const dateStr of tx90Dates) {
-      if (prevDate === null) {
-        tempStreak = 1
+    // Mejor racha histórica
+    const allTxDatesSet = new Set(allDates.map((r) => r.date))
+    const sortedAllDates = Array.from(allTxDatesSet).sort()
+    let bestStreak = 0
+    let bStreak = 0
+    let prevD: string | null = null
+    for (const d of sortedAllDates) {
+      if (prevD) {
+        const diffDays = Math.round(
+          (new Date(d + 'T12:00:00').getTime() - new Date(prevD + 'T12:00:00').getTime()) / 86400000
+        )
+        bStreak = diffDays === 1 ? bStreak + 1 : 1
       } else {
-        const diffMs = new Date(dateStr + 'T12:00:00').getTime() - new Date(prevDate + 'T12:00:00').getTime()
-        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
-        tempStreak = diffDays === 1 ? tempStreak + 1 : 1
+        bStreak = 1
       }
-      bestStreak = Math.max(bestStreak, tempStreak)
-      prevDate = dateStr
+      if (bStreak > bestStreak) bestStreak = bStreak
+      prevD = d
     }
+    bestStreak = Math.max(bestStreak, currentStreak)
+
+    // Variación semana vs semana anterior
+    const spentPrevWeek = prevWeekTx.reduce((s, t) => s + Number(t.amount), 0)
+    const weekVsPrev = spentPrevWeek > 0
+      ? Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
+      : 0
 
     // Días de la semana para racha visual
     const weekDayStatus: ('done' | 'today' | 'miss')[] = Array.from({ length: 7 }, (_, i) => {
@@ -240,7 +241,33 @@ export default function DashboardPage() {
       daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, bestStreak, weekVsPrev, budget,
       householdId: hid,
       categories,
+      isCurrentMonth,
     })
+  }
+
+  function getMonthLabel(ms: string) {
+    const d = new Date(ms + 'T12:00:00')
+    return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
+  }
+
+  function goToPrevMonth() {
+    const d = new Date(selectedMonthStart + 'T12:00:00')
+    d.setMonth(d.getMonth() - 1)
+    const newMs = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    setSelectedMonthStart(newMs)
+    setData(null)
+    loadDashboardData(newMs)
+  }
+
+  function goToNextMonth() {
+    const d = new Date(selectedMonthStart + 'T12:00:00')
+    d.setMonth(d.getMonth() + 1)
+    const newMs = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    if (newMs <= localMonthStart()) {
+      setSelectedMonthStart(newMs)
+      setData(null)
+      loadDashboardData(newMs)
+    }
   }
 
   async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
@@ -262,7 +289,7 @@ export default function DashboardPage() {
     const count = transactions.length
     setSuccessMsg(`${count} gasto${count > 1 ? 's' : ''} guardado${count > 1 ? 's' : ''}`)
     setTimeout(() => setSuccessMsg(null), 3000)
-    loadDashboardData(dateFrom, dateTo)
+    loadDashboardData()
   }
 
   if (!data) {
@@ -273,11 +300,37 @@ export default function DashboardPage() {
     )
   }
 
-  const isCurrentMonth = dateFrom === currentMonthRange().from && dateTo === currentMonthRange().to
+  const isCurrentMonth = data.isCurrentMonth
 
   return (
     <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
-      {/* Hero marino — el filtro vive dentro de la card */}
+
+      {/* Navegador de mes */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 0' }}>
+        <button
+          onClick={goToPrevMonth}
+          className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/5 transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <div style={{ textAlign: 'center' }}>
+          <span className="font-outfit font-semibold text-navy" style={{ fontSize: 15 }}>
+            {getMonthLabel(selectedMonthStart)}
+          </span>
+          {!isCurrentMonth && (
+            <span className="text-xs text-gray-400 ml-2">histórico</span>
+          )}
+        </div>
+        <button
+          onClick={goToNextMonth}
+          disabled={isCurrentMonth}
+          className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/5 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Hero marino */}
       <StatusHero
         spent={data.spentMonth}
         budget={data.budget}
@@ -285,15 +338,7 @@ export default function DashboardPage() {
         userName={data.userName}
         score={data.healthScore}
         userInitials={data.userInitials}
-        isHistorical={!isCurrentMonth}
-        filterSlot={
-          <DateFilter
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            onChange={(from, to) => { setData(null); setDateFrom(from); setDateTo(to) }}
-            variant="dark"
-          />
-        }
+        isPastMonth={!isCurrentMonth}
       />
 
       {/* Mensaje de éxito */}
@@ -307,8 +352,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Preview de voz (si hay) */}
-      {voiceResult && (
+      {/* Preview de voz (solo mes actual) */}
+      {voiceResult && isCurrentMonth && (
         <div style={{ margin: '10px 16px 0', padding: 14, background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14 }}>
           <p style={{ fontSize: 14, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisá antes de guardar</p>
           <TransactionPreview
@@ -323,8 +368,7 @@ export default function DashboardPage() {
       <ExpenseDrawer
         householdId={data.householdId}
         categories={data.categories}
-        onSuccess={loadDashboardData}
-        onVoiceOverlay={() => setVoiceOverlayOpen(true)}
+        onSaved={() => loadDashboardData()}
       />
 
       {/* Summary */}
@@ -335,23 +379,26 @@ export default function DashboardPage() {
         weekVsPrev={data.weekVsPrev}
         month={data.spentMonth}
         monthBudget={data.budget}
+        isPastMonth={!isCurrentMonth}
       />
 
-      {/* Alerta inteligente */}
-      <SmartAlert alert={data.alert} />
+      {/* Alerta inteligente — solo mes actual */}
+      {isCurrentMonth && <SmartAlert alert={data.alert} />}
 
-      {/* Últimos movimientos */}
+      {/* Transacciones del período */}
       <TransactionsList
         transactions={data.enrichedTransactions}
         onSeeAll={() => router.push('/transacciones')}
       />
 
-      {/* Racha */}
-      <StreakCard
-        currentStreak={data.currentStreak}
-        bestStreak={data.bestStreak}
-        weekDays={data.weekDayStatus}
-      />
+      {/* Racha — solo mes actual */}
+      {isCurrentMonth && (
+        <StreakCard
+          currentStreak={data.currentStreak}
+          bestStreak={data.bestStreak}
+          weekDays={data.weekDayStatus}
+        />
+      )}
 
       {/* Espacio final para BottomNav */}
       <div className="h-6" />

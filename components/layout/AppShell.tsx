@@ -10,16 +10,16 @@ import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
   BarChart3, Wallet, CreditCard, Target, Receipt,
   MessageCircle, BookOpen, Clock, Users, Settings,
-  Menu, LogOut, ArrowLeft, ShieldCheck, BellRing,
+  Menu, LogOut, ArrowLeft, ShieldCheck, Trophy,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: BarChart3, label: 'Dashboard' },
   { href: '/presupuesto', icon: Wallet, label: 'Presupuesto' },
+  { href: '/metas', icon: Trophy, label: 'Metas' },
   { href: '/deudas', icon: CreditCard, label: 'Deudas' },
   { href: '/plan', icon: Target, label: 'Plan' },
   { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
-  { href: '/notificacion', icon: BellRing, label: 'Notificación' },
   { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
   { href: '/aprende', icon: BookOpen, label: 'Aprende' },
   { href: '/historial', icon: Clock, label: 'Historial' },

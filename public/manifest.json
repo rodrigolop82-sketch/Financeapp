@@ -1,12 +1,11 @@
 {
-  "name": "Zafi - Finanzas Personales",
+  "name": "Zafi — Finanzas personales",
   "short_name": "Zafi",
-  "description": "Tu asistente financiero personal",
+  "description": "Tu planner financiero para Guatemala y Latinoamérica",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#F8F9FF",
+  "background_color": "#F0F4FA",
   "theme_color": "#1E3A5F",
-  "orientation": "portrait",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -20,14 +19,10 @@
     }
   ],
   "share_target": {
-    "action": "/notificacion",
+    "action": "/transacciones",
     "method": "GET",
     "params": {
-      "text": "text",
-      "title": "title"
+      "text": "shared_text"
     }
-  },
-  "categories": ["finance"],
-  "lang": "es",
-  "dir": "ltr"
+  }
 }

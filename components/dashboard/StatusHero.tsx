@@ -1,5 +1,4 @@
 'use client'
-import React from 'react'
 import { useMoneyFormat } from '@/lib/format'
 import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
@@ -12,19 +11,13 @@ interface StatusHeroProps {
   userName: string
   score: number
   userInitials: string
-  filterSlot?: React.ReactNode
-  isHistorical?: boolean
+  isPastMonth?: boolean
 }
 
-function getStatusMessage(pct: number, daysLeft: number, userName: string, isHistorical?: boolean): {
+function getStatusMessage(pct: number, daysLeft: number, userName: string): {
   text: string
   color: 'green' | 'amber' | 'red'
 } {
-  if (isHistorical) {
-    if (pct < 0.9) return { text: `Buen control ese período, ${userName}`, color: 'green' }
-    if (pct < 1.0) return { text: `Casi al límite ese período, ${userName}`, color: 'amber' }
-    return { text: `Superaste el presupuesto ese período, ${userName}`, color: 'red' }
-  }
   if (pct < 0.6) return { text: `Vas muy bien este mes, ${userName}`, color: 'green' }
   if (pct < 0.75) return { text: `Vas bien este mes, ${userName}`, color: 'green' }
   if (pct < 0.90) {
@@ -35,12 +28,12 @@ function getStatusMessage(pct: number, daysLeft: number, userName: string, isHis
   return { text: `Superaste el presupuesto este mes, ${userName}`, color: 'red' }
 }
 
-export function StatusHero({ spent, budget, daysLeft, userName, score, userInitials, filterSlot, isHistorical }: StatusHeroProps) {
+export function StatusHero({ spent, budget, daysLeft, userName, score, userInitials, isPastMonth = false }: StatusHeroProps) {
   const { money } = useMoneyFormat()
   const remaining = Math.max(budget - spent, 0)
   const pct = budget > 0 ? spent / budget : 0
   const pctDisplay = Math.min(Math.round(pct * 100), 100)
-  const status = getStatusMessage(pct, daysLeft, userName, isHistorical)
+  const status = getStatusMessage(pct, daysLeft, userName)
 
   const barColor =
     status.color === 'green' ? '#2563EB' :
@@ -126,21 +119,18 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
               <div className="font-sans text-caption text-white/[0.45]" style={{ marginBottom: 1 }}>
-                Te quedan
+                {isPastMonth ? 'Disponible no usado' : 'Te quedan'}
               </div>
               <div className="font-outfit font-extrabold text-white tracking-[-0.02em]" style={{ fontSize: 24 }}>
                 {money(remaining)}
               </div>
             </div>
             <div className="font-sans text-caption text-white/[0.35] text-right">
-              {isHistorical ? 'período anterior' : `${daysLeft} días restantes`}
+              {isPastMonth ? 'Mes completado' : `${daysLeft} días restantes`}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Filter slot — rendered at bottom of hero card */}
-      {filterSlot}
     </div>
   )
 }

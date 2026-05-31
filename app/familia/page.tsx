@@ -21,29 +21,21 @@ import {
   Copy,
   Check,
   Share2,
-  Clock,
-  XCircle,
+  Receipt,
 } from 'lucide-react';
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
+import { getUserHousehold } from '@/lib/household';
 
 interface Member {
   user_id: string;
   role: string;
   joined_at: string;
-  users: { email: string; display_name: string | null } | null;
-}
-
-interface PendingInvite {
-  id: string;
-  invite_code: string;
-  status: 'pendiente' | 'expirada';
-  created_at: string;
-  expires_at: string;
+  users: { email: string; full_name: string | null } | null;
 }
 
 export default function FamiliaPage() {
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Member[]>([]);
-  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [householdId, setHouseholdId] = useState('');
   const [isOwner, setIsOwner] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
@@ -53,46 +45,53 @@ export default function FamiliaPage() {
   const [inviteLink, setInviteLink] = useState('');
   const [generatingLink, setGeneratingLink] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [spendingByMember, setSpendingByMember] = useState<Record<string, number>>({});
+  const [txCountByMember, setTxCountByMember] = useState<Record<string, number>>({});
+  const [unattributedSpending, setUnattributedSpending] = useState(0);
   const router = useRouter();
   const supabase = createClient();
+  const fmt = useFormatMoney();
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
-      let hhId = '';
+      const hh = await getUserHousehold(supabase, user.id);
+      if (!hh) { router.push('/onboarding'); return; }
 
-      const { data: hh } = await supabase
-        .from('households').select('id, owner_id').eq('owner_id', user.id).limit(1).single();
-
-      if (!hh) {
-        // Try as member
-        const { data: membership } = await supabase
-          .from('household_members')
-          .select('household_id, households(id, owner_id)')
-          .eq('user_id', user.id)
-          .limit(1)
-          .single();
-
-        if (!membership) { router.push('/onboarding'); return; }
-        const household = membership.households as unknown as { id: string; owner_id: string };
-        hhId = household.id;
-        setHouseholdId(household.id);
-        setIsOwner(household.owner_id === user.id);
-      } else {
-        hhId = hh.id;
-        setHouseholdId(hh.id);
-        setIsOwner(true);
-      }
+      const hhId = hh.id;
+      setHouseholdId(hhId);
+      setIsOwner(hh.owner_id === user.id);
 
       if (hhId) {
-        const res = await fetch(`/api/familia?householdId=${hhId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setMembers(data.members || []);
-          setPendingInvites(data.invites || []);
+        const [membersRes, { data: txData }] = await Promise.all([
+          fetch(`/api/familia?householdId=${hhId}`),
+          supabase
+            .from('transactions')
+            .select('created_by, amount')
+            .eq('household_id', hhId),
+        ]);
+
+        if (membersRes.ok) {
+          const data = await membersRes.json();
+          setMembers(data.members);
         }
+
+        const byMember: Record<string, number> = {};
+        const countByMember: Record<string, number> = {};
+        let unattributed = 0;
+        (txData || []).forEach((tx: { created_by: string | null; amount: number }) => {
+          if (tx.created_by) {
+            byMember[tx.created_by] = (byMember[tx.created_by] || 0) + Number(tx.amount);
+            countByMember[tx.created_by] = (countByMember[tx.created_by] || 0) + 1;
+          } else {
+            unattributed += Number(tx.amount);
+          }
+        });
+        setSpendingByMember(byMember);
+        setTxCountByMember(countByMember);
+        setUnattributedSpending(unattributed);
       }
       setLoading(false);
     }
@@ -116,12 +115,11 @@ export default function FamiliaPage() {
       setMessage({ type: 'success', text: 'Miembro agregado exitosamente' });
       setInviteEmail('');
       setShowInvite(false);
-      // Reload members and invites
+      // Reload members
       const listRes = await fetch(`/api/familia?householdId=${householdId}`);
       if (listRes.ok) {
         const listData = await listRes.json();
-        setMembers(listData.members || []);
-        setPendingInvites(listData.invites || []);
+        setMembers(listData.members);
       }
     } else {
       setMessage({ type: 'error', text: data.error || 'Error al invitar' });
@@ -302,41 +300,32 @@ export default function FamiliaPage() {
         {/* Members list */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-gray-500" />
-                <CardTitle className="text-base">Miembros del hogar</CardTitle>
-              </div>
-              <span className="text-xs text-gray-400">{members.length} miembro{members.length !== 1 ? 's' : ''}</span>
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-gray-500" />
+              <CardTitle className="text-base">Miembros del hogar</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="p-0 divide-y">
             {members.map((member) => (
               <div key={member.user_id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  member.role === 'owner' ? 'bg-amber-100' : 'bg-[#EFF6FF]'
+                  member.role === 'owner' ? 'bg-amber-100' : 'bg-gray-100'
                 }`}>
                   {member.role === 'owner'
                     ? <Crown className="w-5 h-5 text-amber-600" />
-                    : <User className="w-5 h-5 text-[#2563EB]" />
+                    : <User className="w-5 h-5 text-gray-400" />
                   }
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
-                    {member.users?.display_name || member.users?.email || 'Usuario'}
+                    {member.users?.full_name || member.users?.email || 'Usuario'}
                   </p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {member.users?.display_name && (
-                      <span className="text-xs text-gray-400">{member.users?.email}</span>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">{member.users?.email}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded ${
-                      member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-[#EFF6FF] text-[#2563EB]'
+                      member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
                     }`}>
                       {member.role === 'owner' ? 'Dueño' : 'Miembro'}
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-green-600">
-                      <CheckCircle2 className="w-3 h-3" />
-                      Activo
                     </span>
                   </div>
                 </div>
@@ -362,89 +351,8 @@ export default function FamiliaPage() {
           </CardContent>
         </Card>
 
-        {/* Pending invites */}
-        {isOwner && pendingInvites.length > 0 && (
-          <Card className="mt-4">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-5 h-5 text-gray-500" />
-                  <CardTitle className="text-base">Invitaciones enviadas</CardTitle>
-                </div>
-                <span className="text-xs text-gray-400">
-                  {pendingInvites.filter(i => i.status === 'pendiente').length} pendiente{pendingInvites.filter(i => i.status === 'pendiente').length !== 1 ? 's' : ''}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 divide-y">
-              {pendingInvites.map((inv) => {
-                const isPending = inv.status === 'pendiente';
-                const createdDate = new Date(inv.created_at).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
-                const daysLeft = Math.max(0, Math.ceil((new Date(inv.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-
-                return (
-                  <div key={inv.id} className="flex items-center gap-3 px-4 py-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      isPending ? 'bg-amber-50' : 'bg-gray-100'
-                    }`}>
-                      {isPending
-                        ? <Clock className="w-5 h-5 text-amber-500" />
-                        : <XCircle className="w-5 h-5 text-gray-400" />
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        Link de invitación
-                      </p>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs text-gray-400">
-                          Enviada el {createdDate}
-                        </span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                          isPending
-                            ? 'bg-amber-50 text-amber-600'
-                            : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {isPending ? (
-                            <>
-                              <Clock className="w-3 h-3" />
-                              Pendiente · {daysLeft}d restantes
-                            </>
-                          ) : (
-                            <>
-                              <XCircle className="w-3 h-3" />
-                              Expirada
-                            </>
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                    {isPending && (
-                      <button
-                        onClick={async () => {
-                          const link = `${window.location.origin}/invite/${inv.invite_code}`;
-                          if (navigator.share) {
-                            await navigator.share({ title: 'Únete a mi hogar en Zafi', text: 'Te invito a compartir el presupuesto familiar', url: link });
-                          } else {
-                            await navigator.clipboard.writeText(link);
-                            setMessage({ type: 'success', text: 'Link copiado al portapapeles' });
-                            setTimeout(() => setMessage(null), 2000);
-                          }
-                        }}
-                        className="text-[#2563EB] hover:text-[#1D4ED8] flex-shrink-0"
-                      >
-                        <Share2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        )}
-
         {/* Info card */}
-        {isOwner && (
+        {isOwner && members.length > 0 && (
           <Card className="mt-4 bg-blue-50 border-blue-200">
             <CardContent className="p-4">
               <p className="text-sm text-blue-700">
@@ -453,6 +361,80 @@ export default function FamiliaPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Spending breakdown by member */}
+        {members.length > 0 && (() => {
+          const totalSpending = Object.values(spendingByMember).reduce((s, v) => s + v, 0) + unattributedSpending;
+          if (totalSpending === 0) return null;
+          return (
+            <Card className="mt-4">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-gray-500" />
+                  <CardTitle className="text-base">Gastos por miembro</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between text-sm border-b pb-3">
+                  <span className="text-gray-500">Total del hogar</span>
+                  <span className="font-bold text-navy">{fmt(totalSpending)}</span>
+                </div>
+                {members.map(member => {
+                  const amount = spendingByMember[member.user_id] || 0;
+                  const pct = totalSpending > 0 ? Math.round((amount / totalSpending) * 100) : 0;
+                  const count = txCountByMember[member.user_id] || 0;
+                  const name = member.users?.full_name || member.users?.email?.split('@')[0] || 'Usuario';
+                  return (
+                    <div key={member.user_id}>
+                      <div className="flex items-center justify-between text-sm mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {name[0]?.toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="font-medium">{name}</span>
+                            <span className="text-xs text-gray-400 ml-1.5">{count} tx</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-semibold">{fmt(amount)}</span>
+                          <span className="text-gray-400 text-xs ml-1.5">{pct}%</span>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-electric"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                {unattributedSpending > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between text-sm mb-1.5">
+                      <span className="text-gray-400 italic">Sin atribuir</span>
+                      <div className="text-right">
+                        <span className="text-gray-500">{fmt(unattributedSpending)}</span>
+                        <span className="text-gray-400 text-xs ml-1.5">
+                          {Math.round((unattributedSpending / totalSpending) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gray-300"
+                        style={{ width: `${Math.round((unattributedSpending / totalSpending) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
     </AppShell>
   );
 }
