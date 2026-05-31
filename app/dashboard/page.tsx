@@ -380,7 +380,6 @@ export default function DashboardPage() {
         weekVsPrev={data.weekVsPrev}
         month={data.spentMonth}
         monthBudget={data.budget}
-        isPastMonth={!isCurrentMonth}
       />
 
       {/* Alerta inteligente — solo mes actual */}
