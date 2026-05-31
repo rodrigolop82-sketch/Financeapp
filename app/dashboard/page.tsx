@@ -3,16 +3,15 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
-import { cleanTransactionName } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
-import { QuickAddBar } from '@/components/dashboard/QuickAddBar'
 import { SummaryRow } from '@/components/dashboard/SummaryRow'
 import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
 import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
+import { ExpenseDrawer } from '@/components/expenses/ExpenseDrawer'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household } from '@/types'
 import { Loader2 } from 'lucide-react'
 
@@ -231,7 +230,6 @@ export default function DashboardPage() {
     })
   }
 
-  // Keyword map for auto-categorizing quick-add transactions
   const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'alimentación': ['super', 'supermercado', 'mercado', 'comida', 'pollo', 'carne', 'verdura', 'fruta', 'pan', 'leche', 'huevo', 'arroz', 'frijol', 'tortilla', 'despensa'],
     'restaurantes': ['almuerzo', 'cena', 'desayuno', 'restaurante', 'pizza', 'hamburguesa', 'sushi', 'café', 'starbucks', 'mcdonald', 'burger', 'taco', 'comida rápida'],
@@ -248,13 +246,11 @@ export default function DashboardPage() {
   function matchCategory(description: string): string | null {
     if (!data) return null
     const lower = description.toLowerCase()
-    // Try direct match with category name
     for (const cat of data.categories) {
       if (lower.includes(cat.name.toLowerCase()) || cat.name.toLowerCase().includes(lower)) {
         return cat.id
       }
     }
-    // Try keyword matching
     for (const [catKeyword, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
       if (keywords.some(k => lower.includes(k))) {
         const match = data.categories.find(c => c.name.toLowerCase().includes(catKeyword))
@@ -345,7 +341,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Mensaje de error */}
       {errorMsg && (
         <div style={{
           margin: '10px 16px 0', padding: '8px 12px',
@@ -368,9 +363,11 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Quick add */}
-      <QuickAddBar
-        onAdd={handleQuickAdd}
+      {/* Expense drawer */}
+      <ExpenseDrawer
+        householdId={data.householdId}
+        categories={data.categories}
+        onSuccess={loadDashboardData}
         onVoiceOverlay={() => setVoiceOverlayOpen(true)}
       />
 

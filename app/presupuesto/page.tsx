@@ -58,7 +58,7 @@ export default function PresupuestoPage() {
   const [newSubAmount, setNewSubAmount] = useState(0);
   const [newSubFixed, setNewSubFixed] = useState(false);
   const [newSubPayment, setNewSubPayment] = useState<'efectivo' | 'tarjeta' | 'cheque' | 'transferencia'>('efectivo');
-  const [newSubFrequency, setNewSubFrequency] = useState<'mensual' | 'trimestral' | 'anual'>('mensual');
+  const [newSubRecurrence, setNewSubRecurrence] = useState<BudgetSubItem['recurrence']>('mensual');
   const [addingCatBucket, setAddingCatBucket] = useState<'needs' | 'wants' | 'savings' | null>(null);
   const [newCatName, setNewCatName] = useState('');
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
@@ -88,11 +88,12 @@ export default function PresupuestoPage() {
 
       const monthStart = localMonthStart();
 
-      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }] = await Promise.all([
+      const [{ data: cats }, { data: fp }, { data: subs }, { data: txs }, { data: entries }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
         supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
         supabase.from('transactions').select('category_id, amount').eq('household_id', hh.id).gte('date', monthStart),
+        supabase.from('income_entries').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
       ]);
 
       // Aggregate spending by category
@@ -103,50 +104,59 @@ export default function PresupuestoPage() {
       setSpentByCategory(spent);
 
       setCategories((cats || []) as BudgetCategory[]);
-      setIncome(fp ? Number(fp.total_income) : 0);
       setSubItems((subs || []) as BudgetSubItem[]);
+
+      const loadedEntries = (entries || []) as IncomeEntry[];
+      setIncomeEntries(loadedEntries);
+      // Always calculate income from entries; fall back to financial_profiles only if no entries exist
+      if (loadedEntries.length > 0) {
+        const total = loadedEntries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
+        setIncome(Math.round(total * 100) / 100);
+      } else {
+        setIncome(fp ? Number(fp.total_income) : 0);
+      }
       setLoading(false);
     }
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load income entries from localStorage
-  useEffect(() => {
-    if (!householdId) return;
-    const stored = localStorage.getItem(`income_entries_${householdId}`);
-    if (stored) setIncomeEntries(JSON.parse(stored));
-  }, [householdId]);
-
-  function saveIncomeEntries(entries: IncomeEntry[]) {
-    setIncomeEntries(entries);
+  function recalcAndSyncIncome(entries: IncomeEntry[]) {
+    const total = entries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
+    const rounded = Math.round(total * 100) / 100;
+    setIncome(rounded);
+    // Keep financial_profiles.total_income in sync for the dashboard hero
     if (householdId) {
-      localStorage.setItem(`income_entries_${householdId}`, JSON.stringify(entries));
-      // Sync total to Supabase
-      const total = entries.reduce((s, e) => s + e.amount * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
-      const roundedTotal = Math.round(total * 100) / 100;
-      setIncome(roundedTotal);
-      supabase.from('financial_profiles').update({ total_income: roundedTotal }).eq('household_id', householdId);
+      void supabase.from('financial_profiles').update({ total_income: rounded }).eq('household_id', householdId);
     }
   }
 
-  function addIncomeEntry(source?: string) {
-    const entry: IncomeEntry = {
-      id: crypto.randomUUID(),
-      source: source || '',
-      member: 'Persona 1',
-      amount: 0,
-      frequency: 'mensual',
-    };
-    saveIncomeEntries([...incomeEntries, entry]);
+  async function addIncomeEntry(source?: string) {
+    if (!householdId) return;
+    const { data } = await supabase
+      .from('income_entries')
+      .insert({ household_id: householdId, source: source || '', member: 'Persona 1', amount: 0, frequency: 'mensual' })
+      .select()
+      .single();
+    if (data) {
+      const updated = [...incomeEntries, data as IncomeEntry];
+      setIncomeEntries(updated);
+      recalcAndSyncIncome(updated);
+    }
   }
 
   function updateIncomeEntry(id: string, field: string, value: string | number) {
     const updated = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
-    saveIncomeEntries(updated);
+    setIncomeEntries(updated);
+    recalcAndSyncIncome(updated);
+    // Fire-and-forget persist — same pattern as the rest of the page
+    void supabase.from('income_entries').update({ [field]: value }).eq('id', id);
   }
 
-  function deleteIncomeEntry(id: string) {
-    saveIncomeEntries(incomeEntries.filter(e => e.id !== id));
+  async function deleteIncomeEntry(id: string) {
+    await supabase.from('income_entries').delete().eq('id', id);
+    const updated = incomeEntries.filter(e => e.id !== id);
+    setIncomeEntries(updated);
+    recalcAndSyncIncome(updated);
   }
 
   // Monthly multiplier for frequency
@@ -160,7 +170,7 @@ export default function PresupuestoPage() {
   function getCategoryTotal(catId: string): number {
     const catSubs = subItems.filter(s => s.category_id === catId);
     if (catSubs.length > 0) {
-      return catSubs.reduce((s, sub) => s + monthlyAmount(Number(sub.amount), sub.frequency || 'mensual'), 0);
+      return catSubs.reduce((s, sub) => s + monthlyAmount(Number(sub.amount), sub.recurrence || 'mensual'), 0);
     }
     const cat = categories.find(c => c.id === catId);
     return cat ? Number(cat.budgeted_amount) : 0;
@@ -204,8 +214,8 @@ export default function PresupuestoPage() {
     // Save sub-item amounts
     for (const sub of subItems) {
       const updateData: Record<string, unknown> = { amount: sub.amount };
-      if (sub.frequency && sub.frequency !== 'mensual') {
-        updateData.frequency = sub.frequency;
+      if (sub.recurrence && sub.recurrence !== 'mensual') {
+        updateData.recurrence = sub.recurrence;
       }
       promises.push(
         supabase.from('budget_sub_items')
@@ -239,7 +249,7 @@ export default function PresupuestoPage() {
     // Try full insert first
     let result = await supabase
       .from('budget_sub_items')
-      .insert({ ...baseData, payment_method: newSubPayment, frequency: newSubFrequency })
+      .insert({ ...baseData, payment_method: newSubPayment, recurrence: newSubRecurrence })
       .select()
       .single();
 
@@ -271,7 +281,7 @@ export default function PresupuestoPage() {
       setNewSubAmount(0);
       setNewSubFixed(false);
       setNewSubPayment('efectivo');
-      setNewSubFrequency('mensual');
+      setNewSubRecurrence('mensual');
       setAddingSubItem(null);
       setSaved(false);
     }
@@ -282,9 +292,9 @@ export default function PresupuestoPage() {
     setSubItems(items => items.map(s => s.id === id ? { ...s, payment_method: method } : s));
   }
 
-  async function updateSubFrequency(id: string, frequency: BudgetSubItem['frequency']) {
-    await supabase.from('budget_sub_items').update({ frequency }).eq('id', id);
-    setSubItems(items => items.map(s => s.id === id ? { ...s, frequency } : s));
+  async function updateSubRecurrence(id: string, recurrence: BudgetSubItem['recurrence']) {
+    await supabase.from('budget_sub_items').update({ recurrence }).eq('id', id);
+    setSubItems(items => items.map(s => s.id === id ? { ...s, recurrence } : s));
     setSaved(false);
   }
 
@@ -663,8 +673,8 @@ export default function PresupuestoPage() {
                                   </select>
                                   <select
                                     className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
-                                    value={sub.frequency || 'mensual'}
-                                    onChange={(e) => updateSubFrequency(sub.id, e.target.value as BudgetSubItem['frequency'])}
+                                    value={sub.recurrence || 'mensual'}
+                                    onChange={(e) => updateSubRecurrence(sub.id, e.target.value as BudgetSubItem['recurrence'])}
                                   >
                                     <option value="mensual">Mensual</option>
                                     <option value="trimestral">Trimestral</option>
@@ -679,9 +689,9 @@ export default function PresupuestoPage() {
                                       onChange={(e) => updateSubAmount(sub.id, parseFloat(e.target.value) || 0)}
                                     />
                                   </div>
-                                  {(sub.frequency || 'mensual') !== 'mensual' && sub.amount > 0 && (
+                                  {(sub.recurrence || 'mensual') !== 'mensual' && sub.amount > 0 && (
                                     <span className="text-[10px] text-ink-400 flex-shrink-0 whitespace-nowrap">
-                                      {fmt(Math.round(monthlyAmount(sub.amount, sub.frequency || 'mensual')))}/mes
+                                      {fmt(Math.round(monthlyAmount(sub.amount, sub.recurrence || 'mensual')))}/mes
                                     </span>
                                   )}
                                   <button
@@ -738,8 +748,8 @@ export default function PresupuestoPage() {
                                   </select>
                                   <select
                                     className="text-xs border rounded px-2 py-1 bg-white text-gray-600"
-                                    value={newSubFrequency}
-                                    onChange={(e) => setNewSubFrequency(e.target.value as BudgetSubItem['frequency'])}
+                                    value={newSubRecurrence}
+                                    onChange={(e) => setNewSubRecurrence(e.target.value as BudgetSubItem['recurrence'])}
                                   >
                                     <option value="mensual">Mensual</option>
                                     <option value="trimestral">Trimestral</option>
@@ -750,7 +760,7 @@ export default function PresupuestoPage() {
                                       <Plus className="w-3 h-3 mr-1" />
                                       Agregar
                                     </Button>
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); setNewSubPayment('efectivo'); setNewSubFrequency('mensual'); }}>
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setAddingSubItem(null); setNewSubName(''); setNewSubAmount(0); setNewSubFixed(false); setNewSubPayment('efectivo'); setNewSubRecurrence('mensual'); }}>
                                       <X className="w-3 h-3 mr-1" />
                                       Cancelar
                                     </Button>

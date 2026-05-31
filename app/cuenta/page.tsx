@@ -261,11 +261,45 @@ function CuentaContent() {
         <Card className="mb-4">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 text-gray-500" />
-              <CardTitle className="text-base">Seguridad</CardTitle>
+              <Shield className="w-5 h-5 text-[#2563EB]" />
+              <CardTitle className="text-base">Seguridad y privacidad</CardTitle>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="bg-[#F0F7FF] rounded-lg p-3 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-[#2563EB] mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-[#1E3A5F]">Datos aislados por cuenta</p>
+                  <p className="text-xs text-gray-500">Tu información financiera solo es visible para ti. Nadie más puede acceder a tus datos, incluso compartiendo el link de la app.</p>
+                </div>
+              </div>
+              <Separator />
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-[#2563EB] mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-[#1E3A5F]">Protección a nivel de base de datos</p>
+                  <p className="text-xs text-gray-500">Cada consulta se valida con políticas de seguridad (RLS) que impiden el acceso no autorizado a cualquier tabla.</p>
+                </div>
+              </div>
+              <Separator />
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-[#2563EB] mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-[#1E3A5F]">Conexión cifrada</p>
+                  <p className="text-xs text-gray-500">Toda la comunicación entre tu dispositivo y nuestros servidores viaja cifrada con HTTPS/TLS.</p>
+                </div>
+              </div>
+              <Separator />
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-[#2563EB] mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-[#1E3A5F]">Sesión protegida</p>
+                  <p className="text-xs text-gray-500">Tu sesión se valida en cada solicitud. Si alguien accede al link sin estar autenticado, será redirigido al login.</p>
+                </div>
+              </div>
+            </div>
+
             <Button variant="destructive" className="w-full" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar sesión
