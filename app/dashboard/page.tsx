@@ -51,7 +51,6 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const router = useRouter()
 
@@ -230,64 +229,6 @@ export default function DashboardPage() {
     })
   }
 
-  const CATEGORY_KEYWORDS: Record<string, string[]> = {
-    'alimentación': ['super', 'supermercado', 'mercado', 'comida', 'pollo', 'carne', 'verdura', 'fruta', 'pan', 'leche', 'huevo', 'arroz', 'frijol', 'tortilla', 'despensa'],
-    'restaurantes': ['almuerzo', 'cena', 'desayuno', 'restaurante', 'pizza', 'hamburguesa', 'sushi', 'café', 'starbucks', 'mcdonald', 'burger', 'taco', 'comida rápida'],
-    'transporte': ['uber', 'taxi', 'bus', 'gasolina', 'gas', 'peaje', 'parqueo', 'estacionamiento', 'didi', 'indriver'],
-    'salud': ['farmacia', 'medicina', 'doctor', 'hospital', 'clínica', 'dentista', 'consulta', 'vitamina'],
-    'entretenimiento': ['cine', 'netflix', 'spotify', 'disney', 'hbo', 'juego', 'película', 'concierto', 'fiesta'],
-    'suscripciones': ['netflix', 'spotify', 'youtube', 'prime', 'hbo', 'disney', 'apple', 'icloud'],
-    'servicios': ['luz', 'agua', 'internet', 'teléfono', 'celular', 'cable', 'gas', 'basura'],
-    'educación': ['colegio', 'universidad', 'curso', 'libro', 'matrícula', 'clase', 'escuela'],
-    'ropa': ['ropa', 'zapatos', 'camisa', 'pantalón', 'vestido', 'tienda'],
-    'vivienda': ['alquiler', 'renta', 'hipoteca', 'mantenimiento', 'reparación'],
-  }
-
-  function matchCategory(description: string): string | null {
-    if (!data) return null
-    const lower = description.toLowerCase()
-    for (const cat of data.categories) {
-      if (lower.includes(cat.name.toLowerCase()) || cat.name.toLowerCase().includes(lower)) {
-        return cat.id
-      }
-    }
-    for (const [catKeyword, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-      if (keywords.some(k => lower.includes(k))) {
-        const match = data.categories.find(c => c.name.toLowerCase().includes(catKeyword))
-        if (match) return match.id
-      }
-    }
-    return null
-  }
-
-  async function handleQuickAdd(text: string) {
-    if (!data) return
-    const match = text.match(/^Q?\s*(\d+(?:\.\d+)?)\s+(.+)$/i)
-    if (!match) {
-      setErrorMsg('Formato incorrecto. Usá: Q45 descripción — ej: Q85 almuerzo')
-      setTimeout(() => setErrorMsg(null), 4000)
-      return
-    }
-    const amount = parseFloat(match[1])
-    const description = cleanTransactionName(match[2])
-    const categoryId = matchCategory(description)
-    const supabase = createClient()
-    const { error } = await supabase.from('transactions').insert({
-      household_id: data.householdId, amount, description,
-      date: localToday(), source: 'manual',
-      ...(categoryId ? { category_id: categoryId } : {}),
-    })
-    if (error) {
-      setErrorMsg('No se pudo guardar el gasto. Intentá de nuevo.')
-      setTimeout(() => setErrorMsg(null), 4000)
-      return
-    }
-    const catName = categoryId ? data.categories.find(c => c.id === categoryId)?.name : null
-    setSuccessMsg(`Q ${amount} "${description}" guardado${catName ? ` en ${catName}` : ''}`)
-    setTimeout(() => setSuccessMsg(null), 3000)
-    loadDashboardData()
-  }
-
   async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
     if (!data || transactions.length === 0) return
     const supabase = createClient()
@@ -338,16 +279,6 @@ export default function DashboardPage() {
           borderRadius: 10, fontSize: 14, color: '#065F46'
         }}>
           {successMsg}
-        </div>
-      )}
-
-      {errorMsg && (
-        <div style={{
-          margin: '10px 16px 0', padding: '8px 12px',
-          background: '#FEF2F2', border: '0.5px solid #FECACA',
-          borderRadius: 10, fontSize: 14, color: '#991B1B'
-        }}>
-          {errorMsg}
         </div>
       )}
 
