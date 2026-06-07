@@ -40,6 +40,13 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
         <rect x="14" y="3" width="3" height="14" rx="1" stroke={color} strokeWidth="1.5"/>
       </svg>
     ),
+    chart: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <rect x="3" y="11" width="3" height="6" rx="1" stroke={color} strokeWidth="1.5"/>
+        <rect x="8.5" y="7" width="3" height="10" rx="1" stroke={color} strokeWidth="1.5"/>
+        <rect x="14" y="3" width="3" height="14" rx="1" stroke={color} strokeWidth="1.5"/>
+      </svg>
+    ),
     user: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <circle cx="10" cy="7" r="3" stroke={color} strokeWidth="1.5"/>
