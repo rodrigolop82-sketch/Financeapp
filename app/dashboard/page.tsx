@@ -15,6 +15,8 @@ import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household } from '@/types'
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getUserHousehold } from '@/lib/household'
+import { FloatingScoreBadge } from '@/components/score/FloatingScoreBadge'
+import { useHealthScore } from '@/hooks/useHealthScore'
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -58,6 +60,7 @@ export default function DashboardPage() {
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
   const router = useRouter()
+  const { score: healthScoreResult, loading: scoreLoading } = useHealthScore(data?.householdId ?? null)
 
   useEffect(() => { loadDashboardData(selectedMonthStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -402,6 +405,11 @@ export default function DashboardPage() {
 
       {/* Espacio final para BottomNav */}
       <div className="h-6" />
+
+      {/* Floating Health Score badge */}
+      {isCurrentMonth && (
+        <FloatingScoreBadge score={healthScoreResult} loading={scoreLoading} />
+      )}
 
       {/* Voice overlay full-screen */}
       <VoiceOverlay
