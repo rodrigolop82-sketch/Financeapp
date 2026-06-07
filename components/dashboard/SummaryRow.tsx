@@ -8,10 +8,34 @@ interface SummaryRowProps {
   weekVsPrev: number
   month: number
   monthBudget: number
+  isPastMonth?: boolean
 }
 
-export function SummaryRow({ today, todayCount, week, weekVsPrev, month, monthBudget }: SummaryRowProps) {
+export function SummaryRow({ today, todayCount, week, weekVsPrev, month, monthBudget, isPastMonth = false }: SummaryRowProps) {
   const { money } = useMoneyFormat()
+
+  if (isPastMonth) {
+    const pct = monthBudget > 0 ? Math.round((month / monthBudget) * 100) : 0
+    const overBudget = month > monthBudget
+    return (
+      <div style={{ padding: '12px 16px 0', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+        <div className="card-zafi" style={{ padding: '10px 12px 8px', textAlign: 'center' }}>
+          <div className="eyebrow-muted" style={{ marginBottom: 6 }}>TOTAL GASTADO</div>
+          <div className="font-outfit font-bold text-navy" style={{ fontSize: 18 }}>{money(month)}</div>
+          <div className="font-sans text-caption text-ink-400" style={{ marginTop: 2 }}>de {money(monthBudget)}</div>
+        </div>
+        <div className="card-zafi" style={{ padding: '10px 12px 8px', textAlign: 'center' }}>
+          <div className="eyebrow-muted" style={{ marginBottom: 6 }}>VS PRESUPUESTO</div>
+          <div className="font-outfit font-bold" style={{ fontSize: 18, color: overBudget ? '#EF4444' : '#10B981' }}>
+            {pct}%
+          </div>
+          <div className="font-sans text-caption" style={{ marginTop: 2, color: overBudget ? '#EF4444' : '#10B981' }}>
+            {overBudget ? `+${money(month - monthBudget)} excedido` : `${money(monthBudget - month)} ahorrado`}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ padding: '12px 16px 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>

@@ -6,6 +6,7 @@ import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { localToday } from '@/lib/dates'
+import { getUserHousehold } from '@/lib/household'
 
 interface CaptureData {
   amount: number
@@ -57,8 +58,7 @@ function CaptureContent() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const { data: hh } = await supabase
-        .from('households').select('id').eq('owner_id', user.id).limit(1).single()
+      const hh = await getUserHousehold(supabase, user.id)
       if (!hh) { router.push('/dashboard'); return }
       setHouseholdId(hh.id)
 
