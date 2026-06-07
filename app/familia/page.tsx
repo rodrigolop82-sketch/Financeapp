@@ -22,6 +22,7 @@ import {
   Check,
   Share2,
   Receipt,
+  Lock,
 } from 'lucide-react';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
@@ -48,6 +49,7 @@ export default function FamiliaPage() {
   const [spendingByMember, setSpendingByMember] = useState<Record<string, number>>({});
   const [txCountByMember, setTxCountByMember] = useState<Record<string, number>>({});
   const [unattributedSpending, setUnattributedSpending] = useState(0);
+  const [isPremium, setIsPremium] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
@@ -56,6 +58,10 @@ export default function FamiliaPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
+
+      const { data: profile } = await supabase
+        .from('users').select('plan').eq('id', user.id).single();
+      setIsPremium(profile?.plan === 'premium');
 
       const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
@@ -188,7 +194,30 @@ export default function FamiliaPage() {
 
   return (
     <AppShell title="Familia" currentPath="/familia">
-        {isOwner && (
+        {/* Premium gate for non-premium owners */}
+        {isOwner && !isPremium && (
+          <Card className="mb-6 border-yellow-200 bg-yellow-50">
+            <CardContent className="p-4 flex items-start gap-3">
+              <Lock className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-yellow-800">Función Premium</p>
+                <p className="text-sm text-yellow-700 mt-0.5">
+                  El modo familia requiere un plan Premium. Activa tu suscripción para invitar miembros y compartir el presupuesto.
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => router.push('/cuenta')}
+                >
+                  <Crown className="w-4 h-4 mr-2" />
+                  Ver planes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isOwner && isPremium && (
           <div className="flex justify-end mb-6">
             <Button onClick={() => { setShowInvite(true); setMessage(null); }}>
               <UserPlus className="w-4 h-4 mr-2" />

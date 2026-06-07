@@ -41,6 +41,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Solo el dueño puede generar invitaciones' }, { status: 403 });
   }
 
+  // Verify caller has a premium plan
+  const { data: ownerProfile } = await supabase
+    .from('users')
+    .select('plan')
+    .eq('id', user.id)
+    .single();
+
+  if (ownerProfile?.plan !== 'premium') {
+    return NextResponse.json({ error: 'Se requiere plan Premium para usar el modo familia' }, { status: 403 });
+  }
+
   // Expire any existing active invites for this household
   await supabase
     .from('household_invites')
