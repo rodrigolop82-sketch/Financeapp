@@ -8,13 +8,14 @@ import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
-  BarChart3, Wallet, CreditCard, Target, Receipt,
+  BarChart3, Wallet, CreditCard, Target, Receipt, TrendingUp,
   MessageCircle, BookOpen, Clock, Users, Settings,
   Menu, LogOut, ArrowLeft, ShieldCheck, Trophy,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: BarChart3, label: 'Dashboard' },
+  { href: '/resumen', icon: TrendingUp, label: 'Resumen' },
   { href: '/presupuesto', icon: Wallet, label: 'Presupuesto' },
   { href: '/metas', icon: Trophy, label: 'Metas' },
   { href: '/deudas', icon: CreditCard, label: 'Deudas' },
