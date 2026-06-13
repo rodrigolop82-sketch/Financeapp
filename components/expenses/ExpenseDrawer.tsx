@@ -43,6 +43,12 @@ export function ExpenseDrawer({ householdId, categories, onSuccess, onVoiceOverl
   const form = useExpenseForm({ householdId, categories, onSuccess })
 
   useEffect(() => {
+    const handler = () => setOpen(true)
+    window.addEventListener('zafi:open-expense-drawer', handler)
+    return () => window.removeEventListener('zafi:open-expense-drawer', handler)
+  }, [])
+
+  useEffect(() => {
     if (document.getElementById(STYLE_ID)) return
     const el = document.createElement('style')
     el.id = STYLE_ID

@@ -17,6 +17,8 @@ import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getUserHousehold } from '@/lib/household'
 import { FloatingScoreBadge } from '@/components/score/FloatingScoreBadge'
 import { useHealthScore } from '@/hooks/useHealthScore'
+import { SplitFAB } from '@/components/statement-import/SplitFAB'
+import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow'
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -26,7 +28,7 @@ interface EnrichedTransaction {
   category: string
   amount: number
   date: string
-  source: 'manual' | 'voice' | 'ocr' | 'csv'
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
 }
 
 interface DashboardData {
@@ -58,6 +60,7 @@ export default function DashboardPage() {
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
+  const [importFlowActive, setImportFlowActive] = useState(false)
   const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
   const router = useRouter()
   const { score: healthScoreResult, loading: scoreLoading } = useHealthScore(data?.householdId ?? null)
@@ -409,6 +412,22 @@ export default function DashboardPage() {
       {/* Floating Health Score badge */}
       {isCurrentMonth && (
         <FloatingScoreBadge score={healthScoreResult} loading={scoreLoading} />
+      )}
+
+      {/* Split FAB — only on current month */}
+      {isCurrentMonth && (
+        <SplitFAB
+          onManualExpense={() => window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))}
+          onImportStatement={() => setImportFlowActive(true)}
+        />
+      )}
+
+      {/* Statement import flow */}
+      {importFlowActive && (
+        <StatementImportFlow
+          householdId={data.householdId}
+          onDone={() => { setImportFlowActive(false); loadDashboardData() }}
+        />
       )}
 
       {/* Voice overlay full-screen */}
