@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { localToday } from '@/lib/dates'
 
@@ -54,11 +54,18 @@ export function useStatementImport(householdId: string) {
     error: null,
   })
 
+  // Use refs to avoid stale closures
+  const fileRef = useRef<File | null>(null)
+  const stateRef = useRef(state)
+  stateRef.current = state
+
   const startImport = useCallback(() => {
+    fileRef.current = null
     setState(s => ({ ...s, step: 'upload', error: null, file: null, filePreview: null }))
   }, [])
 
   const closeImport = useCallback(() => {
+    fileRef.current = null
     setState({
       step: 'idle', file: null, filePreview: null, bankDetected: null,
       period: null, transactions: [], stats: null, isLoading: false, error: null,
@@ -70,30 +77,40 @@ export function useStatementImport(householdId: string) {
       setState(s => ({ ...s, error: 'El archivo es muy grande. Máximo 10MB.' }))
       return
     }
+    fileRef.current = file
     const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : null
     setState(s => ({ ...s, file, filePreview: preview, error: null }))
   }, [])
 
   const processFile = useCallback(async () => {
-    if (!state.file) return
+    const file = fileRef.current
+    if (!file) return
     setState(s => ({ ...s, step: 'processing', isLoading: true, error: null }))
 
     try {
       const formData = new FormData()
-      formData.append('file', state.file)
+      formData.append('file', file)
 
       const res = await fetch('/api/extract-statement', { method: 'POST', body: formData })
-      const data = await res.json()
 
       if (!res.ok) {
+        let errorMsg = 'Error al procesar el archivo'
+        try {
+          const errData = await res.json()
+          errorMsg = errData.error || errorMsg
+        } catch {
+          // response wasn't JSON
+        }
         setState(s => ({
           ...s,
           isLoading: false,
-          error: data.error || 'Error al procesar el archivo',
+          error: errorMsg,
           step: 'upload',
         }))
         return
       }
+
+      const data = await res.json()
 
       const rawTx = (data.transactions || []) as Array<{
         date: string
@@ -145,7 +162,8 @@ export function useStatementImport(householdId: string) {
         period: data.period || null,
         transactions,
       }))
-    } catch {
+    } catch (err) {
+      console.error('Statement import error:', err)
       setState(s => ({
         ...s,
         isLoading: false,
@@ -153,7 +171,7 @@ export function useStatementImport(householdId: string) {
         step: 'upload',
       }))
     }
-  }, [state.file, householdId])
+  }, [householdId])
 
   const toggleTransaction = useCallback((id: string) => {
     setState(s => ({
@@ -165,7 +183,8 @@ export function useStatementImport(householdId: string) {
   }, [])
 
   const confirmImport = useCallback(async () => {
-    const selected = state.transactions.filter(t => t.selected)
+    const current = stateRef.current
+    const selected = current.transactions.filter(t => t.selected)
     if (selected.length === 0) return
 
     setState(s => ({ ...s, isLoading: true }))
@@ -185,6 +204,7 @@ export function useStatementImport(householdId: string) {
     const { error } = await supabase.from('transactions').insert(rows)
 
     if (error) {
+      console.error('Transaction insert error:', error)
       setState(s => ({ ...s, isLoading: false, error: 'Error al guardar transacciones' }))
       return
     }
@@ -193,11 +213,11 @@ export function useStatementImport(householdId: string) {
     await supabase.from('statement_imports').insert({
       user_id: user?.id,
       household_id: householdId,
-      bank_detected: state.bankDetected,
-      file_type: state.file?.type === 'application/pdf' ? 'pdf' : 'image',
-      transactions_found: state.transactions.length,
+      bank_detected: current.bankDetected,
+      file_type: fileRef.current?.type === 'application/pdf' ? 'pdf' : 'image',
+      transactions_found: current.transactions.length,
       transactions_imported: selected.length,
-      duplicates_detected: state.transactions.filter(t => t.isDuplicate).length,
+      duplicates_detected: current.transactions.filter(t => t.isDuplicate).length,
       status: 'completed',
     })
 
@@ -210,13 +230,13 @@ export function useStatementImport(householdId: string) {
       step: 'success',
       isLoading: false,
       stats: {
-        total: state.transactions.length,
+        total: current.transactions.length,
         imported: selected.length,
-        duplicatesSkipped: state.transactions.filter(t => t.isDuplicate && !t.selected).length,
+        duplicatesSkipped: current.transactions.filter(t => t.isDuplicate && !t.selected).length,
         totalAmount,
       },
     }))
-  }, [state.transactions, state.bankDetected, state.file, householdId])
+  }, [householdId])
 
   return {
     ...state,

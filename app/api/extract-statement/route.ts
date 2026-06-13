@@ -43,7 +43,13 @@ export async function POST(req: NextRequest) {
   const household = await getUserHousehold(supabase, user.id)
   if (!household) return NextResponse.json({ error: 'Sin hogar configurado' }, { status: 400 })
 
-  const formData = await req.formData()
+  let formData: FormData
+  try {
+    formData = await req.formData()
+  } catch {
+    return NextResponse.json({ error: 'FormData inválido' }, { status: 400 })
+  }
+
   const file = formData.get('file') as File | null
   if (!file) return NextResponse.json({ error: 'Archivo requerido' }, { status: 400 })
 
@@ -60,37 +66,55 @@ export async function POST(req: NextRequest) {
   const base64 = Buffer.from(bytes).toString('base64')
   const isPdf = file.type === 'application/pdf'
 
-  const content: Anthropic.MessageCreateParams['messages'][0]['content'] = [
-    isPdf
-      ? {
-          type: 'document' as const,
-          source: {
-            type: 'base64' as const,
-            media_type: 'application/pdf' as const,
-            data: base64,
-          },
-        }
-      : {
-          type: 'image' as const,
-          source: {
-            type: 'base64' as const,
-            media_type: file.type as 'image/jpeg' | 'image/png' | 'image/webp',
-            data: base64,
-          },
-        },
-    { type: 'text', text: EXTRACTION_PROMPT },
-  ]
+  // Build content blocks — use explicit any to avoid SDK type issues with document blocks
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contentBlocks: any[] = []
+
+  if (isPdf) {
+    contentBlocks.push({
+      type: 'document',
+      source: {
+        type: 'base64',
+        media_type: 'application/pdf',
+        data: base64,
+      },
+    })
+  } else {
+    contentBlocks.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: file.type,
+        data: base64,
+      },
+    })
+  }
+
+  contentBlocks.push({ type: 'text', text: EXTRACTION_PROMPT })
 
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
-      messages: [{ role: 'user', content }],
+      messages: [{ role: 'user', content: contentBlocks }],
     })
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : ''
+    const textBlock = response.content.find(b => b.type === 'text')
+    const text = textBlock && textBlock.type === 'text' ? textBlock.text : ''
+
+    if (!text) {
+      return NextResponse.json({ error: 'Claude no devolvió texto' }, { status: 500 })
+    }
+
     const clean = text.replace(/```json|```/g, '').trim()
-    const result = JSON.parse(clean)
+
+    let result: { bank?: string; period?: string; currency?: string; transactions?: Array<{ suggested_category: string; description: string; date: string; amount: number; type: string }>; truncated?: boolean }
+    try {
+      result = JSON.parse(clean)
+    } catch {
+      console.error('Failed to parse Claude response:', clean.substring(0, 500))
+      return NextResponse.json({ error: 'No pudimos interpretar la respuesta. Intenta con otra imagen.' }, { status: 500 })
+    }
 
     // Enrich with category_id
     const { data: categories } = await supabase
@@ -99,7 +123,7 @@ export async function POST(req: NextRequest) {
       .eq('household_id', household.id)
 
     if (categories && result.transactions) {
-      result.transactions = result.transactions.map((tx: { suggested_category: string; description: string; date: string; amount: number; type: string }) => {
+      result.transactions = result.transactions.map((tx) => {
         const match = categories.find(c =>
           c.name.toLowerCase().includes(tx.suggested_category.toLowerCase()) ||
           tx.suggested_category.toLowerCase().includes(c.name.toLowerCase())
@@ -116,8 +140,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result)
   } catch (err) {
     console.error('Statement extraction error:', err)
+    const message = err instanceof Error ? err.message : 'Error desconocido'
     return NextResponse.json(
-      { error: 'No pudimos leer el estado de cuenta. Intenta con una foto más nítida o sube el PDF directamente.' },
+      { error: `No pudimos leer el estado de cuenta: ${message}` },
       { status: 500 }
     )
   }
