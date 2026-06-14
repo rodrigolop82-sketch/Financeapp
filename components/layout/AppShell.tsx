@@ -19,7 +19,7 @@ const NAV_ITEMS = [
   { href: '/presupuesto', icon: Wallet, label: 'Presupuesto' },
   { href: '/metas', icon: Trophy, label: 'Metas' },
   { href: '/deudas', icon: CreditCard, label: 'Deudas' },
-  { href: '/plan', icon: Target, label: 'Plan' },
+  { href: '/plan', icon: Target, label: 'Retos' },
   { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
   { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
   { href: '/aprende', icon: BookOpen, label: 'Aprende' },
