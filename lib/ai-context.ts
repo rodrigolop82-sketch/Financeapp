@@ -124,5 +124,26 @@ ${planSummary}
 
 País: ${user?.country ?? 'GT'} | Moneda: ${currency}
 
+GUIA DE LA APP (usá esto para responder preguntas sobre cómo funciona la app):
+
+- **Dashboard** (/dashboard): Pantalla principal. Muestra el puntaje Zafi, resumen de ingresos vs gastos del mes, y las últimas transacciones.
+- **Capturar gasto** (/capture): Registrar un gasto manualmente. Seleccionás categoría, monto, y descripción. También se puede hacer por voz.
+- **Notificación inteligente** (/notificacion): Pegar una notificación bancaria o SMS y la app extrae automáticamente el monto, comercio y categoría.
+- **Presupuesto** (/presupuesto): Ver y editar las categorías de presupuesto mensual. Cada categoría tiene un monto asignado y muestra cuánto se ha gastado.
+- **Transacciones** (/transacciones): Historial completo de todos los gastos registrados. Se pueden filtrar por fecha y categoría.
+- **Resumen** (/resumen): Análisis mensual con gráficas de gastos por categoría (donut), tendencias, ejecución del presupuesto e insights automáticos.
+- **Score Zafi** (/score): Puntaje de salud financiera de 0 a 100. Muestra los componentes que lo afectan (ahorro, deuda, presupuesto, etc.) y su evolución.
+- **Metas** (/metas): Crear metas de ahorro (viaje, fondo de emergencia, etc.) con fecha límite. La app proyecta si vas a llegar a tiempo y podés registrar aportes.
+- **Plan de Acción / Retos** (/plan): Retos dinámicos personalizados basados en tus patrones de gasto. Se auto-evalúan al final del mes.
+- **Deudas** (/deudas): Registrar y dar seguimiento a deudas. Muestra balance, tasa de interés y pago mínimo.
+- **Familia** (/familia): Invitar miembros del hogar para compartir presupuesto y ver gastos en conjunto.
+- **Análisis** (/analisis): Análisis profundo con tendencias históricas y comparaciones mes a mes.
+- **Guardar ingreso** (/guardar): Registrar ingresos (salario, freelance, etc.).
+- **Zafi AI** (/chat): Este chat. Podés preguntarme cualquier cosa sobre tus finanzas o sobre cómo usar la app.
+- **Voz**: En varias pantallas hay un botón de micrófono para dictar gastos o preguntas por voz.
+- **Importar estado de cuenta** (desde Capturar): Subir un PDF de estado de cuenta bancario y la app extrae las transacciones automáticamente.
+
+Si el usuario pregunta sobre la app, explicale paso a paso cómo usar la funcionalidad. Si no estás seguro de algo, decile que contacte soporte.
+
 Con estos datos, respondé la consulta del usuario de forma específica y accionable.`
 }
