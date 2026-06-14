@@ -33,7 +33,12 @@ export function TendenciasTab({ data }: TendenciasTabProps) {
 
       {/* Donut */}
       <SectionCard title="Gasto fijo vs variable">
-        <DonutChart fixed={data.fixedTotal} variable={data.variableTotal} />
+        <DonutChart
+          fixed={data.fixedTotal}
+          variable={data.variableTotal}
+          fixedMonthlyAvg={data.fixedMonthlyAvg}
+          variableMonthlyAvg={data.variableMonthlyAvg}
+        />
       </SectionCard>
 
       {/* Trend line */}
@@ -50,6 +55,32 @@ export function TendenciasTab({ data }: TendenciasTabProps) {
           <TrendLineChart data={data.monthPoints} avgMonthly={data.avgMonthly} />
         </div>
       </SectionCard>
+
+      {/* Observations */}
+      {data.observations && data.observations.length > 0 && (
+        <SectionCard title="Observaciones">
+          {data.observations.map((obs, i) => {
+            const config = {
+              warning: { bg: '#FEF2F2', border: '#FECACA', color: '#991B1B', icon: '⚠️' },
+              tip: { bg: '#FFFBEB', border: '#FDE68A', color: '#92400E', icon: '💡' },
+              positive: { bg: '#F0FDF4', border: '#BBF7D0', color: '#065F46', icon: '✅' },
+            }[obs.type]
+            return (
+              <div key={i} style={{
+                padding: '12px 14px',
+                background: config.bg,
+                border: `1px solid ${config.border}`,
+                borderRadius: 12,
+                marginBottom: i < data.observations.length - 1 ? 10 : 0,
+              }}>
+                <p style={{ fontSize: 13, color: config.color, margin: 0, lineHeight: 1.5 }}>
+                  {config.icon} {obs.message}
+                </p>
+              </div>
+            )
+          })}
+        </SectionCard>
+      )}
 
       {/* Top categories */}
       <SectionCard title="Categorías (últimos 6 meses)">

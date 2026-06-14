@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import { formatMoney } from '@/lib/format'
 import type { BudgetCategory, Transaction } from '@/types'
 
 export interface MonthPoint {
@@ -14,8 +15,14 @@ export interface MonthPoint {
 export interface CategoryShare {
   name: string
   amount: number
+  monthlyAvg: number
   pct: number
   bucket: string
+}
+
+export interface SpendingObservation {
+  type: 'warning' | 'tip' | 'positive'
+  message: string
 }
 
 export interface HistoricalTrendsData {
@@ -23,7 +30,10 @@ export interface HistoricalTrendsData {
   topCategories: CategoryShare[]
   fixedTotal: number
   variableTotal: number
+  fixedMonthlyAvg: number
+  variableMonthlyAvg: number
   avgMonthly: number
+  observations: SpendingObservation[]
 }
 
 const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
@@ -120,21 +130,90 @@ export function useHistoricalTrends() {
       const fixedTotal = monthGrid.reduce((s, m) => s + m.fixed, 0)
       const variableTotal = monthGrid.reduce((s, m) => s + m.variable, 0)
 
-      // Top 6 categories by spend
+      const completedMonths = monthGrid.filter((_, i) => i < monthGrid.length - 1)
+      const numCompleted = Math.max(completedMonths.length, 1)
+      const fixedMonthlyAvg = Math.round(fixedTotal / numCompleted)
+      const variableMonthlyAvg = Math.round(variableTotal / numCompleted)
+
+      // Top 6 categories by spend with monthly average
       const topCategories: CategoryShare[] = Object.entries(catTotals)
         .map(([catId, amount]) => {
           const cat = catMap[catId]
           return {
             name: cat?.name ?? 'Otros',
             amount,
+            monthlyAvg: Math.round(amount / numCompleted),
             pct: grandTotal > 0 ? Math.round(amount / grandTotal * 100) : 0,
             bucket: cat?.bucket ?? 'wants',
           }
         })
         .sort((a, b) => b.amount - a.amount)
-        .slice(0, 6)
+        .slice(0, 8)
 
-      setData({ monthPoints: monthGrid, topCategories, fixedTotal, variableTotal, avgMonthly })
+      // Generate observations
+      const observations: SpendingObservation[] = []
+
+      // 1. Compare wants categories vs needs categories of similar or higher spend
+      const wantsCategories = topCategories.filter(c => c.bucket === 'wants')
+      const needsCategories = topCategories.filter(c => c.bucket === 'needs')
+
+      for (const want of wantsCategories) {
+        for (const need of needsCategories) {
+          if (want.amount >= need.amount * 0.8 && need.amount > 0 && want.amount > 0) {
+            observations.push({
+              type: 'warning',
+              message: `Gastás casi lo mismo en ${want.name} (${formatMoney(want.monthlyAvg)}/mes) que en ${need.name} (${formatMoney(need.monthlyAvg)}/mes). Considerá reducir ${want.name}.`,
+            })
+          }
+        }
+      }
+
+      // 2. Variable spending growing
+      if (completedMonths.length >= 3) {
+        const recent3 = completedMonths.slice(-3)
+        const older = completedMonths.slice(0, -3)
+        if (older.length > 0) {
+          const recentVarAvg = recent3.reduce((s, m) => s + m.variable, 0) / recent3.length
+          const olderVarAvg = older.reduce((s, m) => s + m.variable, 0) / older.length
+          if (olderVarAvg > 0 && recentVarAvg > olderVarAvg * 1.15) {
+            const pctUp = Math.round(((recentVarAvg - olderVarAvg) / olderVarAvg) * 100)
+            observations.push({
+              type: 'warning',
+              message: `Tu gasto variable ha subido ${pctUp}% en los últimos 3 meses. Revisá categorías como ${wantsCategories[0]?.name ?? 'entretenimiento'}.`,
+            })
+          }
+        }
+      }
+
+      // 3. Biggest wants category
+      if (wantsCategories.length > 0) {
+        const biggest = wantsCategories[0]
+        if (biggest.pct >= 15) {
+          observations.push({
+            type: 'tip',
+            message: `${biggest.name} representa el ${biggest.pct}% de tu gasto total (${formatMoney(biggest.monthlyAvg)}/mes). Reducirlo un 20% te ahorraría ${formatMoney(Math.round(biggest.monthlyAvg * 0.2))}/mes.`,
+          })
+        }
+      }
+
+      // 4. Fixed expenses ratio
+      const fixedRatio = grandTotal > 0 ? fixedTotal / grandTotal : 0
+      if (fixedRatio > 0.7) {
+        observations.push({
+          type: 'warning',
+          message: `Tus gastos fijos son el ${Math.round(fixedRatio * 100)}% del total. Lo ideal es que no superen el 60%. Revisá si podés renegociar algún servicio.`,
+        })
+      } else if (fixedRatio < 0.5 && fixedRatio > 0) {
+        observations.push({
+          type: 'positive',
+          message: `Tus gastos fijos son solo el ${Math.round(fixedRatio * 100)}% del total. Eso te da flexibilidad para ahorrar más.`,
+        })
+      }
+
+      // Limit to top 4 most relevant
+      const limitedObs = observations.slice(0, 4)
+
+      setData({ monthPoints: monthGrid, topCategories, fixedTotal, variableTotal, fixedMonthlyAvg, variableMonthlyAvg, avgMonthly, observations: limitedObs })
     } catch (e) {
       setError(String(e))
     } finally {
