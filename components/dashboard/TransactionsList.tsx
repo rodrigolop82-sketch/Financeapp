@@ -8,7 +8,7 @@ interface Transaction {
   category: string
   amount: number
   date: string
-  source: 'manual' | 'voice' | 'ocr' | 'csv'
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
 }
 
 // Mapeo de categorías a SVG icons con colores de fondo

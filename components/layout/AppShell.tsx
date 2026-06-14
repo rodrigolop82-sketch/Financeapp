@@ -8,21 +8,21 @@ import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
-  BarChart3, Wallet, CreditCard, Target, Crosshair, Receipt,
-  MessageCircle, BookOpen, Clock, Users, Settings,
-  Menu, LogOut, ArrowLeft, ShieldCheck,
+  BarChart3, Wallet, CreditCard, Target, Receipt, TrendingUp,
+  MessageCircle, BookOpen, Users, Settings,
+  Menu, LogOut, ArrowLeft, ShieldCheck, Trophy,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: BarChart3, label: 'Dashboard' },
+  { href: '/resumen', icon: TrendingUp, label: 'Resumen' },
   { href: '/presupuesto', icon: Wallet, label: 'Presupuesto' },
+  { href: '/metas', icon: Trophy, label: 'Metas' },
   { href: '/deudas', icon: CreditCard, label: 'Deudas' },
-  { href: '/plan', icon: Target, label: 'Plan' },
-  { href: '/metas', icon: Crosshair, label: 'Metas' },
+  { href: '/plan', icon: Target, label: 'Retos' },
   { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
   { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
   { href: '/aprende', icon: BookOpen, label: 'Aprende' },
-  { href: '/historial', icon: Clock, label: 'Historial' },
   { href: '/familia', icon: Users, label: 'Familia' },
   { href: '/cuenta', icon: Settings, label: 'Cuenta' },
 ]
