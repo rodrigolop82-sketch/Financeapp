@@ -93,9 +93,6 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
               <AppIcon size="sm" variant="electric" />
               <Wordmark variant="dark" size="sm" />
             </Link>
-            <div className="hidden lg:block">
-              <AddExpenseTrigger onVoice={onVoice} onManual={onManual} onImport={onImport} />
-            </div>
             <nav className="space-y-1">
               {navItems.map((item) => (
                 <Link
@@ -152,6 +149,11 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
             {children}
           </div>
         </main>
+      </div>
+
+      {/* Desktop floating FAB */}
+      <div className="hidden lg:block fixed bottom-8 right-8 z-40">
+        <AddExpenseTrigger onVoice={onVoice} onManual={onManual} onImport={onImport} />
       </div>
 
       {/* Bottom nav — mobile */}
