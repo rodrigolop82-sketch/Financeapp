@@ -8,7 +8,7 @@ import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
-  BarChart3, Wallet, CreditCard, Target, Receipt,
+  BarChart3, Wallet, CreditCard, Target, Crosshair, Receipt,
   MessageCircle, BookOpen, Clock, Users, Settings,
   Menu, LogOut, ArrowLeft, ShieldCheck,
 } from 'lucide-react'
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: '/presupuesto', icon: Wallet, label: 'Presupuesto' },
   { href: '/deudas', icon: CreditCard, label: 'Deudas' },
   { href: '/plan', icon: Target, label: 'Plan' },
+  { href: '/metas', icon: Crosshair, label: 'Metas' },
   { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
   { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
   { href: '/aprende', icon: BookOpen, label: 'Aprende' },

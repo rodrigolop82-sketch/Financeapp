@@ -4,7 +4,7 @@ import Link from 'next/link'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: 'grid' },
-  { href: '/plan', label: 'Plan', icon: 'clock' },
+  { href: '/metas', label: 'Metas', icon: 'target' },
   { href: '#voice', label: 'Agregar', icon: 'plus', isFab: true },
   { href: '/aprende', label: 'Aprende', icon: 'trend' },
   { href: '/cuenta', label: 'Cuenta', icon: 'user' },
@@ -37,6 +37,13 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <path d="M3 14l4-4 3 3 7-7" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M13 6h4v4" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+    target: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="10" r="7" stroke={color} strokeWidth="1.5"/>
+        <circle cx="10" cy="10" r="4" stroke={color} strokeWidth="1.5"/>
+        <circle cx="10" cy="10" r="1.5" fill={color}/>
       </svg>
     ),
     user: (
