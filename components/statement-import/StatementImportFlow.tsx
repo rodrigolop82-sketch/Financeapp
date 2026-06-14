@@ -1,4 +1,5 @@
 'use client'
+import { useEffect } from 'react'
 import { useStatementImport } from '@/hooks/useStatementImport'
 import { UploadScreen } from './UploadScreen'
 import { ProcessingScreen } from './ProcessingScreen'
@@ -12,6 +13,10 @@ interface StatementImportFlowProps {
 
 export function StatementImportFlow({ householdId, onDone }: StatementImportFlowProps) {
   const imp = useStatementImport(householdId)
+
+  useEffect(() => {
+    if (imp.step === 'idle') imp.startImport()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (imp.step === 'idle') return null
 
