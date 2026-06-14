@@ -5,35 +5,22 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const maxDuration = 60
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const SYSTEM_PROMPT = `Eres un extractor de datos de estados de cuenta bancarios. Responde SIEMPRE y ÚNICAMENTE con JSON válido. Sin explicaciones, sin markdown, sin backticks. Solo el objeto JSON.`
 
-const EXTRACTION_PROMPT = `Eres un extractor de datos financieros experto en estados de cuenta de bancos guatemaltecos (Banrural, BAM, Banco Industrial, G&T Continental, Bantrab).
+const EXTRACTION_PROMPT = `Analiza este estado de cuenta y extrae TODAS las transacciones.
 
-Analiza este estado de cuenta y extrae TODAS las transacciones que encuentres.
+Responde con este JSON exacto (sin backticks, sin texto adicional):
 
-Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin backticks, con esta estructura exacta:
+{"bank":"nombre del banco o Desconocido","period":"Mayo 2026","currency":"GTQ","transactions":[{"date":"2026-05-15","description":"descripción","amount":450.00,"type":"expense","suggested_category":"Alimentación"}]}
 
-{
-  "bank": "nombre del banco detectado o 'Desconocido'",
-  "period": "periodo del estado (ej: 'Mayo 2026') o null",
-  "currency": "GTQ o USD",
-  "transactions": [
-    {
-      "date": "YYYY-MM-DD",
-      "description": "descripción original del movimiento",
-      "amount": 450.00,
-      "type": "expense",
-      "suggested_category": "Supermercado"
-    }
-  ]
-}
+suggested_category debe ser una de: Vivienda/alquiler, Alimentación, Transporte, Salud/medicinas, Servicios, Educación, Restaurantes y salidas, Ropa, Entretenimiento, Suscripciones, Varios personales, Fondo de emergencia, Ahorro para metas, Pago extra de deudas, Ingreso, Transferencia, Otro
 
-Reglas importantes:
-- amount siempre positivo, el campo type indica si es "expense" o "income"
-- Si no puedes leer claramente una transacción, omítela
-- suggested_category debe ser una de: Vivienda/alquiler, Alimentación, Transporte, Salud/medicinas, Servicios, Educación, Restaurantes y salidas, Ropa, Entretenimiento, Suscripciones, Varios personales, Fondo de emergencia, Ahorro para metas, Pago extra de deudas, Ingreso, Transferencia, Otro
-- Si el monto está en USD, conviértelo a GTQ usando tasa ~7.85 y marca currency como "USD_CONVERTED"
-- Ordena por fecha descendente (más reciente primero)`
+Reglas:
+- amount siempre positivo
+- type: "expense" o "income"
+- date formato YYYY-MM-DD
+- Si no puedes leer una transacción, omítela
+- Ordena por fecha descendente`
 
 export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient()
@@ -66,7 +53,7 @@ export async function POST(req: NextRequest) {
   const base64 = Buffer.from(bytes).toString('base64')
   const isPdf = file.type === 'application/pdf'
 
-  // Build content blocks — use explicit any to avoid SDK type issues with document blocks
+  // Build content blocks
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const contentBlocks: any[] = []
 
@@ -92,72 +79,100 @@ export async function POST(req: NextRequest) {
 
   contentBlocks.push({ type: 'text', text: EXTRACTION_PROMPT })
 
+  // Try to create the Anthropic client - handle missing API key
+  let anthropic: Anthropic
   try {
-    const response = await anthropic.messages.create({
+    anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  } catch (err) {
+    console.error('Anthropic client init error:', err)
+    return NextResponse.json({ error: 'Error de configuración del servicio de IA' }, { status: 500 })
+  }
+
+  let response: Anthropic.Message
+  try {
+    response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: contentBlocks }],
     })
-
-    const textBlock = response.content.find(b => b.type === 'text')
-    const text = textBlock && textBlock.type === 'text' ? textBlock.text : ''
-
-    if (!text) {
-      return NextResponse.json({ error: 'Claude no devolvió texto' }, { status: 500 })
-    }
-
-    // Extract JSON from response — handle markdown fences, leading text, etc.
-    let jsonStr = text
-    // Try to find JSON block in markdown fences
-    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-    if (fenceMatch) {
-      jsonStr = fenceMatch[1].trim()
-    } else {
-      // Try to find raw JSON object
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        jsonStr = jsonMatch[0]
-      }
-    }
-
-    console.log('Claude raw response (first 300 chars):', text.substring(0, 300))
-
-    let result: { bank?: string; period?: string; currency?: string; transactions?: Array<{ suggested_category: string; description: string; date: string; amount: number; type: string }>; truncated?: boolean }
-    try {
-      result = JSON.parse(jsonStr)
-    } catch {
-      console.error('Failed to parse Claude response. Full text:', text.substring(0, 1000))
-      return NextResponse.json({ error: `No pudimos interpretar la respuesta. Intenta con otra imagen o PDF.` }, { status: 500 })
-    }
-
-    // Enrich with category_id
-    const { data: categories } = await supabase
-      .from('budget_categories')
-      .select('id, name')
-      .eq('household_id', household.id)
-
-    if (categories && result.transactions) {
-      result.transactions = result.transactions.map((tx) => {
-        const match = categories.find(c =>
-          c.name.toLowerCase().includes(tx.suggested_category.toLowerCase()) ||
-          tx.suggested_category.toLowerCase().includes(c.name.toLowerCase())
-        )
-        return { ...tx, category_id: match?.id ?? null }
-      })
-    }
-
-    if (result.transactions && result.transactions.length > 200) {
-      result.transactions = result.transactions.slice(0, 200)
-      result.truncated = true
-    }
-
-    return NextResponse.json(result)
   } catch (err) {
-    console.error('Statement extraction error:', err)
-    const message = err instanceof Error ? err.message : 'Error desconocido'
+    console.error('Anthropic API error:', err)
+    const message = err instanceof Error ? err.message : String(err)
     return NextResponse.json(
-      { error: `No pudimos leer el estado de cuenta: ${message}` },
+      { error: `Error al llamar a Claude: ${message.substring(0, 200)}` },
       { status: 500 }
     )
   }
+
+  const textBlock = response.content.find(b => b.type === 'text')
+  const text = textBlock && textBlock.type === 'text' ? textBlock.text : ''
+
+  if (!text) {
+    return NextResponse.json(
+      { error: `Claude no devolvió texto. Stop reason: ${response.stop_reason}` },
+      { status: 500 }
+    )
+  }
+
+  console.log('Claude response (first 500 chars):', text.substring(0, 500))
+
+  // Extract JSON robustly
+  let jsonStr = text
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (fenceMatch) {
+    jsonStr = fenceMatch[1].trim()
+  } else {
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      jsonStr = jsonMatch[0]
+    }
+  }
+
+  let result: {
+    bank?: string
+    period?: string
+    currency?: string
+    transactions?: Array<{
+      suggested_category: string
+      description: string
+      date: string
+      amount: number
+      type: string
+    }>
+    truncated?: boolean
+  }
+
+  try {
+    result = JSON.parse(jsonStr)
+  } catch {
+    console.error('JSON parse failed. Raw text:', text)
+    return NextResponse.json(
+      { error: `Claude respondió pero no con JSON válido. Respuesta: "${text.substring(0, 150)}..."` },
+      { status: 500 }
+    )
+  }
+
+  // Enrich with category_id
+  const { data: categories } = await supabase
+    .from('budget_categories')
+    .select('id, name')
+    .eq('household_id', household.id)
+
+  if (categories && result.transactions) {
+    result.transactions = result.transactions.map((tx) => {
+      const match = categories.find(c =>
+        c.name.toLowerCase().includes(tx.suggested_category.toLowerCase()) ||
+        tx.suggested_category.toLowerCase().includes(c.name.toLowerCase())
+      )
+      return { ...tx, category_id: match?.id ?? null }
+    })
+  }
+
+  if (result.transactions && result.transactions.length > 200) {
+    result.transactions = result.transactions.slice(0, 200)
+    result.truncated = true
+  }
+
+  return NextResponse.json(result)
 }
