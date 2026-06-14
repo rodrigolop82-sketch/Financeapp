@@ -14,9 +14,9 @@ interface CategoryListProps {
   categories: CategoryExecution[]
 }
 
-const STATUS_LABELS: Record<string, string> = { ok: 'OK', near: 'Atención', over: 'Excedido' }
-const STATUS_COLORS: Record<string, string> = { ok: '#10B981', near: '#F59E0B', over: '#EF4444' }
-const BAR_COLORS: Record<string, string> = { ok: '#2563EB', near: '#F59E0B', over: '#EF4444' }
+const STATUS_LABELS: Record<string, string> = { ok: 'OK', near: 'Atención', over: 'Excedido', savings_over: '¡Superado!' }
+const STATUS_COLORS: Record<string, string> = { ok: '#10B981', near: '#F59E0B', over: '#EF4444', savings_over: '#10B981' }
+const BAR_COLORS: Record<string, string> = { ok: '#2563EB', near: '#F59E0B', over: '#EF4444', savings_over: '#10B981' }
 
 export function CategoryList({ categories }: CategoryListProps) {
   const visible = categories.filter((c) => c.budgeted_amount > 0 || c.spentAmount > 0)

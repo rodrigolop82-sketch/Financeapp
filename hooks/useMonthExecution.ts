@@ -8,7 +8,7 @@ import type { BudgetCategory, Transaction } from '@/types'
 export interface CategoryExecution extends BudgetCategory {
   spentAmount: number
   percentage: number
-  status: 'ok' | 'near' | 'over'
+  status: 'ok' | 'near' | 'over' | 'savings_over'
 }
 
 export interface MonthExecutionData {
@@ -88,12 +88,13 @@ export function useMonthExecution() {
       const categoryExecution: CategoryExecution[] = categories.map((c) => {
         const spent = spentByCat[c.id] ?? 0
         const pct = c.budgeted_amount > 0 ? Math.min(Math.round(spent / c.budgeted_amount * 100), 999) : 0
-        return {
-          ...c,
-          spentAmount: spent,
-          percentage: pct,
-          status: (pct >= 100 ? 'over' : pct >= 80 ? 'near' : 'ok') as 'ok' | 'near' | 'over',
-        }
+        const isSavings = c.bucket === 'savings'
+        let status: 'ok' | 'near' | 'over' | 'savings_over'
+        if (isSavings && pct >= 100) status = 'savings_over'
+        else if (pct >= 100) status = 'over'
+        else if (pct >= 80) status = 'near'
+        else status = 'ok'
+        return { ...c, spentAmount: spent, percentage: pct, status }
       }).sort((a, b) => b.spentAmount - a.spentAmount)
 
       // Alert
@@ -105,6 +106,7 @@ export function useMonthExecution() {
         : 999
       let topOver: { name: string; spent: number; limit: number; pctOver: number } | undefined
       categoryExecution.forEach((c) => {
+        if (c.bucket === 'savings') return
         const over = c.budgeted_amount > 0 ? (c.spentAmount - c.budgeted_amount) / c.budgeted_amount * 100 : 0
         if (over > 20 && (!topOver || over > topOver.pctOver)) {
           topOver = { name: c.name, spent: c.spentAmount, limit: c.budgeted_amount, pctOver: Math.round(over) }
