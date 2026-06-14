@@ -12,6 +12,7 @@ import {
   MessageCircle, BookOpen, Users, Settings,
   Menu, LogOut, ArrowLeft, ShieldCheck, Trophy,
 } from 'lucide-react'
+import { AddExpenseTrigger } from '@/components/expenses/add-expense-trigger'
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: BarChart3, label: 'Dashboard' },
@@ -36,9 +37,12 @@ interface AppShellProps {
   userName?: string
   userEmail?: string
   householdName?: string
+  onVoice?: () => void
+  onManual?: () => void
+  onImport?: () => void
 }
 
-export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '' }: AppShellProps) {
+export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', onVoice, onManual, onImport }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMaster, setIsMaster] = useState(false)
   const router = useRouter()
@@ -89,6 +93,9 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
               <AppIcon size="sm" variant="electric" />
               <Wordmark variant="dark" size="sm" />
             </Link>
+            <div className="hidden lg:block">
+              <AddExpenseTrigger onVoice={onVoice} onManual={onManual} onImport={onImport} />
+            </div>
             <nav className="space-y-1">
               {navItems.map((item) => (
                 <Link
@@ -148,7 +155,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
       </div>
 
       {/* Bottom nav — mobile */}
-      <BottomNav />
+      <BottomNav onVoice={onVoice} onManual={onManual} onImport={onImport} />
     </div>
   )
 }

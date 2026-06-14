@@ -1,11 +1,12 @@
 'use client'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { AddExpenseTrigger } from '@/components/expenses/add-expense-trigger'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: 'grid' },
   { href: '/metas', label: 'Metas', icon: 'target' },
-  { href: '#voice', label: 'Agregar', icon: 'plus', isFab: true },
+  { href: '#add', label: 'Agregar', icon: 'plus', isFab: true },
   { href: '/resumen', label: 'Resumen', icon: 'chart' },
   { href: '/cuenta', label: 'Cuenta', icon: 'user' },
 ]
@@ -22,15 +23,11 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
         <rect x="11" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.5"/>
       </svg>
     ),
-    clock: (
+    target: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <circle cx="10" cy="10" r="7" stroke={color} strokeWidth="1.5"/>
-        <path d="M10 6v4l2.5 2.5" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    ),
-    plus: (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M11 5v12M5 11h12" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+        <circle cx="10" cy="10" r="4" stroke={color} strokeWidth="1.5"/>
+        <circle cx="10" cy="10" r="1.5" fill={color}/>
       </svg>
     ),
     chart: (
@@ -38,13 +35,6 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
         <rect x="3" y="11" width="3" height="6" rx="1" stroke={color} strokeWidth="1.5"/>
         <rect x="8.5" y="7" width="3" height="10" rx="1" stroke={color} strokeWidth="1.5"/>
         <rect x="14" y="3" width="3" height="14" rx="1" stroke={color} strokeWidth="1.5"/>
-      </svg>
-    ),
-    target: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="10" r="7" stroke={color} strokeWidth="1.5"/>
-        <circle cx="10" cy="10" r="4" stroke={color} strokeWidth="1.5"/>
-        <circle cx="10" cy="10" r="1.5" fill={color}/>
       </svg>
     ),
     user: (
@@ -58,9 +48,14 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
   return icons[icon] ?? null
 }
 
-export function BottomNav() {
+interface BottomNavProps {
+  onVoice?: () => void
+  onManual?: () => void
+  onImport?: () => void
+}
+
+export function BottomNav({ onVoice, onManual, onImport }: BottomNavProps) {
   const pathname = usePathname()
-  const router = useRouter()
 
   return (
     <div className="lg:hidden" style={{
@@ -77,29 +72,9 @@ export function BottomNav() {
           const active = pathname === item.href
           if (item.isFab) {
             return (
-              <button key={item.href} onClick={() => {
-                if (pathname === '/dashboard') {
-                  window.dispatchEvent(new CustomEvent('zafi:voice-overlay'))
-                } else {
-                  router.push('/dashboard')
-                }
-              }} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                gap: 2, background: 'none', border: 'none', cursor: 'pointer',
-                marginTop: -16, padding: 0,
-              }}>
-                <div style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  background: '#2563EB', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 2px 12px rgba(37,99,235,.4)',
-                }}>
-                  <NavIcon icon={item.icon} active={false} />
-                </div>
-                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>
-                  {item.label}
-                </span>
-              </button>
+              <div key={item.href}>
+                <AddExpenseTrigger onVoice={onVoice} onManual={onManual} onImport={onImport} />
+              </div>
             )
           }
           return (

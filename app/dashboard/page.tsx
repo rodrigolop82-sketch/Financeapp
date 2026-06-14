@@ -17,7 +17,6 @@ import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getUserHousehold } from '@/lib/household'
 import { FloatingScoreBadge } from '@/components/score/FloatingScoreBadge'
 import { useHealthScore } from '@/hooks/useHealthScore'
-import { SplitFAB } from '@/components/statement-import/SplitFAB'
 import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow'
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -65,14 +64,27 @@ export default function DashboardPage() {
   const router = useRouter()
   const { score: healthScoreResult, loading: scoreLoading } = useHealthScore(data?.householdId ?? null)
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const action = params.get('action')
+    if (action === 'voice') setVoiceOverlayOpen(true)
+    if (action === 'manual') window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
+    if (action === 'import') setImportFlowActive(true)
+  }, [])
+
   useEffect(() => { loadDashboardData(selectedMonthStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for voice overlay trigger from BottomNav
-  useEffect(() => {
-    const handler = () => setVoiceOverlayOpen(true)
-    window.addEventListener('zafi:voice-overlay', handler)
-    return () => window.removeEventListener('zafi:voice-overlay', handler)
-  }, [])
+  function handleOpenVoice() {
+    setVoiceOverlayOpen(true)
+  }
+
+  function handleOpenManual() {
+    window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
+  }
+
+  function handleOpenImport() {
+    setImportFlowActive(true)
+  }
 
   async function loadDashboardData(ms?: string) {
     const supabase = createClient()
@@ -309,7 +321,7 @@ export default function DashboardPage() {
   const isCurrentMonth = data.isCurrentMonth
 
   return (
-    <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
+    <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name} onVoice={handleOpenVoice} onManual={handleOpenManual} onImport={handleOpenImport}>
 
       {/* Navegador de mes */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 0' }}>
@@ -412,14 +424,6 @@ export default function DashboardPage() {
       {/* Floating Health Score badge */}
       {isCurrentMonth && (
         <FloatingScoreBadge score={healthScoreResult} loading={scoreLoading} />
-      )}
-
-      {/* Split FAB — only on current month */}
-      {isCurrentMonth && (
-        <SplitFAB
-          onManualExpense={() => window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))}
-          onImportStatement={() => setImportFlowActive(true)}
-        />
       )}
 
       {/* Statement import flow */}
