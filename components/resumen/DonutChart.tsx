@@ -5,9 +5,11 @@ import { formatMoney } from '@/lib/format'
 interface DonutChartProps {
   fixed: number
   variable: number
+  fixedMonthlyAvg?: number
+  variableMonthlyAvg?: number
 }
 
-export function DonutChart({ fixed, variable }: DonutChartProps) {
+export function DonutChart({ fixed, variable, fixedMonthlyAvg, variableMonthlyAvg }: DonutChartProps) {
   const total = fixed + variable
   const data = [
     { name: 'Fijo', value: fixed, color: '#2563EB' },
@@ -56,6 +58,22 @@ export function DonutChart({ fixed, variable }: DonutChartProps) {
           </div>
         ))}
       </div>
+      {(fixedMonthlyAvg !== undefined || variableMonthlyAvg !== undefined) && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 12, padding: '10px 0 4px', borderTop: '1px solid #E2E8F0' }}>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 10, color: '#94A3B8', margin: '0 0 2px', textTransform: 'uppercase' }}>Prom. fijo/mes</p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#2563EB', margin: 0, fontFamily: 'Outfit, sans-serif' }}>
+              {formatMoney(fixedMonthlyAvg ?? 0)}
+            </p>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 10, color: '#94A3B8', margin: '0 0 2px', textTransform: 'uppercase' }}>Prom. variable/mes</p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#F59E0B', margin: 0, fontFamily: 'Outfit, sans-serif' }}>
+              {formatMoney(variableMonthlyAvg ?? 0)}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
