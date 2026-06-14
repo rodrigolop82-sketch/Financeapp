@@ -1,4 +1,4 @@
-export type Currency = 'GTQ' | 'USD' | 'MXN' | 'COP' | 'HNL' | 'NIO' | 'CRC'
+export type Currency = 'GTQ' | 'USD' | 'MXN' | 'COP' | 'HNL' | 'NIO' | 'CRC' | 'EUR'
 
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
   GTQ: 'Q',
@@ -8,6 +8,7 @@ const CURRENCY_SYMBOLS: Record<Currency, string> = {
   HNL: 'L',
   NIO: 'C$',
   CRC: '₡',
+  EUR: '€',
 }
 
 export interface FormatOptions {
