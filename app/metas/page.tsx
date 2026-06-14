@@ -11,19 +11,34 @@ export default function MetasPage() {
   const completedGoals = goals.filter((g) => g.status === 'completed')
 
   return (
-    <AppShell title="Metas" currentPath="/metas">
+    <AppShell title="Mis metas" currentPath="/metas">
+      {/* Top-right add button */}
+      {!isLoading && !error && goals.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <Link href="/metas/nueva" style={{
+            width: 42, height: 42, borderRadius: '50%',
+            background: 'rgba(37,99,235,0.15)',
+            border: '1.5px solid rgba(37,99,235,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            textDecoration: 'none', color: '#93C5FD', fontSize: 22,
+          }}>
+            +
+          </Link>
+        </div>
+      )}
+
       {isLoading ? (
         <div>
           {/* Skeleton summary */}
           <div style={{
-            height: 100, borderRadius: 16, marginBottom: 16,
+            height: 110, borderRadius: 16, marginBottom: 16,
             background: 'rgba(255,255,255,0.04)',
             animation: 'pulse 1.5s ease-in-out infinite',
           }} />
           {/* Skeleton cards */}
           {[1, 2].map((i) => (
             <div key={i} style={{
-              height: 100, borderRadius: 14, marginBottom: 10,
+              height: 110, borderRadius: 14, marginBottom: 10,
               background: 'rgba(255,255,255,0.04)',
               animation: 'pulse 1.5s ease-in-out infinite',
             }} />
@@ -73,6 +88,16 @@ export default function MetasPage() {
             activeCount={activeGoals.length}
           />
 
+          {activeGoals.length > 0 && (
+            <p style={{
+              fontSize: 11, fontWeight: 700, color: '#34D399',
+              textTransform: 'uppercase', letterSpacing: '0.08em',
+              marginBottom: 10,
+            }}>
+              Activas
+            </p>
+          )}
+
           {activeGoals.map((g) => (
             <GoalCard key={g.id} goal={g} />
           ))}
@@ -80,8 +105,8 @@ export default function MetasPage() {
           {completedGoals.length > 0 && (
             <>
               <p style={{
-                fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.35)',
-                textTransform: 'uppercase', letterSpacing: '0.05em',
+                fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.35)',
+                textTransform: 'uppercase', letterSpacing: '0.08em',
                 margin: '20px 0 10px',
               }}>
                 Completadas
@@ -91,19 +116,6 @@ export default function MetasPage() {
               ))}
             </>
           )}
-
-          <div style={{ textAlign: 'center', marginTop: 20 }}>
-            <Link href="/metas/nueva" style={{
-              display: 'inline-block', padding: '12px 24px',
-              background: 'rgba(37,99,235,0.15)',
-              border: '1px solid rgba(37,99,235,0.3)',
-              borderRadius: 12,
-              color: '#93C5FD', fontSize: 14, fontWeight: 600,
-              textDecoration: 'none',
-            }}>
-              ＋ Crear nueva meta
-            </Link>
-          </div>
         </div>
       )}
 

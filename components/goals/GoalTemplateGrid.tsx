@@ -27,8 +27,7 @@ export function GoalTemplateGrid({ selected, onSelect }: GoalTemplateGridProps) 
     <div style={{
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
-      gap: 10,
-      marginBottom: 20,
+      gap: 12,
     }}>
       {TEMPLATES.map((t) => {
         const isSelected = t.type === selected
@@ -37,18 +36,18 @@ export function GoalTemplateGrid({ selected, onSelect }: GoalTemplateGridProps) 
             key={t.type}
             onClick={() => onSelect(t)}
             style={{
-              background: isSelected ? 'rgba(37,99,235,0.15)' : 'rgba(255,255,255,0.04)',
+              background: isSelected ? 'rgba(37,99,235,0.12)' : 'rgba(255,255,255,0.04)',
               border: isSelected ? '1.5px solid #2563EB' : '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 14,
-              padding: '14px 12px',
+              borderRadius: 16,
+              padding: '20px 12px',
               cursor: 'pointer',
-              textAlign: 'left',
+              textAlign: 'center',
               transition: 'all 0.2s',
             }}
           >
-            <span style={{ fontSize: 24, display: 'block', marginBottom: 6 }}>{t.emoji}</span>
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'white', marginBottom: 2 }}>{t.name}</p>
-            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{t.desc}</p>
+            <span style={{ fontSize: 36, display: 'block', marginBottom: 10 }}>{t.emoji}</span>
+            <p style={{ fontSize: 14, fontWeight: 700, color: 'white', marginBottom: 4 }}>{t.name}</p>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{t.desc}</p>
           </button>
         )
       })}
