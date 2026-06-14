@@ -66,6 +66,7 @@ export interface BudgetSubItem {
   name: string;
   amount: number;
   is_fixed: boolean;
+  recurrence: 'mensual' | 'trimestral' | 'semestral' | 'anual' | 'unica';
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
   frequency: 'mensual' | 'trimestral' | 'anual';
   created_at: string;
@@ -78,9 +79,11 @@ export interface Transaction {
   amount: number;
   description: string | null;
   date: string;
-  source: 'manual' | 'voice' | 'ocr' | 'csv';
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement';
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
   voice_raw_text: string | null;
+  original_amount: number | null;
+  original_currency: string | null;
   created_at: string;
 }
 
@@ -181,6 +184,8 @@ export interface ExtractedTransaction {
   category_id?: string;
   date: string;
   confidence: number;
+  original_amount?: number | null;
+  original_currency?: string | null;
 }
 
 export interface VoiceExtractionResult {
@@ -241,7 +246,7 @@ export interface CapsuleRecommendation {
   reason: string;
 }
 
-// Income entry (stored in localStorage)
+// Income entry (persisted in financial_profiles.income_entries JSONB)
 export interface IncomeEntry {
   id: string;
   source: string;

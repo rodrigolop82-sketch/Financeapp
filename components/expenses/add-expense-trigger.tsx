@@ -115,8 +115,8 @@ export function AddExpenseTrigger({ onVoice, onManual, onPhoto, onImport }: AddE
         if (onPhoto) onPhoto()
         break
       case 'import':
-        // TODO: implement bank statement import flow
-        if (onImport) onImport()
+        if (onImport) { onImport(); return }
+        if (!onDashboard) router.push('/dashboard?action=import')
         break
     }
   }

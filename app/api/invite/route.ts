@@ -41,6 +41,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Solo el dueño puede generar invitaciones' }, { status: 403 });
   }
 
+  // Verify caller has a premium plan
+  const { data: ownerProfile } = await supabase
+    .from('users')
+    .select('plan')
+    .eq('id', user.id)
+    .single();
+
+  if (ownerProfile?.plan !== 'premium') {
+    return NextResponse.json({ error: 'Se requiere plan Premium para usar el modo familia' }, { status: 403 });
+  }
+
   // Expire any existing active invites for this household
   await supabase
     .from('household_invites')
@@ -51,6 +62,9 @@ export async function POST(request: Request) {
   // Generate a short, shareable code (8 chars, URL-safe)
   const inviteCode = randomBytes(6).toString('base64url').substring(0, 8);
 
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
   const { data: invite, error } = await supabase
     .from('household_invites')
     .insert({
@@ -58,6 +72,7 @@ export async function POST(request: Request) {
       invite_code: inviteCode,
       created_by: user.id,
       status: 'active',
+      expires_at: expiresAt.toISOString(),
     })
     .select()
     .single();

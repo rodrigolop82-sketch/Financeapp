@@ -21,13 +21,17 @@ import {
   Copy,
   Check,
   Share2,
+  Receipt,
+  Lock,
 } from 'lucide-react';
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
+import { getUserHousehold } from '@/lib/household';
 
 interface Member {
   user_id: string;
   role: string;
   joined_at: string;
-  users: { email: string; display_name: string | null } | null;
+  users: { email: string; full_name: string | null } | null;
 }
 
 export default function FamiliaPage() {
@@ -42,45 +46,58 @@ export default function FamiliaPage() {
   const [inviteLink, setInviteLink] = useState('');
   const [generatingLink, setGeneratingLink] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [spendingByMember, setSpendingByMember] = useState<Record<string, number>>({});
+  const [txCountByMember, setTxCountByMember] = useState<Record<string, number>>({});
+  const [unattributedSpending, setUnattributedSpending] = useState(0);
+  const [isPremium, setIsPremium] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const fmt = useFormatMoney();
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
-      let hhId = '';
+      const { data: profile } = await supabase
+        .from('users').select('plan').eq('id', user.id).single();
+      setIsPremium(profile?.plan === 'premium');
 
-      const { data: hh } = await supabase
-        .from('households').select('id, owner_id').eq('owner_id', user.id).limit(1).single();
+      const hh = await getUserHousehold(supabase, user.id);
+      if (!hh) { router.push('/onboarding'); return; }
 
-      if (!hh) {
-        // Try as member
-        const { data: membership } = await supabase
-          .from('household_members')
-          .select('household_id, households(id, owner_id)')
-          .eq('user_id', user.id)
-          .limit(1)
-          .single();
-
-        if (!membership) { router.push('/onboarding'); return; }
-        const household = membership.households as unknown as { id: string; owner_id: string };
-        hhId = household.id;
-        setHouseholdId(household.id);
-        setIsOwner(household.owner_id === user.id);
-      } else {
-        hhId = hh.id;
-        setHouseholdId(hh.id);
-        setIsOwner(true);
-      }
+      const hhId = hh.id;
+      setHouseholdId(hhId);
+      setIsOwner(hh.owner_id === user.id);
 
       if (hhId) {
-        const res = await fetch(`/api/familia?householdId=${hhId}`);
-        if (res.ok) {
-          const data = await res.json();
+        const [membersRes, { data: txData }] = await Promise.all([
+          fetch(`/api/familia?householdId=${hhId}`),
+          supabase
+            .from('transactions')
+            .select('created_by, amount')
+            .eq('household_id', hhId),
+        ]);
+
+        if (membersRes.ok) {
+          const data = await membersRes.json();
           setMembers(data.members);
         }
+
+        const byMember: Record<string, number> = {};
+        const countByMember: Record<string, number> = {};
+        let unattributed = 0;
+        (txData || []).forEach((tx: { created_by: string | null; amount: number }) => {
+          if (tx.created_by) {
+            byMember[tx.created_by] = (byMember[tx.created_by] || 0) + Number(tx.amount);
+            countByMember[tx.created_by] = (countByMember[tx.created_by] || 0) + 1;
+          } else {
+            unattributed += Number(tx.amount);
+          }
+        });
+        setSpendingByMember(byMember);
+        setTxCountByMember(countByMember);
+        setUnattributedSpending(unattributed);
       }
       setLoading(false);
     }
@@ -177,7 +194,30 @@ export default function FamiliaPage() {
 
   return (
     <AppShell title="Familia" currentPath="/familia">
-        {isOwner && (
+        {/* Premium gate for non-premium owners */}
+        {isOwner && !isPremium && (
+          <Card className="mb-6 border-yellow-200 bg-yellow-50">
+            <CardContent className="p-4 flex items-start gap-3">
+              <Lock className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-yellow-800">Función Premium</p>
+                <p className="text-sm text-yellow-700 mt-0.5">
+                  El modo familia requiere un plan Premium. Activa tu suscripción para invitar miembros y compartir el presupuesto.
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => router.push('/cuenta')}
+                >
+                  <Crown className="w-4 h-4 mr-2" />
+                  Ver planes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isOwner && isPremium && (
           <div className="flex justify-end mb-6">
             <Button onClick={() => { setShowInvite(true); setMessage(null); }}>
               <UserPlus className="w-4 h-4 mr-2" />
@@ -307,7 +347,7 @@ export default function FamiliaPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
-                    {member.users?.display_name || member.users?.email || 'Usuario'}
+                    {member.users?.full_name || member.users?.email || 'Usuario'}
                   </p>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">{member.users?.email}</span>
@@ -350,6 +390,80 @@ export default function FamiliaPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Spending breakdown by member */}
+        {members.length > 0 && (() => {
+          const totalSpending = Object.values(spendingByMember).reduce((s, v) => s + v, 0) + unattributedSpending;
+          if (totalSpending === 0) return null;
+          return (
+            <Card className="mt-4">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-gray-500" />
+                  <CardTitle className="text-base">Gastos por miembro</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between text-sm border-b pb-3">
+                  <span className="text-gray-500">Total del hogar</span>
+                  <span className="font-bold text-navy">{fmt(totalSpending)}</span>
+                </div>
+                {members.map(member => {
+                  const amount = spendingByMember[member.user_id] || 0;
+                  const pct = totalSpending > 0 ? Math.round((amount / totalSpending) * 100) : 0;
+                  const count = txCountByMember[member.user_id] || 0;
+                  const name = member.users?.full_name || member.users?.email?.split('@')[0] || 'Usuario';
+                  return (
+                    <div key={member.user_id}>
+                      <div className="flex items-center justify-between text-sm mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {name[0]?.toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="font-medium">{name}</span>
+                            <span className="text-xs text-gray-400 ml-1.5">{count} tx</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-semibold">{fmt(amount)}</span>
+                          <span className="text-gray-400 text-xs ml-1.5">{pct}%</span>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-electric"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                {unattributedSpending > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between text-sm mb-1.5">
+                      <span className="text-gray-400 italic">Sin atribuir</span>
+                      <div className="text-right">
+                        <span className="text-gray-500">{fmt(unattributedSpending)}</span>
+                        <span className="text-gray-400 text-xs ml-1.5">
+                          {Math.round((unattributedSpending / totalSpending) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gray-300"
+                        style={{ width: `${Math.round((unattributedSpending / totalSpending) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
     </AppShell>
   );
 }

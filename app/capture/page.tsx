@@ -6,6 +6,7 @@ import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { localToday } from '@/lib/dates'
+import { getUserHousehold } from '@/lib/household'
 
 interface CaptureData {
   amount: number
@@ -14,6 +15,8 @@ interface CaptureData {
   confidence: number
   rawText: string
   category: string
+  original_amount: number | null
+  original_currency: string | null
 }
 
 function CaptureContent() {
@@ -41,6 +44,8 @@ function CaptureContent() {
       const confidence = parseFloat(params.get('confidence') || '1')
       const rawText = params.get('raw') || ''
       const category = params.get('category') || ''
+      const originalAmount = params.get('original_amount') ? parseFloat(params.get('original_amount')!) : null
+      const originalCurrency = params.get('original_currency') || null
 
       if (!rawAmount || !merchant) {
         setError(true)
@@ -48,7 +53,7 @@ function CaptureContent() {
         return
       }
 
-      setData({ amount: rawAmount, merchant, bank, confidence, rawText, category })
+      setData({ amount: rawAmount, merchant, bank, confidence, rawText, category, original_amount: originalAmount, original_currency: originalCurrency })
       setAmount(rawAmount)
       setDescription(merchant)
 
@@ -57,8 +62,7 @@ function CaptureContent() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const { data: hh } = await supabase
-        .from('households').select('id').eq('owner_id', user.id).limit(1).single()
+      const hh = await getUserHousehold(supabase, user.id)
       if (!hh) { router.push('/dashboard'); return }
       setHouseholdId(hh.id)
 
@@ -101,6 +105,8 @@ function CaptureContent() {
       description,
       date: localToday(),
       source: 'ocr',
+      original_amount: data?.original_amount ?? null,
+      original_currency: data?.original_currency ?? null,
     })
 
     setSaving(false)

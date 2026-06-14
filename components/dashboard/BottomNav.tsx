@@ -5,9 +5,9 @@ import { AddExpenseTrigger } from '@/components/expenses/add-expense-trigger'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: 'grid' },
-  { href: '/plan', label: 'Plan', icon: 'clock' },
+  { href: '/metas', label: 'Metas', icon: 'target' },
   { href: '#add', label: 'Agregar', icon: 'plus', isFab: true },
-  { href: '/aprende', label: 'Aprende', icon: 'trend' },
+  { href: '/resumen', label: 'Resumen', icon: 'chart' },
   { href: '/cuenta', label: 'Cuenta', icon: 'user' },
 ]
 
@@ -23,16 +23,18 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
         <rect x="11" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.5"/>
       </svg>
     ),
-    clock: (
+    target: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <circle cx="10" cy="10" r="7" stroke={color} strokeWidth="1.5"/>
-        <path d="M10 6v4l2.5 2.5" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
+        <circle cx="10" cy="10" r="4" stroke={color} strokeWidth="1.5"/>
+        <circle cx="10" cy="10" r="1.5" fill={color}/>
       </svg>
     ),
-    trend: (
+    chart: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <path d="M3 14l4-4 3 3 7-7" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M13 6h4v4" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <rect x="3" y="11" width="3" height="6" rx="1" stroke={color} strokeWidth="1.5"/>
+        <rect x="8.5" y="7" width="3" height="10" rx="1" stroke={color} strokeWidth="1.5"/>
+        <rect x="14" y="3" width="3" height="14" rx="1" stroke={color} strokeWidth="1.5"/>
       </svg>
     ),
     user: (
@@ -49,9 +51,10 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
 interface BottomNavProps {
   onVoice?: () => void
   onManual?: () => void
+  onImport?: () => void
 }
 
-export function BottomNav({ onVoice, onManual }: BottomNavProps) {
+export function BottomNav({ onVoice, onManual, onImport }: BottomNavProps) {
   const pathname = usePathname()
 
   return (
@@ -67,20 +70,15 @@ export function BottomNav({ onVoice, onManual }: BottomNavProps) {
       }}>
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href
-
           if (item.isFab) {
             return (
               <div key={item.href}>
-                <AddExpenseTrigger onVoice={onVoice} onManual={onManual} />
+                <AddExpenseTrigger onVoice={onVoice} onManual={onManual} onImport={onImport} />
               </div>
             )
           }
-
           return (
-            <Link key={item.href} href={item.href} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              gap: 2, textDecoration: 'none', minWidth: 48,
-            }}>
+            <Link key={item.href} href={item.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, textDecoration: 'none', minWidth: 48 }}>
               <NavIcon icon={item.icon} active={active} />
               <span style={{
                 fontSize: 9, fontWeight: 600,

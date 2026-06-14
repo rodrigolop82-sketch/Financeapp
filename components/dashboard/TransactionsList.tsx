@@ -8,7 +8,9 @@ interface Transaction {
   category: string
   amount: number
   date: string
-  source: 'manual' | 'voice' | 'ocr' | 'csv'
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
+  original_amount?: number | null
+  original_currency?: string | null
 }
 
 // Mapeo de categorías a SVG icons con colores de fondo
@@ -131,6 +133,12 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
                 <div style={{ fontSize: 14, fontWeight: 500, color: '#1E3A5F' }}>
                   {money(tx.amount)}
                 </div>
+                {tx.original_currency && (
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>
+                    {tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : tx.original_currency}{' '}
+                    {Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                )}
                 {tx.source === 'voice' && (
                   <span style={{
                     fontSize: 10, fontWeight: 500, padding: '1px 5px',
