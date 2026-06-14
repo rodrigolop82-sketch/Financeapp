@@ -54,16 +54,25 @@ export default function DashboardPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const action = params.get('action')
+    if (action === 'voice') setVoiceOverlayOpen(true)
+    if (action === 'manual') setShowQuickAdd(true)
+  }, [])
 
   useEffect(() => { loadDashboardData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for voice overlay trigger from BottomNav
-  useEffect(() => {
-    const handler = () => setVoiceOverlayOpen(true)
-    window.addEventListener('zafi:voice-overlay', handler)
-    return () => window.removeEventListener('zafi:voice-overlay', handler)
-  }, [])
+  function handleOpenVoice() {
+    setVoiceOverlayOpen(true)
+  }
+
+  function handleOpenManual() {
+    setShowQuickAdd(true)
+  }
 
   async function loadDashboardData() {
     const supabase = createClient()
@@ -323,7 +332,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
+    <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name} onVoice={handleOpenVoice} onManual={handleOpenManual}>
       {/* Hero marino */}
       <StatusHero
         spent={data.spentMonth}
@@ -368,11 +377,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Quick add */}
-      <QuickAddBar
-        onAdd={handleQuickAdd}
-        onVoiceOverlay={() => setVoiceOverlayOpen(true)}
-      />
+      {/* Quick add — shown when "Registrar manualmente" is selected */}
+      {showQuickAdd && (
+        <QuickAddBar
+          onAdd={(text) => { handleQuickAdd(text); setShowQuickAdd(false) }}
+          onVoiceOverlay={() => { setShowQuickAdd(false); setVoiceOverlayOpen(true) }}
+        />
+      )}
 
       {/* Summary */}
       <SummaryRow

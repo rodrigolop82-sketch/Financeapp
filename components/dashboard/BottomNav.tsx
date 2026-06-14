@@ -1,11 +1,12 @@
 'use client'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { AddExpenseTrigger } from '@/components/expenses/add-expense-trigger'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: 'grid' },
   { href: '/plan', label: 'Plan', icon: 'clock' },
-  { href: '#voice', label: 'Agregar', icon: 'plus', isFab: true },
+  { href: '#add', label: 'Agregar', icon: 'plus', isFab: true },
   { href: '/aprende', label: 'Aprende', icon: 'trend' },
   { href: '/cuenta', label: 'Cuenta', icon: 'user' },
 ]
@@ -28,11 +29,6 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
         <path d="M10 6v4l2.5 2.5" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
     ),
-    plus: (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M11 5v12M5 11h12" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-      </svg>
-    ),
     trend: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <path d="M3 14l4-4 3 3 7-7" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -50,9 +46,13 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
   return icons[icon] ?? null
 }
 
-export function BottomNav() {
+interface BottomNavProps {
+  onVoice?: () => void
+  onManual?: () => void
+}
+
+export function BottomNav({ onVoice, onManual }: BottomNavProps) {
   const pathname = usePathname()
-  const router = useRouter()
 
   return (
     <div className="lg:hidden" style={{
@@ -70,29 +70,9 @@ export function BottomNav() {
 
           if (item.isFab) {
             return (
-              <button key={item.href} onClick={() => {
-                if (pathname === '/dashboard') {
-                  window.dispatchEvent(new CustomEvent('zafi:voice-overlay'))
-                } else {
-                  router.push('/dashboard')
-                }
-              }} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                gap: 2, background: 'none', border: 'none', cursor: 'pointer',
-                marginTop: -16, padding: 0,
-              }}>
-                <div style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  background: '#2563EB', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 2px 12px rgba(37,99,235,.4)',
-                }}>
-                  <NavIcon icon={item.icon} active={false} />
-                </div>
-                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>
-                  {item.label}
-                </span>
-              </button>
+              <div key={item.href}>
+                <AddExpenseTrigger onVoice={onVoice} onManual={onManual} />
+              </div>
             )
           }
 
