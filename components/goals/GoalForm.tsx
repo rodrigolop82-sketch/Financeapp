@@ -49,15 +49,15 @@ export function GoalForm({ emoji, templateName, goalType, avgMonthlyExpenses, on
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '14px 16px',
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.12)',
-    borderRadius: 12, color: 'white',
+    background: 'white',
+    border: '1px solid #CBD5E1',
+    borderRadius: 12, color: '#0F172A',
     fontSize: 16, outline: 'none',
     fontFamily: 'inherit',
   }
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 13, fontWeight: 600, color: '#60A5FA',
+    fontSize: 13, fontWeight: 600, color: '#2563EB',
     marginBottom: 8, display: 'block',
   }
 
@@ -80,7 +80,7 @@ export function GoalForm({ emoji, templateName, goalType, avgMonthlyExpenses, on
           <div style={{ position: 'relative' }}>
             <span style={{
               position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
-              color: 'rgba(255,255,255,0.4)', fontSize: 16, fontWeight: 700,
+              color: '#94A3B8', fontSize: 16, fontWeight: 700,
               fontFamily: 'var(--font-outfit)',
             }}>
               Q
@@ -106,12 +106,12 @@ export function GoalForm({ emoji, templateName, goalType, avgMonthlyExpenses, on
         {/* Emergency fund suggestion */}
         {goalType === 'emergency_fund' && avgMonthlyExpenses > 0 && (
           <div style={{
-            background: 'rgba(37,99,235,0.08)',
-            border: '1px solid rgba(37,99,235,0.2)',
+            background: '#EFF6FF',
+            border: '1px solid #BFDBFE',
             borderRadius: 12,
             padding: '14px 16px',
           }}>
-            <p style={{ fontSize: 13, color: '#93C5FD', lineHeight: 1.6 }}>
+            <p style={{ fontSize: 13, color: '#1E40AF', lineHeight: 1.6 }}>
               💡 Calculamos esto con 3 meses de tu gasto promedio ({formatMoney(avgMonthlyExpenses)}/mes). Es el colchón mínimo recomendado para emergencias.
             </p>
           </div>
@@ -119,19 +119,19 @@ export function GoalForm({ emoji, templateName, goalType, avgMonthlyExpenses, on
 
         <div>
           <label style={labelStyle}>
-            Fecha deseada <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>(opcional)</span>
+            Fecha deseada <span style={{ fontWeight: 400, color: '#94A3B8' }}>(opcional)</span>
           </label>
           <input
             type="date"
             value={targetDate}
             onChange={(e) => setTargetDate(e.target.value)}
-            style={{ ...inputStyle, colorScheme: 'dark' }}
+            style={inputStyle}
           />
         </div>
 
         <div>
           <label style={labelStyle}>
-            Aporte mensual planeado <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>(opcional)</span>
+            Aporte mensual planeado <span style={{ fontWeight: 400, color: '#94A3B8' }}>(opcional)</span>
           </label>
           <input
             type="number"
@@ -146,7 +146,7 @@ export function GoalForm({ emoji, templateName, goalType, avgMonthlyExpenses, on
       </div>
 
       {error && (
-        <p style={{ color: '#F87171', fontSize: 13, marginTop: 12 }}>{error}</p>
+        <p style={{ color: '#EF4444', fontSize: 13, marginTop: 12 }}>{error}</p>
       )}
 
       <button

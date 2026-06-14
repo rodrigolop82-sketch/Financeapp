@@ -1,13 +1,13 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { AppShell } from '@/components/layout/AppShell'
 import { GoalDetailHero } from '@/components/goals/GoalDetailHero'
 import { ContributionHistory } from '@/components/goals/ContributionHistory'
 import { AddContributionSheet } from '@/components/goals/AddContributionSheet'
 import { useGoals, type Goal, type Contribution } from '@/hooks/useGoals'
 import { formatMoney } from '@/lib/format'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ArrowLeft } from 'lucide-react'
 
 export interface SeasonalBoost {
   label: string
@@ -17,6 +17,7 @@ export interface SeasonalBoost {
 
 export default function GoalDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const goalId = params.id as string
   const { goals, addContribution, getContributionHistory, isLoading } = useGoals()
   const [contributions, setContributions] = useState<Contribution[]>([])
@@ -58,7 +59,7 @@ export default function GoalDetailPage() {
   if (!goal) {
     return (
       <AppShell title="Meta" currentPath="/metas">
-        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: '40px 0' }}>
+        <p style={{ textAlign: 'center', color: '#94A3B8', padding: '40px 0' }}>
           Meta no encontrada
         </p>
       </AppShell>
@@ -69,6 +70,20 @@ export default function GoalDetailPage() {
 
   return (
     <AppShell title="Detalle de meta" currentPath="/metas">
+      {/* Back button */}
+      <button
+        onClick={() => router.push('/metas')}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: '#2563EB', fontSize: 14, fontWeight: 500,
+          padding: 0, marginBottom: 16,
+        }}
+      >
+        <ArrowLeft size={18} />
+        Mis metas
+      </button>
+
       <GoalDetailHero
         emoji={goal.emoji}
         name={goal.name}
@@ -79,22 +94,23 @@ export default function GoalDetailPage() {
       {/* Projection banner */}
       {goal.projection.status !== 'completed' && goal.projection.status !== 'no_data' && (
         <div style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'white',
+          border: '1px solid #E2E8F0',
           borderRadius: 14,
           padding: '14px 16px',
           marginBottom: 16,
           display: 'flex', gap: 12, alignItems: 'flex-start',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         }}>
           <span style={{ fontSize: 20 }}>📅</span>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: 'white', marginBottom: 4 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
               {goal.projection.status === 'on_track'
                 ? `A este ritmo: ${goal.projection.estimatedDate?.toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })}`
                 : goal.projection.message
               }
             </p>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
+            <p style={{ fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>
               {monthlyRate > 0 && goal.projection.monthsRemaining
                 ? `Con tu aporte mensual de ${formatMoney(monthlyRate)}, alcanzas tu meta en ${goal.projection.monthsRemaining} meses.`
                 : ''}
@@ -108,13 +124,13 @@ export default function GoalDetailPage() {
 
       {goal.projection.status === 'no_data' && (
         <div style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'white',
+          border: '1px solid #E2E8F0',
           borderRadius: 14,
           padding: '14px 16px',
           marginBottom: 16,
         }}>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
+          <p style={{ fontSize: 13, color: '#94A3B8' }}>
             {goal.projection.message}
           </p>
         </div>
@@ -122,7 +138,7 @@ export default function GoalDetailPage() {
 
       {/* Contribution history */}
       <p style={{
-        fontSize: 11, fontWeight: 700, color: '#60A5FA',
+        fontSize: 11, fontWeight: 700, color: '#2563EB',
         textTransform: 'uppercase', letterSpacing: '0.08em',
         marginBottom: 10,
       }}>
@@ -130,7 +146,6 @@ export default function GoalDetailPage() {
       </p>
       <ContributionHistory contributions={contributions} isLoading={contribLoading} />
 
-      {/* Spacer for floating FAB */}
       <div className="h-24" />
 
       {/* Floating Abonar FAB */}

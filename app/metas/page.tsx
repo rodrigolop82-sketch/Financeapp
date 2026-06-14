@@ -17,10 +17,10 @@ export default function MetasPage() {
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
           <Link href="/metas/nueva" style={{
             width: 42, height: 42, borderRadius: '50%',
-            background: 'rgba(37,99,235,0.15)',
-            border: '1.5px solid rgba(37,99,235,0.3)',
+            background: '#DBEAFE',
+            border: '1.5px solid #93C5FD',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            textDecoration: 'none', color: '#93C5FD', fontSize: 22,
+            textDecoration: 'none', color: '#2563EB', fontSize: 22, fontWeight: 600,
           }}>
             +
           </Link>
@@ -29,17 +29,15 @@ export default function MetasPage() {
 
       {isLoading ? (
         <div>
-          {/* Skeleton summary */}
           <div style={{
             height: 110, borderRadius: 16, marginBottom: 16,
-            background: 'rgba(255,255,255,0.04)',
+            background: '#E2E8F0',
             animation: 'pulse 1.5s ease-in-out infinite',
           }} />
-          {/* Skeleton cards */}
           {[1, 2].map((i) => (
             <div key={i} style={{
               height: 110, borderRadius: 14, marginBottom: 10,
-              background: 'rgba(255,255,255,0.04)',
+              background: '#E2E8F0',
               animation: 'pulse 1.5s ease-in-out infinite',
             }} />
           ))}
@@ -52,7 +50,7 @@ export default function MetasPage() {
         </div>
       ) : error ? (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <p style={{ fontSize: 14, color: '#F87171', marginBottom: 12 }}>{error}</p>
+          <p style={{ fontSize: 14, color: '#EF4444', marginBottom: 12 }}>{error}</p>
           <button
             onClick={reload}
             style={{
@@ -68,7 +66,7 @@ export default function MetasPage() {
       ) : goals.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
           <p style={{ fontSize: 36, marginBottom: 12 }}>🎯</p>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 20 }}>
+          <p style={{ fontSize: 15, color: '#64748B', lineHeight: 1.6, marginBottom: 20 }}>
             Crea tu primera meta y Zafi te dirá cuándo la alcanzarás
           </p>
           <Link href="/metas/nueva" style={{
@@ -90,7 +88,7 @@ export default function MetasPage() {
 
           {activeGoals.length > 0 && (
             <p style={{
-              fontSize: 11, fontWeight: 700, color: '#34D399',
+              fontSize: 11, fontWeight: 700, color: '#10B981',
               textTransform: 'uppercase', letterSpacing: '0.08em',
               marginBottom: 10,
             }}>
@@ -105,7 +103,7 @@ export default function MetasPage() {
           {completedGoals.length > 0 && (
             <>
               <p style={{
-                fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.35)',
+                fontSize: 11, fontWeight: 700, color: '#94A3B8',
                 textTransform: 'uppercase', letterSpacing: '0.08em',
                 margin: '20px 0 10px',
               }}>
