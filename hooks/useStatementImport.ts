@@ -15,6 +15,8 @@ export interface ExtractedTransaction {
   category_id: string | null
   selected: boolean
   isDuplicate: boolean
+  original_amount: number | null
+  original_currency: string | null
 }
 
 export interface ImportStats {
@@ -119,6 +121,8 @@ export function useStatementImport(householdId: string) {
         type: 'expense' | 'income'
         suggested_category: string
         category_id: string | null
+        original_amount: number | null
+        original_currency: string | null
       }>
 
       // Detect duplicates
@@ -151,6 +155,8 @@ export function useStatementImport(householdId: string) {
           category_id: tx.category_id ?? null,
           selected: !isDuplicate,
           isDuplicate,
+          original_amount: tx.original_amount ?? null,
+          original_currency: tx.original_currency ?? null,
         })
       }
 
@@ -199,6 +205,8 @@ export function useStatementImport(householdId: string) {
       date: t.date || localToday(),
       source: 'statement' as const,
       created_by: user?.id,
+      original_amount: t.original_amount,
+      original_currency: t.original_currency,
     }))
 
     const { error } = await supabase.from('transactions').insert(rows)

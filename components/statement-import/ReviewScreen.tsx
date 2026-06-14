@@ -188,6 +188,11 @@ export function ReviewScreen({
               color: tx.type === 'income' ? '#059669' : '#1E3A5F',
             }}>
               {tx.type === 'income' ? '+' : ''}{formatMoney(tx.amount)}
+              {tx.original_currency && (
+                <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 400, marginLeft: 4 }}>
+                  ({tx.original_currency === 'USD' ? '$' : tx.original_currency} {Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                </span>
+              )}
             </span>
           </button>
         ))}

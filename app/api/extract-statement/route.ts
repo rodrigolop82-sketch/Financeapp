@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { getUserHousehold } from '@/lib/household'
+import { toGTQ } from '@/lib/currency'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const maxDuration = 60
@@ -159,13 +160,22 @@ export async function POST(req: NextRequest) {
     .select('id, name')
     .eq('household_id', household.id)
 
+  const stmtCurrency = (result.currency || 'GTQ').toUpperCase()
+  const isForex = stmtCurrency !== 'GTQ'
+
   if (categories && result.transactions) {
     result.transactions = result.transactions.map((tx) => {
       const match = categories.find(c =>
         c.name.toLowerCase().includes(tx.suggested_category.toLowerCase()) ||
         tx.suggested_category.toLowerCase().includes(c.name.toLowerCase())
       )
-      return { ...tx, category_id: match?.id ?? null }
+      return {
+        ...tx,
+        category_id: match?.id ?? null,
+        original_amount: isForex ? tx.amount : null,
+        original_currency: isForex ? stmtCurrency : null,
+        amount: isForex ? toGTQ(tx.amount, stmtCurrency) : tx.amount,
+      }
     })
   }
 

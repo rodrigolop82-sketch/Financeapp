@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { localToday } from '@/lib/dates'
 import { cleanTransactionName } from '@/lib/format'
+import { toGTQ, detectCurrency } from '@/lib/currency'
 import { NextRequest, NextResponse } from 'next/server'
 
 const BANK_PATTERNS = [
@@ -41,12 +42,18 @@ export async function POST(req: NextRequest) {
   // Try quick regex extraction first
   let quickAmount: number | null = null
   let quickBank = 'Notificación'
+  let quickCurrency = 'GTQ'
   for (const pattern of BANK_PATTERNS) {
     const match = rawText.match(pattern.regex)
     if (match) {
       quickBank = pattern.bank
       const amountStr = match[match.length - 1].replace(/,/g, '')
       quickAmount = parseFloat(amountStr)
+      if (match.length >= 3) {
+        quickCurrency = detectCurrency(match[1])
+      } else if (pattern.bank === 'Apple Pay') {
+        quickCurrency = 'USD'
+      }
       if (quickAmount > 0) break
     }
   }
@@ -69,20 +76,21 @@ export async function POST(req: NextRequest) {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 512,
       system: `Extractor de transacciones de notificaciones bancarias en Guatemala y Apple Pay.
-Respondé SOLO con JSON válido. Fecha hoy: ${today}. Moneda: GTQ (Q).
+Respondé SOLO con JSON válido. Fecha hoy: ${today}. Moneda principal: GTQ (Q).
 Categorías disponibles: ${ZAFI_CATEGORIES.join(', ')}.
 
-Extraé de la notificación: monto, comercio/descripción, banco, categoría sugerida y nivel de confianza.
+Extraé de la notificación: monto, comercio/descripción, banco, categoría sugerida, nivel de confianza, y currency (código ISO: GTQ, USD, EUR, MXN).
 
 Formato de respuesta:
-{"amount":150.00,"merchant":"Walmart","bank":"BAM","category":"Alimentación","confidence":0.9}
+{"amount":150.00,"merchant":"Walmart","bank":"BAM","category":"Alimentación","confidence":0.9,"currency":"GTQ"}
 
-Si no podés extraer datos, respondé: {"amount":0,"merchant":"","bank":"","category":"","confidence":0}
+Si no podés extraer datos, respondé: {"amount":0,"merchant":"","bank":"","category":"","confidence":0,"currency":"GTQ"}
 Reglas:
 - Si el texto menciona Apple Pay, Wallet o tarjeta Apple, el banco es "Apple Pay"
 - Si menciona compra/pago/cargo, es un gasto
 - Detectá el nombre del comercio cuando aparezca
-- Asigná la categoría más probable`,
+- Asigná la categoría más probable
+- Si el monto está en $ o USD, currency es "USD". Si está en Q o GTQ, currency es "GTQ".`,
       messages: [{ role: 'user', content: `Notificación recibida:\n"${rawText}"` }],
     }),
   })
@@ -90,13 +98,16 @@ Reglas:
   if (!extractionResponse.ok) {
     // Fallback to regex result
     if (quickAmount && quickAmount > 0) {
+      const isForexFb = quickCurrency !== 'GTQ'
       return NextResponse.json({
-        amount: quickAmount,
+        amount: isForexFb ? toGTQ(quickAmount, quickCurrency) : quickAmount,
         merchant: 'Gasto detectado',
         bank: quickBank,
         category: '',
         confidence: 0.5,
         rawText,
+        original_amount: isForexFb ? quickAmount : null,
+        original_currency: isForexFb ? quickCurrency : null,
       })
     }
     return NextResponse.json({ error: 'Error al procesar la notificación' }, { status: 500 })
@@ -149,25 +160,32 @@ Reglas:
       }
     }
 
+    const currency = (result.currency || 'GTQ').toUpperCase()
+    const isForex = currency !== 'GTQ'
+
     return NextResponse.json({
-      amount: result.amount,
+      amount: isForex ? toGTQ(result.amount, currency) : result.amount,
       merchant: cleanTransactionName(result.merchant || ''),
       bank: result.bank || quickBank,
       category: result.category || '',
       categoryId,
       confidence: result.confidence || 0.7,
       rawText,
+      original_amount: isForex ? result.amount : null,
+      original_currency: isForex ? currency : null,
     })
   } catch {
     // Fallback to regex
     if (quickAmount && quickAmount > 0) {
       return NextResponse.json({
-        amount: quickAmount,
+        amount: quickCurrency !== 'GTQ' ? toGTQ(quickAmount, quickCurrency) : quickAmount,
         merchant: 'Gasto detectado',
         bank: quickBank,
         category: '',
         confidence: 0.4,
         rawText,
+        original_amount: quickCurrency !== 'GTQ' ? quickAmount : null,
+        original_currency: quickCurrency !== 'GTQ' ? quickCurrency : null,
       })
     }
     return NextResponse.json({ error: 'No se pudo interpretar la notificación' }, { status: 500 })

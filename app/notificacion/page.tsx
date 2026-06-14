@@ -14,6 +14,8 @@ interface ParsedNotification {
   categoryId: string
   confidence: number
   rawText: string
+  original_amount: number | null
+  original_currency: string | null
 }
 
 function NotificacionContent() {
@@ -110,6 +112,8 @@ function NotificacionContent() {
       description,
       date: localToday(),
       source: 'ocr' as const,
+      original_amount: parsed?.original_amount ?? null,
+      original_currency: parsed?.original_currency ?? null,
     })
 
     setStep('saved')
@@ -281,6 +285,13 @@ function NotificacionContent() {
               <div style={{ fontSize: 28, fontWeight: 700, color: '#1E3A5F', marginBottom: 2 }}>
                 {fmt(parsed.amount)}
               </div>
+              {parsed.original_currency && (
+                <div style={{ fontSize: 13, color: '#94A3B8', marginBottom: 2 }}>
+                  Monto original: {parsed.original_currency === 'USD' ? '$' : parsed.original_currency === 'EUR' ? '€' : parsed.original_currency}{' '}
+                  {Number(parsed.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {' '}(TC ≈ {parsed.original_currency === 'USD' ? '7.75' : parsed.original_currency === 'EUR' ? '8.50' : parsed.original_currency === 'MXN' ? '0.45' : '?'})
+                </div>
+              )}
               <div style={{ fontSize: 14, color: '#64748B' }}>
                 {parsed.merchant} {parsed.bank ? `· ${parsed.bank}` : ''}
               </div>

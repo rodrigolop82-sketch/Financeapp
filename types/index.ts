@@ -82,6 +82,8 @@ export interface Transaction {
   source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement';
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
   voice_raw_text: string | null;
+  original_amount: number | null;
+  original_currency: string | null;
   created_at: string;
 }
 
@@ -182,6 +184,8 @@ export interface ExtractedTransaction {
   category_id?: string;
   date: string;
   confidence: number;
+  original_amount?: number | null;
+  original_currency?: string | null;
 }
 
 export interface VoiceExtractionResult {

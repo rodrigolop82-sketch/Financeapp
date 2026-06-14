@@ -172,6 +172,8 @@ function TransaccionesPageInner() {
           source: 'voice',
           voice_raw_text: voiceResult?.raw_text ?? null,
           created_by: userId || null,
+          original_amount: tx.original_amount ?? null,
+          original_currency: tx.original_currency ?? null,
         }))
       )
       .select('*, budget_categories(name, bucket)');
@@ -556,7 +558,14 @@ function TransaccionesPageInner() {
                           </div>
                         </div>
                         <div className="text-right flex items-center gap-2">
-                          <span className="font-medium text-sm">{fmt(Number(tx.amount))}</span>
+                          <div>
+                            <span className="font-medium text-sm">{fmt(Number(tx.amount))}</span>
+                            {tx.original_currency && (
+                              <div className="text-[11px] text-muted-foreground">
+                                {tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : tx.original_currency} {Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            )}
+                          </div>
                           <button
                             onClick={() => startEdit(tx)}
                             className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-gray-300 hover:text-electric transition-all"

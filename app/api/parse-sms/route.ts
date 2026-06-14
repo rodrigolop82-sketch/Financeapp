@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { localToday } from '@/lib/dates'
 import { cleanTransactionName } from '@/lib/format'
 import { getUserHousehold } from '@/lib/household'
+import { toGTQ } from '@/lib/currency'
 import { NextRequest, NextResponse } from 'next/server'
 
 const ZAFI_CATEGORIES = [
@@ -20,18 +21,18 @@ Patrones comunes que debes reconocer:
 - Apple Pay: "Apple Pay: Q89.50 at Starbucks", "Apple Pay charged $25.00 at Amazon"
 - Google Pay: "Pagaste Q200.00 a Uber con Google Pay", "Google Pay: paid Q150.00"
 - Débito/Crédito: "Su tarjeta fue utilizada por Q450.00 en TIKAL FUTURA"
-- También acepta montos en USD ($) — convertílos a GTQ multiplicando por 7.8
+- También acepta montos en USD ($), EUR (€) o MXN. Devolvé el monto original y la moneda detectada.
 
 Categorías disponibles: ${categories}
 
 Reglas:
-- Extraé siempre: monto (número), comercio/descripción, fecha (si no hay, usá hoy), categoría
+- Extraé siempre: monto (número), comercio/descripción, fecha (si no hay, usá hoy), categoría, currency (código ISO: GTQ, USD, EUR, MXN — default GTQ)
 - Si hay múltiples transacciones en un solo texto, extraé todas
 - Ignorá saldos disponibles, números de tarjeta y datos que no sean el gasto en sí
 - Si el texto NO es una notificación de gasto (ej: SMS de código de verificación), retorná transactions:[]
 
 Respondé SOLO con JSON válido, sin texto adicional:
-{"transactions":[{"amount":250,"description":"Walmart","category":"Alimentación","date":"${today}","confidence":0.95}],"raw_text":"...","ambiguous":false,"clarification":null}
+{"transactions":[{"amount":250,"description":"Walmart","category":"Alimentación","date":"${today}","confidence":0.95,"currency":"GTQ"}],"raw_text":"...","ambiguous":false,"clarification":null}
 `.trim()
 
 export async function POST(req: NextRequest) {
@@ -99,7 +100,16 @@ export async function POST(req: NextRequest) {
           c.name.toLowerCase().includes(tx.category.toLowerCase()) ||
           tx.category.toLowerCase().includes(c.name.toLowerCase())
         )
-        return { ...tx, category_id: match?.id, description: cleanTransactionName(tx.description || '') }
+        const currency = (tx.currency || 'GTQ').toUpperCase()
+        const isForex = currency !== 'GTQ'
+        return {
+          ...tx,
+          category_id: match?.id,
+          description: cleanTransactionName(tx.description || ''),
+          original_amount: isForex ? tx.amount : null,
+          original_currency: isForex ? currency : null,
+          amount: isForex ? toGTQ(tx.amount, currency) : tx.amount,
+        }
       })
     }
   }

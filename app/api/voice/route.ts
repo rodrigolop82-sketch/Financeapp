@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { localToday } from '@/lib/dates'
 import { cleanTransactionName } from '@/lib/format'
 import { getUserHousehold } from '@/lib/household'
+import { toGTQ } from '@/lib/currency'
 import { NextRequest, NextResponse } from 'next/server'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
     const extraction = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: `Extractor de transacciones financieras para Guatemala. Respondé SOLO con JSON válido. Fecha hoy: ${today}. Moneda: GTQ (Q). Categorías: ${ZAFI_CATEGORIES.join(', ')}. Reglas: fechas relativas a hoy, montos siempre en números, múltiples gastos = múltiples transacciones. Formato: {"transactions":[{"amount":85,"description":"almuerzo","category":"Restaurantes y salidas","date":"${today}","confidence":0.95}],"raw_text":"...","ambiguous":false,"clarification":null}`,
+      system: `Extractor de transacciones financieras para Guatemala. Respondé SOLO con JSON válido. Fecha hoy: ${today}. Moneda principal: GTQ (Q). Si el usuario menciona dólares, USD, euros o pesos mexicanos, devolvé "currency" con el código ISO (USD, EUR, MXN). Si no especifica moneda, usá "GTQ". Categorías: ${ZAFI_CATEGORIES.join(', ')}. Reglas: fechas relativas a hoy, montos siempre en números, múltiples gastos = múltiples transacciones. Formato: {"transactions":[{"amount":85,"description":"almuerzo","category":"Restaurantes y salidas","date":"${today}","confidence":0.95,"currency":"GTQ"}],"raw_text":"...","ambiguous":false,"clarification":null}`,
       messages: [{ role: 'user', content: `Texto dictado: "${transcription}"` }],
     })
 
@@ -98,7 +99,16 @@ export async function POST(req: NextRequest) {
           c.name.toLowerCase().includes(tx.category.toLowerCase()) ||
           tx.category.toLowerCase().includes(c.name.toLowerCase())
         )
-        return { ...tx, category_id: match?.id, description: cleanTransactionName(tx.description || '') }
+        const currency = (tx.currency || 'GTQ').toUpperCase()
+        const isForex = currency !== 'GTQ'
+        return {
+          ...tx,
+          category_id: match?.id,
+          description: cleanTransactionName(tx.description || ''),
+          original_amount: isForex ? tx.amount : null,
+          original_currency: isForex ? currency : null,
+          amount: isForex ? toGTQ(tx.amount, currency) : tx.amount,
+        }
       })
     }
   }
