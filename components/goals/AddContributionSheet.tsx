@@ -69,41 +69,42 @@ export function AddContributionSheet({
         onClick={onClose}
         style={{
           position: 'fixed', inset: 0, zIndex: 50,
-          background: 'rgba(0,0,0,0.5)',
+          background: 'rgba(0,0,0,0.4)',
         }}
       />
 
       {/* Sheet */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
-        background: '#0D1F36',
-        borderTop: '1px solid rgba(255,255,255,0.1)',
+        background: 'white',
+        borderTop: '1px solid #E2E8F0',
         borderRadius: '20px 20px 0 0',
         padding: '16px 20px calc(20px + env(safe-area-inset-bottom))',
+        boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
         animation: 'slideUp 0.3s ease',
       }}>
         {/* Handle */}
         <div style={{
           width: 36, height: 4, borderRadius: 2,
-          background: 'rgba(255,255,255,0.15)',
+          background: '#CBD5E1',
           margin: '0 auto 16px',
         }} />
 
         {/* Title */}
-        <p style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 4, fontFamily: 'var(--font-dm-serif)' }}>
+        <p style={{ fontSize: 18, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
           Abonar a {goalName}
         </p>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginBottom: 20 }}>
+        <p style={{ fontSize: 13, color: '#64748B', marginBottom: 20 }}>
           {goalEmoji} {formatMoney(currentAmount)} de {formatMoney(targetAmount)} actual
         </p>
 
         {/* Amount display */}
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
           <p style={{
-            fontSize: 42, fontWeight: 900, color: 'white',
+            fontSize: 42, fontWeight: 900, color: '#0F172A',
             fontFamily: 'var(--font-outfit)',
           }}>
-            <span style={{ fontSize: 20, color: 'rgba(255,255,255,0.4)', fontWeight: 700 }}>Q</span>
+            <span style={{ fontSize: 20, color: '#94A3B8', fontWeight: 700 }}>Q</span>
             {displayAmount}
           </p>
         </div>
@@ -120,9 +121,9 @@ export function AddContributionSheet({
                 onClick={() => handleQuickSelect(q)}
                 style={{
                   flex: 1, padding: '12px 0',
-                  background: isSelected ? 'rgba(37,99,235,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: isSelected ? '1.5px solid #2563EB' : '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 10, color: 'white',
+                  background: isSelected ? '#DBEAFE' : '#F8FAFF',
+                  border: isSelected ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
+                  borderRadius: 10, color: isSelected ? '#1D4ED8' : '#334155',
                   fontSize: 14, fontWeight: 600,
                   fontFamily: 'var(--font-outfit)',
                   cursor: 'pointer',
@@ -134,7 +135,7 @@ export function AddContributionSheet({
           })}
         </div>
 
-        {/* Custom amount input (shown when "Otro" selected) */}
+        {/* Custom amount input */}
         {showCustom && (
           <input
             type="number"
@@ -144,9 +145,9 @@ export function AddContributionSheet({
             autoFocus
             style={{
               width: '100%', padding: '12px 14px',
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 10, color: 'white',
+              background: '#F8FAFF',
+              border: '1px solid #CBD5E1',
+              borderRadius: 10, color: '#0F172A',
               fontSize: 16, fontWeight: 600,
               fontFamily: 'var(--font-outfit)',
               textAlign: 'center', outline: 'none',
@@ -156,8 +157,8 @@ export function AddContributionSheet({
         )}
 
         {/* Note */}
-        <p style={{ fontSize: 13, fontWeight: 600, color: '#60A5FA', marginBottom: 6 }}>
-          Nota <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>(opcional)</span>
+        <p style={{ fontSize: 13, fontWeight: 600, color: '#2563EB', marginBottom: 6 }}>
+          Nota <span style={{ fontWeight: 400, color: '#94A3B8' }}>(opcional)</span>
         </p>
         <input
           type="text"
@@ -166,9 +167,9 @@ export function AddContributionSheet({
           placeholder="Aporte mensual"
           style={{
             width: '100%', padding: '12px 14px',
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 10, color: 'white',
+            background: '#F8FAFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: 10, color: '#0F172A',
             fontSize: 14, outline: 'none',
             marginBottom: 20,
             fontFamily: 'inherit',

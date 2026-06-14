@@ -36,18 +36,19 @@ export function GoalTemplateGrid({ selected, onSelect }: GoalTemplateGridProps) 
             key={t.type}
             onClick={() => onSelect(t)}
             style={{
-              background: isSelected ? 'rgba(37,99,235,0.12)' : 'rgba(255,255,255,0.04)',
-              border: isSelected ? '1.5px solid #2563EB' : '1px solid rgba(255,255,255,0.08)',
+              background: isSelected ? '#DBEAFE' : 'white',
+              border: isSelected ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
               borderRadius: 16,
               padding: '20px 12px',
               cursor: 'pointer',
               textAlign: 'center',
               transition: 'all 0.2s',
+              boxShadow: isSelected ? '0 0 0 3px rgba(37,99,235,0.1)' : '0 1px 3px rgba(0,0,0,0.04)',
             }}
           >
             <span style={{ fontSize: 36, display: 'block', marginBottom: 10 }}>{t.emoji}</span>
-            <p style={{ fontSize: 14, fontWeight: 700, color: 'white', marginBottom: 4 }}>{t.name}</p>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{t.desc}</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>{t.name}</p>
+            <p style={{ fontSize: 12, color: '#64748B' }}>{t.desc}</p>
           </button>
         )
       })}

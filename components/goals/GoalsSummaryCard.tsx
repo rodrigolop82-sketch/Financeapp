@@ -16,7 +16,7 @@ export function GoalsSummaryCard({ totalSaved, totalTarget, activeCount }: Goals
       padding: '18px 18px 16px',
       marginBottom: 16,
     }}>
-      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', fontWeight: 500, marginBottom: 6 }}>
+      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 500, marginBottom: 6 }}>
         Ahorrado en metas
       </p>
       <p style={{ fontSize: 28, fontWeight: 900, color: 'white', fontFamily: 'var(--font-outfit)', marginBottom: 6 }}>
