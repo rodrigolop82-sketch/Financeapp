@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase'
 import { Loader2 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { VoiceButton } from '@/components/voice/VoiceButton'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -24,17 +26,30 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
-    async function checkAuth() {
+    async function checkAuthAndLoadHistory() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setAuthChecked(true)
+
+      const { data } = await supabase
+        .from('chat_messages')
+        .select('role, content, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(100)
+
+      if (data && data.length > 0) {
+        setMessages(data.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })))
+      }
+      setHistoryLoaded(true)
     }
-    checkAuth()
+    checkAuthAndLoadHistory()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -117,12 +132,21 @@ export default function ChatPage() {
 
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap
+            <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed
               ${msg.role === 'user'
-                ? 'bg-electric text-white rounded-br-sm'
+                ? 'bg-electric text-white rounded-br-sm whitespace-pre-wrap'
                 : 'bg-secondary text-foreground rounded-bl-sm'
               }`}>
-              {msg.content || (isStreaming && i === messages.length - 1
+              {msg.content ? (
+                msg.role === 'assistant' ? (
+                  <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0
+                    prose-headings:text-navy prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1
+                    prose-strong:text-navy prose-p:text-foreground prose-li:text-foreground
+                    prose-a:text-electric prose-blockquote:border-l-electric prose-blockquote:text-muted-foreground">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : msg.content
+              ) : (isStreaming && i === messages.length - 1
                 ? <span className="animate-pulse">...</span>
                 : '')}
             </div>
