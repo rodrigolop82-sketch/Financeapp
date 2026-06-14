@@ -38,15 +38,13 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
         }}
       />
 
-      {/* Panel — mobile bottom sheet, desktop right panel */}
-      <div className="md:hidden" style={{
+      {/* Panel — mobile bottom sheet */}
+      <div className="flex flex-col md:hidden" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 53,
         background: '#fff', borderRadius: '20px 20px 0 0',
         boxShadow: '0 -8px 40px rgba(15,23,42,0.15)',
-        maxHeight: '92vh', display: 'flex', flexDirection: 'column',
+        maxHeight: '92vh',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        transform: 'translateY(0)',
-        transition: 'transform 0.28s cubic-bezier(0.32,0,0,1)',
       }}>
         <div style={{ width: 36, height: 4, background: '#CBD5E1', borderRadius: 2, margin: '12px auto 8px', flexShrink: 0 }} />
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -54,10 +52,11 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
         </div>
       </div>
 
-      <div className="hidden md:block" style={{
+      {/* Panel — desktop right panel */}
+      <div className="hidden md:flex md:flex-col" style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, zIndex: 53,
         background: '#fff', boxShadow: '-8px 0 40px rgba(15,23,42,0.12)',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        overflow: 'hidden',
       }}>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {renderStep()}
