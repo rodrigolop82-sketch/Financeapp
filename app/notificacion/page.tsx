@@ -14,6 +14,8 @@ interface ParsedNotification {
   categoryId: string
   confidence: number
   rawText: string
+  original_amount: number | null
+  original_currency: string | null
 }
 
 function NotificacionContent() {
