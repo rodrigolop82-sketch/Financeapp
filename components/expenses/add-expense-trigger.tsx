@@ -177,12 +177,18 @@ export function AddExpenseTrigger({ onVoice, onManual, onPhoto, onImport }: AddE
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-2.5 w-full px-3 py-2.5 mb-4 rounded-xl bg-electric text-white text-sm font-semibold transition-colors hover:bg-electric-dark">
-          <Plus className="h-5 w-5" />
-          Agregar gasto
+        <button
+          className="flex items-center justify-center rounded-full bg-electric text-white shadow-lg transition-all hover:bg-electric-dark hover:scale-105 active:scale-95"
+          style={{
+            width: 56,
+            height: 56,
+            boxShadow: '0 4px 20px rgba(37,99,235,0.4)',
+          }}
+        >
+          <Plus className="h-6 w-6" strokeWidth={2.5} />
         </button>
       </PopoverTrigger>
-      <PopoverContent side="right" align="start" sideOffset={12} className="w-80">
+      <PopoverContent side="top" align="end" sideOffset={12} className="w-80">
         <div className="px-1 pt-1 pb-1">
           <h3 className="text-sm font-semibold text-ink-900 px-2 mb-1">Agregar gasto</h3>
           {optionsList}

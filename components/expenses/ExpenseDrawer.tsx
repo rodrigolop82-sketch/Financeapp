@@ -126,12 +126,6 @@ export function ExpenseDrawer({ householdId, categories, onSuccess, onVoiceOverl
 
   return (
     <>
-      <div style={{ padding: '8px 16px' }}>
-        <button onClick={() => setOpen(true)} style={{ width: '100%', padding: '14px 20px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(37,99,235,0.3)' }}>
-          <span style={{ fontSize: 18, lineHeight: 1 }}>＋</span>
-          Agregar gasto
-        </button>
-      </div>
       {open && (
         <>
           <div className="md:hidden">
