@@ -106,14 +106,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Claude no devolvió texto' }, { status: 500 })
     }
 
-    const clean = text.replace(/```json|```/g, '').trim()
+    // Extract JSON from response — handle markdown fences, leading text, etc.
+    let jsonStr = text
+    // Try to find JSON block in markdown fences
+    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (fenceMatch) {
+      jsonStr = fenceMatch[1].trim()
+    } else {
+      // Try to find raw JSON object
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0]
+      }
+    }
+
+    console.log('Claude raw response (first 300 chars):', text.substring(0, 300))
 
     let result: { bank?: string; period?: string; currency?: string; transactions?: Array<{ suggested_category: string; description: string; date: string; amount: number; type: string }>; truncated?: boolean }
     try {
-      result = JSON.parse(clean)
+      result = JSON.parse(jsonStr)
     } catch {
-      console.error('Failed to parse Claude response:', clean.substring(0, 500))
-      return NextResponse.json({ error: 'No pudimos interpretar la respuesta. Intenta con otra imagen.' }, { status: 500 })
+      console.error('Failed to parse Claude response. Full text:', text.substring(0, 1000))
+      return NextResponse.json({ error: `No pudimos interpretar la respuesta. Intenta con otra imagen o PDF.` }, { status: 500 })
     }
 
     // Enrich with category_id

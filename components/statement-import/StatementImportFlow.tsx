@@ -39,7 +39,7 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
       />
 
       {/* Panel — mobile bottom sheet */}
-      <div className="flex flex-col md:hidden" style={{
+      <div className="flex flex-col lg:hidden" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 53,
         background: '#fff', borderRadius: '20px 20px 0 0',
         boxShadow: '0 -8px 40px rgba(15,23,42,0.15)',
@@ -53,7 +53,7 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
       </div>
 
       {/* Panel — desktop right panel */}
-      <div className="hidden md:flex md:flex-col" style={{
+      <div className="hidden lg:flex lg:flex-col" style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, zIndex: 53,
         background: '#fff', boxShadow: '-8px 0 40px rgba(15,23,42,0.12)',
         overflow: 'hidden',
