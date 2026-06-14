@@ -105,8 +105,8 @@ function CaptureContent() {
       description,
       date: localToday(),
       source: 'ocr',
-      original_amount: data.original_amount,
-      original_currency: data.original_currency,
+      original_amount: data?.original_amount ?? null,
+      original_currency: data?.original_currency ?? null,
     })
 
     setSaving(false)
