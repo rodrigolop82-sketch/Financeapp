@@ -13,6 +13,8 @@ export interface CategoryExecution extends BudgetCategory {
 
 export interface MonthExecutionData {
   spentMonth: number
+  spentLastMonth: number
+  monthDeltaPct: number
   budget: number
   daysLeft: number
   daysInMonth: number
@@ -51,17 +53,23 @@ export function useMonthExecution() {
       const weekStart = localDaysAgo(7)
       const prevWeekStart = localDaysAgo(14)
 
-      const [txMonthRes, categoriesRes, profileRes, tx90Res, txPrevWeekRes] = await Promise.all([
+      // Previous month range
+      const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const prevMonthStart = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-01`
+
+      const [txMonthRes, categoriesRes, profileRes, tx90Res, txPrevWeekRes, txPrevMonthRes] = await Promise.all([
         supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).order('date', { ascending: false }),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
         supabase.from('transactions').select('date').eq('household_id', hid).gte('date', localDaysAgo(90)),
         supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
+        supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevMonthStart).lt('date', monthStart),
       ])
 
       const txMonth = (txMonthRes.data ?? []) as Transaction[]
       const categories = (categoriesRes.data ?? []) as BudgetCategory[]
       const totalIncome = profileRes.data ? Number(profileRes.data.total_income) : 0
+      const spentLastMonth = (txPrevMonthRes.data ?? []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
 
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
       const daysLeft = daysInMonth - now.getDate()
@@ -136,7 +144,9 @@ export function useMonthExecution() {
         return 'miss'
       })
 
-      setData({ spentMonth, budget, daysLeft, daysInMonth, dailyAvg, projectedSavings, currentStreak, bestStreak, weekDayStatus, categories: categoryExecution, alert, householdId: hid })
+      const monthDeltaPct = spentLastMonth > 0 ? Math.round(((spentMonth - spentLastMonth) / spentLastMonth) * 100) : 0
+
+      setData({ spentMonth, spentLastMonth, monthDeltaPct, budget, daysLeft, daysInMonth, dailyAvg, projectedSavings, currentStreak, bestStreak, weekDayStatus, categories: categoryExecution, alert, householdId: hid })
     } catch (e) {
       setError(String(e))
     } finally {
