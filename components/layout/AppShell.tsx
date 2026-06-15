@@ -39,10 +39,10 @@ interface AppShellProps {
   householdName?: string
   onVoice?: () => void
   onManual?: () => void
-  onImport?: () => void
+  onScan?: () => void
 }
 
-export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', onVoice, onManual, onImport }: AppShellProps) {
+export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', onVoice, onManual, onScan }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMaster, setIsMaster] = useState(false)
   const router = useRouter()
@@ -153,11 +153,11 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
 
       {/* Desktop floating FAB */}
       <div className="hidden lg:block fixed bottom-8 right-8 z-40">
-        <AddExpenseTrigger onVoice={onVoice} onManual={onManual} onImport={onImport} />
+        <AddExpenseTrigger onVoice={onVoice} onManual={onManual} onScan={onScan} />
       </div>
 
       {/* Bottom nav — mobile */}
-      <BottomNav onVoice={onVoice} onManual={onManual} onImport={onImport} />
+      <BottomNav onVoice={onVoice} onManual={onManual} onScan={onScan} />
     </div>
   )
 }

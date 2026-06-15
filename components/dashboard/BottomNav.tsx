@@ -51,10 +51,10 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
 interface BottomNavProps {
   onVoice?: () => void
   onManual?: () => void
-  onImport?: () => void
+  onScan?: () => void
 }
 
-export function BottomNav({ onVoice, onManual, onImport }: BottomNavProps) {
+export function BottomNav({ onVoice, onManual, onScan }: BottomNavProps) {
   const pathname = usePathname()
 
   return (
@@ -73,7 +73,7 @@ export function BottomNav({ onVoice, onManual, onImport }: BottomNavProps) {
           if (item.isFab) {
             return (
               <div key={item.href}>
-                <AddExpenseTrigger onVoice={onVoice} onManual={onManual} onImport={onImport} />
+                <AddExpenseTrigger onVoice={onVoice} onManual={onManual} onScan={onScan} />
               </div>
             )
           }
