@@ -53,6 +53,83 @@ export function ReviewScreen({
     )
   }
 
+  const isSingleTransaction = transactions.length === 1
+
+  if (isSingleTransaction) {
+    const tx = transactions[0]
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ padding: '0 20px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#64748B' }}>
+              <ChevronLeft size={20} />
+            </button>
+            <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1E3A5F', margin: 0, fontFamily: 'DM Serif Display, serif' }}>
+              Confirmar gasto
+            </h2>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, padding: '0 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{
+            width: '100%', maxWidth: 320, padding: 24, borderRadius: 16,
+            background: '#fff', border: '1.5px solid #E2E8F0',
+            boxShadow: '0 2px 12px rgba(30,58,95,0.06)',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 36, fontWeight: 800, color: '#1E3A5F', fontFamily: 'Outfit, sans-serif', marginBottom: 4 }}>
+              {formatMoney(tx.amount)}
+            </div>
+            <p style={{ fontSize: 15, fontWeight: 600, color: '#334155', marginBottom: 12 }}>
+              {tx.description}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ padding: '4px 10px', borderRadius: 20, background: '#F1F5F9', fontSize: 12, color: '#64748B', fontWeight: 600 }}>
+                {tx.suggested_category}
+              </span>
+              <span style={{ padding: '4px 10px', borderRadius: 20, background: '#F1F5F9', fontSize: 12, color: '#64748B', fontWeight: 600 }}>
+                {tx.date}
+              </span>
+              {tx.type === 'income' && (
+                <span style={{ padding: '4px 10px', borderRadius: 20, background: '#F0FDF4', fontSize: 12, color: '#065F46', fontWeight: 600 }}>
+                  Ingreso
+                </span>
+              )}
+            </div>
+            {tx.isDuplicate && (
+              <div style={{
+                marginTop: 12, padding: '8px 12px', borderRadius: 8,
+                background: '#FFFBEB', border: '1px solid #FDE68A',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                fontSize: 12, fontWeight: 600, color: '#92400E',
+              }}>
+                <AlertTriangle size={14} />
+                Posible duplicado
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ padding: '16px 20px', flexShrink: 0, borderTop: '1px solid #F1F5F9' }}>
+          <button
+            onClick={onConfirm}
+            disabled={isLoading}
+            style={{
+              width: '100%', padding: '14px 20px',
+              background: '#2563EB', color: '#fff',
+              border: 'none', borderRadius: 12,
+              fontSize: 15, fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(37,99,235,0.25)',
+            }}
+          >
+            {isLoading ? 'Guardando...' : 'Confirmar gasto →'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const filters: { key: Filter; label: string }[] = [
     { key: 'all', label: `Todas (${transactions.length})` },
     { key: 'duplicates', label: `⚠️ Duplicados (${duplicateCount})` },
@@ -216,7 +293,7 @@ export function ReviewScreen({
             boxShadow: selectedCount > 0 ? '0 4px 14px rgba(37,99,235,0.25)' : 'none',
           }}
         >
-          {isLoading ? 'Guardando...' : `Importar ${selectedCount} transacciones →`}
+          {isLoading ? 'Guardando...' : `Importar ${selectedCount} transaccion${selectedCount === 1 ? '' : 'es'} →`}
         </button>
       </div>
     </div>

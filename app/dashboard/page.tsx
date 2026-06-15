@@ -69,7 +69,7 @@ export default function DashboardPage() {
     const action = params.get('action')
     if (action === 'voice') setVoiceOverlayOpen(true)
     if (action === 'manual') window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
-    if (action === 'import') setImportFlowActive(true)
+    if (action === 'scan') setImportFlowActive(true)
   }, [])
 
   useEffect(() => { loadDashboardData(selectedMonthStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -82,7 +82,7 @@ export default function DashboardPage() {
     window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
   }
 
-  function handleOpenImport() {
+  function handleOpenScan() {
     setImportFlowActive(true)
   }
 
@@ -321,7 +321,7 @@ export default function DashboardPage() {
   const isCurrentMonth = data.isCurrentMonth
 
   return (
-    <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name} onVoice={handleOpenVoice} onManual={handleOpenManual} onImport={handleOpenImport}>
+    <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name} onVoice={handleOpenVoice} onManual={handleOpenManual} onScan={handleOpenScan}>
 
       {/* Navegador de mes */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 0' }}>
