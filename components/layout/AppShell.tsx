@@ -10,7 +10,7 @@ import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
   BarChart3, Wallet, CreditCard, Target, Receipt,
   MessageCircle, BookOpen, Clock, Users, Settings,
-  Menu, LogOut, ArrowLeft, ShieldCheck,
+  Menu, LogOut, ArrowLeft, ShieldCheck, Camera, Upload,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -19,6 +19,8 @@ const NAV_ITEMS = [
   { href: '/deudas', icon: CreditCard, label: 'Deudas' },
   { href: '/plan', icon: Target, label: 'Plan' },
   { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
+  { href: '/capture', icon: Camera, label: 'Capturar gasto' },
+  { href: '/importar', icon: Upload, label: 'Importar CSV' },
   { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
   { href: '/aprende', icon: BookOpen, label: 'Aprende' },
   { href: '/historial', icon: Clock, label: 'Historial' },

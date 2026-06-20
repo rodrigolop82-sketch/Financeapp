@@ -24,6 +24,8 @@ import {
   Pencil,
   Check,
   X,
+  Camera,
+  Upload,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 
@@ -93,7 +95,7 @@ export default function TransaccionesPage() {
 
   async function addTransaction() {
     setSaving(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('transactions')
       .insert({
         household_id: householdId,
@@ -106,6 +108,12 @@ export default function TransaccionesPage() {
       })
       .select('*, budget_categories(name, bucket)')
       .single();
+
+    if (error) {
+      alert(`Error al guardar: ${error.message}`);
+      setSaving(false);
+      return;
+    }
 
     if (data) {
       const mapped = {
@@ -122,11 +130,14 @@ export default function TransaccionesPage() {
 
   async function addExtraordinaryIncome() {
     setSaving(true);
-    // Find or use savings category for extraordinary income
     const savingsCat = categories.find(c => c.bucket === 'savings');
-    if (!savingsCat) { setSaving(false); return; }
+    if (!savingsCat) {
+      alert('No se encontró una categoría de ahorro. Creá una primero en Presupuesto.');
+      setSaving(false);
+      return;
+    }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('transactions')
       .insert({
         household_id: householdId,
@@ -135,9 +146,16 @@ export default function TransaccionesPage() {
         description: extraIncome.description || 'Ingreso extraordinario',
         date: extraIncome.date,
         source: 'manual',
+        payment_method: 'transferencia',
       })
       .select('*, budget_categories(name, bucket)')
       .single();
+
+    if (error) {
+      alert(`Error al guardar: ${error.message}`);
+      setSaving(false);
+      return;
+    }
 
     if (data) {
       const mapped = {
@@ -154,7 +172,7 @@ export default function TransaccionesPage() {
 
   async function saveVoiceTransactions(txs: VoiceExtractionResult['transactions']) {
     if (!householdId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('transactions')
       .insert(
         txs.map(tx => ({
@@ -164,10 +182,16 @@ export default function TransaccionesPage() {
           description: tx.description,
           date: tx.date,
           source: 'voice',
+          payment_method: 'efectivo' as const,
           voice_raw_text: voiceResult?.raw_text ?? null,
         }))
       )
       .select('*, budget_categories(name, bucket)');
+
+    if (error) {
+      alert(`Error al guardar: ${error.message}`);
+      return;
+    }
 
     if (data) {
       const mapped = data.map((d: Record<string, unknown>) => ({
@@ -264,18 +288,26 @@ export default function TransaccionesPage() {
         {/* Action row */}
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm text-gray-500">Este mes: {fmt(totalThisMonth)}</p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-end">
             <VoiceButton
               mode="expense"
               onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); setShowForm(false); setIsExtraordinary(false); }}
               onError={(err) => setVoiceError(err)}
             />
-            <Button variant="outline" onClick={() => { setIsExtraordinary(true); setShowForm(false); setVoiceResult(null); }}>
-              <Gift className="w-4 h-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={() => router.push('/capture')}>
+              <Camera className="w-4 h-4 mr-1" />
+              Foto
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push('/importar')}>
+              <Upload className="w-4 h-4 mr-1" />
+              CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { setIsExtraordinary(true); setShowForm(false); setVoiceResult(null); }}>
+              <Gift className="w-4 h-4 mr-1" />
               Aguinaldo
             </Button>
-            <Button onClick={() => { setShowForm(true); setIsExtraordinary(false); setVoiceResult(null); }}>
-              <Plus className="w-4 h-4 mr-2" />
+            <Button size="sm" onClick={() => { setShowForm(true); setIsExtraordinary(false); setVoiceResult(null); }}>
+              <Plus className="w-4 h-4 mr-1" />
               Gasto
             </Button>
           </div>

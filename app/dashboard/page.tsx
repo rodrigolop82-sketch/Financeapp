@@ -303,9 +303,16 @@ export default function DashboardPage() {
       category_id: t.category_id ?? null,
       date: t.date || localToday(),
       source: 'voice' as const,
+      payment_method: 'efectivo' as const,
       voice_raw_text: voiceResult?.raw_text ?? null,
     }))
-    await supabase.from('transactions').insert(rows)
+    const { error } = await supabase.from('transactions').insert(rows)
+
+    if (error) {
+      setErrorMsg(`No se pudo guardar: ${error.message}`)
+      setTimeout(() => setErrorMsg(null), 5000)
+      return
+    }
 
     setVoiceResult(null)
     const count = transactions.length
