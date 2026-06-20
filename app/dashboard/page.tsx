@@ -58,6 +58,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const [importFlowActive, setImportFlowActive] = useState(false)
   const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
@@ -299,9 +300,16 @@ export default function DashboardPage() {
       category_id: t.category_id ?? null,
       date: t.date || localToday(),
       source: 'voice' as const,
+      payment_method: 'efectivo' as const,
       voice_raw_text: voiceResult?.raw_text ?? null,
     }))
-    await supabase.from('transactions').insert(rows)
+    const { error } = await supabase.from('transactions').insert(rows)
+
+    if (error) {
+      setErrorMsg(`No se pudo guardar: ${error.message}`)
+      setTimeout(() => setErrorMsg(null), 5000)
+      return
+    }
 
     setVoiceResult(null)
     const count = transactions.length
@@ -367,6 +375,16 @@ export default function DashboardPage() {
           borderRadius: 10, fontSize: 14, color: '#065F46'
         }}>
           {successMsg}
+        </div>
+      )}
+
+      {errorMsg && (
+        <div style={{
+          margin: '10px 16px 0', padding: '8px 12px',
+          background: '#FEF2F2', border: '0.5px solid #FECACA',
+          borderRadius: 10, fontSize: 14, color: '#991B1B'
+        }}>
+          {errorMsg}
         </div>
       )}
 

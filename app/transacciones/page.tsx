@@ -25,6 +25,8 @@ import {
   Check,
   X,
   MessageSquare,
+  Camera,
+  Upload,
 } from 'lucide-react';
 
 function TransaccionesPageInner() {
@@ -82,7 +84,7 @@ function TransaccionesPageInner() {
 
       const mapped = (txs || []).map((tx: Record<string, unknown>) => ({
         ...tx,
-        category_name: (tx.budget_categories as { name: string } | null)?.name || 'Sin categoría',
+        category_name: (tx.budget_categories as { name: string } | null)?.name || 'Sin categoria',
         bucket: (tx.budget_categories as { bucket: string } | null)?.bucket || '',
       })) as (Transaction & { category_name?: string; bucket?: string })[];
 
@@ -123,14 +125,14 @@ function TransaccionesPageInner() {
         setShowForm(false);
       }
     } catch {
-      setSmsError('Error de conexión. Intentá de nuevo.');
+      setSmsError('Error de conexion. Intenta de nuevo.');
     }
     setSmsParsing(false);
   }
 
   async function addTransaction() {
     setSaving(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('transactions')
       .insert({
         household_id: householdId,
@@ -145,10 +147,16 @@ function TransaccionesPageInner() {
       .select('*, budget_categories(name, bucket)')
       .single();
 
+    if (error) {
+      alert(`Error al guardar: ${error.message}`);
+      setSaving(false);
+      return;
+    }
+
     if (data) {
       const mapped = {
         ...data,
-        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoría',
+        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoria',
         bucket: (data.budget_categories as { bucket: string } | null)?.bucket || '',
       } as Transaction & { category_name?: string; bucket?: string };
       setTransactions([mapped, ...transactions]);
@@ -160,7 +168,7 @@ function TransaccionesPageInner() {
 
   async function saveVoiceTransactions(txs: VoiceExtractionResult['transactions']) {
     if (!householdId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('transactions')
       .insert(
         txs.map(tx => ({
@@ -170,6 +178,7 @@ function TransaccionesPageInner() {
           description: tx.description,
           date: tx.date,
           source: 'voice',
+          payment_method: 'efectivo' as const,
           voice_raw_text: voiceResult?.raw_text ?? null,
           created_by: userId || null,
           original_amount: tx.original_amount ?? null,
@@ -178,10 +187,15 @@ function TransaccionesPageInner() {
       )
       .select('*, budget_categories(name, bucket)');
 
+    if (error) {
+      alert(`Error al guardar: ${error.message}`);
+      return;
+    }
+
     if (data) {
       const mapped = data.map((d: Record<string, unknown>) => ({
         ...d,
-        category_name: (d.budget_categories as { name: string } | null)?.name || 'Sin categoría',
+        category_name: (d.budget_categories as { name: string } | null)?.name || 'Sin categoria',
         bucket: (d.budget_categories as { bucket: string } | null)?.bucket || '',
       })) as (Transaction & { category_name?: string; bucket?: string })[];
       setTransactions([...mapped, ...transactions]);
@@ -226,7 +240,7 @@ function TransaccionesPageInner() {
     if (data) {
       const mapped = {
         ...data,
-        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoría',
+        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoria',
         bucket: (data.budget_categories as { bucket: string } | null)?.bucket || '',
       } as Transaction & { category_name?: string; bucket?: string };
 
@@ -272,7 +286,7 @@ function TransaccionesPageInner() {
         {/* Action bar */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-gray-500">Este mes: {fmt(totalThisMonth)}</p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-end">
             <VoiceButton
               mode="expense"
               onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); setShowForm(false); setShowSmsForm(false); }}
@@ -282,9 +296,17 @@ function TransaccionesPageInner() {
               variant="outline"
               size="sm"
               onClick={() => { setShowSmsForm(v => !v); setShowForm(false); setVoiceResult(null); }}
-              title="Pegar SMS o notificación de banco"
+              title="Pegar SMS o notificacion de banco"
             >
               <MessageSquare className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push('/capture')}>
+              <Camera className="w-4 h-4 mr-1" />
+              Foto
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push('/importar')}>
+              <Upload className="w-4 h-4 mr-1" />
+              CSV
             </Button>
             <Button onClick={() => { setShowForm(true); setVoiceResult(null); setShowSmsForm(false); }}>
               <Plus className="w-4 h-4 mr-2" />
@@ -299,7 +321,7 @@ function TransaccionesPageInner() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-electric" />
-                Pegar notificación de banco / Apple Pay / Google Pay
+                Pegar notificacion de banco / Apple Pay / Google Pay
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -354,7 +376,7 @@ function TransaccionesPageInner() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Categoría</Label>
+                <Label>Categoria</Label>
                 <select
                   className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
                   value={newTx.category_id}
@@ -399,7 +421,7 @@ function TransaccionesPageInner() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Descripción (opcional)</Label>
+                  <Label>Descripcion (opcional)</Label>
                   <Input
                     className="mt-1"
                     placeholder="Ej: Supermercado, Gasolina"
@@ -414,10 +436,10 @@ function TransaccionesPageInner() {
                     value={newTx.payment_method}
                     onChange={(e) => setNewTx({ ...newTx, payment_method: e.target.value as 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia' })}
                   >
-                    <option value="efectivo">💵 Efectivo</option>
-                    <option value="tarjeta">💳 Tarjeta</option>
-                    <option value="cheque">📝 Cheque</option>
-                    <option value="transferencia">🏦 Transferencia</option>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="tarjeta">Tarjeta</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="transferencia">Transferencia</option>
                   </select>
                 </div>
               </div>
@@ -450,7 +472,7 @@ function TransaccionesPageInner() {
                     editingId === tx.id ? (
                       <div key={tx.id} className="px-4 py-3 bg-blue-50/50 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-electric">Editando transacción</span>
+                          <span className="text-xs font-medium text-electric">Editando transaccion</span>
                           <div className="flex gap-1">
                             <button
                               onClick={saveEdit}
@@ -468,7 +490,7 @@ function TransaccionesPageInner() {
                           </div>
                         </div>
                         <div>
-                          <Label className="text-xs">Categoría</Label>
+                          <Label className="text-xs">Categoria</Label>
                           <select
                             className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
                             value={editData.category_id}
@@ -513,12 +535,12 @@ function TransaccionesPageInner() {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <Label className="text-xs">Descripción</Label>
+                            <Label className="text-xs">Descripcion</Label>
                             <Input
                               className="mt-1"
                               value={editData.description}
                               onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                              placeholder="Descripción del gasto"
+                              placeholder="Descripcion del gasto"
                             />
                           </div>
                           <div>
@@ -528,10 +550,10 @@ function TransaccionesPageInner() {
                               value={editData.payment_method}
                               onChange={(e) => setEditData({ ...editData, payment_method: e.target.value })}
                             >
-                              <option value="efectivo">💵 Efectivo</option>
-                              <option value="tarjeta">💳 Tarjeta</option>
-                              <option value="cheque">📝 Cheque</option>
-                              <option value="transferencia">🏦 Transferencia</option>
+                              <option value="efectivo">Efectivo</option>
+                              <option value="tarjeta">Tarjeta</option>
+                              <option value="cheque">Cheque</option>
+                              <option value="transferencia">Transferencia</option>
                             </select>
                           </div>
                         </div>
@@ -551,8 +573,7 @@ function TransaccionesPageInner() {
                             </span>
                             {tx.payment_method && tx.payment_method !== 'efectivo' && (
                               <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
-                                {tx.payment_method === 'tarjeta' ? '💳' : tx.payment_method === 'cheque' ? '📝' : '🏦'}{' '}
-                                {tx.payment_method.charAt(0).toUpperCase() + tx.payment_method.slice(1)}
+                                {tx.payment_method === 'tarjeta' ? 'Tarjeta' : tx.payment_method === 'cheque' ? 'Cheque' : 'Transferencia'}
                               </span>
                             )}
                           </div>
