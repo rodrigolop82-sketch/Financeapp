@@ -18,6 +18,9 @@ import { getUserHousehold } from '@/lib/household'
 import { FloatingScoreBadge } from '@/components/score/FloatingScoreBadge'
 import { useHealthScore } from '@/hooks/useHealthScore'
 import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow'
+import { getRecommendedCapsules } from '@/lib/capsule-recommendations'
+import { CapsuleRecommendations } from '@/components/education/CapsuleRecommendations'
+import type { CapsuleRecommendation } from '@/types'
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -50,6 +53,7 @@ interface DashboardData {
   weekVsPrev: number
   budget: number
   householdId: string
+  userId: string
   categories: BudgetCategory[]
   isCurrentMonth: boolean
 }
@@ -61,6 +65,7 @@ export default function DashboardPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const [importFlowActive, setImportFlowActive] = useState(false)
+  const [recommendations, setRecommendations] = useState<CapsuleRecommendation[]>([])
   const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
   const router = useRouter()
   const { score: healthScoreResult, loading: scoreLoading } = useHealthScore(data?.householdId ?? null)
@@ -74,6 +79,13 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => { loadDashboardData(selectedMonthStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!data?.userId || !healthScoreResult || healthScoreResult.components.length === 0) return
+    getRecommendedCapsules(data.userId, healthScoreResult.components)
+      .then(setRecommendations)
+      .catch(() => {})
+  }, [data?.userId, healthScoreResult])
 
   function handleOpenVoice() {
     setVoiceOverlayOpen(true)
@@ -259,6 +271,7 @@ export default function DashboardPage() {
       enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
       daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, bestStreak, weekVsPrev, budget,
       householdId: hid,
+      userId: user.id,
       categories,
       isCurrentMonth,
     })
@@ -420,6 +433,13 @@ export default function DashboardPage() {
 
       {/* Alerta inteligente — solo mes actual */}
       {isCurrentMonth && <SmartAlert alert={data.alert} />}
+
+      {/* Recomendaciones de cápsulas — solo mes actual */}
+      {isCurrentMonth && recommendations.length > 0 && (
+        <div style={{ margin: '12px 16px 0' }}>
+          <CapsuleRecommendations recommendations={recommendations} />
+        </div>
+      )}
 
       {/* Transacciones del período */}
       <TransactionsList

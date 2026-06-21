@@ -9,14 +9,18 @@ import { ScoreRing } from '@/components/ui/ScoreRing'
 import { ScoreComponentBar } from '@/components/score/ScoreComponentBar'
 import { ScoreSparkline } from '@/components/score/ScoreSparkline'
 import { useHealthScore } from '@/hooks/useHealthScore'
+import { getRecommendedCapsules } from '@/lib/capsule-recommendations'
+import { CapsuleRecommendations } from '@/components/education/CapsuleRecommendations'
 import { ChevronLeft, Loader2 } from 'lucide-react'
-import type { Household } from '@/types'
+import type { Household, CapsuleRecommendation } from '@/types'
 
 export default function ScorePage() {
   const router = useRouter()
   const [householdId, setHouseholdId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [userName, setUserName] = useState('')
   const [household, setHousehold] = useState<Household | null>(null)
+  const [recommendations, setRecommendations] = useState<CapsuleRecommendation[]>([])
   const { score, history, loading } = useHealthScore(householdId)
 
   useEffect(() => {
@@ -35,12 +39,18 @@ export default function ScorePage() {
       if (!hh) { router.push('/onboarding'); return }
 
       setHouseholdId(hh.id)
+      setUserId(user.id)
       setHousehold(hh as Household)
       const name = (userProfile?.full_name || 'Usuario') as string
       setUserName(name.split(' ')[0])
     }
     init()
   }, [router])
+
+  useEffect(() => {
+    if (!userId || !score || score.components.length === 0) return
+    getRecommendedCapsules(userId, score.components).then(setRecommendations).catch(() => {})
+  }, [userId, score])
 
   if (!householdId || loading || !score) {
     return (
@@ -130,6 +140,16 @@ export default function ScorePage() {
                 </li>
               ))}
           </ul>
+        </div>
+      )}
+
+      {/* Capsule recommendations */}
+      {recommendations.length > 0 && (
+        <div style={{ margin: '0 16px 16px' }}>
+          <h2 className="font-outfit font-bold text-navy" style={{ fontSize: 15, marginBottom: 10 }}>
+            Mejora tu puntaje
+          </h2>
+          <CapsuleRecommendations recommendations={recommendations} />
         </div>
       )}
 
