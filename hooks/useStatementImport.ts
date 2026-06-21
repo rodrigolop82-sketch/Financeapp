@@ -202,10 +202,12 @@ export function useStatementImport(householdId: string) {
       return
     }
 
+    const bankLabel = current.bankDetected ? ` [${current.bankDetected}]` : ''
+
     const rows = selected.map(t => ({
       household_id: householdId,
       amount: t.amount,
-      description: t.description,
+      description: t.description + bankLabel,
       category_id: t.category_id || null,
       date: t.date || localToday(),
       source: 'csv' as const,

@@ -576,6 +576,11 @@ function TransaccionesPageInner() {
                                 {tx.payment_method === 'tarjeta' ? 'Tarjeta' : tx.payment_method === 'cheque' ? 'Cheque' : 'Transferencia'}
                               </span>
                             )}
+                            {tx.source === 'csv' && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">
+                                Importado
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="text-right flex items-center gap-2">
