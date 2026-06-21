@@ -10,7 +10,7 @@ import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
   BarChart3, Wallet, CreditCard, Target, Receipt, TrendingUp,
   MessageCircle, BookOpen, Users, Settings,
-  Menu, LogOut, ArrowLeft, ShieldCheck, Trophy, Camera, Upload,
+  Menu, LogOut, ArrowLeft, ShieldCheck, Trophy,
 } from 'lucide-react'
 import { AddExpenseTrigger } from '@/components/expenses/add-expense-trigger'
 
@@ -22,8 +22,6 @@ const NAV_ITEMS = [
   { href: '/deudas', icon: CreditCard, label: 'Deudas' },
   { href: '/plan', icon: Target, label: 'Retos' },
   { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
-  { href: '/capture', icon: Camera, label: 'Capturar gasto' },
-  { href: '/importar', icon: Upload, label: 'Importar CSV' },
   { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
   { href: '/aprende', icon: BookOpen, label: 'Aprende' },
   { href: '/familia', icon: Users, label: 'Familia' },
