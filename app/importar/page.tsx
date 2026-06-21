@@ -23,7 +23,6 @@ interface ParsedRow {
 export default function ImportarPage() {
   const [loading, setLoading] = useState(true)
   const [householdId, setHouseholdId] = useState('')
-  const [userId, setUserId] = useState('')
   const [categories, setCategories] = useState<BudgetCategory[]>([])
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
   const [rows, setRows] = useState<ParsedRow[]>([])
@@ -45,7 +44,6 @@ export default function ImportarPage() {
       if (!hh) { router.push('/onboarding'); return }
 
       setHouseholdId(hh.id)
-      setUserId(user.id)
 
       const { data: cats } = await supabase
         .from('budget_categories').select('*')
@@ -204,32 +202,61 @@ export default function ImportarPage() {
     const selected = rows.filter(r => r.selected)
     if (selected.length === 0) return
 
-    setSaving(true)
-    setError(null)
-
-    const supabase = createClient()
-    const insertRows = selected.map(r => ({
-      household_id: householdId,
-      category_id: r.category_id || null,
-      amount: r.amount,
-      description: r.description,
-      date: r.date,
-      source: 'csv' as const,
-      payment_method: 'tarjeta' as const,
-      created_by: userId,
-    }))
-
-    const { error: insertError } = await supabase.from('transactions').insert(insertRows)
-
-    if (insertError) {
-      setError(`Error al importar: ${insertError.message}`)
-      setSaving(false)
+    if (!householdId) {
+      setError('No se pudo determinar el hogar. Recargá la página e intentá de nuevo.')
       return
     }
 
-    setSavedCount(selected.length)
-    setSaving(false)
-    setStep('done')
+    setSaving(true)
+    setError(null)
+
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('Sesión expirada. Iniciá sesión de nuevo.')
+        setSaving(false)
+        return
+      }
+
+      const insertRows = selected.map(r => ({
+        household_id: householdId,
+        category_id: r.category_id || null,
+        amount: r.amount,
+        description: r.description,
+        date: r.date,
+        source: 'csv' as const,
+        payment_method: 'tarjeta' as const,
+        created_by: user.id,
+      }))
+
+      const { data, error: insertError } = await supabase
+        .from('transactions')
+        .insert(insertRows)
+        .select('id')
+
+      if (insertError) {
+        console.error('CSV import error:', insertError)
+        setError(`Error al importar: ${insertError.message}`)
+        setSaving(false)
+        return
+      }
+
+      if (!data || data.length === 0) {
+        console.error('Insert returned no data — likely RLS blocking')
+        setError('No se pudieron guardar las transacciones. Verificá que tu cuenta tenga permisos.')
+        setSaving(false)
+        return
+      }
+
+      setSavedCount(data.length)
+      setSaving(false)
+      setStep('done')
+    } catch (err) {
+      console.error('Unexpected import error:', err)
+      setError(`Error inesperado: ${err instanceof Error ? err.message : String(err)}`)
+      setSaving(false)
+    }
   }
 
   function toggleRow(idx: number) {
