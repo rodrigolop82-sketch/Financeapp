@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { getUserHousehold } from '@/lib/household'
 import { localToday } from '@/lib/dates'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { AppShell } from '@/components/layout/AppShell'
@@ -22,6 +23,7 @@ interface ParsedRow {
 export default function ImportarPage() {
   const [loading, setLoading] = useState(true)
   const [householdId, setHouseholdId] = useState('')
+  const [userId, setUserId] = useState('')
   const [categories, setCategories] = useState<BudgetCategory[]>([])
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
   const [rows, setRows] = useState<ParsedRow[]>([])
@@ -39,25 +41,17 @@ export default function ImportarPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const { data: hh } = await supabase
-        .from('households').select('id').eq('owner_id', user.id).limit(1).single()
+      const hh = await getUserHousehold(supabase, user.id)
+      if (!hh) { router.push('/onboarding'); return }
 
-      if (!hh) {
-        const { data: member } = await supabase
-          .from('household_members').select('household_id').eq('user_id', user.id).limit(1).single()
-        if (!member) { router.push('/onboarding'); return }
-        setHouseholdId(member.household_id)
-      } else {
-        setHouseholdId(hh.id)
-      }
+      setHouseholdId(hh.id)
+      setUserId(user.id)
 
-      const hhId = hh?.id || ''
-      if (hhId) {
-        const { data: cats } = await supabase
-          .from('budget_categories').select('*')
-          .eq('household_id', hhId).order('bucket')
-        setCategories((cats || []) as BudgetCategory[])
-      }
+      const { data: cats } = await supabase
+        .from('budget_categories').select('*')
+        .eq('household_id', hh.id).order('bucket')
+      setCategories((cats || []) as BudgetCategory[])
+
       setLoading(false)
     }
     load()
@@ -222,6 +216,7 @@ export default function ImportarPage() {
       date: r.date,
       source: 'csv' as const,
       payment_method: 'tarjeta' as const,
+      created_by: userId,
     }))
 
     const { error: insertError } = await supabase.from('transactions').insert(insertRows)
