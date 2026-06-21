@@ -10,13 +10,14 @@ interface ReviewScreenProps {
   transactions: ExtractedTransaction[]
   bankDetected: string | null
   isLoading: boolean
+  error?: string | null
   onToggle: (id: string) => void
   onConfirm: () => void
   onBack: () => void
 }
 
 export function ReviewScreen({
-  transactions, bankDetected, isLoading,
+  transactions, bankDetected, isLoading, error,
   onToggle, onConfirm, onBack,
 }: ReviewScreenProps) {
   const [filter, setFilter] = useState<Filter>('all')
@@ -274,6 +275,19 @@ export function ReviewScreen({
           </button>
         ))}
       </div>
+
+      {/* Error message */}
+      {error && (
+        <div style={{
+          margin: '0 20px', padding: '10px 14px', borderRadius: 10,
+          background: '#FEF2F2', border: '1px solid #FECACA',
+          fontSize: 13, color: '#991B1B', fontWeight: 500,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <AlertTriangle size={16} color="#DC2626" />
+          {error}
+        </div>
+      )}
 
       {/* Confirm button */}
       <div style={{ padding: '16px 20px', flexShrink: 0, borderTop: '1px solid #F1F5F9' }}>

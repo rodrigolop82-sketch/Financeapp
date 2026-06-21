@@ -91,6 +91,7 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
             transactions={imp.transactions}
             bankDetected={imp.bankDetected}
             isLoading={imp.isLoading}
+            error={imp.error}
             onToggle={imp.toggleTransaction}
             onConfirm={imp.confirmImport}
             onBack={() => imp.startImport()}

@@ -193,41 +193,59 @@ export function useStatementImport(householdId: string) {
     const selected = current.transactions.filter(t => t.selected)
     if (selected.length === 0) return
 
-    setState(s => ({ ...s, isLoading: true }))
+    setState(s => ({ ...s, isLoading: true, error: null }))
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      setState(s => ({ ...s, isLoading: false, error: 'Sesión expirada. Iniciá sesión de nuevo.' }))
+      return
+    }
 
     const rows = selected.map(t => ({
       household_id: householdId,
       amount: t.amount,
       description: t.description,
-      category_id: t.category_id,
+      category_id: t.category_id || null,
       date: t.date || localToday(),
-      source: 'statement' as const,
-      created_by: user?.id,
+      source: 'csv' as const,
+      created_by: user.id,
       original_amount: t.original_amount,
       original_currency: t.original_currency,
     }))
 
-    const { error } = await supabase.from('transactions').insert(rows)
+    const { data: inserted, error } = await supabase
+      .from('transactions')
+      .insert(rows)
+      .select('id')
 
     if (error) {
       console.error('Transaction insert error:', error)
-      setState(s => ({ ...s, isLoading: false, error: 'Error al guardar transacciones' }))
+      setState(s => ({ ...s, isLoading: false, error: `Error al guardar: ${error.message}` }))
       return
     }
 
-    // Log import audit
-    await supabase.from('statement_imports').insert({
-      user_id: user?.id,
-      household_id: householdId,
-      bank_detected: current.bankDetected,
-      file_type: fileRef.current?.type === 'application/pdf' ? 'pdf' : 'image',
-      transactions_found: current.transactions.length,
-      transactions_imported: selected.length,
-      duplicates_detected: current.transactions.filter(t => t.isDuplicate).length,
-      status: 'completed',
-    })
+    if (!inserted || inserted.length === 0) {
+      console.error('Insert returned no rows — RLS may be blocking')
+      setState(s => ({ ...s, isLoading: false, error: 'No se pudieron guardar las transacciones. Verificá permisos.' }))
+      return
+    }
+
+    // Log import audit (best-effort, don't block on failure)
+    try {
+      await supabase.from('statement_imports').insert({
+        user_id: user.id,
+        household_id: householdId,
+        bank_detected: current.bankDetected,
+        file_type: fileRef.current?.type === 'application/pdf' ? 'pdf' : 'image',
+        transactions_found: current.transactions.length,
+        transactions_imported: selected.length,
+        duplicates_detected: current.transactions.filter(t => t.isDuplicate).length,
+        status: 'completed',
+      })
+    } catch (auditErr) {
+      console.warn('Failed to log import audit:', auditErr)
+    }
 
     const totalAmount = selected
       .filter(t => t.type === 'expense')
@@ -239,7 +257,7 @@ export function useStatementImport(householdId: string) {
       isLoading: false,
       stats: {
         total: current.transactions.length,
-        imported: selected.length,
+        imported: inserted.length,
         duplicatesSkipped: current.transactions.filter(t => t.isDuplicate && !t.selected).length,
         totalAmount,
       },
