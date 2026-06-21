@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { localToday } from '@/lib/dates'
 import { cleanTransactionName } from '@/lib/format'
+import { categorizeTransactionServer } from '@/lib/categorize-transaction'
 import { NextRequest, NextResponse } from 'next/server'
 
 const ZAFI_CATEGORIES = [
@@ -115,13 +116,18 @@ export async function POST(req: NextRequest) {
 
     if (categories && result.transactions) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      result.transactions = result.transactions.map((tx: any) => {
+      result.transactions = await Promise.all(result.transactions.map(async (tx: any) => {
+        const desc = cleanTransactionName(tx.description || '')
+        const override = await categorizeTransactionServer(desc, categories, supabase)
+        if (override) {
+          return { ...tx, category_id: override.category, description: desc }
+        }
         const match = categories.find(c =>
           c.name.toLowerCase().includes(tx.category.toLowerCase()) ||
           tx.category.toLowerCase().includes(c.name.toLowerCase())
         )
-        return { ...tx, category_id: match?.id, description: cleanTransactionName(tx.description || '') }
-      })
+        return { ...tx, category_id: match?.id, description: desc }
+      }))
     }
   }
 

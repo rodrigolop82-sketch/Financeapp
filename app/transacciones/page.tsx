@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { localToday } from '@/lib/dates';
+import { saveMerchantOverride } from '@/lib/categorize-transaction';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +48,7 @@ export default function TransaccionesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState({ category_id: '', amount: 0, description: '', date: '', payment_method: 'efectivo' as string });
   const [editSaving, setEditSaving] = useState(false);
+  const [userId, setUserId] = useState('');
   // Extraordinary income
   const [extraIncome, setExtraIncome] = useState({ amount: 0, description: 'Aguinaldo', date: localToday() });
   const router = useRouter();
@@ -57,6 +59,7 @@ export default function TransaccionesPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
+      setUserId(user.id);
 
       const { data: hh } = await supabase
         .from('households').select('id').eq('owner_id', user.id).limit(1).single();
@@ -222,6 +225,11 @@ export default function TransaccionesPage() {
       } as Transaction & { category_name?: string; bucket?: string };
 
       setTransactions(transactions.map(t => t.id === editingId ? mapped : t));
+
+      const categoryName = (data.budget_categories as { name: string } | null)?.name;
+      if (editData.description && categoryName && userId) {
+        saveMerchantOverride(editData.description, categoryName, userId).catch(() => {});
+      }
     }
 
     setEditingId(null);

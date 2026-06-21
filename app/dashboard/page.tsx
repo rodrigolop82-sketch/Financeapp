@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
 import { cleanTransactionName } from '@/lib/format'
+import { categorizeTransaction } from '@/lib/categorize-transaction'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
 import { QuickAddBar } from '@/components/dashboard/QuickAddBar'
@@ -274,7 +275,8 @@ export default function DashboardPage() {
     }
     const amount = parseFloat(match[1])
     const description = cleanTransactionName(match[2])
-    const categoryId = matchCategory(description)
+    const result = await categorizeTransaction(description, data.categories, CATEGORY_KEYWORDS)
+    const categoryId = result?.category ?? matchCategory(description)
     const supabase = createClient()
     const { error } = await supabase.from('transactions').insert({
       household_id: data.householdId, amount, description,
