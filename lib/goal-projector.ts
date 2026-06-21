@@ -70,7 +70,6 @@ export function projectGoal(input: ProjectionInput): ProjectionResult {
   }
 
   const requiredMonthly = Math.ceil(remaining / monthsUntilTarget)
-  const additionalNeeded = requiredMonthly - monthlyRate
   const targetMonthName = input.targetDate.toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })
 
   return {
@@ -78,7 +77,7 @@ export function projectGoal(input: ProjectionInput): ProjectionResult {
     monthsRemaining: months,
     estimatedDate,
     requiredMonthly,
-    message: `Necesitas Q${Math.ceil(additionalNeeded)}/mes más para llegar en ${targetMonthName}`,
+    message: `Necesitas ahorrar Q${requiredMonthly.toLocaleString('es-GT')}/mes para llegar en ${targetMonthName}`,
   }
 }
 
