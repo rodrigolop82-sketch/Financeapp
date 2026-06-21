@@ -209,9 +209,7 @@ export function useStatementImport(householdId: string) {
       category_id: t.category_id || null,
       date: t.date || localToday(),
       source: 'csv' as const,
-      created_by: user.id,
-      original_amount: t.original_amount,
-      original_currency: t.original_currency,
+      payment_method: 'tarjeta' as const,
     }))
 
     const { data: inserted, error } = await supabase
