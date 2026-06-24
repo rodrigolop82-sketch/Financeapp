@@ -12,7 +12,14 @@ const EXTRACTION_PROMPT = `Analiza este estado de cuenta y extrae TODAS las tran
 
 Responde con este JSON exacto (sin backticks, sin texto adicional):
 
-{"bank":"nombre del banco o Desconocido","period":"Mayo 2026","currency":"GTQ","transactions":[{"date":"2026-05-15","description":"descripción","amount":450.00,"type":"expense","suggested_category":"Alimentación"}]}
+{"bank":"nombre del banco o Desconocido","period":"Mayo 2026","currency":"GTQ","transactions":[{"date":"2026-05-15","description":"descripción","amount":450.00,"type":"expense","currency":"GTQ","suggested_category":"Alimentación"}]}
+
+IMPORTANTE sobre monedas:
+- El campo "currency" a nivel raíz es la moneda principal del estado de cuenta
+- Cada transacción DEBE tener su propio campo "currency" (GTQ, USD, EUR, etc.)
+- Si una transacción dice USD, US$, dólares, o tiene indicadores como "USA", "BILL USA", u otros indicadores de moneda extranjera, usa "USD"
+- Si no hay indicador de moneda en la transacción, usa la moneda principal del estado de cuenta
+- amount siempre en la moneda original de la transacción (NO convertir)
 
 suggested_category debe ser una de: Vivienda/alquiler, Alimentación, Transporte, Salud/medicinas, Servicios, Educación, Restaurantes y salidas, Ropa, Entretenimiento, Suscripciones, Varios personales, Fondo de emergencia, Ahorro para metas, Pago extra de deudas, Ingreso, Transferencia, Otro
 
@@ -140,6 +147,10 @@ export async function POST(req: NextRequest) {
       date: string
       amount: number
       type: string
+      currency?: string
+      category_id?: string | null
+      original_amount?: number | null
+      original_currency?: string | null
     }>
     truncated?: boolean
   }
@@ -161,7 +172,6 @@ export async function POST(req: NextRequest) {
     .eq('household_id', household.id)
 
   const stmtCurrency = (result.currency || 'GTQ').toUpperCase()
-  const isForex = stmtCurrency !== 'GTQ'
 
   if (categories && result.transactions) {
     result.transactions = result.transactions.map((tx) => {
@@ -169,12 +179,14 @@ export async function POST(req: NextRequest) {
         c.name.toLowerCase().includes(tx.suggested_category.toLowerCase()) ||
         tx.suggested_category.toLowerCase().includes(c.name.toLowerCase())
       )
+      const txCurrency = (tx.currency || stmtCurrency).toUpperCase()
+      const isForex = txCurrency !== 'GTQ'
       return {
         ...tx,
         category_id: match?.id ?? null,
         original_amount: isForex ? tx.amount : null,
-        original_currency: isForex ? stmtCurrency : null,
-        amount: isForex ? toGTQ(tx.amount, stmtCurrency) : tx.amount,
+        original_currency: isForex ? txCurrency : null,
+        amount: isForex ? toGTQ(tx.amount, txCurrency) : tx.amount,
       }
     })
   }
