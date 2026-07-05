@@ -34,7 +34,7 @@ export function StreakCard({ currentStreak, bestStreak, weekDays }: StreakCardPr
                 width: 22, height: 22, borderRadius: 6,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11,
-                background: day === 'done' ? '#DBEAFE' : day === 'today' ? '#2563EB' : '#EEF2FB',
+                background: day === 'done' ? '#DBEAFE' : day === 'today' ? '#2563EB' : '#F3F5F9',
                 color: day === 'done' ? '#1D4ED8' : day === 'today' ? 'white' : '#94A3B8',
               }}>
                 {DAY_LABELS[i]}

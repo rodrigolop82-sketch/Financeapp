@@ -1,8 +1,5 @@
 'use client'
 import { useMoneyFormat } from '@/lib/format'
-import { Wordmark } from '@/components/brand/Wordmark'
-import { AppIcon } from '@/components/brand/AppIcon'
-import { ScoreRing } from '@/components/ui/ScoreRing'
 
 interface StatusHeroProps {
   spent: number
@@ -27,7 +24,7 @@ function getStatusMessage(pct: number, daysLeft: number, userName: string): {
   return { text: `Superaste el presupuesto este mes, ${userName}`, color: 'red' }
 }
 
-export function StatusHero({ spent, budget, daysLeft, userName, score, userInitials }: StatusHeroProps) {
+export function StatusHero({ spent, budget, daysLeft, userName, score }: StatusHeroProps) {
   const { money } = useMoneyFormat()
   const remaining = Math.max(budget - spent, 0)
   const pct = budget > 0 ? spent / budget : 0
@@ -39,95 +36,81 @@ export function StatusHero({ spent, budget, daysLeft, userName, score, userIniti
     status.color === 'amber' ? '#F59E0B' : '#EF4444'
 
   const dotColor =
-    status.color === 'green' ? '#10B981' :
+    status.color === 'green' ? '#22C55E' :
     status.color === 'amber' ? '#F59E0B' : '#EF4444'
 
-  return (
-    <div className="relative overflow-hidden" style={{ background: '#1E3A5F', borderRadius: 20, margin: '12px 16px 0' }}>
-      {/* Decorative rings */}
-      <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full border border-electric/20 pointer-events-none" />
-      <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full border border-electric/[0.12] pointer-events-none" />
+  const scoreBorderColor =
+    score >= 80 ? '#22C55E' :
+    score >= 60 ? '#F59E0B' : '#EF4444'
 
-      {/* TopBar integrado — solo visible en mobile */}
-      <div className="lg:hidden relative z-10" style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 16px 0',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <AppIcon size="xs" variant="electric" />
-          <Wordmark variant="dark" size="xs" />
+  return (
+    <div style={{
+      background: '#1E3A5F', borderRadius: 20,
+      padding: '32px 36px', color: '#fff',
+      display: 'flex', flexDirection: 'column', gap: 22,
+    }}>
+      {/* Top row: status message + health score */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '14.5px', color: '#CBD8E8' }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%',
+            background: dotColor, display: 'inline-block', flexShrink: 0,
+          }} />
+          {status.text}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <ScoreRing score={score} size={34} strokeWidth={3} variant="dark" showLabel={false} />
-          <span className="font-outfit font-bold text-caption text-white">{score}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
-            width: 30, height: 30, borderRadius: '50%',
-            background: 'rgba(37,99,235,0.3)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
+            width: 44, height: 44, borderRadius: '50%',
+            border: `3px solid ${scoreBorderColor}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 15,
           }}>
-            <span className="font-sans font-semibold text-caption text-electric-pale">{userInitials}</span>
+            {score}
+          </div>
+          <div style={{ fontSize: 12, color: '#9FB3CB', lineHeight: 1.3 }}>
+            Health<br/>Score
           </div>
         </div>
       </div>
 
-      {/* Contenido hero */}
-      <div className="relative z-10" style={{ padding: '6px 18px 22px' }}>
-
-        {/* Mensaje emocional */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+      {/* Amount section */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
           <div style={{
-            width: 8, height: 8, borderRadius: '50%',
-            background: dotColor, flexShrink: 0
-          }}/>
-          <span className="font-sans text-body-sm text-white/[0.85]">
-            {status.text}
-          </span>
+            fontFamily: "'Outfit', sans-serif", fontWeight: 800,
+            fontSize: 52, letterSpacing: '-0.01em',
+          }}>
+            {money(spent)}
+          </div>
+          <div style={{ fontSize: 16, color: '#9FB3CB' }}>
+            de {money(budget)} gastado
+          </div>
         </div>
 
-        {/* Números + barra */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Progress bar */}
+        <div style={{
+          height: 8, borderRadius: 5,
+          background: '#2A4A6E', marginTop: 16, overflow: 'hidden',
+        }}>
+          <div style={{
+            width: `${Math.max(pctDisplay, 1)}%`, height: '100%',
+            background: barColor, borderRadius: 5,
+            transition: 'width 0.5s ease',
+          }} />
+        </div>
 
-          {/* Gastado / total */}
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <div>
-              <span className="font-outfit font-extrabold text-white tracking-[-0.03em]" style={{ fontSize: 32 }}>
-                {money(spent)}
-              </span>
-              <span className="font-sans text-body-sm text-white/[0.45]" style={{ marginLeft: 4 }}>
-                / {money(budget)}
-              </span>
-            </div>
-            <span className="font-outfit font-bold text-body-sm text-white/[0.45]">
-              {pctDisplay}%
+        {/* Footer */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          marginTop: 12, fontSize: 14, color: '#9FB3CB',
+        }}>
+          <div>
+            Te quedan{' '}
+            <span style={{ color: '#fff', fontWeight: 700, fontFamily: "'Outfit', sans-serif" }}>
+              {money(remaining)}
             </span>
           </div>
-
-          {/* Barra de progreso */}
-          <div style={{
-            height: 9, background: 'rgba(255,255,255,.12)',
-            borderRadius: 5, overflow: 'hidden'
-          }}>
-            <div style={{
-              height: 9, width: `${pctDisplay}%`,
-              background: barColor, borderRadius: 5,
-              transition: 'width .5s ease'
-            }}/>
-          </div>
-
-          {/* Dinero restante + días */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-            <div>
-              <div className="font-sans text-caption text-white/[0.45]" style={{ marginBottom: 1 }}>
-                Te quedan
-              </div>
-              <div className="font-outfit font-extrabold text-white tracking-[-0.02em]" style={{ fontSize: 24 }}>
-                {money(remaining)}
-              </div>
-            </div>
-            <div className="font-sans text-caption text-white/[0.35] text-right">
-              {daysLeft} días restantes
-            </div>
-          </div>
+          <div>{daysLeft} días restantes</div>
         </div>
       </div>
     </div>
