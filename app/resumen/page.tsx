@@ -28,6 +28,11 @@ const FIXED_CATEGORIES = [
   'Educación', 'Salud/medicinas',
 ]
 
+interface HistoricalCategory {
+  name: string
+  total: number
+}
+
 interface ResumenData {
   userName: string
   householdName: string
@@ -40,6 +45,7 @@ interface ResumenData {
   monthlyTotals: MonthlyTotal[]
   fixedPct: number
   variablePct: number
+  historicalCategories: HistoricalCategory[]
 }
 
 export default function ResumenPage() {
@@ -147,6 +153,15 @@ export default function ResumenPage() {
         }
       })
 
+      const histCatMap: Record<string, number> = {}
+      txHistory.forEach((t: { date: string; amount: number; category_id: string }) => {
+        const name = catMap[t.category_id] ?? 'Otros'
+        histCatMap[name] = (histCatMap[name] ?? 0) + Number(t.amount)
+      })
+      const historicalCategories: HistoricalCategory[] = Object.entries(histCatMap)
+        .map(([name, total]) => ({ name, total }))
+        .sort((a, b) => b.total - a.total)
+
       const fixedTotal = monthlyTotals.reduce((s, m) => s + m.fixedTotal, 0)
       const variableTotal = monthlyTotals.reduce((s, m) => s + m.variableTotal, 0)
       const grandTotal = fixedTotal + variableTotal
@@ -174,6 +189,7 @@ export default function ResumenPage() {
         monthlyTotals,
         fixedPct,
         variablePct,
+        historicalCategories,
       })
       setLoading(false)
     }
@@ -587,9 +603,9 @@ export default function ResumenPage() {
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {data.categories.filter(c => c.amount > 0).map(c => {
-                const totalSpent = data.spentMonth || 1
-                const pct = Math.round(c.amount / totalSpent * 100)
+              {data.historicalCategories.filter(c => c.total > 0).map(c => {
+                const grandTotal = data.historicalCategories.reduce((s, cat) => s + cat.total, 0) || 1
+                const pct = Math.round(c.total / grandTotal * 100)
                 const barPct = Math.max(pct, 3)
                 return (
                   <div key={c.name} style={{
@@ -601,7 +617,7 @@ export default function ResumenPage() {
                       <div style={{ width: `${barPct}%`, height: '100%', background: '#2563EB', borderRadius: 6 }} />
                     </div>
                     <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: '#1E3A5F' }}>
-                      {formatMoney(c.amount)}
+                      {formatMoney(c.total)}
                     </div>
                     <div style={{ fontSize: '12.5px', color: '#8B9AAE', textAlign: 'right' }}>
                       {pct}%
