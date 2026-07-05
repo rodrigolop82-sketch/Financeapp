@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
 import { AppShell } from '@/components/layout/AppShell'
@@ -14,7 +13,7 @@ import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household, CapsuleRecommendation } from '@/types'
-import { Loader2, ChevronLeft, ChevronRight, BookOpen, Plus } from 'lucide-react'
+import { Loader2, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { getUserHousehold } from '@/lib/household'
 import { FloatingScoreBadge } from '@/components/score/FloatingScoreBadge'
 import { useHealthScore } from '@/hooks/useHealthScore'
@@ -87,16 +86,8 @@ export default function DashboardPage() {
       .catch(() => {})
   }, [data?.userId, healthScoreResult])
 
-  function handleOpenVoice() {
-    setVoiceOverlayOpen(true)
-  }
-
   function handleOpenManual() {
     window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
-  }
-
-  function handleOpenScan() {
-    setImportFlowActive(true)
   }
 
   async function loadDashboardData(ms?: string) {
