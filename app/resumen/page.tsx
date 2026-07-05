@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { localMonthStart, localDaysAgo } from '@/lib/dates'
+import { localMonthStart } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
 import { Loader2 } from 'lucide-react'
@@ -252,7 +252,7 @@ export default function ResumenPage() {
             }}>
               Desglose por categoría
             </div>
-            {data.categories.map((cat, i) => {
+            {data.categories.map((cat) => {
               const catDiff = cat.amount - cat.prevAmount
               const catPct = cat.prevAmount > 0 ? Math.round(Math.abs(catDiff) / cat.prevAmount * 100) : 0
               return (

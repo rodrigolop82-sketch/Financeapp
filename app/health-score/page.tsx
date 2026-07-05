@@ -75,7 +75,7 @@ function ScoreGauge({ score, color }: { score: number; color: string }) {
   )
 }
 
-function ComponentBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+function ComponentBar({ label, value, max }: { label: string; value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0
   const barColor = pct >= 70 ? '#22C55E' : pct >= 40 ? '#EAB308' : '#EF4444'
 

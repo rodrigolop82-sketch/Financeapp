@@ -10,8 +10,8 @@ import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
   BarChart3, TrendingUp, Wallet, CreditCard, Target, Receipt,
   MessageCircle, BookOpen, Clock, Users, Settings,
-  Menu, LogOut, ArrowLeft, ShieldCheck, Trophy, Crosshair,
-  ChevronRight, Plus,
+  Menu, ArrowLeft, ShieldCheck, Trophy,
+  ChevronRight,
 } from 'lucide-react'
 
 interface NavItem {

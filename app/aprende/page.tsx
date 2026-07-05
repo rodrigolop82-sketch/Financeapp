@@ -27,14 +27,6 @@ const ICON_MAP: Record<string, string> = {
   'home': '🏠',
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  'credit-card': 'Deudas',
-  'trending-down': 'Ahorro',
-  'pie-chart': 'Presupuesto',
-  'trending-up': 'Inversión',
-  'home': 'Vivienda',
-}
-
 export default function AprendePage() {
   const [modules, setModules] = useState<ModuleData[]>([])
   const [userPlan, setUserPlan] = useState<'free' | 'premium'>('free')
