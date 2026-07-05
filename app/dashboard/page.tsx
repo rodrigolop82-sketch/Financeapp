@@ -25,7 +25,7 @@ interface EnrichedTransaction {
   category: string
   amount: number
   date: string
-  source: 'manual' | 'voice' | 'ocr' | 'csv'
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
 }
 
 interface DashboardData {
