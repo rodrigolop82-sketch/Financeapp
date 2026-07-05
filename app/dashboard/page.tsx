@@ -227,7 +227,14 @@ export default function DashboardPage() {
           has_emergency_fund: profile.has_emergency_fund ?? false,
           income_type: profile.income_type ?? 'fixed',
         })
-        capsuleRecommendations = await getRecommendedCapsules(user.id, score)
+        const scoreComponents = [
+          { key: 'savings', label: 'Ahorro', score: score.components.savingsRate, max: 30, tip: '' },
+          { key: 'debt', label: 'Deuda', score: score.components.debtBurden, max: 25, tip: '' },
+          { key: 'emergency', label: 'Emergencia', score: score.components.emergencyFund, max: 20, tip: '' },
+          { key: 'spending', label: 'Gastos', score: score.components.expenseRatio, max: 15, tip: '' },
+          { key: 'stability', label: 'Estabilidad', score: score.components.incomeStability, max: 10, tip: '' },
+        ]
+        capsuleRecommendations = await getRecommendedCapsules(user.id, scoreComponents)
       }
     } catch {
       // silently skip if capsule recommendations fail
