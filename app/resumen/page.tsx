@@ -15,6 +15,19 @@ interface CategorySpend {
   prevAmount: number
 }
 
+interface MonthlyTotal {
+  label: string
+  month: string
+  total: number
+  fixedTotal: number
+  variableTotal: number
+}
+
+const FIXED_CATEGORIES = [
+  'Vivienda/alquiler', 'Servicios', 'Suscripciones',
+  'Educación', 'Salud/medicinas',
+]
+
 interface ResumenData {
   userName: string
   householdName: string
@@ -24,6 +37,9 @@ interface ResumenData {
   categories: CategorySpend[]
   spentPrevMonth: number
   monthlyAvg: number
+  monthlyTotals: MonthlyTotal[]
+  fixedPct: number
+  variablePct: number
 }
 
 export default function ResumenPage() {
@@ -58,14 +74,18 @@ export default function ResumenPage() {
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
       const daysLeft = daysInMonth - now.getDate()
 
-      const [txMonthRes, categoriesRes, txPrevRes] = await Promise.all([
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10)
+
+      const [txMonthRes, categoriesRes, txPrevRes, txHistoryRes] = await Promise.all([
         supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
         supabase.from('transactions').select('*').eq('household_id', hid).gte('date', prevMonthStart).lte('date', prevMonthEnd),
+        supabase.from('transactions').select('date, amount, category_id').eq('household_id', hid).gte('date', sixMonthsAgo).order('date', { ascending: true }),
       ])
 
       const txMonth = txMonthRes.data ?? []
       const txPrev = txPrevRes.data ?? []
+      const txHistory = txHistoryRes.data ?? []
       const cats = categoriesRes.data ?? []
 
       const catMap: Record<string, string> = {}
@@ -93,6 +113,51 @@ export default function ResumenPage() {
       const spentMonth = txMonth.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
       const spentPrevMonth = txPrev.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
 
+      const MONTH_NAMES_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+      const monthlyBuckets: Record<string, { total: number; fixed: number; variable: number }> = {}
+
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        monthlyBuckets[key] = { total: 0, fixed: 0, variable: 0 }
+      }
+
+      txHistory.forEach((t: { date: string; amount: number; category_id: string }) => {
+        const key = t.date.slice(0, 7)
+        if (monthlyBuckets[key]) {
+          const amt = Number(t.amount)
+          monthlyBuckets[key].total += amt
+          const catName = catMap[t.category_id] ?? 'Otros'
+          if (FIXED_CATEGORIES.includes(catName)) {
+            monthlyBuckets[key].fixed += amt
+          } else {
+            monthlyBuckets[key].variable += amt
+          }
+        }
+      })
+
+      const monthlyTotals: MonthlyTotal[] = Object.entries(monthlyBuckets).map(([key, val]) => {
+        const [y, m] = key.split('-')
+        return {
+          month: key,
+          label: MONTH_NAMES_SHORT[parseInt(m) - 1] + ' ' + y.slice(2),
+          total: Math.round(val.total),
+          fixedTotal: Math.round(val.fixed),
+          variableTotal: Math.round(val.variable),
+        }
+      })
+
+      const fixedTotal = monthlyTotals.reduce((s, m) => s + m.fixedTotal, 0)
+      const variableTotal = monthlyTotals.reduce((s, m) => s + m.variableTotal, 0)
+      const grandTotal = fixedTotal + variableTotal
+      const fixedPct = grandTotal > 0 ? Math.round((fixedTotal / grandTotal) * 100) : 50
+      const variablePct = 100 - fixedPct
+
+      const monthsWithData = monthlyTotals.filter(m => m.total > 0).length
+      const monthlyAvg = monthsWithData > 0
+        ? Math.round(monthlyTotals.reduce((s, m) => s + m.total, 0) / monthsWithData)
+        : 0
+
       const budget = profile?.total_income ? Number(profile.total_income) * 0.8 : 4000
       const fullName = (userProfile?.full_name || 'Usuario') as string
       const firstName = fullName.split(' ')[0]
@@ -105,7 +170,10 @@ export default function ResumenPage() {
         daysLeft,
         categories,
         spentPrevMonth,
-        monthlyAvg: Math.round((spentMonth + spentPrevMonth) / 2),
+        monthlyAvg,
+        monthlyTotals,
+        fixedPct,
+        variablePct,
       })
       setLoading(false)
     }
@@ -133,6 +201,29 @@ export default function ResumenPage() {
     boxShadow: tab === t ? '0 1px 3px rgba(30,58,95,0.15)' : 'none',
     border: 'none', fontFamily: 'inherit',
   })
+
+  const maxMonthTotal = Math.max(...data.monthlyTotals.map(m => m.total), 1)
+  const chartW = 380
+  const chartH = 200
+  const padding = 10
+
+  function toChartPoints(values: number[]): string {
+    if (values.length === 0) return ''
+    const step = (chartW - padding * 2) / Math.max(values.length - 1, 1)
+    return values.map((v, i) => {
+      const x = padding + i * step
+      const y = chartH - padding - ((v / maxMonthTotal) * (chartH - padding * 2))
+      return `${Math.round(x)},${Math.round(y)}`
+    }).join(' ')
+  }
+
+  const totalPoints = toChartPoints(data.monthlyTotals.map(m => m.total))
+  const fixedPoints = toChartPoints(data.monthlyTotals.map(m => m.fixedTotal))
+  const variablePoints = toChartPoints(data.monthlyTotals.map(m => m.variableTotal))
+
+  const donutCircumference = 2 * Math.PI * 70
+  const fixedArc = (data.fixedPct / 100) * donutCircumference
+  const variableArc = (data.variablePct / 100) * donutCircumference
 
   return (
     <AppShell title="Resumen" currentPath="/resumen" userName={data.userName} householdName={data.householdName}>
@@ -285,14 +376,6 @@ export default function ResumenPage() {
                       )}
                     </div>
                   </div>
-                  {/* Simple sparkline placeholder */}
-                  <svg width="90" height="36" viewBox="0 0 90 36" fill="none">
-                    <polyline
-                      points={`0,${30 - Math.random() * 20} 15,${30 - Math.random() * 20} 30,${30 - Math.random() * 20} 45,${30 - Math.random() * 20} 60,${30 - Math.random() * 20} 75,${30 - Math.random() * 20} 90,${30 - Math.random() * 20}`}
-                      stroke={catDiff <= 0 ? '#16A34A' : '#EF4444'}
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    />
-                  </svg>
                 </div>
               )
             })}
@@ -320,7 +403,7 @@ export default function ResumenPage() {
 
           {/* Charts row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-            {/* Donut chart */}
+            {/* Donut chart - data driven */}
             <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
               <div style={{
                 fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
@@ -330,25 +413,34 @@ export default function ResumenPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'center' }}>
                 <svg width="180" height="180" viewBox="0 0 180 180">
-                  <circle cx="90" cy="90" r="70" fill="none" stroke="#2563EB" strokeWidth="26" />
+                  <circle cx="90" cy="90" r="70" fill="none" stroke="#E2E8F0" strokeWidth="26" />
+                  <circle cx="90" cy="90" r="70" fill="none" stroke="#2563EB"
+                    strokeWidth="26"
+                    strokeDasharray={`${fixedArc} ${donutCircumference - fixedArc}`}
+                    strokeDashoffset={donutCircumference * 0.25}
+                    strokeLinecap="round"
+                  />
                   <circle cx="90" cy="90" r="70" fill="none" stroke="#F59E0B"
-                    strokeWidth="26" strokeDasharray="140 440" strokeDashoffset="-300"
-                    transform="rotate(-90 90 90)" />
+                    strokeWidth="26"
+                    strokeDasharray={`${variableArc} ${donutCircumference - variableArc}`}
+                    strokeDashoffset={donutCircumference * 0.25 - fixedArc}
+                    strokeLinecap="round"
+                  />
                 </svg>
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#1E3A5F' }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
-                  Fijo 68%
+                  Fijo {data.fixedPct}%
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#1E3A5F' }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
-                  Variable 32%
+                  Variable {data.variablePct}%
                 </div>
               </div>
             </div>
 
-            {/* Line chart placeholder */}
+            {/* Line chart - data driven */}
             <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
               <div style={{
                 fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
@@ -367,18 +459,80 @@ export default function ResumenPage() {
                   <span style={{ width: 14, height: 2, background: '#F59E0B', display: 'inline-block' }} />Variable
                 </div>
               </div>
-              <svg width="100%" height="200" viewBox="0 0 380 200" preserveAspectRatio="none">
-                <line x1="0" y1="160" x2="380" y2="160" stroke="#EEF1F6" strokeWidth="1" />
-                <line x1="0" y1="110" x2="380" y2="110" stroke="#EEF1F6" strokeWidth="1" />
-                <line x1="0" y1="60" x2="380" y2="60" stroke="#EEF1F6" strokeWidth="1" />
-                <path d="M10,158 L86,110 L162,40 L238,32 L314,70 L370,158" fill="none" stroke="#2563EB" strokeWidth="2.5" />
-                <path d="M10,158 L86,120 L162,72 L238,68 L314,60 L370,90" fill="none" stroke="#16A34A" strokeWidth="2" strokeDasharray="5 4" />
-                <path d="M10,158 L86,145 L162,120 L238,90 L314,130 L370,158" fill="none" stroke="#F59E0B" strokeWidth="2" strokeDasharray="5 4" />
+              <svg width="100%" height="200" viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none">
+                <line x1={padding} y1={chartH - padding} x2={chartW - padding} y2={chartH - padding} stroke="#EEF1F6" strokeWidth="1" />
+                <line x1={padding} y1={chartH / 2} x2={chartW - padding} y2={chartH / 2} stroke="#EEF1F6" strokeWidth="1" />
+                <line x1={padding} y1={padding} x2={chartW - padding} y2={padding} stroke="#EEF1F6" strokeWidth="1" />
+                {totalPoints && <polyline points={totalPoints} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+                {fixedPoints && <polyline points={fixedPoints} fill="none" stroke="#16A34A" strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" />}
+                {variablePoints && <polyline points={variablePoints} fill="none" stroke="#F59E0B" strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" />}
               </svg>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8B9AAE', marginTop: 6 }}>
-                <span>Feb</span><span>Mar</span><span>Abr</span><span>May</span><span>Jun</span><span>Jul</span>
+                {data.monthlyTotals.map(m => (
+                  <span key={m.month}>{m.label}</span>
+                ))}
               </div>
             </div>
+          </div>
+
+          {/* Historical monthly spending */}
+          <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
+            }}>
+              Historial de gasto mensual
+            </div>
+            {data.monthlyTotals.slice().reverse().map((m, i) => {
+              const barPct = maxMonthTotal > 0 ? Math.max(Math.round((m.total / maxMonthTotal) * 100), 2) : 0
+              const prev = data.monthlyTotals.slice().reverse()[i + 1]
+              const mDiff = prev ? m.total - prev.total : 0
+              const mDiffPct = prev && prev.total > 0 ? Math.round(Math.abs(mDiff) / prev.total * 100) : 0
+
+              return (
+                <div key={m.month} style={{
+                  display: 'grid', gridTemplateColumns: '80px 1fr 120px 80px',
+                  alignItems: 'center', gap: 14,
+                  padding: '14px 0',
+                  borderTop: i > 0 ? '1px solid #EEF1F6' : 'none',
+                }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F' }}>
+                    {m.label}
+                  </div>
+                  <div style={{ height: 22, borderRadius: 6, overflow: 'hidden', background: '#F3F5F9' }}>
+                    <div style={{
+                      width: `${barPct}%`, height: '100%',
+                      background: i === 0 ? '#2563EB' : '#94A3B8',
+                      borderRadius: 6,
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </div>
+                  <div style={{
+                    fontFamily: "'Outfit', sans-serif", fontWeight: 700,
+                    fontSize: 15, color: '#1E3A5F', textAlign: 'right',
+                  }}>
+                    {formatMoney(m.total)}
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    {prev && mDiffPct > 0 && (
+                      <span style={{
+                        fontSize: 12, fontWeight: 700,
+                        color: mDiff <= 0 ? '#16A34A' : '#DC2626',
+                        background: mDiff <= 0 ? '#EAFBF1' : '#FEE2E2',
+                        padding: '3px 8px', borderRadius: 10,
+                      }}>
+                        {mDiff <= 0 ? '↓' : '↑'} {mDiffPct}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+            {data.monthlyTotals.every(m => m.total === 0) && (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: '#8B9AAE', fontSize: 14 }}>
+                No hay datos históricos aún
+              </div>
+            )}
           </div>
 
           {/* Observaciones */}
