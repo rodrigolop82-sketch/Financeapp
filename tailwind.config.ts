@@ -29,12 +29,13 @@ const config: Config = {
         // ── SUPERFICIE ───────────────────────────────────
         surface: {
           DEFAULT: "#FFFFFF",
-          tint:    "#F8FAFF",
-          bg:      "#EEF2FB",
+          tint:    "#F8F9FC",
+          bg:      "#F3F5F9",
         },
         // ── SEMÁNTICOS ───────────────────────────────────
         success: {
-          DEFAULT: "#10B981",
+          DEFAULT: "#22C55E",
+          dark:    "#16A34A",
           light:   "#D1FAE5",
           text:    "#065F46",
         },

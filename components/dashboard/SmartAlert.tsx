@@ -11,10 +11,6 @@ export interface AlertData {
   spentAmount?: number
 }
 
-/**
- * Genera la alerta más relevante según el contexto financiero actual.
- * Prioridad: déficit proyectado > categoría sobregirada > días sin registrar > logro reciente
- */
 export function buildSmartAlert(params: {
   spent: number
   budget: number
@@ -33,7 +29,6 @@ export function buildSmartAlert(params: {
   const dailyRate = daysElapsed > 0 ? spent / daysElapsed : 0
   const projectedTotal = dailyRate * daysInMonth
 
-  // 1. Proyección de déficit (lo más importante)
   if (projectedTotal > budget * 1.05) {
     const overage = Math.round(projectedTotal - budget)
     return {
@@ -43,7 +38,6 @@ export function buildSmartAlert(params: {
     }
   }
 
-  // 2. Categoría sobregirada
   if (topOverBudgetCategory && topOverBudgetCategory.pctOver > 25) {
     const extra = Math.round(topOverBudgetCategory.spent - topOverBudgetCategory.limit)
     return {
@@ -55,16 +49,14 @@ export function buildSmartAlert(params: {
     }
   }
 
-  // 3. Días sin registrar
   if (daysSinceLastTransaction >= 3) {
     return {
       type: 'info',
-      title: `Hace ${daysSinceLastTransaction} días sin registrar gastos`,
-      subtitle: 'Registrá un gasto para mantener tu racha y el presupuesto al día.',
+      title: `Hace ${daysSinceLastTransaction} días sin registrar gastos.`,
+      subtitle: 'Registrá uno para mantener tu racha al día →',
     }
   }
 
-  // 4. Logro positivo
   if (scoreImproved && scorePoints && scorePoints >= 3) {
     return {
       type: 'positive',
@@ -73,7 +65,6 @@ export function buildSmartAlert(params: {
     }
   }
 
-  // 5. Alerta final del mes
   if (daysLeft <= 5 && spent < budget * 0.95) {
     const saving = Math.round(budget - spent)
     return {
@@ -90,6 +81,30 @@ export function SmartAlert({ alert }: { alert: AlertData | null }) {
   const { money } = useMoneyFormat()
   if (!alert) return null
 
+  if (alert.type === 'info') {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        background: '#E9F0FF', borderRadius: 14,
+        padding: '16px 20px', marginTop: 20,
+      }}>
+        <div style={{
+          width: 26, height: 26, borderRadius: '50%',
+          background: '#2563EB', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 14, fontWeight: 700, flexShrink: 0,
+        }}>!</div>
+        <div style={{ fontSize: '14.5px', color: '#1E3A5F' }}>
+          <span style={{ fontWeight: 600 }}>{alert.title}</span>
+          {' '}
+          <span style={{ color: '#2563EB', fontWeight: 600, cursor: 'pointer' }}>
+            {alert.subtitle}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   const styles = {
     warning: {
       bg: '#FEF3C7', border: '#F59E0B40',
@@ -101,24 +116,19 @@ export function SmartAlert({ alert }: { alert: AlertData | null }) {
       iconBg: '#10B98120', iconColor: '#065F46',
       titleColor: '#065F46', subColor: '#047857',
     },
-    info: {
-      bg: '#DBEAFE', border: '#2563EB40',
-      iconBg: '#2563EB20', iconColor: '#1D4ED8',
-      titleColor: '#1E3A5F', subColor: '#2563EB',
-    },
   }
 
-  const s = styles[alert.type!]
+  const s = styles[alert.type as 'warning' | 'positive']
 
   return (
-    <div style={{ padding: '10px 16px 0' }}>
+    <div style={{ marginTop: 20 }}>
       <div style={{
         background: s.bg, border: `0.5px solid ${s.border}`,
-        borderRadius: 12, padding: '10px 12px',
-        display: 'flex', gap: 10, alignItems: 'flex-start'
+        borderRadius: 14, padding: '16px 20px',
+        display: 'flex', gap: 12, alignItems: 'flex-start'
       }}>
         <div style={{
-          width: 24, height: 24, borderRadius: '50%',
+          width: 26, height: 26, borderRadius: '50%',
           background: s.iconBg, display: 'flex',
           alignItems: 'center', justifyContent: 'center',
           flexShrink: 0, marginTop: 1
@@ -131,10 +141,10 @@ export function SmartAlert({ alert }: { alert: AlertData | null }) {
           </svg>
         </div>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: s.titleColor, marginBottom: 2 }}>
+          <div style={{ fontSize: '14.5px', fontWeight: 600, color: s.titleColor, marginBottom: 2 }}>
             {alert.title}
           </div>
-          <div style={{ fontSize: 12, color: s.subColor, lineHeight: 1.4 }}>
+          <div style={{ fontSize: 13, color: s.subColor, lineHeight: 1.4 }}>
             {alert.subtitle}
           </div>
           {alert.budgetAmount != null && alert.spentAmount != null && (

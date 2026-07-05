@@ -13,7 +13,6 @@ interface Transaction {
   original_currency?: string | null
 }
 
-// Mapeo de categorías a SVG icons con colores de fondo
 const CATEGORY_ICONS: Record<string, { bg: string; icon: string }> = {
   'Restaurantes y salidas': { bg: '#FEF3C7', icon: 'restaurant' },
   'Alimentación':           { bg: '#DBEAFE', icon: 'cart' },
@@ -91,32 +90,38 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
   const recent = transactions.slice(0, 5)
 
   return (
-    <div style={{ padding: '10px 16px 0' }}>
+    <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span className="eyebrow-muted">ÚLTIMOS MOVIMIENTOS</span>
+        <div style={{
+          fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+          color: '#8B9AAE', textTransform: 'uppercase' as const,
+        }}>
+          Últimos movimientos
+        </div>
         <button
           onClick={onSeeAll}
-          className="font-sans font-medium text-caption text-electric"
-          style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 14, fontWeight: 600, color: '#2563EB',
+          }}
         >
-          Ver todos &rarr;
+          Ver todos →
         </button>
       </div>
 
-      <div className="card-zafi" style={{ overflow: 'hidden' }}>
+      <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden' }}>
         {recent.length === 0 ? (
           <div style={{ padding: '20px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>
-            No hay gastos registrados. ¡Agregá el primero!
+            No hay gastos registrados.
           </div>
         ) : (
           recent.map((tx, i) => (
             <div key={tx.id} style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              padding: '10px 12px',
-              borderBottom: i < recent.length - 1 ? '0.5px solid #F1F5F9' : 'none'
+              padding: '12px 16px',
+              borderBottom: i < recent.length - 1 ? '1px solid #F1F5F9' : 'none'
             }}>
               <CategoryIcon category={tx.category} />
-
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
                   fontSize: 14, fontWeight: 500, color: '#1E3A5F',
@@ -125,10 +130,9 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
                   {tx.description ? cleanTransactionName(tx.description) : tx.category}
                 </div>
                 <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 1 }}>
-                  {tx.category} &middot; {formatRelativeDate(tx.date)}
+                  {tx.category} · {formatRelativeDate(tx.date)}
                 </div>
               </div>
-
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: '#1E3A5F' }}>
                   {money(tx.amount)}

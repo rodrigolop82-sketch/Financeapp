@@ -1,28 +1,23 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
+import { cleanTransactionName } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
-import { ExpenseDrawer } from '@/components/expenses/ExpenseDrawer'
+import { QuickAddBar } from '@/components/dashboard/QuickAddBar'
 import { SummaryRow } from '@/components/dashboard/SummaryRow'
 import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
 import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
-import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household } from '@/types'
-import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
-import { getUserHousehold } from '@/lib/household'
-import { FloatingScoreBadge } from '@/components/score/FloatingScoreBadge'
-import { useHealthScore } from '@/hooks/useHealthScore'
-import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow'
+import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household, CapsuleRecommendation } from '@/types'
+import { Loader2, ChevronLeft, ChevronRight, BookOpen, Plus } from 'lucide-react'
 import { getRecommendedCapsules } from '@/lib/capsule-recommendations'
-import { CapsuleRecommendations } from '@/components/education/CapsuleRecommendations'
-import type { CapsuleRecommendation } from '@/types'
-
-const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+import { calculateHealthScore } from '@/lib/scoring'
 
 interface EnrichedTransaction {
   id: string
@@ -30,7 +25,7 @@ interface EnrichedTransaction {
   category: string
   amount: number
   date: string
-  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
+  source: 'manual' | 'voice' | 'ocr' | 'csv'
 }
 
 interface DashboardData {
@@ -53,10 +48,14 @@ interface DashboardData {
   weekVsPrev: number
   budget: number
   householdId: string
-  userId: string
   categories: BudgetCategory[]
-  isCurrentMonth: boolean
+  capsuleRecommendations: CapsuleRecommendation[]
 }
+
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
@@ -64,42 +63,17 @@ export default function DashboardPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
-  const [importFlowActive, setImportFlowActive] = useState(false)
-  const [recommendations, setRecommendations] = useState<CapsuleRecommendation[]>([])
-  const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
   const router = useRouter()
-  const { score: healthScoreResult, loading: scoreLoading } = useHealthScore(data?.householdId ?? null)
+
+  useEffect(() => { loadDashboardData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const action = params.get('action')
-    if (action === 'voice') setVoiceOverlayOpen(true)
-    if (action === 'manual') window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
-    if (action === 'scan') setImportFlowActive(true)
+    const handler = () => setVoiceOverlayOpen(true)
+    window.addEventListener('zafi:voice-overlay', handler)
+    return () => window.removeEventListener('zafi:voice-overlay', handler)
   }, [])
 
-  useEffect(() => { loadDashboardData(selectedMonthStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!data?.userId || !healthScoreResult || healthScoreResult.components.length === 0) return
-    getRecommendedCapsules(data.userId, healthScoreResult.components)
-      .then(setRecommendations)
-      .catch(() => {})
-  }, [data?.userId, healthScoreResult])
-
-  function handleOpenVoice() {
-    setVoiceOverlayOpen(true)
-  }
-
-  function handleOpenManual() {
-    window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
-  }
-
-  function handleOpenScan() {
-    setImportFlowActive(true)
-  }
-
-  async function loadDashboardData(ms?: string) {
+  async function loadDashboardData() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -107,15 +81,18 @@ export default function DashboardPage() {
       return
     }
 
-    // Get user profile
     const { data: userProfile } = await supabase
       .from('users')
       .select('*')
       .eq('id', user.id)
       .single()
 
-    // Get household (owner or member)
-    const household = await getUserHousehold(supabase, user.id)
+    const { data: household } = await supabase
+      .from('households')
+      .select('*')
+      .eq('owner_id', user.id)
+      .limit(1)
+      .single()
 
     if (!household) {
       router.push('/onboarding')
@@ -125,48 +102,35 @@ export default function DashboardPage() {
     const hid = household.id as string
 
     const now = new Date()
-    const currentMs = localMonthStart()
-    const monthStart = ms ?? currentMs
-    const isCurrentMonth = monthStart === currentMs
-
-    // Calculate the last day of the selected month
-    const msDate = new Date(monthStart + 'T12:00:00')
-    const nextMonthDate = new Date(msDate.getFullYear(), msDate.getMonth() + 1, 1)
-    const nextMonthStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-01`
-
+    const monthStart = localMonthStart()
     const weekStart = localDaysAgo(7)
+    const prevWeekStart = localDaysAgo(14)
     const today = localToday()
 
-    const prevWeekStart = localDaysAgo(14)
-    const [profileRes, txMonthRes, categoriesRes, prevWeekRes, allDatesRes] = await Promise.all([
+    const [profileRes, txMonthRes, categoriesRes, txPrevWeekRes, tx90Res] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
-      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).lt('date', nextMonthStr).order('date', { ascending: false }),
+      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).order('date', { ascending: false }),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
-      isCurrentMonth
-        ? supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart)
-        : Promise.resolve({ data: [] }),
-      supabase.from('transactions').select('date').eq('household_id', hid),
+      supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
+      supabase.from('transactions').select('date').eq('household_id', hid).gte('date', localDaysAgo(90)),
     ])
 
     const profile = profileRes.data as FinancialProfile | null
     const txMonth = (txMonthRes.data ?? []) as Transaction[]
     const categories = (categoriesRes.data ?? []) as BudgetCategory[]
-    const prevWeekTx = (prevWeekRes.data ?? []) as { amount: number }[]
-    const allDates = (allDatesRes.data ?? []) as { date: string }[]
+    const spentPrevWeek = (txPrevWeekRes.data ?? []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
 
-    // Build category lookup map
     const categoryMap: Record<string, string> = {}
     categories.forEach((c) => { categoryMap[c.id] = c.name })
 
-    const daysInMonth = new Date(msDate.getFullYear(), msDate.getMonth() + 1, 0).getDate()
-    const daysLeft = isCurrentMonth ? daysInMonth - now.getDate() : 0
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const daysLeft = daysInMonth - now.getDate()
 
     const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
-    const spentToday = isCurrentMonth ? txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0) : 0
-    const spentWeek  = isCurrentMonth ? txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0) : 0
-    const todayCount = isCurrentMonth ? txMonth.filter((t) => t.date === today).length : 0
+    const spentToday = txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0)
+    const spentWeek  = txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0)
+    const todayCount = txMonth.filter((t) => t.date === today).length
 
-    // Enrich transactions with category name for display
     const enrichedTransactions: EnrichedTransaction[] = txMonth.map((t) => ({
       id: t.id,
       description: t.description,
@@ -176,7 +140,6 @@ export default function DashboardPage() {
       source: t.source ?? 'manual',
     }))
 
-    // Calcular categoría más sobregirada
     const spentByCat: Record<string, number> = {}
     txMonth.forEach((t) => { spentByCat[t.category_id] = (spentByCat[t.category_id] ?? 0) + Number(t.amount) })
     let topOver: { name: string; spent: number; limit: number; pctOver: number } | undefined = undefined
@@ -188,13 +151,11 @@ export default function DashboardPage() {
       }
     })
 
-    // Días sin registrar (para alerta)
     const lastTxDate = txMonth[0]?.date
     const daysSinceLast = lastTxDate
       ? Math.floor((now.getTime() - new Date(lastTxDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24))
       : 999
 
-    // Calcular racha de días consecutivos registrando gastos
     const txDates = new Set(txMonth.map((t) => t.date))
     let currentStreak = 0
     let streakOffset = txDates.has(today) ? 0 : 1
@@ -208,33 +169,26 @@ export default function DashboardPage() {
       }
     }
 
-    // Mejor racha histórica
-    const allTxDatesSet = new Set(allDates.map((r) => r.date))
-    const sortedAllDates = Array.from(allTxDatesSet).sort()
-    let bestStreak = 0
-    let bStreak = 0
-    let prevD: string | null = null
-    for (const d of sortedAllDates) {
-      if (prevD) {
-        const diffDays = Math.round(
-          (new Date(d + 'T12:00:00').getTime() - new Date(prevD + 'T12:00:00').getTime()) / 86400000
-        )
-        bStreak = diffDays === 1 ? bStreak + 1 : 1
+    const tx90Dates = Array.from(new Set((tx90Res.data ?? []).map((t: { date: string }) => t.date))).sort() as string[]
+    let bestStreak = currentStreak
+    let tempStreak = 0
+    let prevDate: string | null = null
+    for (const dateStr of tx90Dates) {
+      if (prevDate === null) {
+        tempStreak = 1
       } else {
-        bStreak = 1
+        const diffMs = new Date(dateStr + 'T12:00:00').getTime() - new Date(prevDate + 'T12:00:00').getTime()
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+        tempStreak = diffDays === 1 ? tempStreak + 1 : 1
       }
-      if (bStreak > bestStreak) bestStreak = bStreak
-      prevD = d
+      bestStreak = Math.max(bestStreak, tempStreak)
+      prevDate = dateStr
     }
-    bestStreak = Math.max(bestStreak, currentStreak)
 
-    // Variación semana vs semana anterior
-    const spentPrevWeek = prevWeekTx.reduce((s, t) => s + Number(t.amount), 0)
     const weekVsPrev = spentPrevWeek > 0
       ? Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
       : 0
 
-    // Días de la semana para racha visual
     const weekDayStatus: ('done' | 'today' | 'miss')[] = Array.from({ length: 7 }, (_, i) => {
       const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1
       const ds = localDaysAgo(dayOfWeek - i)
@@ -262,6 +216,23 @@ export default function DashboardPage() {
       ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
       : nameParts[0].substring(0, 2).toUpperCase()
 
+    let capsuleRecommendations: CapsuleRecommendation[] = []
+    try {
+      if (profile) {
+        const score = calculateHealthScore({
+          total_income: Number(profile.total_income ?? 0),
+          total_fixed_expenses: Number(profile.total_fixed_expenses ?? 0),
+          total_debt: Number(profile.total_debt ?? 0),
+          total_savings: Number(profile.total_savings ?? 0),
+          has_emergency_fund: profile.has_emergency_fund ?? false,
+          income_type: profile.income_type ?? 'fixed',
+        })
+        capsuleRecommendations = await getRecommendedCapsules(user.id, score)
+      }
+    } catch {
+      // silently skip if capsule recommendations fail
+    }
+
     setData({
       profile,
       household: household as Household,
@@ -271,35 +242,67 @@ export default function DashboardPage() {
       enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
       daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, bestStreak, weekVsPrev, budget,
       householdId: hid,
-      userId: user.id,
       categories,
-      isCurrentMonth,
+      capsuleRecommendations,
     })
   }
 
-  function getMonthLabel(ms: string) {
-    const d = new Date(ms + 'T12:00:00')
-    return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
+  const CATEGORY_KEYWORDS: Record<string, string[]> = {
+    'alimentación': ['super', 'supermercado', 'mercado', 'comida', 'pollo', 'carne', 'verdura', 'fruta', 'pan', 'leche', 'huevo', 'arroz', 'frijol', 'tortilla', 'despensa'],
+    'restaurantes': ['almuerzo', 'cena', 'desayuno', 'restaurante', 'pizza', 'hamburguesa', 'sushi', 'café', 'starbucks', 'mcdonald', 'burger', 'taco', 'comida rápida'],
+    'transporte': ['uber', 'taxi', 'bus', 'gasolina', 'gas', 'peaje', 'parqueo', 'estacionamiento', 'didi', 'indriver'],
+    'salud': ['farmacia', 'medicina', 'doctor', 'hospital', 'clínica', 'dentista', 'consulta', 'vitamina'],
+    'entretenimiento': ['cine', 'netflix', 'spotify', 'disney', 'hbo', 'juego', 'película', 'concierto', 'fiesta'],
+    'suscripciones': ['netflix', 'spotify', 'youtube', 'prime', 'hbo', 'disney', 'apple', 'icloud'],
+    'servicios': ['luz', 'agua', 'internet', 'teléfono', 'celular', 'cable', 'gas', 'basura'],
+    'educación': ['colegio', 'universidad', 'curso', 'libro', 'matrícula', 'clase', 'escuela'],
+    'ropa': ['ropa', 'zapatos', 'camisa', 'pantalón', 'vestido', 'tienda'],
+    'vivienda': ['alquiler', 'renta', 'hipoteca', 'mantenimiento', 'reparación'],
   }
 
-  function goToPrevMonth() {
-    const d = new Date(selectedMonthStart + 'T12:00:00')
-    d.setMonth(d.getMonth() - 1)
-    const newMs = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-    setSelectedMonthStart(newMs)
-    setData(null)
-    loadDashboardData(newMs)
-  }
-
-  function goToNextMonth() {
-    const d = new Date(selectedMonthStart + 'T12:00:00')
-    d.setMonth(d.getMonth() + 1)
-    const newMs = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-    if (newMs <= localMonthStart()) {
-      setSelectedMonthStart(newMs)
-      setData(null)
-      loadDashboardData(newMs)
+  function matchCategory(description: string): string | null {
+    if (!data) return null
+    const lower = description.toLowerCase()
+    for (const cat of data.categories) {
+      if (lower.includes(cat.name.toLowerCase()) || cat.name.toLowerCase().includes(lower)) {
+        return cat.id
+      }
     }
+    for (const [catKeyword, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+      if (keywords.some(k => lower.includes(k))) {
+        const match = data.categories.find(c => c.name.toLowerCase().includes(catKeyword))
+        if (match) return match.id
+      }
+    }
+    return null
+  }
+
+  async function handleQuickAdd(text: string) {
+    if (!data) return
+    const match = text.match(/^Q?\s*(\d+(?:\.\d+)?)\s+(.+)$/i)
+    if (!match) {
+      setErrorMsg('Formato incorrecto. Usá: Q45 descripción — ej: Q85 almuerzo')
+      setTimeout(() => setErrorMsg(null), 4000)
+      return
+    }
+    const amount = parseFloat(match[1])
+    const description = cleanTransactionName(match[2])
+    const categoryId = matchCategory(description)
+    const supabase = createClient()
+    const { error } = await supabase.from('transactions').insert({
+      household_id: data.householdId, amount, description,
+      date: localToday(), source: 'manual',
+      ...(categoryId ? { category_id: categoryId } : {}),
+    })
+    if (error) {
+      setErrorMsg('No se pudo guardar el gasto. Intentá de nuevo.')
+      setTimeout(() => setErrorMsg(null), 4000)
+      return
+    }
+    const catName = categoryId ? data.categories.find(c => c.id === categoryId)?.name : null
+    setSuccessMsg(`Q ${amount} "${description}" guardado${catName ? ` en ${catName}` : ''}`)
+    setTimeout(() => setSuccessMsg(null), 3000)
+    loadDashboardData()
   }
 
   async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
@@ -313,16 +316,9 @@ export default function DashboardPage() {
       category_id: t.category_id ?? null,
       date: t.date || localToday(),
       source: 'voice' as const,
-      payment_method: 'efectivo' as const,
       voice_raw_text: voiceResult?.raw_text ?? null,
     }))
-    const { error } = await supabase.from('transactions').insert(rows)
-
-    if (error) {
-      setErrorMsg(`No se pudo guardar: ${error.message}`)
-      setTimeout(() => setErrorMsg(null), 5000)
-      return
-    }
+    await supabase.from('transactions').insert(rows)
 
     setVoiceResult(null)
     const count = transactions.length
@@ -333,43 +329,32 @@ export default function DashboardPage() {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F3F5F9' }}>
         <Loader2 className="w-8 h-8 text-electric animate-spin" />
       </div>
     )
   }
 
-  const isCurrentMonth = data.isCurrentMonth
+  const now = new Date()
+  const monthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`
 
   return (
-    <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name} onVoice={handleOpenVoice} onManual={handleOpenManual} onScan={handleOpenScan}>
-
-      {/* Navegador de mes */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 0' }}>
-        <button
-          onClick={goToPrevMonth}
-          className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/5 transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div style={{ textAlign: 'center' }}>
-          <span className="font-outfit font-semibold text-navy" style={{ fontSize: 15 }}>
-            {getMonthLabel(selectedMonthStart)}
-          </span>
-          {!isCurrentMonth && (
-            <span className="text-xs text-gray-400 ml-2">histórico</span>
-          )}
+    <AppShell
+      title="Dashboard"
+      currentPath="/dashboard"
+      userName={data.userName}
+      householdName={data.household.name}
+      headerRight={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <ChevronLeft style={{ width: 18, height: 18, color: '#7E93AE', cursor: 'pointer' }} />
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F', minWidth: 100, textAlign: 'center' }}>
+            {monthLabel}
+          </div>
+          <ChevronRight style={{ width: 18, height: 18, color: '#7E93AE', cursor: 'pointer' }} />
         </div>
-        <button
-          onClick={goToNextMonth}
-          disabled={isCurrentMonth}
-          className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/5 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-
-      {/* Hero marino */}
+      }
+    >
+      {/* Hero card */}
       <StatusHero
         spent={data.spentMonth}
         budget={data.budget}
@@ -377,23 +362,21 @@ export default function DashboardPage() {
         userName={data.userName}
         score={data.healthScore}
         userInitials={data.userInitials}
-        isPastMonth={!isCurrentMonth}
       />
 
-      {/* Mensaje de éxito */}
+      {/* Success/error messages */}
       {successMsg && (
         <div style={{
-          margin: '10px 16px 0', padding: '8px 12px',
+          marginTop: 12, padding: '8px 12px',
           background: '#F0FDF4', border: '0.5px solid #BBF7D0',
           borderRadius: 10, fontSize: 14, color: '#065F46'
         }}>
           {successMsg}
         </div>
       )}
-
       {errorMsg && (
         <div style={{
-          margin: '10px 16px 0', padding: '8px 12px',
+          marginTop: 12, padding: '8px 12px',
           background: '#FEF2F2', border: '0.5px solid #FECACA',
           borderRadius: 10, fontSize: 14, color: '#991B1B'
         }}>
@@ -401,9 +384,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Preview de voz (solo mes actual) */}
-      {voiceResult && isCurrentMonth && (
-        <div style={{ margin: '10px 16px 0', padding: 14, background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14 }}>
+      {/* Voice preview */}
+      {voiceResult && (
+        <div style={{ marginTop: 12, padding: 14, background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14 }}>
           <p style={{ fontSize: 14, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisá antes de guardar</p>
           <TransactionPreview
             result={voiceResult}
@@ -413,15 +396,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Expense drawer */}
-      <ExpenseDrawer
-        householdId={data.householdId}
-        categories={data.categories}
-        onSuccess={() => loadDashboardData()}
-        onVoiceOverlay={() => setVoiceOverlayOpen(true)}
-      />
-
-      {/* Summary */}
+      {/* Stats row */}
       <SummaryRow
         today={data.spentToday}
         todayCount={data.todayCount}
@@ -431,48 +406,116 @@ export default function DashboardPage() {
         monthBudget={data.budget}
       />
 
-      {/* Alerta inteligente — solo mes actual */}
-      {isCurrentMonth && <SmartAlert alert={data.alert} />}
+      {/* Smart alert */}
+      <SmartAlert alert={data.alert} />
 
-      {/* Recomendaciones de cápsulas — solo mes actual */}
-      {isCurrentMonth && recommendations.length > 0 && (
-        <div style={{ margin: '12px 16px 0' }}>
-          <CapsuleRecommendations recommendations={recommendations} />
-        </div>
-      )}
+      {/* Quick add (mobile-oriented but works on desktop too) */}
+      <div className="lg:hidden">
+        <QuickAddBar
+          onAdd={handleQuickAdd}
+          onVoiceOverlay={() => setVoiceOverlayOpen(true)}
+        />
+      </div>
 
-      {/* Transacciones del período */}
-      <TransactionsList
-        transactions={data.enrichedTransactions}
-        onSeeAll={() => router.push('/transacciones')}
-      />
+      {/* Transactions */}
+      <div style={{ marginTop: 20 }}>
+        <TransactionsList
+          transactions={data.enrichedTransactions}
+          onSeeAll={() => router.push('/transacciones')}
+        />
+      </div>
 
-      {/* Racha — solo mes actual */}
-      {isCurrentMonth && (
+      {/* Streak */}
+      <div style={{ marginTop: 12 }}>
         <StreakCard
           currentStreak={data.currentStreak}
           bestStreak={data.bestStreak}
           weekDays={data.weekDayStatus}
         />
+      </div>
+
+      {/* Aprende section (embedded in dashboard) */}
+      {data.capsuleRecommendations.length > 0 && (
+        <div style={{
+          background: '#fff', borderRadius: 20,
+          padding: '28px 32px 8px', marginTop: 20,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <BookOpen style={{ width: 19, height: 19, color: '#2563EB' }} />
+              <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 21, color: '#1E3A5F' }}>
+                Aprende
+              </div>
+            </div>
+            <Link href="/aprende" style={{ fontSize: 14, fontWeight: 600, color: '#2563EB', textDecoration: 'none' }}>
+              Ver todo →
+            </Link>
+          </div>
+          <div style={{ fontSize: 14, color: '#8B9AAE', marginBottom: 18 }}>
+            Cápsulas recomendadas para mejorar tu puntaje
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 20 }}>
+            {data.capsuleRecommendations.slice(0, 2).map((rec) => (
+              <Link
+                key={rec.capsule_id}
+                href={`/aprende/${rec.module_slug}/${rec.slug}`}
+                style={{
+                  display: 'flex', gap: 14, alignItems: 'flex-start',
+                  background: '#F8F9FC', borderRadius: 14,
+                  padding: '16px 18px', textDecoration: 'none',
+                }}
+              >
+                <div style={{
+                  width: 38, height: 38, borderRadius: 9,
+                  background: '#fff', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <BookOpen style={{ width: 18, height: 18, color: '#2563EB' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>
+                    {rec.title}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#8B9AAE', marginTop: 3 }}>
+                    {rec.subtitle}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, fontSize: 12 }}>
+                    <span style={{
+                      color: '#2563EB', fontWeight: 600,
+                      background: '#E9F0FF', padding: '3px 10px', borderRadius: 12,
+                    }}>
+                      {rec.module_title}
+                    </span>
+                    <span style={{ color: '#8B9AAE' }}>
+                      {rec.read_time_minutes} min
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* Espacio final para BottomNav */}
       <div className="h-6" />
 
-      {/* Floating Health Score badge */}
-      {isCurrentMonth && (
-        <FloatingScoreBadge score={healthScoreResult} loading={scoreLoading} />
-      )}
+      {/* FAB — fixed position */}
+      <div
+        onClick={() => setVoiceOverlayOpen(true)}
+        className="hidden lg:flex"
+        style={{
+          position: 'fixed', bottom: 36, right: 52,
+          width: 56, height: 56, borderRadius: '50%',
+          background: '#2563EB', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 10px 24px rgba(37,99,235,0.35)', cursor: 'pointer',
+          zIndex: 30,
+        }}
+      >
+        <Plus style={{ width: 24, height: 24, color: '#fff' }} />
+      </div>
 
-      {/* Statement import flow */}
-      {importFlowActive && (
-        <StatementImportFlow
-          householdId={data.householdId}
-          onDone={() => { setImportFlowActive(false); loadDashboardData() }}
-        />
-      )}
-
-      {/* Voice overlay full-screen */}
+      {/* Voice overlay */}
       <VoiceOverlay
         open={voiceOverlayOpen}
         onClose={() => setVoiceOverlayOpen(false)}
