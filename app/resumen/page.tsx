@@ -211,8 +211,6 @@ export default function ResumenPage() {
     border: 'none', fontFamily: 'inherit',
   })
 
-  const maxMonthTotal = Math.max(...data.monthlyTotals.map(m => m.total), 1)
-
   const BUCKET_COLORS = {
     needs: '#2563EB',
     wants: '#F59E0B',
