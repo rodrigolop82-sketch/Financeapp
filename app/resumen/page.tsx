@@ -16,6 +16,11 @@ interface CategorySpend {
   bucket: 'needs' | 'wants' | 'savings'
 }
 
+const FIXED_CATEGORIES = [
+  'Vivienda/alquiler', 'Servicios', 'Suscripciones',
+  'Educación', 'Salud/medicinas',
+]
+
 interface MonthlyTotal {
   label: string
   month: string
@@ -23,6 +28,8 @@ interface MonthlyTotal {
   needsTotal: number
   wantsTotal: number
   savingsTotal: number
+  fixedTotal: number
+  variableTotal: number
 }
 
 interface ResumenData {
@@ -39,6 +46,8 @@ interface ResumenData {
   needsPct: number
   wantsPct: number
   savingsPct: number
+  fixedPct: number
+  variablePct: number
 }
 
 export default function ResumenPage() {
@@ -121,12 +130,12 @@ export default function ResumenPage() {
       const spentPrevMonth = txPrev.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
 
       const MONTH_NAMES_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-      const monthlyBuckets: Record<string, { total: number; needs: number; wants: number; savings: number }> = {}
+      const monthlyBuckets: Record<string, { total: number; needs: number; wants: number; savings: number; fixed: number; variable: number }> = {}
 
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-        monthlyBuckets[key] = { total: 0, needs: 0, wants: 0, savings: 0 }
+        monthlyBuckets[key] = { total: 0, needs: 0, wants: 0, savings: 0, fixed: 0, variable: 0 }
       }
 
       txHistory.forEach((t: { date: string; amount: number; category_id: string }) => {
@@ -136,6 +145,12 @@ export default function ResumenPage() {
           monthlyBuckets[key].total += amt
           const bucket = catBucketMap[t.category_id] ?? 'wants'
           monthlyBuckets[key][bucket] += amt
+          const catName = catMap[t.category_id] ?? 'Otros'
+          if (FIXED_CATEGORIES.includes(catName)) {
+            monthlyBuckets[key].fixed += amt
+          } else {
+            monthlyBuckets[key].variable += amt
+          }
         }
       })
 
@@ -148,6 +163,8 @@ export default function ResumenPage() {
           needsTotal: Math.round(val.needs),
           wantsTotal: Math.round(val.wants),
           savingsTotal: Math.round(val.savings),
+          fixedTotal: Math.round(val.fixed),
+          variableTotal: Math.round(val.variable),
         }
       })
 
@@ -158,6 +175,12 @@ export default function ResumenPage() {
       const needsPct = grandTotal > 0 ? Math.round((totalNeeds / grandTotal) * 100) : 0
       const wantsPct = grandTotal > 0 ? Math.round((totalWants / grandTotal) * 100) : 0
       const savingsPct = 100 - needsPct - wantsPct
+
+      const totalFixed = monthlyTotals.reduce((s, m) => s + m.fixedTotal, 0)
+      const totalVariable = monthlyTotals.reduce((s, m) => s + m.variableTotal, 0)
+      const fvTotal = totalFixed + totalVariable
+      const fixedPct = fvTotal > 0 ? Math.round((totalFixed / fvTotal) * 100) : 50
+      const variablePct = 100 - fixedPct
 
       const monthsWithData = monthlyTotals.filter(m => m.total > 0).length
       const monthlyAvg = monthsWithData > 0
@@ -183,6 +206,8 @@ export default function ResumenPage() {
         needsPct,
         wantsPct,
         savingsPct,
+        fixedPct,
+        variablePct,
       })
       setLoading(false)
     }
@@ -516,6 +541,101 @@ export default function ResumenPage() {
               </div>
             ))}
           </div>
+
+          {/* Charts row: donut + line chart */}
+          {(() => {
+            const donutCircumference = 2 * Math.PI * 70
+            const fixedArc = (data.fixedPct / 100) * donutCircumference
+            const variableArc = (data.variablePct / 100) * donutCircumference
+            const chartW = 380
+            const chartH = 200
+            const pad = 10
+            const maxTotal = Math.max(...data.monthlyTotals.map(m => m.total), 1)
+
+            function toPoints(values: number[]): string {
+              if (values.length === 0) return ''
+              const step = (chartW - pad * 2) / Math.max(values.length - 1, 1)
+              return values.map((v, i) => {
+                const x = pad + i * step
+                const y = chartH - pad - ((v / maxTotal) * (chartH - pad * 2))
+                return `${Math.round(x)},${Math.round(y)}`
+              }).join(' ')
+            }
+
+            const totalLine = toPoints(data.monthlyTotals.map(m => m.total))
+            const savingsLine = toPoints(data.monthlyTotals.map(m => m.savingsTotal))
+
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+                {/* Donut: fijo vs variable */}
+                <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
+                  <div style={{
+                    fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                    color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 20,
+                  }}>
+                    Gasto fijo vs variable
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <svg width="180" height="180" viewBox="0 0 180 180">
+                      <circle cx="90" cy="90" r="70" fill="none" stroke="#E2E8F0" strokeWidth="26" />
+                      <circle cx="90" cy="90" r="70" fill="none" stroke="#2563EB"
+                        strokeWidth="26"
+                        strokeDasharray={`${fixedArc} ${donutCircumference - fixedArc}`}
+                        strokeDashoffset={donutCircumference * 0.25}
+                        strokeLinecap="round"
+                      />
+                      <circle cx="90" cy="90" r="70" fill="none" stroke="#F59E0B"
+                        strokeWidth="26"
+                        strokeDasharray={`${variableArc} ${donutCircumference - variableArc}`}
+                        strokeDashoffset={donutCircumference * 0.25 - fixedArc}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#1E3A5F' }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
+                      Fijo {data.fixedPct}%
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#1E3A5F' }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
+                      Variable {data.variablePct}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Line chart: total + ahorro */}
+                <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
+                  <div style={{
+                    fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                    color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 20,
+                  }}>
+                    Evolución mensual
+                  </div>
+                  <div style={{ display: 'flex', gap: 20, marginBottom: 16, fontSize: 13 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+                      <span style={{ width: 14, height: 2, background: '#2563EB', display: 'inline-block' }} />Total
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+                      <span style={{ width: 14, height: 2, background: '#16A34A', display: 'inline-block' }} />Ahorro
+                    </div>
+                  </div>
+                  <svg width="100%" height="200" viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none">
+                    <line x1={pad} y1={chartH - pad} x2={chartW - pad} y2={chartH - pad} stroke="#EEF1F6" strokeWidth="1" />
+                    <line x1={pad} y1={chartH / 2} x2={chartW - pad} y2={chartH / 2} stroke="#EEF1F6" strokeWidth="1" />
+                    <line x1={pad} y1={pad} x2={chartW - pad} y2={pad} stroke="#EEF1F6" strokeWidth="1" />
+                    {totalLine && <polyline points={totalLine} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+                    {savingsLine && <polyline points={savingsLine} fill="none" stroke="#16A34A" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+                  </svg>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8B9AAE', marginTop: 6 }}>
+                    {data.monthlyTotals.map(m => (
+                      <span key={m.month}>{m.label}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Stacked bar chart per month: Necesidades / Deseos / Ahorro */}
           <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
