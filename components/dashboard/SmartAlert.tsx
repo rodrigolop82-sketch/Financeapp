@@ -49,7 +49,7 @@ export function buildSmartAlert(params: {
     }
   }
 
-  if (daysSinceLastTransaction >= 3) {
+  if (daysSinceLastTransaction >= 3 && daysSinceLastTransaction <= 90) {
     return {
       type: 'info',
       title: `Hace ${daysSinceLastTransaction} días sin registrar gastos.`,

@@ -174,10 +174,10 @@ export default function DashboardPage() {
       }
     })
 
-    const lastTxDate = txMonth[0]?.date
+    const lastTxDate = txMonth[0]?.date ?? (allDates.length > 0 ? allDates.sort((a, b) => b.date.localeCompare(a.date))[0].date : null)
     const daysSinceLast = lastTxDate
-      ? Math.floor((now.getTime() - new Date(lastTxDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24))
-      : 999
+      ? Math.max(0, Math.floor((now.getTime() - new Date(lastTxDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24)))
+      : 0
 
     const txDates = new Set(txMonth.map((t) => t.date))
     let currentStreak = 0
