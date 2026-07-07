@@ -1,12 +1,10 @@
 'use client'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { AddExpenseTrigger } from '@/components/expenses/add-expense-trigger'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: 'grid' },
   { href: '/metas', label: 'Metas', icon: 'target' },
-  { href: '#add', label: 'Agregar', icon: 'plus', isFab: true },
   { href: '/resumen', label: 'Resumen', icon: 'chart' },
   { href: '/cuenta', label: 'Cuenta', icon: 'user' },
 ]
@@ -48,13 +46,7 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
   return icons[icon] ?? null
 }
 
-interface BottomNavProps {
-  onVoice?: () => void
-  onManual?: () => void
-  onScan?: () => void
-}
-
-export function BottomNav({ onVoice, onManual, onScan }: BottomNavProps) {
+export function BottomNav() {
   const pathname = usePathname()
 
   return (
@@ -70,13 +62,6 @@ export function BottomNav({ onVoice, onManual, onScan }: BottomNavProps) {
       }}>
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href
-          if (item.isFab) {
-            return (
-              <div key={item.href}>
-                <AddExpenseTrigger onVoice={onVoice} onManual={onManual} onScan={onScan} />
-              </div>
-            )
-          }
           return (
             <Link key={item.href} href={item.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, textDecoration: 'none', minWidth: 48 }}>
               <NavIcon icon={item.icon} active={active} />
