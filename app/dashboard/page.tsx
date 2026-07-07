@@ -6,6 +6,7 @@ import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
 import { ExpenseDrawer } from '@/components/expenses/ExpenseDrawer'
+import { AddExpenseSheet } from '@/components/dashboard/AddExpenseSheet'
 import { SummaryRow } from '@/components/dashboard/SummaryRow'
 import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
@@ -13,7 +14,7 @@ import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household, CapsuleRecommendation } from '@/types'
-import { Loader2, ChevronLeft, ChevronRight, Plus, Mic, PenLine, FileText, X } from 'lucide-react'
+import { Loader2, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { getUserHousehold } from '@/lib/household'
 import { FloatingScoreBadge } from '@/components/score/FloatingScoreBadge'
 import { useHealthScore } from '@/hooks/useHealthScore'
@@ -64,7 +65,7 @@ export default function DashboardPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const [importFlowActive, setImportFlowActive] = useState(false)
-  const [fabOpen, setFabOpen] = useState(false)
+  const [expenseSheetOpen, setExpenseSheetOpen] = useState(false)
   const [recommendations, setRecommendations] = useState<CapsuleRecommendation[]>([])
   const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
   const router = useRouter()
@@ -448,73 +449,29 @@ export default function DashboardPage() {
         <FloatingScoreBadge score={healthScoreResult} loading={scoreLoading} />
       )}
 
-      {/* FAB with menu */}
-      {fabOpen && (
-        <div
-          onClick={() => setFabOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)',
-            zIndex: 40,
-          }}
-        />
-      )}
-
-      <div style={{ position: 'fixed', bottom: 36, right: 52, zIndex: 50 }}>
-        {fabOpen && (
-          <div style={{
-            position: 'absolute', bottom: 68, right: 0,
-            display: 'flex', flexDirection: 'column', gap: 10,
-            alignItems: 'flex-end',
-          }}>
-            {[
-              { label: 'Dictar con voz', icon: <Mic size={18} />, action: () => { setFabOpen(false); setVoiceOverlayOpen(true) } },
-              { label: 'Registrar manual', icon: <PenLine size={18} />, action: () => { setFabOpen(false); handleOpenManual() } },
-              { label: 'Cargar PDF / foto', icon: <FileText size={18} />, action: () => { setFabOpen(false); setImportFlowActive(true) } },
-            ].map((item) => (
-              <button
-                key={item.label}
-                onClick={item.action}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  background: '#fff', border: 'none', borderRadius: 14,
-                  padding: '12px 18px', cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(30,58,95,0.15)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: '#EFF6FF', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  color: '#2563EB',
-                }}>
-                  {item.icon}
-                </div>
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F' }}>
-                  {item.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div
-          onClick={() => setFabOpen(!fabOpen)}
-          style={{
-            width: 56, height: 56, borderRadius: '50%',
-            background: '#2563EB', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 10px 24px rgba(37,99,235,0.35)', cursor: 'pointer',
-            transition: 'transform 0.2s ease',
-            transform: fabOpen ? 'rotate(45deg)' : 'none',
-          }}
-        >
-          {fabOpen
-            ? <X style={{ width: 24, height: 24, color: '#fff' }} />
-            : <Plus style={{ width: 24, height: 24, color: '#fff' }} />
-          }
-        </div>
+      {/* FAB — visible on all screens */}
+      <div
+        onClick={() => setExpenseSheetOpen(true)}
+        style={{
+          position: 'fixed', right: 20, zIndex: 30,
+          bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
+          width: 56, height: 56, borderRadius: '50%',
+          background: '#2563EB', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 10px 24px rgba(37,99,235,0.35)', cursor: 'pointer',
+        }}
+      >
+        <Plus style={{ width: 24, height: 24, color: '#fff' }} />
       </div>
+
+      {/* Add expense bottom sheet */}
+      <AddExpenseSheet
+        open={expenseSheetOpen}
+        onClose={() => setExpenseSheetOpen(false)}
+        onScan={() => setImportFlowActive(true)}
+        onVoice={() => setVoiceOverlayOpen(true)}
+        onManual={() => handleOpenManual()}
+      />
 
       {/* Statement import flow */}
       {importFlowActive && (
