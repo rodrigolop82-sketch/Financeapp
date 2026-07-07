@@ -8,6 +8,7 @@ import { cleanTransactionName } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
 import { QuickAddBar } from '@/components/dashboard/QuickAddBar'
+import { AddExpenseSheet } from '@/components/dashboard/AddExpenseSheet'
 import { SummaryRow } from '@/components/dashboard/SummaryRow'
 import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
@@ -63,12 +64,13 @@ export default function DashboardPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
+  const [expenseSheetOpen, setExpenseSheetOpen] = useState(false)
   const router = useRouter()
 
   useEffect(() => { loadDashboardData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const handler = () => setVoiceOverlayOpen(true)
+    const handler = () => setExpenseSheetOpen(true)
     window.addEventListener('zafi:voice-overlay', handler)
     return () => window.removeEventListener('zafi:voice-overlay', handler)
   }, [])
@@ -500,20 +502,32 @@ export default function DashboardPage() {
 
       <div className="h-6" />
 
-      {/* FAB — fixed position */}
+      {/* FAB — fixed position, visible on all screens */}
       <div
-        onClick={() => setVoiceOverlayOpen(true)}
-        className="hidden lg:flex"
+        onClick={() => setExpenseSheetOpen(true)}
         style={{
-          position: 'fixed', bottom: 36, right: 52,
+          position: 'fixed', right: 20, zIndex: 30,
+          bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
           width: 56, height: 56, borderRadius: '50%',
-          background: '#2563EB', alignItems: 'center', justifyContent: 'center',
+          background: '#2563EB', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 10px 24px rgba(37,99,235,0.35)', cursor: 'pointer',
-          zIndex: 30,
         }}
       >
         <Plus style={{ width: 24, height: 24, color: '#fff' }} />
       </div>
+
+      {/* Add expense bottom sheet */}
+      <AddExpenseSheet
+        open={expenseSheetOpen}
+        onClose={() => setExpenseSheetOpen(false)}
+        onScan={() => router.push('/capture')}
+        onVoice={() => setVoiceOverlayOpen(true)}
+        onManual={() => {
+          const el = document.querySelector<HTMLInputElement>('[data-quick-add-input]')
+          if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus() }
+        }}
+      />
 
       {/* Voice overlay */}
       <VoiceOverlay
