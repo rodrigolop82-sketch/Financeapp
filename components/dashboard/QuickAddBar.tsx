@@ -63,6 +63,7 @@ export function QuickAddBar({ onAdd, onVoiceOverlay }: QuickAddBarProps) {
           {/* Input de texto */}
           <input
             ref={inputRef}
+            data-quick-add-input
             type="text"
             value={value}
             onChange={e => setValue(e.target.value)}
