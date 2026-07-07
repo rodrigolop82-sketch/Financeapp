@@ -42,6 +42,9 @@ export interface UseGoalsReturn {
   isLoading: boolean
   error: string | null
   createGoal: (input: CreateGoalInput) => Promise<void>
+  updateGoal: (goalId: string, updates: Partial<CreateGoalInput>) => Promise<void>
+  deleteGoal: (goalId: string) => Promise<void>
+  togglePause: (goalId: string) => Promise<void>
   addContribution: (goalId: string, amount: number, note?: string) => Promise<void>
   getContributionHistory: (goalId: string) => Promise<Contribution[]>
   avgMonthlyExpenses: number
@@ -151,6 +154,59 @@ export function useGoals(): UseGoalsReturn {
     await load()
   }
 
+  const updateGoal = async (goalId: string, updates: Partial<CreateGoalInput>) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('No autenticado')
+
+    const row: Record<string, unknown> = {}
+    if (updates.name !== undefined) row.name = updates.name
+    if (updates.emoji !== undefined) row.emoji = updates.emoji
+    if (updates.targetAmount !== undefined) row.target_amount = updates.targetAmount
+    if (updates.monthlyContribution !== undefined) row.monthly_contribution = updates.monthlyContribution
+    if (updates.targetDate !== undefined) row.target_date = updates.targetDate
+    if (updates.goalType !== undefined) row.goal_type = updates.goalType
+
+    const { error: updateError } = await supabase
+      .from('financial_goals')
+      .update(row)
+      .eq('id', goalId)
+      .eq('user_id', user.id)
+    if (updateError) throw new Error(updateError.message)
+    await load()
+  }
+
+  const deleteGoal = async (goalId: string) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('No autenticado')
+
+    const { error: deleteError } = await supabase
+      .from('financial_goals')
+      .delete()
+      .eq('id', goalId)
+      .eq('user_id', user.id)
+    if (deleteError) throw new Error(deleteError.message)
+    await load()
+  }
+
+  const togglePause = async (goalId: string) => {
+    const goal = goals.find(g => g.id === goalId)
+    if (!goal) return
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('No autenticado')
+
+    const newStatus = goal.status === 'paused' ? 'active' : 'paused'
+    const { error: updateError } = await supabase
+      .from('financial_goals')
+      .update({ status: newStatus })
+      .eq('id', goalId)
+      .eq('user_id', user.id)
+    if (updateError) throw new Error(updateError.message)
+    await load()
+  }
+
   const addContribution = async (goalId: string, amount: number, note?: string) => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -188,7 +244,8 @@ export function useGoals(): UseGoalsReturn {
 
   return {
     goals, totalSaved, totalTarget, isLoading, error,
-    createGoal, addContribution, getContributionHistory,
+    createGoal, updateGoal, deleteGoal, togglePause,
+    addContribution, getContributionHistory,
     avgMonthlyExpenses, avgMonthlySavings, reload: load,
   }
 }
