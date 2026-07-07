@@ -25,8 +25,8 @@ export function FloatingScoreBadge({ score, loading }: FloatingScoreBadgeProps) 
       aria-label={`Health Score: ${score.total}`}
       style={{
         position: 'fixed',
-        bottom: 88,
-        right: 16,
+        bottom: 'calc(148px + env(safe-area-inset-bottom, 0px))',
+        right: 20,
         zIndex: 45,
         width: size,
         height: size,
