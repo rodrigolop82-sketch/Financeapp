@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { logAuditEvent } from '@/lib/audit'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -24,16 +25,7 @@ export async function GET() {
     supabase.from('action_plans').select('id, plan_data, created_at').order('created_at', { ascending: false }),
   ])
 
-  // Log export event to audit_log if the table exists
-  try {
-    await supabase.from('audit_log').insert({
-      user_id: userId,
-      event_type: 'data_export',
-      metadata: {},
-    })
-  } catch {
-    // audit_log may not exist yet
-  }
+  await logAuditEvent(supabase, userId, 'data_export')
 
   const exportData = {
     exported_at: new Date().toISOString(),

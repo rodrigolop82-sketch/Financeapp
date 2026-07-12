@@ -92,6 +92,14 @@ function CuentaContent() {
   }
 
   async function handleLogout() {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      await supabase.from('audit_log').insert({
+        user_id: authUser.id,
+        event_type: 'logout',
+        metadata: {},
+      }).then(() => {}, () => {});
+    }
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
