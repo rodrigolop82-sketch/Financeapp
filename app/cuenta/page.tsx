@@ -17,6 +17,12 @@ import {
   Shield,
   Eye,
   Coins,
+  ShieldCheck,
+  History,
+  Download,
+  Lock,
+  UserX,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function CuentaPage() {
@@ -33,6 +39,7 @@ function CuentaContent() {
   const [subscription, setSubscription] = useState<{ plan: string; status: string; current_period_end: string } | null>(null);
   const [upgrading, setUpgrading] = useState(false);
   const [showDecimals, setShowDecimals] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -88,6 +95,25 @@ function CuentaContent() {
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await fetch('/api/user/export');
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `zafi-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // export failed silently
+    } finally {
+      setExporting(false);
+    }
   }
 
   if (loading) {
@@ -257,49 +283,92 @@ function CuentaContent() {
           </CardContent>
         </Card>
 
-        {/* Security */}
+        {/* Tu privacidad — Tus datos */}
         <Card className="mb-4">
           <CardHeader>
             <div className="flex items-center gap-3">
               <Shield className="w-5 h-5 text-[#2563EB]" />
-              <CardTitle className="text-base">Seguridad y privacidad</CardTitle>
+              <CardTitle className="text-base">Tu privacidad</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-[#F0F7FF] rounded-lg p-3 space-y-3">
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-[#2563EB] mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-[#1E3A5F]">Datos aislados por cuenta</p>
-                  <p className="text-xs text-gray-500">Tu información financiera solo es visible para ti. Nadie más puede acceder a tus datos, incluso compartiendo el link de la app.</p>
-                </div>
+          <CardContent className="space-y-1">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tus datos</p>
+
+            <button
+              onClick={() => router.push('/cuenta/privacidad')}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <ShieldCheck className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">Cómo protegemos tu info</p>
+                <p className="text-xs text-gray-500">Encriptación, RLS y acceso exclusivo</p>
               </div>
-              <Separator />
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-[#2563EB] mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-[#1E3A5F]">Protección a nivel de base de datos</p>
-                  <p className="text-xs text-gray-500">Cada consulta se valida con políticas de seguridad (RLS) que impiden el acceso no autorizado a cualquier tabla.</p>
-                </div>
+              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </button>
+
+            <Separator />
+
+            <button
+              onClick={() => router.push('/cuenta/historial-acceso')}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <History className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">Historial de acceso</p>
+                <p className="text-xs text-gray-500">Últimos accesos a tu cuenta</p>
               </div>
-              <Separator />
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-[#2563EB] mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-[#1E3A5F]">Conexión cifrada</p>
-                  <p className="text-xs text-gray-500">Toda la comunicación entre tu dispositivo y nuestros servidores viaja cifrada con HTTPS/TLS.</p>
-                </div>
+              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </button>
+
+            <Separator />
+
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <Download className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">
+                  {exporting ? 'Exportando…' : 'Exportar mis datos'}
+                </p>
+                <p className="text-xs text-gray-500">Descarga toda tu información</p>
               </div>
-              <Separator />
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-[#2563EB] mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-[#1E3A5F]">Sesión protegida</p>
-                  <p className="text-xs text-gray-500">Tu sesión se valida en cada solicitud. Si alguien accede al link sin estar autenticado, será redirigido al login.</p>
-                </div>
+              {!exporting && <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+              {exporting && <Loader2 className="w-4 h-4 text-gray-400 flex-shrink-0 animate-spin" />}
+            </button>
+
+            <Separator className="my-3" />
+
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Seguridad</p>
+
+            {/* TODO: Link to TOTP settings when implemented */}
+            <div className="flex items-center gap-3 p-3 rounded-lg opacity-60">
+              <Lock className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">Verificación en dos pasos</p>
+                <p className="text-xs text-gray-500">Próximamente</p>
               </div>
             </div>
 
+            <Separator className="my-3" />
+
+            <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">Zona de riesgo</p>
+
+            {/* TODO: Implement account deletion flow */}
+            <div className="flex items-center gap-3 p-3 rounded-lg opacity-60">
+              <UserX className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-red-600">Eliminar mi cuenta</p>
+                <p className="text-xs text-gray-500">Borra todos tus datos permanentemente</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Logout */}
+        <Card className="mb-4">
+          <CardContent className="pt-6">
             <Button variant="destructive" className="w-full" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar sesión
