@@ -208,24 +208,26 @@ export default function ChatPage() {
     return (
       <AppShell title="Zafi AI" currentPath="/chat">
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
-          {/* Header with new chat button */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <p style={{ fontSize: 14, color: '#8B9AAE' }}>
-              {conversations.length} conversación{conversations.length !== 1 ? 'es' : ''}
-            </p>
-            <button
-              onClick={startNewConversation}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: '#2563EB', color: '#fff',
-                border: 'none', borderRadius: 10, padding: '10px 18px',
-                fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              <Plus size={16} strokeWidth={2.5} />
-              Nueva conversación
-            </button>
-          </div>
+          {/* Header with new chat button — only when conversations exist */}
+          {conversations.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <p style={{ fontSize: 14, color: '#8B9AAE' }}>
+                {conversations.length} conversación{conversations.length !== 1 ? 'es' : ''}
+              </p>
+              <button
+                onClick={startNewConversation}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: '#2563EB', color: '#fff',
+                  border: 'none', borderRadius: 10, padding: '10px 18px',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                <Plus size={16} strokeWidth={2.5} />
+                Nueva conversación
+              </button>
+            </div>
+          )}
 
           {loadingConversations ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
