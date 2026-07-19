@@ -16,7 +16,7 @@ import { StreakCard } from '@/components/dashboard/StreakCard'
 import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
 import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household, CapsuleRecommendation } from '@/types'
-import { Loader2, ChevronLeft, ChevronRight, BookOpen, Plus } from 'lucide-react'
+import { Loader2, ChevronLeft, ChevronRight, BookOpen, Plus, MessageCircle } from 'lucide-react'
 import { getRecommendedCapsules } from '@/lib/capsule-recommendations'
 import { calculateHealthScore } from '@/lib/scoring'
 
@@ -501,6 +501,26 @@ export default function DashboardPage() {
       )}
 
       <div className="h-6" />
+
+      {/* Zafi AI Chat FAB */}
+      <div
+        onClick={() => router.push('/chat')}
+        style={{
+          position: 'fixed', right: 20, zIndex: 30,
+          bottom: 'calc(148px + env(safe-area-inset-bottom, 0px))',
+          width: 56, height: 56, borderRadius: '50%',
+          background: '#3b5bdb', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 10px 24px rgba(59,91,219,0.35)', cursor: 'pointer',
+        }}
+      >
+        <MessageCircle style={{ width: 24, height: 24, color: '#fff' }} />
+        <span style={{
+          position: 'absolute', top: 10, right: 10,
+          width: 10, height: 10, borderRadius: '50%',
+          background: '#22C55E', border: '2px solid #3b5bdb',
+        }} />
+      </div>
 
       {/* FAB — fixed position, visible on all screens */}
       <div
