@@ -9,7 +9,7 @@ import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
   BarChart3, TrendingUp, Wallet, CreditCard, Target, Receipt,
-  MessageCircle, BookOpen, Clock, Users, Settings,
+  MessageCircle, BookOpen, Users, Settings,
   Menu, ArrowLeft, ShieldCheck, Trophy,
   ChevronRight,
 } from 'lucide-react'
@@ -48,7 +48,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
       { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
       { href: '/aprende', icon: BookOpen, label: 'Aprende' },
-      { href: '/historial', icon: Clock, label: 'Historial' },
     ],
   },
   {
