@@ -15,7 +15,7 @@ function requiresDeepAnalysis(message: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  const { message, conversationHistory } = await req.json()
+  const { message, conversationHistory, conversationId } = await req.json()
 
   const supabase = createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -37,7 +37,15 @@ export async function POST(req: NextRequest) {
     role: 'user',
     content: message,
     model_used: model,
+    conversation_id: conversationId || null,
   })
+
+  if (conversationId) {
+    await supabase
+      .from('chat_conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', conversationId)
+  }
 
   let fullResponse = ''
   const encoder = new TextEncoder()
@@ -66,6 +74,7 @@ export async function POST(req: NextRequest) {
         role: 'assistant',
         content: fullResponse,
         model_used: model,
+        conversation_id: conversationId || null,
       })
 
       controller.close()
