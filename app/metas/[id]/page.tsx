@@ -54,10 +54,10 @@ export default function GoalDetailPage() {
   }, [goalId, getContributionHistory])
 
   useEffect(() => {
-    if (!isLoading && goal) {
+    if (!isLoading && goalId) {
       loadContributions()
     }
-  }, [isLoading, goal, loadContributions])
+  }, [isLoading, goalId, loadContributions])
 
   if (isLoading) {
     return (

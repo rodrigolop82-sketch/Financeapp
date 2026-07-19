@@ -68,7 +68,7 @@ export default function DashboardPage() {
   const [recommendations, setRecommendations] = useState<CapsuleRecommendation[]>([])
   const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
   const router = useRouter()
-  const { score: healthScoreResult, loading: scoreLoading } = useHealthScore(data?.householdId ?? null)
+  const { score: healthScoreResult } = useHealthScore(data?.householdId ?? null)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)

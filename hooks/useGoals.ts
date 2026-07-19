@@ -222,7 +222,7 @@ export function useGoals(): UseGoalsReturn {
     await load()
   }
 
-  const getContributionHistory = async (goalId: string): Promise<Contribution[]> => {
+  const getContributionHistory = useCallback(async (goalId: string): Promise<Contribution[]> => {
     const supabase = createClient()
     const { data, error: fetchError } = await supabase
       .from('goal_contributions')
@@ -237,7 +237,7 @@ export function useGoals(): UseGoalsReturn {
       note: c.note as string | null,
       createdAt: c.created_at as string,
     }))
-  }
+  }, [])
 
   const totalSaved = goals.filter(g => g.status === 'active').reduce((s, g) => s + g.currentAmount, 0)
   const totalTarget = goals.filter(g => g.status === 'active').reduce((s, g) => s + g.targetAmount, 0)
