@@ -15,6 +15,7 @@ import "@fontsource/dm-sans/600.css";
 import "@fontsource/dm-sans/700.css";
 import "./globals.css";
 import { InstallPromptManager } from "@/components/install/InstallPromptManager";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
   title: "Zafi — Ordená tu dinero. Construí tu futuro.",
@@ -38,8 +39,10 @@ export default function RootLayout({
     <html lang="es">
       <head>
         <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="font-sans antialiased">
+        <ServiceWorkerRegistration />
         <InstallPromptManager>
           {children}
         </InstallPromptManager>
