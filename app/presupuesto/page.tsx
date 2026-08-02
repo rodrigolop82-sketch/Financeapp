@@ -13,6 +13,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import type { VoiceExtractionResult } from '@/types';
+import { IncomeSection } from '@/components/presupuesto/IncomeSection';
 import { BudgetHealthHero } from '@/components/presupuesto/BudgetHealthHero';
 import { BudgetDefinition } from '@/components/presupuesto/BudgetDefinition';
 import { BudgetComparativo } from '@/components/presupuesto/BudgetComparativo';
@@ -407,6 +408,16 @@ export default function PresupuestoPage() {
             />
           </div>
         )}
+
+        {/* Ingresos */}
+        <IncomeSection
+          income={income}
+          incomeEntries={incomeEntries}
+          onAddIncomeEntry={addIncomeEntry}
+          onUpdateIncomeEntry={updateIncomeEntry}
+          onDeleteIncomeEntry={deleteIncomeEntry}
+          fmt={fmt}
+        />
 
         {/* Hero: Salud de tu presupuesto */}
         <BudgetHealthHero
