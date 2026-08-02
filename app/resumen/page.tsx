@@ -96,35 +96,41 @@ export default function ResumenPage() {
       const txHistory = txHistoryRes.data ?? []
       const cats = categoriesRes.data ?? []
 
-      const catMap: Record<string, string> = {}
-      const catBucketMap: Record<string, 'needs' | 'wants' | 'savings'> = {}
-      cats.forEach((c: { id: string; name: string; bucket?: string }) => {
-        catMap[c.id] = c.name
-        catBucketMap[c.id] = (c.bucket as 'needs' | 'wants' | 'savings') ?? 'wants'
+      const catMap: Record<string, { name: string; bucket: string }> = {}
+      cats.forEach((c: { id: string; name: string; bucket: string }) => {
+        catMap[c.id] = { name: c.name, bucket: c.bucket }
       })
 
       const spentByCat: Record<string, number> = {}
+      const bucketByCat: Record<string, string> = {}
       txMonth.forEach((t: { category_id: string; amount: number }) => {
-        const name = catMap[t.category_id] ?? 'Otros'
+        const info = catMap[t.category_id]
+        const name = info?.name ?? 'Otros'
         spentByCat[name] = (spentByCat[name] ?? 0) + Number(t.amount)
+        if (info) bucketByCat[name] = info.bucket
       })
 
       const prevByCat: Record<string, number> = {}
       txPrev.forEach((t: { category_id: string; amount: number }) => {
-        const name = catMap[t.category_id] ?? 'Otros'
+        const info = catMap[t.category_id]
+        const name = info?.name ?? 'Otros'
         prevByCat[name] = (prevByCat[name] ?? 0) + Number(t.amount)
+        if (info) bucketByCat[name] = info.bucket
       })
 
       const catIdByName: Record<string, string> = {}
       cats.forEach((c: { id: string; name: string }) => { catIdByName[c.name] = c.id })
 
       const allCatNames = Array.from(new Set([...Object.keys(spentByCat), ...Object.keys(prevByCat)]))
-      const categories: CategorySpend[] = allCatNames.map(name => ({
-        name,
-        amount: spentByCat[name] ?? 0,
-        prevAmount: prevByCat[name] ?? 0,
-        bucket: catBucketMap[catIdByName[name]] ?? 'wants',
-      })).sort((a, b) => b.amount - a.amount)
+      const categories: CategorySpend[] = allCatNames.map(name => {
+        const catId = catIdByName[name]
+        return {
+          name,
+          amount: spentByCat[name] ?? 0,
+          prevAmount: prevByCat[name] ?? 0,
+          bucket: (catId ? catMap[catId]?.bucket as 'needs' | 'wants' | 'savings' : null) ?? 'wants',
+        }
+      }).sort((a, b) => b.amount - a.amount)
 
       const spentMonth = txMonth.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
       const spentPrevMonth = txPrev.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
@@ -143,9 +149,9 @@ export default function ResumenPage() {
         if (monthlyBuckets[key]) {
           const amt = Number(t.amount)
           monthlyBuckets[key].total += amt
-          const bucket = catBucketMap[t.category_id] ?? 'wants'
+          const bucket = (catMap[t.category_id]?.bucket as 'needs' | 'wants' | 'savings') ?? 'wants'
           monthlyBuckets[key][bucket] += amt
-          const catName = catMap[t.category_id] ?? 'Otros'
+          const catName = catMap[t.category_id]?.name ?? 'Otros'
           if (FIXED_CATEGORIES.includes(catName)) {
             monthlyBuckets[key].fixed += amt
           } else {
@@ -236,13 +242,12 @@ export default function ResumenPage() {
     border: 'none', fontFamily: 'inherit',
   })
 
-  const BUCKET_COLORS = {
+  const BUCKET_COLORS: Record<string, string> = {
     needs: '#2563EB',
     wants: '#F59E0B',
     savings: '#16A34A',
   }
 
-  // Tendencias: compute what's working and what's not
   const recentMonths = data.monthlyTotals.filter(m => m.total > 0)
   const lastTwo = recentMonths.slice(-2)
   const signals: { type: 'good' | 'bad'; text: string }[] = []
@@ -423,7 +428,7 @@ export default function ResumenPage() {
             </div>
           </div>
 
-          {/* Category comparison — only show categories with notable changes */}
+          {/* Category comparison with savings-aware colors */}
           {(() => {
             const changedCats = data.categories.filter(c => c.prevAmount > 0 || c.amount > 0)
             if (changedCats.length === 0) return null
@@ -438,6 +443,8 @@ export default function ResumenPage() {
                 {changedCats.map((cat) => {
                   const catDiff = cat.amount - cat.prevAmount
                   const catPct = cat.prevAmount > 0 ? Math.round(Math.abs(catDiff) / cat.prevAmount * 100) : 0
+                  const isSavings = cat.bucket === 'savings'
+                  const isPositive = isSavings ? catDiff >= 0 : catDiff <= 0
                   return (
                     <div key={cat.name} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -449,8 +456,8 @@ export default function ResumenPage() {
                           {cat.prevAmount > 0 && (
                             <div style={{
                               fontSize: '12.5px', fontWeight: 700,
-                              color: catDiff <= 0 ? '#16A34A' : '#DC2626',
-                              background: catDiff <= 0 ? '#EAFBF1' : '#FEE2E2',
+                              color: isPositive ? '#16A34A' : '#DC2626',
+                              background: isPositive ? '#EAFBF1' : '#FEE2E2',
                               padding: '3px 9px', borderRadius: 12,
                             }}>
                               {catDiff <= 0 ? '↓' : '↑'} {catPct}%
@@ -734,20 +741,32 @@ export default function ResumenPage() {
             </div>
           )}
 
-          {/* Observaciones */}
-          {data.categories.filter(c => c.amount > 0 && c.prevAmount > 0 && c.amount > c.prevAmount * 1.15).length > 0 && (
-            <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
-              <div style={{
-                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
-              }}>
-                Observaciones
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {data.categories
-                  .filter(c => c.amount > 0 && c.prevAmount > 0 && c.amount > c.prevAmount * 1.15)
-                  .slice(0, 4)
-                  .map(c => (
+          {/* Observaciones — savings-aware */}
+          {(() => {
+            const expenseAlerts = data.categories.filter(c => c.bucket !== 'savings' && c.amount > 0 && c.prevAmount > 0 && c.amount > c.prevAmount * 1.15)
+            const savingsPositive = data.categories.filter(c => c.bucket === 'savings' && c.amount > 0 && c.prevAmount > 0 && c.amount > c.prevAmount * 1.15)
+            if (expenseAlerts.length === 0 && savingsPositive.length === 0) return null
+            return (
+              <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
+                <div style={{
+                  fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                  color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
+                }}>
+                  Observaciones
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {savingsPositive.slice(0, 2).map(c => (
+                    <div key={c.name} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: '#EAFBF1', border: '1px solid #B7EBC8',
+                      borderRadius: 12, padding: '14px 18px',
+                      fontSize: '14.5px', color: '#065F46',
+                    }}>
+                      <CheckCircle2 size={16} />
+                      {c.name} subió {Math.round((c.amount - c.prevAmount) / c.prevAmount * 100)}% vs el mes anterior. ¡Buen ritmo de ahorro!
+                    </div>
+                  ))}
+                  {expenseAlerts.slice(0, 4).map(c => (
                     <div key={c.name} style={{
                       display: 'flex', alignItems: 'center', gap: 10,
                       background: '#FDEEEE', border: '1px solid #F6D3D3',
@@ -757,11 +776,11 @@ export default function ResumenPage() {
                       <AlertTriangle size={16} />
                       {c.name} subió {Math.round((c.amount - c.prevAmount) / c.prevAmount * 100)}% vs el mes anterior. Considerá reducirlo.
                     </div>
-                  ))
-                }
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </>
       )}
 

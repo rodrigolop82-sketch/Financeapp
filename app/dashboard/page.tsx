@@ -166,8 +166,15 @@ export default function DashboardPage() {
     const spentByCat: Record<string, number> = {}
     txMonth.forEach((t) => { spentByCat[t.category_id] = (spentByCat[t.category_id] ?? 0) + Number(t.amount) })
     let topOver: { name: string; spent: number; limit: number; pctOver: number } | undefined = undefined
+    let savingsAlertData: { name: string; saved: number; goal: number } | undefined = undefined
     categories.forEach((c) => {
       const s = spentByCat[c.id] ?? 0
+      if (c.bucket === 'savings') {
+        if (c.budgeted_amount > 0 && (!savingsAlertData || c.budgeted_amount > savingsAlertData.goal)) {
+          savingsAlertData = { name: c.name, saved: s, goal: c.budgeted_amount }
+        }
+        return
+      }
       const over = c.budgeted_amount > 0 ? (s - c.budgeted_amount) / c.budgeted_amount * 100 : 0
       if (over > 20 && (!topOver || over > topOver.pctOver)) {
         topOver = { name: c.name, spent: s, limit: c.budgeted_amount, pctOver: Math.round(over) }
@@ -234,6 +241,7 @@ export default function DashboardPage() {
       daysInMonth,
       topOverBudgetCategory: topOver,
       daysSinceLastTransaction: daysSinceLast,
+      savingsAlert: savingsAlertData,
     })
 
     const fullName = (userProfile?.full_name || 'Usuario') as string

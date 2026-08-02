@@ -52,11 +52,14 @@ export interface FinancialProfile {
 
 export interface BudgetCategory {
   id: string;
-  household_id: string;
+  household_id: string | null;
   name: string;
   bucket: 'needs' | 'wants' | 'savings';
   budgeted_amount: number;
   is_custom: boolean;
+  icon: string | null;
+  is_default: boolean;
+  created_at: string | null;
 }
 
 export interface BudgetSubItem {
@@ -266,20 +269,20 @@ export function formatCurrency(amount: number, currency = 'GTQ'): string {
 // Default budget categories
 export const DEFAULT_CATEGORIES: Omit<BudgetCategory, 'id' | 'household_id'>[] = [
   // Necesidades (50%)
-  { name: 'Vivienda/alquiler', bucket: 'needs', budgeted_amount: 0, is_custom: false },
-  { name: 'Alimentación', bucket: 'needs', budgeted_amount: 0, is_custom: false },
-  { name: 'Transporte', bucket: 'needs', budgeted_amount: 0, is_custom: false },
-  { name: 'Salud/medicinas', bucket: 'needs', budgeted_amount: 0, is_custom: false },
-  { name: 'Servicios', bucket: 'needs', budgeted_amount: 0, is_custom: false },
-  { name: 'Educación', bucket: 'needs', budgeted_amount: 0, is_custom: false },
+  { name: 'Vivienda/alquiler', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Alimentación', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Transporte', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Salud/medicinas', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Servicios', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Educación', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
   // Gustos (30%)
-  { name: 'Restaurantes y salidas', bucket: 'wants', budgeted_amount: 0, is_custom: false },
-  { name: 'Ropa', bucket: 'wants', budgeted_amount: 0, is_custom: false },
-  { name: 'Entretenimiento', bucket: 'wants', budgeted_amount: 0, is_custom: false },
-  { name: 'Suscripciones', bucket: 'wants', budgeted_amount: 0, is_custom: false },
-  { name: 'Varios personales', bucket: 'wants', budgeted_amount: 0, is_custom: false },
+  { name: 'Restaurantes y salidas', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Ropa', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Entretenimiento', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Suscripciones', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Varios personales', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
   // Ahorro/Deudas (20%)
-  { name: 'Fondo de emergencia', bucket: 'savings', budgeted_amount: 0, is_custom: false },
-  { name: 'Ahorro para metas', bucket: 'savings', budgeted_amount: 0, is_custom: false },
-  { name: 'Pago extra de deudas', bucket: 'savings', budgeted_amount: 0, is_custom: false },
+  { name: 'Fondo de emergencia', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Ahorro para metas', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
+  { name: 'Pago extra de deudas', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null },
 ];

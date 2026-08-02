@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const ZAFI_CATEGORIES = [
+const FALLBACK_CATEGORIES = [
   'Vivienda/alquiler', 'Alimentación', 'Transporte', 'Salud/medicinas', 'Servicios',
   'Educación', 'Restaurantes y salidas', 'Ropa', 'Entretenimiento', 'Suscripciones',
   'Varios personales', 'Fondo de emergencia', 'Ahorro para metas', 'Pago extra de deudas',
@@ -65,13 +65,28 @@ export async function POST(req: NextRequest) {
   // Paso 2: Claude extrae transacciones
   const today = localToday()
 
+  // Query the user's actual categories (including custom ones) for the extraction prompt
+  let categoryNames = FALLBACK_CATEGORIES
+  const household = await getUserHousehold(supabase, user.id)
+
+  if (household) {
+    const { data: userCategories } = await supabase
+      .from('budget_categories')
+      .select('id, name, bucket')
+      .eq('household_id', household.id)
+
+    if (userCategories && userCategories.length > 0) {
+      categoryNames = userCategories.map((c: { name: string }) => c.name)
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let result: any
   try {
     const extraction = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: `Extractor de transacciones financieras para Guatemala. Respondé SOLO con JSON válido. Fecha hoy: ${today}. Moneda principal: GTQ (Q). Si el usuario menciona dólares, USD, euros o pesos mexicanos, devolvé "currency" con el código ISO (USD, EUR, MXN). Si no especifica moneda, usá "GTQ". Categorías: ${ZAFI_CATEGORIES.join(', ')}. Reglas: fechas relativas a hoy, montos siempre en números, múltiples gastos = múltiples transacciones. Formato: {"transactions":[{"amount":85,"description":"almuerzo","category":"Restaurantes y salidas","date":"${today}","confidence":0.95,"currency":"GTQ"}],"raw_text":"...","ambiguous":false,"clarification":null}`,
+      system: `Extractor de transacciones financieras para Guatemala. Respondé SOLO con JSON válido. Fecha hoy: ${today}. Moneda principal: GTQ (Q). Si el usuario menciona dólares, USD, euros o pesos mexicanos, devolvé "currency" con el código ISO (USD, EUR, MXN). Si no especifica moneda, usá "GTQ". Categorías: ${categoryNames.join(', ')}. Reglas: fechas relativas a hoy, montos siempre en números, múltiples gastos = múltiples transacciones. Formato: {"transactions":[{"amount":85,"description":"almuerzo","category":"Restaurantes y salidas","date":"${today}","confidence":0.95,"currency":"GTQ"}],"raw_text":"...","ambiguous":false,"clarification":null}`,
       messages: [{ role: 'user', content: `Texto dictado: "${transcription}"` }],
     })
 
@@ -84,8 +99,6 @@ export async function POST(req: NextRequest) {
   }
 
   // Paso 3: Enriquecer con category_id del household del usuario
-  const household = await getUserHousehold(supabase, user.id)
-
   if (household) {
     const { data: categories } = await supabase
       .from('budget_categories')
