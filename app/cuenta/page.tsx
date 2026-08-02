@@ -371,6 +371,34 @@ function CuentaContent() {
                 <p className="text-xs text-gray-500">Borra todos tus datos permanentemente</p>
               </div>
             </div>
+
+            <Separator className="my-3" />
+
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Legal</p>
+
+            <button
+              onClick={() => router.push('/privacidad')}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <Shield className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">Política de privacidad</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </button>
+
+            <Separator />
+
+            <button
+              onClick={() => router.push('/terminos')}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <Shield className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">Términos de servicio</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </button>
           </CardContent>
         </Card>
 
