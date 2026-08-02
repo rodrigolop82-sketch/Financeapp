@@ -855,7 +855,10 @@ export default function PresupuestoPage() {
                     const bucketActual = bucketCats.reduce((s, c) => s + (spentByCategory[c.id] || 0), 0);
                     const bucketDiff = bucketActual - bucketBudgeted;
                     const bucketPct = bucketBudgeted > 0 ? Math.round((bucketDiff / bucketBudgeted) * 100) : 0;
-                    const bucketVarClass = bucketDiff > 0 ? 'text-red-500' : bucketDiff < 0 ? 'text-green-600' : 'text-gray-400';
+                    const isSavingsBucket = bucket === 'savings';
+                    const bucketVarClass = isSavingsBucket
+                      ? (bucketDiff > 0 ? 'text-green-600' : bucketDiff < 0 ? 'text-amber-500' : 'text-gray-400')
+                      : (bucketDiff > 0 ? 'text-red-500' : bucketDiff < 0 ? 'text-green-600' : 'text-gray-400');
                     return (
                       <React.Fragment key={bucket}>
                         <tr className="bg-gray-50">
@@ -868,7 +871,10 @@ export default function PresupuestoPage() {
                           const actual = spentByCategory[cat.id] || 0;
                           const diff = actual - budgeted;
                           const pct = budgeted > 0 ? Math.round((diff / budgeted) * 100) : 0;
-                          const varClass = diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-600' : 'text-gray-400';
+                          const isSavings = bucket === 'savings';
+                          const varClass = isSavings
+                            ? (diff > 0 ? 'text-green-600' : diff < 0 ? 'text-amber-500' : 'text-gray-400')
+                            : (diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-600' : 'text-gray-400');
                           return (
                             <tr key={cat.id} className="border-b border-gray-100">
                               <td className="py-2 px-1 font-medium text-navy">{cat.name}</td>

@@ -20,14 +20,40 @@ export function buildSmartAlert(params: {
   daysSinceLastTransaction: number
   scoreImproved?: boolean
   scorePoints?: number
+  savingsAlert?: { name: string; saved: number; goal: number }
 }): AlertData | null {
   const { spent, budget, daysLeft, daysInMonth,
           topOverBudgetCategory, daysSinceLastTransaction,
-          scoreImproved, scorePoints } = params
+          scoreImproved, scorePoints, savingsAlert } = params
 
   const daysElapsed = daysInMonth - daysLeft
   const dailyRate = daysElapsed > 0 ? spent / daysElapsed : 0
   const projectedTotal = dailyRate * daysInMonth
+
+  // Savings alert: exceeding savings goal is positive
+  if (savingsAlert && savingsAlert.goal > 0) {
+    if (savingsAlert.saved >= savingsAlert.goal) {
+      const extra = Math.round(savingsAlert.saved - savingsAlert.goal)
+      return {
+        type: 'positive',
+        title: `Superaste tu meta de ahorro${extra > 0 ? ` por Q ${extra.toLocaleString()}` : ''} este mes`,
+        subtitle: `${savingsAlert.name} — meta: Q ${savingsAlert.goal.toLocaleString()}, ahorrado: Q ${savingsAlert.saved.toLocaleString()}.`,
+      }
+    } else if (savingsAlert.saved > 0) {
+      const pct = Math.round((savingsAlert.saved / savingsAlert.goal) * 100)
+      return {
+        type: 'info',
+        title: `Vas al ${pct}% de tu meta de ahorro este mes`,
+        subtitle: `${savingsAlert.name} — llevás Q ${savingsAlert.saved.toLocaleString()} de Q ${savingsAlert.goal.toLocaleString()}.`,
+      }
+    } else {
+      return {
+        type: 'info',
+        title: `Aún no registrás ahorro este mes`,
+        subtitle: `Tu meta de ${savingsAlert.name} es Q ${savingsAlert.goal.toLocaleString()} — un buen momento para empezar.`,
+      }
+    }
+  }
 
   if (projectedTotal > budget * 1.05) {
     const overage = Math.round(projectedTotal - budget)

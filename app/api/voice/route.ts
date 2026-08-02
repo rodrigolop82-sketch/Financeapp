@@ -3,7 +3,7 @@ import { localToday } from '@/lib/dates'
 import { cleanTransactionName } from '@/lib/format'
 import { NextRequest, NextResponse } from 'next/server'
 
-const ZAFI_CATEGORIES = [
+const FALLBACK_CATEGORIES = [
   'Vivienda/alquiler', 'Alimentación', 'Transporte', 'Salud/medicinas', 'Servicios',
   'Educación', 'Restaurantes y salidas', 'Ropa', 'Entretenimiento', 'Suscripciones',
   'Varios personales', 'Fondo de emergencia', 'Ahorro para metas', 'Pago extra de deudas',
@@ -64,6 +64,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada en el servidor.' }, { status: 500 })
   }
 
+  // Query the user's actual categories (including custom ones) for the extraction prompt
+  let categoryNames = FALLBACK_CATEGORIES
+  const { data: household } = await supabase
+    .from('households')
+    .select('id')
+    .eq('owner_id', user.id)
+    .limit(1)
+    .single()
+
+  if (household) {
+    const { data: userCategories } = await supabase
+      .from('budget_categories')
+      .select('id, name, bucket')
+      .eq('household_id', household.id)
+
+    if (userCategories && userCategories.length > 0) {
+      categoryNames = userCategories.map((c: { name: string }) => c.name)
+    }
+  }
+
   const extractionResponse = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -74,7 +94,7 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: `Extractor de transacciones financieras para Guatemala. Respondé SOLO con JSON válido. Fecha hoy: ${today}. Moneda: GTQ (Q). Categorías: ${ZAFI_CATEGORIES.join(', ')}. Reglas: fechas relativas a hoy, montos siempre en números, múltiples gastos = múltiples transacciones. Formato: {"transactions":[{"amount":85,"description":"almuerzo","category":"Restaurantes y salidas","date":"${today}","confidence":0.95}],"raw_text":"...","ambiguous":false,"clarification":null}`,
+      system: `Extractor de transacciones financieras para Guatemala. Respondé SOLO con JSON válido. Fecha hoy: ${today}. Moneda: GTQ (Q). Categorías: ${categoryNames.join(', ')}. Reglas: fechas relativas a hoy, montos siempre en números, múltiples gastos = múltiples transacciones. Formato: {"transactions":[{"amount":85,"description":"almuerzo","category":"Restaurantes y salidas","date":"${today}","confidence":0.95}],"raw_text":"...","ambiguous":false,"clarification":null}`,
       messages: [{ role: 'user', content: `Texto dictado: "${transcription}"` }],
     }),
   })
@@ -100,13 +120,6 @@ export async function POST(req: NextRequest) {
   }
 
   // Paso 3: Enriquecer con category_id del household del usuario
-  const { data: household } = await supabase
-    .from('households')
-    .select('id')
-    .eq('owner_id', user.id)
-    .limit(1)
-    .single()
-
   if (household) {
     const { data: categories } = await supabase
       .from('budget_categories')
