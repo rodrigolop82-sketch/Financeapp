@@ -14,6 +14,7 @@ import "@fontsource/dm-sans/500.css";
 import "@fontsource/dm-sans/600.css";
 import "@fontsource/dm-sans/700.css";
 import "./globals.css";
+import { InstallPromptManager } from "@/components/install/InstallPromptManager";
 
 export const metadata: Metadata = {
   title: "Zafi — Ordená tu dinero. Construí tu futuro.",
@@ -39,7 +40,9 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="font-sans antialiased">
-        {children}
+        <InstallPromptManager>
+          {children}
+        </InstallPromptManager>
       </body>
     </html>
   );
