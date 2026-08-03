@@ -2,6 +2,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { localToday } from '@/lib/dates'
+import { upsertDetectedSource } from '@/lib/sources'
 
 export type ImportStep = 'idle' | 'upload' | 'processing' | 'review' | 'success'
 
@@ -245,6 +246,11 @@ export function useStatementImport(householdId: string) {
       })
     } catch (auditErr) {
       console.warn('Failed to log import audit:', auditErr)
+    }
+
+    // Auto-detect source (best-effort, never blocks)
+    if (current.bankDetected) {
+      upsertDetectedSource(user.id, current.bankDetected).catch(() => {})
     }
 
     const totalAmount = selected
