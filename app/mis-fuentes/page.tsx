@@ -8,7 +8,7 @@ import { GT_BANKS } from '@/lib/sources'
 import type { UserSource, SourceType } from '@/types'
 import {
   Landmark, CreditCard, Banknote, Wallet, Plus,
-  Pencil, X, Check, Loader2, Sparkles, ChevronDown,
+  Pencil, X, Check, Loader2, Sparkles,
 } from 'lucide-react'
 
 const TYPE_LABELS: Record<SourceType, string> = {
