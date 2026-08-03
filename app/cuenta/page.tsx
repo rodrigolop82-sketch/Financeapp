@@ -23,6 +23,7 @@ import {
   Lock,
   UserX,
   ChevronRight,
+  Bell,
 } from 'lucide-react';
 
 export default function CuentaPage() {
@@ -40,6 +41,12 @@ function CuentaContent() {
   const [upgrading, setUpgrading] = useState(false);
   const [showDecimals, setShowDecimals] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState({
+    inactivity_enabled: true,
+    inactivity_threshold_days: 5,
+    month_close_enabled: true,
+    month_close_day: 2,
+  });
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -50,14 +57,23 @@ function CuentaContent() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) { router.push('/login'); return; }
 
-      const [{ data: profile }, { data: sub }] = await Promise.all([
+      const [{ data: profile }, { data: sub }, { data: nPrefs }] = await Promise.all([
         supabase.from('users').select('*').eq('id', authUser.id).single(),
         supabase.from('subscriptions').select('*').eq('user_id', authUser.id).limit(1).single(),
+        supabase.from('notification_preferences').select('*').eq('user_id', authUser.id).single(),
       ]);
 
       setUser(profile as typeof user);
       setShowDecimals(profile?.show_decimals ?? false);
       setSubscription(sub as typeof subscription);
+      if (nPrefs) {
+        setNotifPrefs({
+          inactivity_enabled: nPrefs.inactivity_enabled ?? true,
+          inactivity_threshold_days: nPrefs.inactivity_threshold_days ?? 5,
+          month_close_enabled: nPrefs.month_close_enabled ?? true,
+          month_close_day: nPrefs.month_close_day ?? 2,
+        });
+      }
       setLoading(false);
     }
     load();
@@ -121,6 +137,18 @@ function CuentaContent() {
       // export failed silently
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function updateNotifPref(updates: Partial<typeof notifPrefs>) {
+    const next = { ...notifPrefs, ...updates };
+    setNotifPrefs(next);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      await supabase.from('notification_preferences').upsert({
+        user_id: authUser.id,
+        ...next,
+      });
     }
   }
 
@@ -288,6 +316,96 @@ function CuentaContent() {
                 </ul>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Recordatorios */}
+        <Card className="mb-4">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Bell className="w-5 h-5 text-[#2563EB]" />
+              <CardTitle className="text-base">Recordatorios</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Inactivity toggle */}
+            <div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Inactividad de captura</p>
+                  <p className="text-xs text-muted-foreground">
+                    Avísame si llevo días sin registrar gastos
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateNotifPref({ inactivity_enabled: !notifPrefs.inactivity_enabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    notifPrefs.inactivity_enabled ? 'bg-electric' : 'bg-gray-200'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    notifPrefs.inactivity_enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+              {notifPrefs.inactivity_enabled && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-xs text-gray-500">Después de</span>
+                  <select
+                    value={notifPrefs.inactivity_threshold_days}
+                    onChange={(e) => updateNotifPref({ inactivity_threshold_days: Number(e.target.value) })}
+                    className="border rounded-md px-2 py-1 text-sm bg-white"
+                  >
+                    <option value={3}>3 días</option>
+                    <option value={5}>5 días</option>
+                    <option value={7}>7 días</option>
+                    <option value={10}>10 días</option>
+                    <option value={14}>14 días</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Month close toggle */}
+            <div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Cierre de mes</p>
+                  <p className="text-xs text-muted-foreground">
+                    Recordarme cerrar el mes si tengo fuentes pendientes
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateNotifPref({ month_close_enabled: !notifPrefs.month_close_enabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    notifPrefs.month_close_enabled ? 'bg-electric' : 'bg-gray-200'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    notifPrefs.month_close_enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+              {notifPrefs.month_close_enabled && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-xs text-gray-500">Enviar el día</span>
+                  <select
+                    value={notifPrefs.month_close_day}
+                    onChange={(e) => updateNotifPref({ month_close_day: Number(e.target.value) })}
+                    className="border rounded-md px-2 py-1 text-sm bg-white"
+                  >
+                    <option value={1}>1</option>
+                    <option value={2}>2</option>
+                    <option value={3}>3</option>
+                    <option value={5}>5</option>
+                    <option value={7}>7</option>
+                  </select>
+                  <span className="text-xs text-gray-500">de cada mes</span>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
