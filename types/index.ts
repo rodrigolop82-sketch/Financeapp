@@ -258,6 +258,28 @@ export interface IncomeEntry {
   frequency: 'mensual' | 'quincenal' | 'semanal' | 'anual';
 }
 
+export type SourceType = 'tarjeta_credito' | 'cuenta_bancaria' | 'efectivo'
+export type DetectionMethod = 'auto' | 'manual'
+
+export interface UserSource {
+  id: string
+  user_id: string
+  type: SourceType
+  bank_name: string
+  nickname: string | null
+  detection_method: DetectionMethod
+  active: boolean
+  created_at: string
+}
+
+export interface SourceMonthlyStatus {
+  id: string
+  user_source_id: string
+  year_month: string
+  loaded: boolean
+  loaded_at: string | null
+}
+
 // Legacy formatCurrency — new code should use formatMoney from @/lib/format
 export function formatCurrency(amount: number, currency = 'GTQ'): string {
   if (currency === 'GTQ') {
