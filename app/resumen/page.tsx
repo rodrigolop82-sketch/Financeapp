@@ -222,7 +222,7 @@ export default function ResumenPage() {
 
   if (loading || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F3F5F9' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zafi-bg)' }}>
         <Loader2 className="w-8 h-8 text-electric animate-spin" />
       </div>
     )
@@ -236,9 +236,9 @@ export default function ResumenPage() {
   const tabStyle = (t: Tab) => ({
     padding: '10px 22px', borderRadius: 10,
     fontWeight: 600 as const, fontSize: '14.5px', cursor: 'pointer' as const,
-    background: tab === t ? '#fff' : 'transparent',
-    color: tab === t ? '#1E3A5F' : '#7E93AE',
-    boxShadow: tab === t ? '0 1px 3px rgba(30,58,95,0.15)' : 'none',
+    background: tab === t ? 'var(--zafi-tab-active)' : 'transparent',
+    color: tab === t ? 'var(--zafi-tab-active-text)' : 'var(--zafi-tab-inactive-text)',
+    boxShadow: tab === t ? 'var(--zafi-tab-shadow)' : 'none',
     border: 'none', fontFamily: 'inherit',
   })
 
@@ -287,7 +287,7 @@ export default function ResumenPage() {
     <AppShell title="Resumen" currentPath="/resumen" userName={data.userName} householdName={data.householdName}>
       {/* Tabs */}
       <div style={{
-        display: 'flex', background: '#E7EBF2', borderRadius: 13,
+        display: 'flex', background: 'var(--zafi-tab-bg)', borderRadius: 13,
         padding: 4, marginBottom: 24, width: 'fit-content',
       }}>
         <button style={tabStyle('mes')} onClick={() => setTab('mes')}>Este mes</button>
@@ -299,27 +299,27 @@ export default function ResumenPage() {
       {tab === 'mes' && (
         <>
           <div style={{
-            background: '#1E3A5F', borderRadius: 20,
-            padding: '32px 36px', color: '#fff', marginBottom: 20,
+            background: 'var(--zafi-hero)', borderRadius: 20,
+            padding: '32px 36px', color: 'var(--zafi-hero-text)', marginBottom: 20,
           }}>
             <div style={{
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 12,
+              color: 'var(--zafi-hero-text-secondary)', textTransform: 'uppercase', marginBottom: 12,
             }}>
               Gasto total del mes
             </div>
             <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
               {formatMoney(data.spentMonth)}
             </div>
-            <div style={{ fontSize: 14, color: '#9FB3CB', marginTop: 8 }}>
+            <div style={{ fontSize: 14, color: 'var(--zafi-hero-text-secondary)', marginTop: 8 }}>
               de {formatMoney(data.budget)} presupuestados · {data.daysLeft} días restantes
             </div>
           </div>
 
-          <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
+          <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px' }}>
             <div style={{
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
+              color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 16,
             }}>
               Gasto por categoría
             </div>
@@ -329,20 +329,20 @@ export default function ResumenPage() {
               return (
                 <div key={cat.name} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '14px 0', borderTop: i > 0 ? '1px solid #EEF1F6' : 'none',
+                  padding: '14px 0', borderTop: i > 0 ? '1px solid var(--zafi-border-light)' : 'none',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
                     <span style={{
                       width: 8, height: 8, borderRadius: '50%',
                       background: bucketColor, display: 'inline-block', flexShrink: 0,
                     }} />
-                    <div style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F' }}>{cat.name}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--zafi-text)' }}>{cat.name}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexShrink: 0 }}>
-                    <div style={{ fontSize: 13, color: '#8B9AAE', fontWeight: 600 }}>
+                    <div style={{ fontSize: 13, color: 'var(--zafi-text-faint)', fontWeight: 600 }}>
                       {pct}%
                     </div>
-                    <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: '#1E3A5F', minWidth: 90, textAlign: 'right' }}>
+                    <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: 'var(--zafi-text)', minWidth: 90, textAlign: 'right' }}>
                       {formatMoney(cat.amount)}
                     </div>
                   </div>
@@ -350,7 +350,7 @@ export default function ResumenPage() {
               )
             })}
             {data.categories.length === 0 && (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#8B9AAE', fontSize: 14 }}>
+              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--zafi-text-faint)', fontSize: 14 }}>
                 Sin gastos este mes
               </div>
             )}
@@ -358,7 +358,7 @@ export default function ResumenPage() {
             {/* Bucket legend */}
             <div style={{
               display: 'flex', gap: 20, marginTop: 20, paddingTop: 16,
-              borderTop: '1px solid #EEF1F6', fontSize: 13, color: '#8B9AAE',
+              borderTop: '1px solid var(--zafi-border-light)', fontSize: 13, color: 'var(--zafi-text-faint)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
@@ -381,12 +381,12 @@ export default function ResumenPage() {
       {tab === 'insights' && (
         <>
           <div style={{
-            background: '#1E3A5F', borderRadius: 20,
-            padding: '32px 36px', color: '#fff', marginBottom: 20,
+            background: 'var(--zafi-hero)', borderRadius: 20,
+            padding: '32px 36px', color: 'var(--zafi-hero-text)', marginBottom: 20,
           }}>
             <div style={{
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 16,
+              color: 'var(--zafi-hero-text-secondary)', textTransform: 'uppercase', marginBottom: 16,
             }}>
               Comparado con el mes anterior
             </div>
@@ -405,19 +405,19 @@ export default function ResumenPage() {
             </div>
             <div style={{ display: 'flex', gap: 56, marginTop: 24 }}>
               <div>
-                <div style={{ fontSize: 13, color: '#9FB3CB' }}>Este mes</div>
+                <div style={{ fontSize: 13, color: 'var(--zafi-hero-text-secondary)' }}>Este mes</div>
                 <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
                   {formatMoney(data.spentMonth)}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 13, color: '#9FB3CB' }}>Mes anterior</div>
+                <div style={{ fontSize: 13, color: 'var(--zafi-hero-text-secondary)' }}>Mes anterior</div>
                 <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
                   {formatMoney(data.spentPrevMonth)}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 13, color: '#9FB3CB' }}>Diferencia</div>
+                <div style={{ fontSize: 13, color: 'var(--zafi-hero-text-secondary)' }}>Diferencia</div>
                 <div style={{
                   fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4,
                   color: diff <= 0 ? '#4ADE80' : '#FCA5A5',
@@ -433,10 +433,10 @@ export default function ResumenPage() {
             const changedCats = data.categories.filter(c => c.prevAmount > 0 || c.amount > 0)
             if (changedCats.length === 0) return null
             return (
-              <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
+              <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px' }}>
                 <div style={{
                   fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                  color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 6,
+                  color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 6,
                 }}>
                   Cambios por categoría
                 </div>
@@ -448,11 +448,11 @@ export default function ResumenPage() {
                   return (
                     <div key={cat.name} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '16px 0', borderTop: '1px solid #EEF1F6',
+                      padding: '16px 0', borderTop: '1px solid var(--zafi-border-light)',
                     }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: '#1E3A5F' }}>{cat.name}</div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--zafi-text)' }}>{cat.name}</div>
                           {cat.prevAmount > 0 && (
                             <div style={{
                               fontSize: '12.5px', fontWeight: 700,
@@ -465,11 +465,11 @@ export default function ResumenPage() {
                           )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-                          <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: '#1E3A5F' }}>
+                          <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: 'var(--zafi-text)' }}>
                             {formatMoney(cat.amount)}
                           </div>
                           {cat.prevAmount > 0 && (
-                            <div style={{ fontSize: 13, color: '#8B9AAE' }}>
+                            <div style={{ fontSize: 13, color: 'var(--zafi-text-faint)' }}>
                               ant: {formatMoney(cat.prevAmount)}
                             </div>
                           )}
@@ -489,12 +489,12 @@ export default function ResumenPage() {
         <>
           {/* Top summary with avg + signals */}
           <div style={{
-            background: '#1E3A5F', borderRadius: 20,
-            padding: '32px 36px', color: '#fff', marginBottom: 20,
+            background: 'var(--zafi-hero)', borderRadius: 20,
+            padding: '32px 36px', color: 'var(--zafi-hero-text)', marginBottom: 20,
           }}>
             <div style={{
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 12,
+              color: 'var(--zafi-hero-text-secondary)', textTransform: 'uppercase', marginBottom: 12,
             }}>
               Promedio mensual (últimos meses)
             </div>
@@ -531,18 +531,18 @@ export default function ResumenPage() {
               { label: 'Ahorro', pct: data.savingsPct, color: '#16A34A', target: '20%' },
             ].map(item => (
               <div key={item.label} style={{
-                background: '#fff', borderRadius: 16, padding: '20px 22px',
+                background: 'var(--zafi-card)', borderRadius: 16, padding: '20px 22px',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: item.color, display: 'inline-block' }} />
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#8B9AAE', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--zafi-text-faint)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     {item.label}
                   </div>
                 </div>
-                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 28, color: '#1E3A5F' }}>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 28, color: 'var(--zafi-text)' }}>
                   {item.pct}%
                 </div>
-                <div style={{ fontSize: 13, color: '#8B9AAE', marginTop: 2 }}>
+                <div style={{ fontSize: 13, color: 'var(--zafi-text-faint)', marginTop: 2 }}>
                   Meta: {item.target}
                 </div>
               </div>
@@ -575,10 +575,10 @@ export default function ResumenPage() {
             return (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
                 {/* Donut: fijo vs variable */}
-                <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
+                <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px' }}>
                   <div style={{
                     fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                    color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 20,
+                    color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 20,
                   }}>
                     Gasto fijo vs variable
                   </div>
@@ -600,11 +600,11 @@ export default function ResumenPage() {
                     </svg>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#1E3A5F' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--zafi-text)' }}>
                       <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
                       Fijo {data.fixedPct}%
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#1E3A5F' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--zafi-text)' }}>
                       <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
                       Variable {data.variablePct}%
                     </div>
@@ -612,29 +612,29 @@ export default function ResumenPage() {
                 </div>
 
                 {/* Line chart: total + ahorro */}
-                <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
+                <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px' }}>
                   <div style={{
                     fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                    color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 20,
+                    color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 20,
                   }}>
                     Evolución mensual
                   </div>
                   <div style={{ display: 'flex', gap: 20, marginBottom: 16, fontSize: 13 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--zafi-text)' }}>
                       <span style={{ width: 14, height: 2, background: '#2563EB', display: 'inline-block' }} />Total
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--zafi-text)' }}>
                       <span style={{ width: 14, height: 2, background: '#16A34A', display: 'inline-block' }} />Ahorro
                     </div>
                   </div>
                   <svg width="100%" height="200" viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none">
-                    <line x1={pad} y1={chartH - pad} x2={chartW - pad} y2={chartH - pad} stroke="#EEF1F6" strokeWidth="1" />
-                    <line x1={pad} y1={chartH / 2} x2={chartW - pad} y2={chartH / 2} stroke="#EEF1F6" strokeWidth="1" />
-                    <line x1={pad} y1={pad} x2={chartW - pad} y2={pad} stroke="#EEF1F6" strokeWidth="1" />
+                    <line x1={pad} y1={chartH - pad} x2={chartW - pad} y2={chartH - pad} stroke="var(--zafi-border-light)" strokeWidth="1" />
+                    <line x1={pad} y1={chartH / 2} x2={chartW - pad} y2={chartH / 2} stroke="var(--zafi-border-light)" strokeWidth="1" />
+                    <line x1={pad} y1={pad} x2={chartW - pad} y2={pad} stroke="var(--zafi-border-light)" strokeWidth="1" />
                     {totalLine && <polyline points={totalLine} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
                     {savingsLine && <polyline points={savingsLine} fill="none" stroke="#16A34A" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
                   </svg>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8B9AAE', marginTop: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--zafi-text-faint)', marginTop: 6 }}>
                     {data.monthlyTotals.map(m => (
                       <span key={m.month}>{m.label}</span>
                     ))}
@@ -645,23 +645,23 @@ export default function ResumenPage() {
           })()}
 
           {/* Stacked bar chart per month: Necesidades / Deseos / Ahorro */}
-          <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
+          <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
             <div style={{
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 8,
+              color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 8,
             }}>
               Distribución mensual
             </div>
             <div style={{ display: 'flex', gap: 20, marginBottom: 20, fontSize: 13 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--zafi-text)' }}>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
                 Necesidades
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--zafi-text)' }}>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
                 Deseos
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--zafi-text)' }}>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
                 Ahorro
               </div>
@@ -676,12 +676,12 @@ export default function ResumenPage() {
                 return (
                   <div key={m.month}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F' }}>{m.label}</div>
-                      <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: '#1E3A5F' }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--zafi-text)' }}>{m.label}</div>
+                      <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: 'var(--zafi-text)' }}>
                         {formatMoney(m.total)}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', height: 24, borderRadius: 6, overflow: 'hidden', background: '#F3F5F9' }}>
+                    <div style={{ display: 'flex', height: 24, borderRadius: 6, overflow: 'hidden', background: 'var(--zafi-bg)' }}>
                       {m.total > 0 && (
                         <>
                           <div style={{ width: `${needsPct}%`, height: '100%', background: '#2563EB' }} />
@@ -690,7 +690,7 @@ export default function ResumenPage() {
                         </>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 12, color: '#8B9AAE' }}>
+                    <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 12, color: 'var(--zafi-text-faint)' }}>
                       <span>{formatMoney(m.needsTotal)} nec.</span>
                       <span>{formatMoney(m.wantsTotal)} des.</span>
                       <span style={{ color: '#16A34A', fontWeight: 600 }}>{formatMoney(m.savingsTotal)} ahorro</span>
@@ -701,7 +701,7 @@ export default function ResumenPage() {
             </div>
 
             {data.monthlyTotals.every(m => m.total === 0) && (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#8B9AAE', fontSize: 14 }}>
+              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--zafi-text-faint)', fontSize: 14 }}>
                 No hay datos históricos aún
               </div>
             )}
@@ -747,10 +747,10 @@ export default function ResumenPage() {
             const savingsPositive = data.categories.filter(c => c.bucket === 'savings' && c.amount > 0 && c.prevAmount > 0 && c.amount > c.prevAmount * 1.15)
             if (expenseAlerts.length === 0 && savingsPositive.length === 0) return null
             return (
-              <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
+              <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
                 <div style={{
                   fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                  color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
+                  color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 16,
                 }}>
                   Observaciones
                 </div>

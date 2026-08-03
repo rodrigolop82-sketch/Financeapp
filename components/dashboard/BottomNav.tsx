@@ -10,7 +10,7 @@ const NAV_ITEMS = [
 ]
 
 function NavIcon({ icon, active }: { icon: string; active: boolean }) {
-  const color = active ? '#60A5FA' : 'rgba(255,255,255,0.4)'
+  const color = active ? 'var(--zafi-nav-active)' : 'var(--zafi-nav-inactive)'
 
   const icons: Record<string, React.ReactNode> = {
     grid: (
@@ -52,7 +52,7 @@ export function BottomNav() {
   return (
     <div className="lg:hidden" style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
-      background: 'rgba(13,31,54,0.98)', backdropFilter: 'blur(12px)',
+      background: 'var(--zafi-bottomnav)', backdropFilter: 'blur(12px)',
       borderTop: '1px solid rgba(255,255,255,0.08)',
       paddingBottom: 'env(safe-area-inset-bottom)',
     }}>
@@ -67,7 +67,7 @@ export function BottomNav() {
               <NavIcon icon={item.icon} active={active} />
               <span style={{
                 fontSize: 9, fontWeight: 600,
-                color: active ? '#60A5FA' : 'rgba(255,255,255,0.4)',
+                color: active ? 'var(--zafi-nav-active)' : 'var(--zafi-nav-inactive)',
                 letterSpacing: '0.02em',
               }}>
                 {item.label}
@@ -75,7 +75,7 @@ export function BottomNav() {
               {active && (
                 <div style={{
                   width: 20, height: 2, borderRadius: 9999,
-                  background: '#60A5FA', marginTop: -1,
+                  background: 'var(--zafi-nav-active)', marginTop: -1,
                 }} />
               )}
             </Link>
