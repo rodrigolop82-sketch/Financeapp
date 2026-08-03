@@ -16,6 +16,7 @@ import "@fontsource/dm-sans/700.css";
 import "./globals.css";
 import { InstallPromptManager } from "@/components/install/InstallPromptManager";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Zafi — Ordená tu dinero. Construí tu futuro.",
@@ -36,16 +37,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="font-sans antialiased">
-        <ServiceWorkerRegistration />
-        <InstallPromptManager>
-          {children}
-        </InstallPromptManager>
+        <ThemeProvider>
+          <ServiceWorkerRegistration />
+          <InstallPromptManager>
+            {children}
+          </InstallPromptManager>
+        </ThemeProvider>
       </body>
     </html>
   );

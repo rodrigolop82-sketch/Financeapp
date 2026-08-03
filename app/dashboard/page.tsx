@@ -322,7 +322,7 @@ export default function DashboardPage() {
 
   if (!data) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F3F5F9' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zafi-bg)' }}>
         <Loader2 className="w-8 h-8 text-electric animate-spin" />
       </div>
     )
@@ -343,7 +343,7 @@ export default function DashboardPage() {
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div style={{ textAlign: 'center' }}>
-          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 15, color: '#1E3A5F' }}>
+          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 15, color: 'var(--zafi-text)' }}>
             {getMonthLabel(selectedMonthStart)}
           </span>
           {!isCurrentMonth && (
@@ -374,8 +374,8 @@ export default function DashboardPage() {
       {successMsg && (
         <div style={{
           marginTop: 12, padding: '8px 12px',
-          background: '#F0FDF4', border: '0.5px solid #BBF7D0',
-          borderRadius: 10, fontSize: 14, color: '#065F46'
+          background: 'var(--zafi-success-bg)', border: '0.5px solid var(--zafi-success-border)',
+          borderRadius: 10, fontSize: 14, color: 'var(--zafi-success-text)'
         }}>
           {successMsg}
         </div>
@@ -383,8 +383,8 @@ export default function DashboardPage() {
       {errorMsg && (
         <div style={{
           marginTop: 12, padding: '8px 12px',
-          background: '#FEF2F2', border: '0.5px solid #FECACA',
-          borderRadius: 10, fontSize: 14, color: '#991B1B'
+          background: 'var(--zafi-error-bg)', border: '0.5px solid var(--zafi-error-border)',
+          borderRadius: 10, fontSize: 14, color: 'var(--zafi-error-text)'
         }}>
           {errorMsg}
         </div>

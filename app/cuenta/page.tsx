@@ -24,7 +24,11 @@ import {
   UserX,
   ChevronRight,
   Bell,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
+import { useAppearance, type Appearance } from '@/hooks/useAppearance';
 
 export default function CuentaPage() {
   return (
@@ -47,6 +51,7 @@ function CuentaContent() {
     month_close_enabled: true,
     month_close_day: 2,
   });
+  const { appearance, setAppearance } = useAppearance();
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -256,6 +261,51 @@ function CuentaContent() {
                 <option value="NIO">C$ - Córdoba (NIO)</option>
                 <option value="CRC">₡ - Colón (CRC)</option>
               </select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Apariencia */}
+        <Card className="mb-4">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Moon className="w-5 h-5" style={{ color: 'var(--zafi-text-muted)' }} />
+              <CardTitle className="text-base">Apariencia</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3">
+              {([
+                { value: 'light' as Appearance, label: 'Claro', Icon: Sun },
+                { value: 'dark' as Appearance, label: 'Oscuro', Icon: Moon },
+                { value: 'system' as Appearance, label: 'Sistema', Icon: Monitor },
+              ]).map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  onClick={() => setAppearance(value)}
+                  style={{
+                    flex: 1,
+                    padding: '12px 8px',
+                    borderRadius: 12,
+                    border: appearance === value ? '2px solid var(--zafi-sidebar-active)' : '1px solid var(--zafi-border)',
+                    background: appearance === value ? 'var(--zafi-card-alt)' : 'var(--zafi-card)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Icon size={20} style={{ color: appearance === value ? 'var(--zafi-sidebar-active)' : 'var(--zafi-text-muted)' }} />
+                  <span style={{
+                    fontSize: 13,
+                    fontWeight: appearance === value ? 700 : 500,
+                    color: appearance === value ? 'var(--zafi-sidebar-active)' : 'var(--zafi-text-muted)',
+                  }}>
+                    {label}
+                  </span>
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>
