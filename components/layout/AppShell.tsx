@@ -10,7 +10,7 @@ import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
   BarChart3, TrendingUp, Wallet, CreditCard, Target, Receipt,
   MessageCircle, BookOpen, Users, Settings,
-  Menu, ArrowLeft, ShieldCheck, Trophy, Landmark,
+  Menu, ArrowLeft, ShieldCheck, Trophy, Landmark, ClipboardCheck,
   ChevronRight,
 } from 'lucide-react'
 
@@ -41,6 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/deudas', icon: CreditCard, label: 'Deudas' },
       { href: '/plan', icon: Target, label: 'Plan' },
       { href: '/mis-fuentes', icon: Landmark, label: 'Mis Fuentes' },
+      { href: '/cierre-mes', icon: ClipboardCheck, label: 'Cierre de mes' },
     ],
   },
   {
