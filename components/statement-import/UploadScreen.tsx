@@ -11,7 +11,7 @@ interface UploadScreenProps {
   onBack: () => void
 }
 
-const BANKS = ['Banrural', 'BAM', 'Industrial', 'G&T', 'Bantrab']
+const BANKS = ['Banrural', 'BAM', 'Industrial', 'G&T', 'Bantrab', 'BAC Credomatic']
 
 export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze, onBack }: UploadScreenProps) {
   const [mode, setMode] = useState<'photo' | 'pdf'>('photo')
