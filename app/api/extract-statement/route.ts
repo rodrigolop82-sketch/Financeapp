@@ -81,14 +81,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El archivo es demasiado grande. El tamaño maximo permitido es 10MB.' }, { status: 400 })
   }
 
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
-  if (!allowedTypes.includes(file.type)) {
+  const imageTypes = ['image/jpeg', 'image/png', 'image/webp']
+  const pdfTypes = ['application/pdf', 'application/x-pdf']
+  const allowedTypes = [...imageTypes, ...pdfTypes]
+  const ext = file.name?.toLowerCase().split('.').pop()
+  const isPdfByExt = ext === 'pdf'
+  const isPdfByType = pdfTypes.includes(file.type)
+
+  if (!allowedTypes.includes(file.type) && !isPdfByExt) {
     return NextResponse.json({ error: 'Formato no aceptado. Solo se permiten archivos JPG, PNG, WebP o PDF.' }, { status: 400 })
   }
 
   const bytes = await file.arrayBuffer()
   const base64 = Buffer.from(bytes).toString('base64')
-  const isPdf = file.type === 'application/pdf'
+  const isPdf = isPdfByType || isPdfByExt
 
   // Build content blocks
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,8 +139,15 @@ export async function POST(req: NextRequest) {
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: contentBlocks }],
     })
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Anthropic API error:', err)
+    const errMsg = err instanceof Error ? err.message : String(err)
+    if (errMsg.includes('Could not process') || errMsg.includes('document') || errMsg.includes('invalid_request')) {
+      return NextResponse.json(
+        { error: 'No se pudo procesar este PDF. El archivo puede estar protegido, dañado o en un formato no compatible. Intenta con otro archivo o usa una captura de pantalla.' },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
       { error: 'Error al conectar con el servicio de analisis. Intentalo de nuevo en unos momentos.' },
       { status: 500 }
@@ -143,6 +156,7 @@ export async function POST(req: NextRequest) {
 
   const textBlock = response.content.find(b => b.type === 'text')
   const text = textBlock && textBlock.type === 'text' ? textBlock.text : ''
+  const wasTruncated = response.stop_reason === 'max_tokens'
 
   if (!text) {
     return NextResponse.json(
@@ -186,17 +200,21 @@ export async function POST(req: NextRequest) {
   try {
     result = JSON.parse(jsonStr)
   } catch {
-    // Try to repair truncated JSON (usually from max_tokens limit)
     const repaired = tryRepairJson(jsonStr)
     if (repaired && typeof repaired === 'object' && 'transactions' in (repaired as Record<string, unknown>)) {
       result = repaired as typeof result
+      result.truncated = true
     } else {
-      console.error('JSON parse failed. Raw text:', text.substring(0, 300))
+      console.error('JSON parse failed. Truncated:', wasTruncated, 'Raw text:', text.substring(0, 300))
       return NextResponse.json(
         { error: 'Error al procesar los datos del estado de cuenta. El documento puede tener un formato no compatible. Intenta con otro archivo.' },
         { status: 500 }
       )
     }
+  }
+
+  if (wasTruncated && !result.truncated) {
+    result.truncated = true
   }
 
   // Enrich with category_id

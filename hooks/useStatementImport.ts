@@ -94,7 +94,26 @@ export function useStatementImport(householdId: string) {
       const formData = new FormData()
       formData.append('file', file)
 
-      const res = await fetch('/api/extract-statement', { method: 'POST', body: formData })
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 55000)
+
+      let res: Response
+      try {
+        res = await fetch('/api/extract-statement', { method: 'POST', body: formData, signal: controller.signal })
+      } catch (fetchErr) {
+        clearTimeout(timeout)
+        const isAbort = fetchErr instanceof DOMException && fetchErr.name === 'AbortError'
+        setState(s => ({
+          ...s,
+          isLoading: false,
+          error: isAbort
+            ? 'El analisis tardo demasiado. Intenta con una foto mas clara o un PDF mas corto.'
+            : 'Error de conexion. Revisa tu internet e intentalo de nuevo.',
+          step: 'upload',
+        }))
+        return
+      }
+      clearTimeout(timeout)
 
       if (!res.ok) {
         let errorMsg = 'Error al procesar el archivo'
