@@ -6,6 +6,35 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const maxDuration = 60
 
+function tryRepairJson(text: string): unknown | null {
+  const cleaned = text.replace(/```json|```/g, '').trim()
+
+  try {
+    return JSON.parse(cleaned)
+  } catch {
+    // noop
+  }
+
+  let attempt = cleaned
+  const openBrackets = (attempt.match(/\[/g) || []).length
+  const closeBrackets = (attempt.match(/\]/g) || []).length
+  const openBraces = (attempt.match(/\{/g) || []).length
+  const closeBraces = (attempt.match(/\}/g) || []).length
+
+  attempt = attempt.replace(/,\s*"[^"]*"?\s*:?\s*[^}\]]*$/, '')
+  attempt = attempt.replace(/,\s*\{[^}]*$/, '')
+  attempt = attempt.replace(/,\s*$/, '')
+
+  for (let i = 0; i < openBrackets - closeBrackets; i++) attempt += ']'
+  for (let i = 0; i < openBraces - closeBraces; i++) attempt += '}'
+
+  try {
+    return JSON.parse(attempt)
+  } catch {
+    return null
+  }
+}
+
 const SYSTEM_PROMPT = `Eres un extractor de datos de estados de cuenta bancarios. Responde SIEMPRE y ÚNICAMENTE con JSON válido. Sin explicaciones, sin markdown, sin backticks. Solo el objeto JSON.`
 
 const EXTRACTION_PROMPT = `Analiza este estado de cuenta y extrae TODAS las transacciones.
@@ -42,19 +71,19 @@ export async function POST(req: NextRequest) {
   try {
     formData = await req.formData()
   } catch {
-    return NextResponse.json({ error: 'FormData inválido' }, { status: 400 })
+    return NextResponse.json({ error: 'No se pudo leer el archivo. Intentalo de nuevo.' }, { status: 400 })
   }
 
   const file = formData.get('file') as File | null
-  if (!file) return NextResponse.json({ error: 'Archivo requerido' }, { status: 400 })
+  if (!file) return NextResponse.json({ error: 'No se selecciono ningun archivo.' }, { status: 400 })
 
   if (file.size > 10 * 1024 * 1024) {
-    return NextResponse.json({ error: 'El archivo excede 10MB' }, { status: 400 })
+    return NextResponse.json({ error: 'El archivo es demasiado grande. El tamaño maximo permitido es 10MB.' }, { status: 400 })
   }
 
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
   if (!allowedTypes.includes(file.type)) {
-    return NextResponse.json({ error: 'Formato no soportado. Usa JPG, PNG, WebP o PDF.' }, { status: 400 })
+    return NextResponse.json({ error: 'Formato no aceptado. Solo se permiten archivos JPG, PNG, WebP o PDF.' }, { status: 400 })
   }
 
   const bytes = await file.arrayBuffer()
@@ -93,22 +122,21 @@ export async function POST(req: NextRequest) {
     anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   } catch (err) {
     console.error('Anthropic client init error:', err)
-    return NextResponse.json({ error: 'Error de configuración del servicio de IA' }, { status: 500 })
+    return NextResponse.json({ error: 'Error en el servicio de analisis. Intentalo de nuevo mas tarde.' }, { status: 500 })
   }
 
   let response: Anthropic.Message
   try {
     response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 16384,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: contentBlocks }],
     })
   } catch (err) {
     console.error('Anthropic API error:', err)
-    const message = err instanceof Error ? err.message : String(err)
     return NextResponse.json(
-      { error: `Error al llamar a Claude: ${message.substring(0, 200)}` },
+      { error: 'Error al conectar con el servicio de analisis. Intentalo de nuevo en unos momentos.' },
       { status: 500 }
     )
   }
@@ -118,12 +146,10 @@ export async function POST(req: NextRequest) {
 
   if (!text) {
     return NextResponse.json(
-      { error: `Claude no devolvió texto. Stop reason: ${response.stop_reason}` },
+      { error: 'No se pudo leer el contenido del documento. Verifica que el archivo sea legible y vuelve a intentarlo.' },
       { status: 500 }
     )
   }
-
-  console.log('Claude response (first 500 chars):', text.substring(0, 500))
 
   // Extract JSON robustly
   let jsonStr = text
@@ -137,32 +163,40 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  type ParsedTransaction = {
+    suggested_category: string
+    description: string
+    date: string
+    amount: number
+    type: string
+    currency?: string
+    category_id?: string | null
+    original_amount?: number | null
+    original_currency?: string | null
+  }
+
   let result: {
     bank?: string
     period?: string
     currency?: string
-    transactions?: Array<{
-      suggested_category: string
-      description: string
-      date: string
-      amount: number
-      type: string
-      currency?: string
-      category_id?: string | null
-      original_amount?: number | null
-      original_currency?: string | null
-    }>
+    transactions?: ParsedTransaction[]
     truncated?: boolean
   }
 
   try {
     result = JSON.parse(jsonStr)
   } catch {
-    console.error('JSON parse failed. Raw text:', text)
-    return NextResponse.json(
-      { error: `Claude respondió pero no con JSON válido. Respuesta: "${text.substring(0, 150)}..."` },
-      { status: 500 }
-    )
+    // Try to repair truncated JSON (usually from max_tokens limit)
+    const repaired = tryRepairJson(jsonStr)
+    if (repaired && typeof repaired === 'object' && 'transactions' in (repaired as Record<string, unknown>)) {
+      result = repaired as typeof result
+    } else {
+      console.error('JSON parse failed. Raw text:', text.substring(0, 300))
+      return NextResponse.json(
+        { error: 'Error al procesar los datos del estado de cuenta. El documento puede tener un formato no compatible. Intenta con otro archivo.' },
+        { status: 500 }
+      )
+    }
   }
 
   // Enrich with category_id

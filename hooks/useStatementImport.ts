@@ -174,7 +174,7 @@ export function useStatementImport(householdId: string) {
       setState(s => ({
         ...s,
         isLoading: false,
-        error: 'Error de conexión. Intenta de nuevo.',
+        error: 'Error de conexion. Revisa tu internet e intentalo de nuevo.',
         step: 'upload',
       }))
     }
@@ -222,7 +222,7 @@ export function useStatementImport(householdId: string) {
 
     if (error) {
       console.error('Transaction insert error:', error)
-      setState(s => ({ ...s, isLoading: false, error: `Error al guardar: ${error.message}` }))
+      setState(s => ({ ...s, isLoading: false, error: 'Error al guardar las transacciones. Intentalo de nuevo.' }))
       return
     }
 
