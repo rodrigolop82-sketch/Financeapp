@@ -1,6 +1,6 @@
 'use client'
 import { useRef, useState } from 'react'
-import { Upload, Camera, FileText, X, ChevronLeft } from 'lucide-react'
+import { Upload, Camera, FileText, Image, X, ChevronLeft } from 'lucide-react'
 
 interface UploadScreenProps {
   file: File | null
@@ -15,15 +15,14 @@ const BANKS = ['Banrural', 'BAM', 'Industrial', 'G&T', 'Bantrab', 'BAC Credomati
 
 export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze, onBack }: UploadScreenProps) {
   const [mode, setMode] = useState<'photo' | 'pdf'>('photo')
-  const inputRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
+  const pdfRef = useRef<HTMLInputElement>(null)
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (f) onFileSelect(f)
   }
-
-  const accept = mode === 'photo' ? 'image/*' : 'application/pdf'
-  const capture = mode === 'photo' ? 'environment' : undefined
 
   return (
     <div style={{ padding: '0 20px 32px', animation: 'zafiFadeIn 0.3s ease' }}>
@@ -70,47 +69,111 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
         })}
       </div>
 
-      {/* Dropzone */}
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        capture={capture}
-        onChange={handleFileChange}
-        style={{ display: 'none' }}
-      />
+      {/* Hidden file inputs */}
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} style={{ display: 'none' }} />
+      <input ref={galleryRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+      <input ref={pdfRef} type="file" accept="application/pdf,.pdf" onChange={handleFileChange} style={{ display: 'none' }} />
 
       {!file ? (
-        <button
-          onClick={() => inputRef.current?.click()}
-          style={{
-            width: '100%',
-            padding: '40px 20px',
-            border: '2px dashed #CBD5E1',
-            borderRadius: 16,
-            background: '#F8FAFC',
-            cursor: 'pointer',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 12,
-            transition: 'border-color 0.2s ease',
-          }}
-        >
-          <div style={{
-            width: 56, height: 56, borderRadius: '50%',
-            background: '#EFF6FF', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Upload size={24} color="#2563EB" />
+        mode === 'photo' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              onClick={() => cameraRef.current?.click()}
+              style={{
+                width: '100%',
+                padding: '24px 20px',
+                border: '2px dashed #CBD5E1',
+                borderRadius: 16,
+                background: '#F8FAFC',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                transition: 'border-color 0.2s ease',
+              }}
+            >
+              <div style={{
+                width: 48, height: 48, borderRadius: '50%',
+                background: '#EFF6FF', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <Camera size={22} color="#2563EB" />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', display: 'block' }}>
+                  Tomar foto
+                </span>
+                <span style={{ fontSize: 12, color: '#94A3B8' }}>
+                  Usa la cámara para capturar el estado de cuenta
+                </span>
+              </div>
+            </button>
+            <button
+              onClick={() => galleryRef.current?.click()}
+              style={{
+                width: '100%',
+                padding: '24px 20px',
+                border: '2px dashed #CBD5E1',
+                borderRadius: 16,
+                background: '#F8FAFC',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                transition: 'border-color 0.2s ease',
+              }}
+            >
+              <div style={{
+                width: 48, height: 48, borderRadius: '50%',
+                background: '#F0FDF4', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <Image size={22} color="#059669" />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', display: 'block' }}>
+                  Seleccionar de galería
+                </span>
+                <span style={{ fontSize: 12, color: '#94A3B8' }}>
+                  Elige una foto ya tomada · JPG, PNG, WebP · Máx 10MB
+                </span>
+              </div>
+            </button>
           </div>
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F' }}>
-            {mode === 'photo' ? 'Tomar foto o seleccionar imagen' : 'Seleccionar archivo PDF'}
-          </span>
-          <span style={{ fontSize: 12, color: '#94A3B8' }}>
-            Máximo 10MB · {mode === 'photo' ? 'JPG, PNG, WebP' : 'PDF'}
-          </span>
-        </button>
+        ) : (
+          <button
+            onClick={() => pdfRef.current?.click()}
+            style={{
+              width: '100%',
+              padding: '40px 20px',
+              border: '2px dashed #CBD5E1',
+              borderRadius: 16,
+              background: '#F8FAFC',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
+              transition: 'border-color 0.2s ease',
+            }}
+          >
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: '#EFF6FF', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Upload size={24} color="#2563EB" />
+            </div>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F' }}>
+              Seleccionar archivo PDF
+            </span>
+            <span style={{ fontSize: 12, color: '#94A3B8' }}>
+              Máximo 10MB · PDF
+            </span>
+          </button>
+        )
       ) : (
         <div style={{
           padding: 16,
@@ -145,7 +208,10 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
             </p>
           </div>
           <button
-            onClick={() => { inputRef.current?.click() }}
+            onClick={() => {
+              const ref = mode === 'photo' ? galleryRef : pdfRef
+              ref.current?.click()
+            }}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#94A3B8' }}
           >
             <X size={18} />
