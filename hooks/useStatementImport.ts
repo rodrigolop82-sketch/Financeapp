@@ -95,7 +95,7 @@ export function useStatementImport(householdId: string) {
       formData.append('file', file)
 
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 55000)
+      const timeout = setTimeout(() => controller.abort(), 120000)
 
       let res: Response
       try {

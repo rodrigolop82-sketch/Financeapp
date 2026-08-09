@@ -4,7 +4,7 @@ import { getUserHousehold } from '@/lib/household'
 import { toGTQ } from '@/lib/currency'
 import { NextRequest, NextResponse } from 'next/server'
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 function tryRepairJson(text: string): unknown | null {
   const cleaned = text.replace(/```json|```/g, '').trim()
@@ -131,14 +131,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Error en el servicio de analisis. Intentalo de nuevo mas tarde.' }, { status: 500 })
   }
 
-  let response: Anthropic.Message
+  // Use streaming to avoid Vercel serverless timeout on large PDFs
+  let text = ''
+  let stopReason = ''
   try {
-    response = await anthropic.messages.create({
+    const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 16384,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: contentBlocks }],
     })
+
+    const finalMessage = await stream.finalMessage()
+    stopReason = finalMessage.stop_reason || ''
+
+    const textBlock = finalMessage.content.find(b => b.type === 'text')
+    text = textBlock && textBlock.type === 'text' ? textBlock.text : ''
   } catch (err: unknown) {
     console.error('Anthropic API error:', err)
     const errMsg = err instanceof Error ? err.message : String(err)
@@ -154,9 +162,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const textBlock = response.content.find(b => b.type === 'text')
-  const text = textBlock && textBlock.type === 'text' ? textBlock.text : ''
-  const wasTruncated = response.stop_reason === 'max_tokens'
+  const wasTruncated = stopReason === 'max_tokens'
 
   if (!text) {
     return NextResponse.json(
