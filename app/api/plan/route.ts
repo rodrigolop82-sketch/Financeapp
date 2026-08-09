@@ -38,12 +38,25 @@ export async function POST(request: Request) {
 
   if (!fp) return NextResponse.json({ error: 'Sin perfil financiero' }, { status: 400 });
 
+  // Check if user has an active emergency fund goal
+  const { data: efGoal } = await supabase
+    .from('financial_goals')
+    .select('current_amount')
+    .eq('user_id', user.id)
+    .eq('goal_type', 'emergency_fund')
+    .eq('status', 'active')
+    .limit(1)
+    .single();
+
+  const efAmount = efGoal ? Number(efGoal.current_amount) : 0;
+  const effectiveSavings = efAmount > 0 ? efAmount : Number(fp.total_savings);
+
   const profile = {
     total_income: Number(fp.total_income),
     total_fixed_expenses: Number(fp.total_fixed_expenses),
     total_debt: Number(fp.total_debt),
-    total_savings: Number(fp.total_savings),
-    has_emergency_fund: fp.has_emergency_fund,
+    total_savings: effectiveSavings,
+    has_emergency_fund: efAmount > 0 || fp.has_emergency_fund,
     income_type: fp.income_type as 'fixed' | 'variable' | 'mixed',
   };
 

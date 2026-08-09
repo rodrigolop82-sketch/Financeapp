@@ -1,253 +1,180 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { ActionStep } from '@/types';
-import {
-  Loader2,
-  CheckCircle2,
-  Circle,
-  Target,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  Sparkles,
-} from 'lucide-react';
-import { AppShell } from '@/components/layout/AppShell';
+import { AppShell } from '@/components/layout/AppShell'
+import { useDynamicChallenges, type Challenge } from '@/hooks/useDynamicChallenges'
+import { Loader2 } from 'lucide-react'
 
-export default function PlanPage() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [planId, setPlanId] = useState('');
-  const [steps, setSteps] = useState<ActionStep[]>([]);
-  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
-  const [month, setMonth] = useState('');
-  const [expandedStep, setExpandedStep] = useState<string | null>(null);
-  const [householdId, setHouseholdId] = useState('');
-  const router = useRouter();
-  const supabase = createClient();
+const STATUS_CONFIG: Record<Challenge['status'], { label: string; bg: string; color: string; border: string; barColor: string }> = {
+  on_track: { label: 'En camino', bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE', barColor: '#2563EB' },
+  at_risk: { label: 'En riesgo', bg: '#FEF3C7', color: '#92400E', border: '#FDE68A', barColor: '#F59E0B' },
+  completed: { label: '¡Logrado!', bg: '#F0FDF4', color: '#065F46', border: '#BBF7D0', barColor: '#10B981' },
+  failed: { label: 'Excedido', bg: '#FEF2F2', color: '#991B1B', border: '#FECACA', barColor: '#EF4444' },
+}
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push('/login'); return; }
+const CATEGORY_LABELS: Record<string, string> = {
+  spending: 'Gasto',
+  saving: 'Ahorro',
+  habits: 'Hábitos',
+}
 
-      const { data: hh } = await supabase
-        .from('households').select('id').eq('owner_id', user.id).limit(1).single();
-      if (!hh) { router.push('/onboarding'); return; }
-      setHouseholdId(hh.id);
-
-      const { data: plan } = await supabase
-        .from('action_plans')
-        .select('*')
-        .eq('household_id', hh.id)
-        .order('month', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (plan) {
-        setPlanId(plan.id);
-        setSteps((plan.steps as ActionStep[]) || []);
-        const completed = (plan.completed_steps as ActionStep[]) || [];
-        setCompletedIds(new Set(completed.map(s => s.id)));
-        const d = new Date(plan.month);
-        const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-        setMonth(`${monthNames[d.getMonth()]} ${d.getFullYear()}`);
-      }
-      setLoading(false);
-    }
-    load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function toggleStep(step: ActionStep) {
-    const newCompleted = new Set(completedIds);
-    if (newCompleted.has(step.id)) {
-      newCompleted.delete(step.id);
-    } else {
-      newCompleted.add(step.id);
-    }
-    setCompletedIds(newCompleted);
-
-    const completedSteps = steps.filter(s => newCompleted.has(s.id));
-    await supabase
-      .from('action_plans')
-      .update({ completed_steps: completedSteps })
-      .eq('id', planId);
-  }
-
-  async function regeneratePlan() {
-    setSaving(true);
-    const res = await fetch('/api/plan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ householdId }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setSteps(data.steps);
-      setCompletedIds(new Set());
-      setPlanId(data.planId);
-    }
-    setSaving(false);
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    );
-  }
-
-  const completedCount = completedIds.size;
-  const totalCount = steps.length;
-  const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
-  const allCompleted = completedCount === totalCount && totalCount > 0;
-
-  const priorityOrder = { high: 0, medium: 1, low: 2 };
-  const sortedSteps = [...steps].sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+function ChallengeCard({ challenge }: { challenge: Challenge }) {
+  const config = STATUS_CONFIG[challenge.status]
+  const isInverse = challenge.category === 'spending' && challenge.status !== 'completed'
 
   return (
-    <AppShell title="Plan de acción" currentPath="/plan">
-      <div className="max-w-3xl mx-auto">
-        {/* Month and regenerate */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            {month && <p className="text-sm text-gray-500">{month}</p>}
+    <div style={{
+      background: '#fff',
+      borderRadius: 16,
+      border: `1px solid ${config.border}`,
+      padding: '16px 18px',
+      marginBottom: 12,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 24 }}>{challenge.icon}</span>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F', margin: 0, lineHeight: 1.3 }}>
+              {challenge.title}
+            </p>
+            <span style={{
+              fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
+              background: config.bg, color: config.color,
+              display: 'inline-block', marginTop: 4,
+            }}>
+              {config.label}
+            </span>
           </div>
-          <Button variant="outline" onClick={regeneratePlan} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            Regenerar
-          </Button>
         </div>
-
-        {/* Progress summary */}
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${allCompleted ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                  {allCompleted ? (
-                    <Sparkles className="w-6 h-6 text-electric" />
-                  ) : (
-                    <Target className="w-6 h-6 text-gray-400" />
-                  )}
-                </div>
-                <div>
-                  <p className="font-semibold">
-                    {allCompleted ? '¡Plan completado!' : `${completedCount} de ${totalCount} pasos`}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {allCompleted
-                      ? 'Excelente trabajo este mes. Sigue así.'
-                      : `Te faltan ${totalCount - completedCount} paso${totalCount - completedCount !== 1 ? 's' : ''} por completar`}
-                  </p>
-                </div>
-              </div>
-              <span className="text-2xl font-bold text-electric">{Math.round(progress)}%</span>
-            </div>
-            <Progress value={progress} className="h-3" />
-          </CardContent>
-        </Card>
-
-        {/* Steps grouped by priority */}
-        {(['high', 'medium', 'low'] as const).map((priority) => {
-          const prioritySteps = sortedSteps.filter(s => s.priority === priority);
-          if (prioritySteps.length === 0) return null;
-
-          const labels = { high: 'Prioridad alta', medium: 'Prioridad media', low: 'Prioridad baja' };
-          const colors = {
-            high: 'border-l-red-400',
-            medium: 'border-l-yellow-400',
-            low: 'border-l-gray-300',
-          };
-          const badges = {
-            high: 'bg-red-100 text-red-700',
-            medium: 'bg-yellow-100 text-yellow-700',
-            low: 'bg-gray-100 text-gray-600',
-          };
-
-          return (
-            <div key={priority} className="mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badges[priority]}`}>
-                  {labels[priority]}
-                </span>
-                <span className="text-xs text-gray-400">
-                  {prioritySteps.filter(s => completedIds.has(s.id)).length}/{prioritySteps.length}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {prioritySteps.map((step) => {
-                  const isCompleted = completedIds.has(step.id);
-                  const isExpanded = expandedStep === step.id;
-                  return (
-                    <Card
-                      key={step.id}
-                      className={`border-l-4 ${colors[priority]} ${isCompleted ? 'opacity-75' : ''}`}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <button
-                            onClick={() => toggleStep(step)}
-                            className="mt-0.5 flex-shrink-0"
-                          >
-                            {isCompleted ? (
-                              <CheckCircle2 className="w-6 h-6 text-electric-light" />
-                            ) : (
-                              <Circle className="w-6 h-6 text-gray-300 hover:text-electric-pale transition-colors" />
-                            )}
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <button
-                              onClick={() => setExpandedStep(isExpanded ? null : step.id)}
-                              className="w-full text-left"
-                            >
-                              <div className="flex items-center justify-between">
-                                <p className={`font-medium text-sm ${isCompleted ? 'line-through text-gray-400' : ''}`}>
-                                  {step.title}
-                                </p>
-                                {step.description && (
-                                  isExpanded
-                                    ? <ChevronUp className="w-4 h-4 text-gray-400" />
-                                    : <ChevronDown className="w-4 h-4 text-gray-400" />
-                                )}
-                              </div>
-                            </button>
-                            {isExpanded && step.description && (
-                              <p className="text-sm text-gray-500 mt-2">{step.description}</p>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-
-        {steps.length === 0 && (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Target className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="font-medium text-gray-700">No hay plan de acción</p>
-              <p className="text-sm text-gray-500 mt-1 mb-4">
-                Genera un plan basado en tu perfil financiero actual.
-              </p>
-              <Button onClick={regeneratePlan} disabled={saving}>
-                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                Generar plan
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <span style={{
+          fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
+          background: '#F1F5F9', color: '#64748B',
+        }}>
+          {CATEGORY_LABELS[challenge.category]}
+        </span>
       </div>
+
+      <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 12px', lineHeight: 1.5 }}>
+        {challenge.description}
+      </p>
+
+      {/* Progress bar */}
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ height: 6, background: '#E2E8F0', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={{
+            height: '100%',
+            width: `${isInverse ? Math.min(challenge.progress, 100) : challenge.progress}%`,
+            background: config.barColor,
+            borderRadius: 3,
+            transition: 'width 0.4s ease',
+          }} />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: '#94A3B8' }}>
+          {challenge.unit === 'Q'
+            ? `Q${challenge.current.toLocaleString()} / Q${challenge.target.toLocaleString()}`
+            : `${challenge.current} / ${challenge.target} ${challenge.unit}`
+          }
+        </span>
+        <span style={{
+          fontSize: 13, fontWeight: 800, color: config.color,
+          fontFamily: 'Outfit, sans-serif',
+        }}>
+          {challenge.progress}%
+        </span>
+      </div>
+    </div>
+  )
+}
+
+export default function PlanPage() {
+  const { challenges, loading, error } = useDynamicChallenges()
+
+  const completed = challenges.filter(c => c.status === 'completed').length
+  const total = challenges.length
+  const overallProgress = total > 0 ? Math.round((completed / total) * 100) : 0
+
+  return (
+    <AppShell title="Retos del mes" currentPath="/plan">
+      {loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+          <Loader2 className="w-8 h-8 text-electric animate-spin" />
+        </div>
+      )}
+
+      {error && (
+        <div style={{ margin: '0 16px', padding: '16px', background: '#FFF5F5', borderRadius: 12, color: '#DC2626', fontSize: 14 }}>
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && (
+        <div>
+          {/* Hero */}
+          <div style={{
+            margin: '0 16px 16px',
+            padding: '18px 20px',
+            background: 'linear-gradient(135deg, #0F1F36, #1E3A5F)',
+            borderRadius: 16,
+            color: '#fff',
+          }}>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
+              Progreso general
+            </p>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+              <span style={{ fontSize: 36, fontWeight: 800, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.5px' }}>
+                {completed}/{total}
+              </span>
+              <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>
+                retos completados
+              </span>
+            </div>
+            <div style={{ height: 6, background: 'rgba(255,255,255,0.15)', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 3,
+                width: `${overallProgress}%`,
+                background: completed === total && total > 0 ? '#10B981' : '#2563EB',
+                transition: 'width 0.4s ease',
+              }} />
+            </div>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: '8px 0 0', textAlign: 'right' }}>
+              {overallProgress}% completado
+            </p>
+          </div>
+
+          {/* Subtitle */}
+          <div style={{ margin: '0 16px 12px' }}>
+            <p style={{ fontSize: 12, color: '#94A3B8', margin: 0, lineHeight: 1.5 }}>
+              Retos generados automáticamente a partir de tus gastos reales. El progreso se actualiza solo.
+            </p>
+          </div>
+
+          {/* Challenge cards */}
+          <div style={{ margin: '0 16px' }}>
+            {challenges.map(c => (
+              <ChallengeCard key={c.id} challenge={c} />
+            ))}
+          </div>
+
+          {challenges.length === 0 && (
+            <div style={{
+              margin: '0 16px', padding: '40px 20px', textAlign: 'center',
+              background: '#F8FAFC', borderRadius: 16, border: '1px solid #E2E8F0',
+            }}>
+              <p style={{ fontSize: 32, margin: '0 0 8px' }}>🎯</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', margin: '0 0 4px' }}>
+                Sin datos suficientes
+              </p>
+              <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>
+                Registrá gastos por unos días para que se generen tus retos.
+              </p>
+            </div>
+          )}
+
+          <div className="h-6" />
+        </div>
+      )}
     </AppShell>
-  );
+  )
 }

@@ -4,13 +4,13 @@ import Link from 'next/link'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: 'grid' },
-  { href: '/plan', label: 'Plan', icon: 'clock' },
-  { href: '/aprende', label: 'Aprende', icon: 'trend' },
+  { href: '/metas', label: 'Metas', icon: 'target' },
+  { href: '/resumen', label: 'Resumen', icon: 'chart' },
   { href: '/cuenta', label: 'Cuenta', icon: 'user' },
 ]
 
 function NavIcon({ icon, active }: { icon: string; active: boolean }) {
-  const color = active ? '#60A5FA' : 'rgba(255,255,255,0.4)'
+  const color = active ? 'var(--zafi-nav-active)' : 'var(--zafi-nav-inactive)'
 
   const icons: Record<string, React.ReactNode> = {
     grid: (
@@ -21,16 +21,18 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
         <rect x="11" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.5"/>
       </svg>
     ),
-    clock: (
+    target: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <circle cx="10" cy="10" r="7" stroke={color} strokeWidth="1.5"/>
-        <path d="M10 6v4l2.5 2.5" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
+        <circle cx="10" cy="10" r="4" stroke={color} strokeWidth="1.5"/>
+        <circle cx="10" cy="10" r="1.5" fill={color}/>
       </svg>
     ),
-    trend: (
+    chart: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <path d="M3 14l4-4 3 3 7-7" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M13 6h4v4" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <rect x="3" y="11" width="3" height="6" rx="1" stroke={color} strokeWidth="1.5"/>
+        <rect x="8.5" y="7" width="3" height="10" rx="1" stroke={color} strokeWidth="1.5"/>
+        <rect x="14" y="3" width="3" height="14" rx="1" stroke={color} strokeWidth="1.5"/>
       </svg>
     ),
     user: (
@@ -50,7 +52,7 @@ export function BottomNav() {
   return (
     <div className="lg:hidden" style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
-      background: 'rgba(13,31,54,0.98)', backdropFilter: 'blur(12px)',
+      background: 'var(--zafi-bottomnav)', backdropFilter: 'blur(12px)',
       borderTop: '1px solid rgba(255,255,255,0.08)',
       paddingBottom: 'env(safe-area-inset-bottom)',
     }}>
@@ -60,16 +62,12 @@ export function BottomNav() {
       }}>
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href
-
           return (
-            <Link key={item.href} href={item.href} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              gap: 2, textDecoration: 'none', minWidth: 48,
-            }}>
+            <Link key={item.href} href={item.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, textDecoration: 'none', minWidth: 48 }}>
               <NavIcon icon={item.icon} active={active} />
               <span style={{
                 fontSize: 9, fontWeight: 600,
-                color: active ? '#60A5FA' : 'rgba(255,255,255,0.4)',
+                color: active ? 'var(--zafi-nav-active)' : 'var(--zafi-nav-inactive)',
                 letterSpacing: '0.02em',
               }}>
                 {item.label}
@@ -77,7 +75,7 @@ export function BottomNav() {
               {active && (
                 <div style={{
                   width: 20, height: 2, borderRadius: 9999,
-                  background: '#60A5FA', marginTop: -1,
+                  background: 'var(--zafi-nav-active)', marginTop: -1,
                 }} />
               )}
             </Link>

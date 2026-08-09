@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { logAuditEvent } from '@/lib/audit';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -37,6 +38,8 @@ export async function GET(request: Request) {
       // Check if user has completed onboarding (has a household)
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        await logAuditEvent(supabase, user.id, 'login');
+
         const { data: households } = await supabase
           .from('households')
           .select('id')

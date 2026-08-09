@@ -25,13 +25,14 @@ import {
 } from 'lucide-react';
 import { Wordmark } from '@/components/brand/Wordmark';
 import { AppIcon } from '@/components/brand/AppIcon';
+import { PrivacyGateScreen } from '@/components/onboarding/PrivacyGateScreen';
 import { OnboardingData } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { calculateHealthScore, ScoreBreakdown } from '@/lib/scoring';
 import { generateInitialPlan } from '@/lib/action-plan';
 import { ActionStep } from '@/types';
 
-const TOTAL_STEPS = 8;
+const TOTAL_STEPS = 9;
 
 const defaultData: OnboardingData = {
   householdName: '',
@@ -738,8 +739,15 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 8: Action plan */}
+        {/* Step 8: Privacy gate */}
         {step === 8 && (
+          <div className="animate-fade-in">
+            <PrivacyGateScreen onContinue={next} />
+          </div>
+        )}
+
+        {/* Step 9: Action plan */}
+        {step === 9 && (
           <div className="animate-fade-in">
             <Card>
               <CardHeader className="text-center">
@@ -833,7 +841,7 @@ export default function OnboardingPage() {
               onClick={next}
               disabled={step === 1 && !data.householdName.trim()}
             >
-              {step === 6 ? 'Ver mi diagnóstico' : step === 7 ? 'Ver mi plan' : 'Siguiente'}
+              {step === 6 ? 'Ver mi diagnóstico' : step === 7 ? 'Continuar' : step === 8 ? 'Ver mi plan' : 'Siguiente'}
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </div>

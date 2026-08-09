@@ -22,7 +22,7 @@ function createSupabase() {
   );
 }
 
-// GET: list household members
+// GET: list household members + pending invites
 export async function GET(request: Request) {
   const supabase = createSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -32,19 +32,64 @@ export async function GET(request: Request) {
   const householdId = searchParams.get('householdId');
   if (!householdId) return NextResponse.json({ error: 'householdId requerido' }, { status: 400 });
 
-  // Use admin client to bypass the "Users can view own data" RLS policy so we
-  // can read all household members' email and display_name, not just the caller's.
   const adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  const { data: household } = await supabase
+    .from('households')
+    .select('id, owner_id')
+    .eq('id', householdId)
+    .single();
+
   const { data: members } = await adminClient
     .from('household_members')
-    .select('user_id, role, joined_at, users(email, display_name)')
+    .select('user_id, role, joined_at, users(email, full_name)')
     .eq('household_id', householdId);
 
-  return NextResponse.json({ members: members || [] });
+  const memberList = members || [];
+
+  // Ensure owner is included in the list
+  if (household) {
+    const ownerInList = memberList.some(m => m.user_id === household.owner_id);
+    if (!ownerInList) {
+      const { data: ownerProfile } = await adminClient
+        .from('users')
+        .select('email, full_name')
+        .eq('id', household.owner_id)
+        .single();
+
+      if (ownerProfile) {
+        const ownerEntry = { user_id: household.owner_id, role: 'owner', joined_at: '', users: { email: ownerProfile.email, display_name: ownerProfile.full_name } };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        memberList.unshift(ownerEntry as any);
+      }
+    }
+  }
+
+  // Get pending invites (active, not expired)
+  const { data: invites } = await adminClient
+    .from('household_invites')
+    .select('id, invite_code, status, created_at, expires_at')
+    .eq('household_id', householdId)
+    .order('created_at', { ascending: false });
+
+  // Classify invites
+  const now = new Date();
+  const pendingInvites = (invites || []).map(inv => {
+    const expired = new Date(inv.expires_at) < now;
+    const status = inv.status === 'active' && !expired ? 'pendiente' : 'expirada';
+    return {
+      id: inv.id,
+      invite_code: inv.invite_code,
+      status,
+      created_at: inv.created_at,
+      expires_at: inv.expires_at,
+    };
+  });
+
+  return NextResponse.json({ members: memberList, invites: pendingInvites });
 }
 
 // POST: invite a member by email
@@ -64,6 +109,17 @@ export async function POST(request: Request) {
 
   if (!household || household.owner_id !== user.id) {
     return NextResponse.json({ error: 'Solo el dueño puede invitar miembros' }, { status: 403 });
+  }
+
+  // Verify caller has a premium plan
+  const { data: ownerProfile } = await supabase
+    .from('users')
+    .select('plan')
+    .eq('id', user.id)
+    .single();
+
+  if (ownerProfile?.plan !== 'premium') {
+    return NextResponse.json({ error: 'Se requiere plan Premium para usar el modo familia' }, { status: 403 });
   }
 
   // Find the user by email — use service role to bypass RLS on users table

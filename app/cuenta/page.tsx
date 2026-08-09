@@ -17,7 +17,18 @@ import {
   Shield,
   Eye,
   Coins,
+  ShieldCheck,
+  History,
+  Download,
+  Lock,
+  UserX,
+  ChevronRight,
+  Bell,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
+import { useAppearance, type Appearance } from '@/hooks/useAppearance';
 
 export default function CuentaPage() {
   return (
@@ -33,6 +44,14 @@ function CuentaContent() {
   const [subscription, setSubscription] = useState<{ plan: string; status: string; current_period_end: string } | null>(null);
   const [upgrading, setUpgrading] = useState(false);
   const [showDecimals, setShowDecimals] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState({
+    inactivity_enabled: true,
+    inactivity_threshold_days: 5,
+    month_close_enabled: true,
+    month_close_day: 2,
+  });
+  const { appearance, setAppearance } = useAppearance();
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -43,14 +62,23 @@ function CuentaContent() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) { router.push('/login'); return; }
 
-      const [{ data: profile }, { data: sub }] = await Promise.all([
+      const [{ data: profile }, { data: sub }, { data: nPrefs }] = await Promise.all([
         supabase.from('users').select('*').eq('id', authUser.id).single(),
         supabase.from('subscriptions').select('*').eq('user_id', authUser.id).limit(1).single(),
+        supabase.from('notification_preferences').select('*').eq('user_id', authUser.id).single(),
       ]);
 
       setUser(profile as typeof user);
       setShowDecimals(profile?.show_decimals ?? false);
       setSubscription(sub as typeof subscription);
+      if (nPrefs) {
+        setNotifPrefs({
+          inactivity_enabled: nPrefs.inactivity_enabled ?? true,
+          inactivity_threshold_days: nPrefs.inactivity_threshold_days ?? 5,
+          month_close_enabled: nPrefs.month_close_enabled ?? true,
+          month_close_day: nPrefs.month_close_day ?? 2,
+        });
+      }
       setLoading(false);
     }
     load();
@@ -85,9 +113,48 @@ function CuentaContent() {
   }
 
   async function handleLogout() {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      await supabase.from('audit_log').insert({
+        user_id: authUser.id,
+        event_type: 'logout',
+        metadata: {},
+      }).then(() => {}, () => {});
+    }
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await fetch('/api/user/export');
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `zafi-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // export failed silently
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function updateNotifPref(updates: Partial<typeof notifPrefs>) {
+    const next = { ...notifPrefs, ...updates };
+    setNotifPrefs(next);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      await supabase.from('notification_preferences').upsert({
+        user_id: authUser.id,
+        ...next,
+      });
+    }
   }
 
   if (loading) {
@@ -198,6 +265,51 @@ function CuentaContent() {
           </CardContent>
         </Card>
 
+        {/* Apariencia */}
+        <Card className="mb-4">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Moon className="w-5 h-5" style={{ color: 'var(--zafi-text-muted)' }} />
+              <CardTitle className="text-base">Apariencia</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3">
+              {([
+                { value: 'light' as Appearance, label: 'Claro', Icon: Sun },
+                { value: 'dark' as Appearance, label: 'Oscuro', Icon: Moon },
+                { value: 'system' as Appearance, label: 'Sistema', Icon: Monitor },
+              ]).map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  onClick={() => setAppearance(value)}
+                  style={{
+                    flex: 1,
+                    padding: '12px 8px',
+                    borderRadius: 12,
+                    border: appearance === value ? '2px solid var(--zafi-sidebar-active)' : '1px solid var(--zafi-border)',
+                    background: appearance === value ? 'var(--zafi-card-alt)' : 'var(--zafi-card)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Icon size={20} style={{ color: appearance === value ? 'var(--zafi-sidebar-active)' : 'var(--zafi-text-muted)' }} />
+                  <span style={{
+                    fontSize: 13,
+                    fontWeight: appearance === value ? 700 : 500,
+                    color: appearance === value ? 'var(--zafi-sidebar-active)' : 'var(--zafi-text-muted)',
+                  }}>
+                    {label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Subscription */}
         <Card className="mb-4">
           <CardHeader>
@@ -257,15 +369,210 @@ function CuentaContent() {
           </CardContent>
         </Card>
 
-        {/* Security */}
+        {/* Recordatorios */}
         <Card className="mb-4">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 text-gray-500" />
-              <CardTitle className="text-base">Seguridad</CardTitle>
+              <Bell className="w-5 h-5 text-[#2563EB]" />
+              <CardTitle className="text-base">Recordatorios</CardTitle>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Inactivity toggle */}
+            <div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Inactividad de captura</p>
+                  <p className="text-xs text-muted-foreground">
+                    Avísame si llevo días sin registrar gastos
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateNotifPref({ inactivity_enabled: !notifPrefs.inactivity_enabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    notifPrefs.inactivity_enabled ? 'bg-electric' : 'bg-gray-200'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    notifPrefs.inactivity_enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+              {notifPrefs.inactivity_enabled && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-xs text-gray-500">Después de</span>
+                  <select
+                    value={notifPrefs.inactivity_threshold_days}
+                    onChange={(e) => updateNotifPref({ inactivity_threshold_days: Number(e.target.value) })}
+                    className="border rounded-md px-2 py-1 text-sm bg-white"
+                  >
+                    <option value={3}>3 días</option>
+                    <option value={5}>5 días</option>
+                    <option value={7}>7 días</option>
+                    <option value={10}>10 días</option>
+                    <option value={14}>14 días</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Month close toggle */}
+            <div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Cierre de mes</p>
+                  <p className="text-xs text-muted-foreground">
+                    Recordarme cerrar el mes si tengo fuentes pendientes
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateNotifPref({ month_close_enabled: !notifPrefs.month_close_enabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    notifPrefs.month_close_enabled ? 'bg-electric' : 'bg-gray-200'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    notifPrefs.month_close_enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+              {notifPrefs.month_close_enabled && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-xs text-gray-500">Enviar el día</span>
+                  <select
+                    value={notifPrefs.month_close_day}
+                    onChange={(e) => updateNotifPref({ month_close_day: Number(e.target.value) })}
+                    className="border rounded-md px-2 py-1 text-sm bg-white"
+                  >
+                    <option value={1}>1</option>
+                    <option value={2}>2</option>
+                    <option value={3}>3</option>
+                    <option value={5}>5</option>
+                    <option value={7}>7</option>
+                  </select>
+                  <span className="text-xs text-gray-500">de cada mes</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tu privacidad — Tus datos */}
+        <Card className="mb-4">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Shield className="w-5 h-5 text-[#2563EB]" />
+              <CardTitle className="text-base">Tu privacidad</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tus datos</p>
+
+            <button
+              onClick={() => router.push('/cuenta/privacidad')}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <ShieldCheck className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">Cómo protegemos tu info</p>
+                <p className="text-xs text-gray-500">Encriptación, RLS y acceso exclusivo</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </button>
+
+            <Separator />
+
+            <button
+              onClick={() => router.push('/cuenta/historial-acceso')}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <History className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">Historial de acceso</p>
+                <p className="text-xs text-gray-500">Últimos accesos a tu cuenta</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </button>
+
+            <Separator />
+
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <Download className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">
+                  {exporting ? 'Exportando…' : 'Exportar mis datos'}
+                </p>
+                <p className="text-xs text-gray-500">Descarga toda tu información</p>
+              </div>
+              {!exporting && <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+              {exporting && <Loader2 className="w-4 h-4 text-gray-400 flex-shrink-0 animate-spin" />}
+            </button>
+
+            <Separator className="my-3" />
+
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Seguridad</p>
+
+            {/* TODO: Link to TOTP settings when implemented */}
+            <div className="flex items-center gap-3 p-3 rounded-lg opacity-60">
+              <Lock className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">Verificación en dos pasos</p>
+                <p className="text-xs text-gray-500">Próximamente</p>
+              </div>
+            </div>
+
+            <Separator className="my-3" />
+
+            <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">Zona de riesgo</p>
+
+            {/* TODO: Implement account deletion flow */}
+            <div className="flex items-center gap-3 p-3 rounded-lg opacity-60">
+              <UserX className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-red-600">Eliminar mi cuenta</p>
+                <p className="text-xs text-gray-500">Borra todos tus datos permanentemente</p>
+              </div>
+            </div>
+
+            <Separator className="my-3" />
+
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Legal</p>
+
+            <button
+              onClick={() => router.push('/privacidad')}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <Shield className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">Política de privacidad</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </button>
+
+            <Separator />
+
+            <button
+              onClick={() => router.push('/terminos')}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <Shield className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#1E3A5F]">Términos de servicio</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </button>
+          </CardContent>
+        </Card>
+
+        {/* Logout */}
+        <Card className="mb-4">
+          <CardContent className="pt-6">
             <Button variant="destructive" className="w-full" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar sesión
