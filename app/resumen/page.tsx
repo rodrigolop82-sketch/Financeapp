@@ -33,6 +33,11 @@ interface BudgetCatRow {
   expected_day: number | null
 }
 
+interface PrevDayData {
+  total: number
+  byCat: Record<string, number>
+}
+
 interface ResumenData {
   userName: string
   householdName: string
@@ -41,12 +46,15 @@ interface ResumenData {
   daysLeft: number
   categories: CategorySpend[]
   spentPrevMonth: number
+  spentPrevSameDay: PrevDayData
   monthlyAvg: number
   paceItems: CategoryPace[]
   monthSummary: MonthSummary
   monthCtx: MonthContext
   budgetCats: BudgetCatRow[]
   txMonth: Array<{ category_id: string; amount: number; description: string | null }>
+  currentMonthLabel: string
+  prevMonthLabel: string
 }
 
 const STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string; label: string }> = {
@@ -61,6 +69,7 @@ export default function ResumenPage() {
   const [tab, setTab] = useState<Tab>('mes')
   const [loading, setLoading] = useState(true)
   const [showNoSpend, setShowNoSpend] = useState(false)
+  const [insightsMode, setInsightsMode] = useState<'same_day' | 'full'>('same_day')
   const router = useRouter()
 
   useEffect(() => {
@@ -127,6 +136,23 @@ export default function ResumenPage() {
       const spentMonth = txMonth.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
       const spentPrevMonth = txPrev.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
 
+      // Same-day comparison: prev month up to the same day
+      const prevMonthDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
+      const sameDayCutoff = Math.min(dayOfMonth, prevMonthDays)
+      const sameDayCutoffDate = new Date(now.getFullYear(), now.getMonth() - 1, sameDayCutoff).toISOString().slice(0, 10)
+      const txPrevSameDay = txPrev.filter((t: { date: string }) => t.date <= sameDayCutoffDate)
+      const spentPrevSameDayTotal = txPrevSameDay.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
+      const prevSameDayByCat: Record<string, number> = {}
+      txPrevSameDay.forEach((t: { category_id: string; amount: number }) => {
+        const info = catMap[t.category_id]
+        const name = info?.name ?? 'Otros'
+        prevSameDayByCat[name] = (prevSameDayByCat[name] ?? 0) + Number(t.amount)
+      })
+
+      const currentMonthLabel = now.toLocaleDateString('es-GT', { month: 'long' })
+      const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1)
+      const prevMonthLabel = prevMonthDate.toLocaleDateString('es-GT', { month: 'long' })
+
       const totalBudget = cats.reduce((s, c) => s + Number(c.budgeted_amount), 0)
 
       // Build pace items for each budget category
@@ -160,6 +186,9 @@ export default function ResumenPage() {
         daysLeft,
         categories,
         spentPrevMonth,
+        spentPrevSameDay: { total: spentPrevSameDayTotal, byCat: prevSameDayByCat },
+        currentMonthLabel,
+        prevMonthLabel,
         monthlyAvg: Math.round((spentMonth + spentPrevMonth) / 2),
         paceItems,
         monthSummary,
@@ -482,8 +511,96 @@ export default function ResumenPage() {
       )}
 
       {/* === INSIGHTS === */}
-      {tab === 'insights' && (
+      {tab === 'insights' && (() => {
+        const d = monthCtx.dayOfMonth
+        const isSameDay = insightsMode === 'same_day'
+        const prevAmount = isSameDay ? data.spentPrevSameDay.total : data.spentPrevMonth
+        const insDiff = data.spentMonth - prevAmount
+        const insDiffPct = prevAmount > 0 ? Math.round(Math.abs(insDiff) / prevAmount * 100) : 0
+        const isNeutral = Math.abs(insDiffPct) < 3
+
+        // Fixed categories context line
+        const fixedPaidPrevNotNow = data.budgetCats.filter(c => {
+          if (c.pace_mode !== 'fixed') return false
+          const eid = c.expected_day ?? 1
+          const prevByCatName = isSameDay ? data.spentPrevSameDay.byCat : {}
+          const prevSpent = prevByCatName[c.name] ?? 0
+          const currSpent = data.paceItems.find(p => p.categoryId === c.id)?.spent ?? 0
+          return prevSpent > 0 && currSpent === 0 && d < eid
+        })
+        const fixedPaidSum = fixedPaidPrevNotNow.reduce((s, c) => {
+          const prev = isSameDay ? (data.spentPrevSameDay.byCat[c.name] ?? 0) : (data.categories.find(cat => cat.name === c.name)?.prevAmount ?? 0)
+          return s + prev
+        }, 0)
+        const adjustedDiff = insDiff + fixedPaidSum
+        const adjustedDiffPct = (prevAmount - fixedPaidSum) > 0 ? Math.round(Math.abs(adjustedDiff) / (prevAmount - fixedPaidSum) * 100) : 0
+
+        // Insights
+        const insights: Array<{ text: string; tone: 'warn' | 'ok' | 'info' }> = []
+
+        // Unique category going up while rest goes down
+        const catsUp = data.categories.filter(c => {
+          const prev = isSameDay ? (data.spentPrevSameDay.byCat[c.name] ?? 0) : c.prevAmount
+          return c.amount > prev && prev > 0
+        })
+        const catsDown = data.categories.filter(c => {
+          const prev = isSameDay ? (data.spentPrevSameDay.byCat[c.name] ?? 0) : c.prevAmount
+          return c.amount <= prev && prev > 0
+        })
+        if (catsUp.length === 1 && catsDown.length >= 2) {
+          const cat = catsUp[0]
+          const prev = isSameDay ? (data.spentPrevSameDay.byCat[cat.name] ?? 0) : cat.prevAmount
+          const pctVsPrev = prev > 0 ? Math.round((cat.amount / prev) * 100) : 0
+          insights.push({
+            text: `${cat.name} es la única categoría subiendo, y ya va a ${pctVsPrev}% de ${data.prevMonthLabel} (${formatMoney(prev)}).`,
+            tone: 'warn',
+          })
+        }
+
+        // Pending fixed payments
+        const pendingFixed = data.budgetCats.filter(c => {
+          if (c.pace_mode !== 'fixed') return false
+          const eid = c.expected_day ?? 1
+          const spent = data.paceItems.find(p => p.categoryId === c.id)?.spent ?? 0
+          return spent === 0 && d < eid
+        })
+        if (pendingFixed.length > 0) {
+          const pendingSum = pendingFixed.reduce((s, c) => s + Number(c.budgeted_amount), 0)
+          const names = pendingFixed.map(c => c.name).join(', ')
+          insights.push({
+            text: `Aún no aparece el pago de ${names} este mes. Si son ${formatMoney(pendingSum)}, tu disponible real es ${formatMoney(Math.max(0, ms.available - pendingSum))}.`,
+            tone: 'info',
+          })
+        }
+
+        return (
         <>
+          {/* Toggle */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+            <button
+              onClick={() => setInsightsMode('same_day')}
+              style={{
+                padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+                background: insightsMode === 'same_day' ? '#2563EB' : '#E7EBF2',
+                color: insightsMode === 'same_day' ? '#fff' : '#64748B',
+              }}
+            >
+              Al día {d} de cada mes
+            </button>
+            <button
+              onClick={() => setInsightsMode('full')}
+              style={{
+                padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+                background: insightsMode === 'full' ? '#2563EB' : '#E7EBF2',
+                color: insightsMode === 'full' ? '#fff' : '#64748B',
+              }}
+            >
+              Mes completo
+            </button>
+          </div>
+
           <div style={{
             background: '#1E3A5F', borderRadius: 20,
             padding: '32px 36px', color: '#fff', marginBottom: 20,
@@ -492,101 +609,133 @@ export default function ResumenPage() {
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
               color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 16,
             }}>
-              Comparado con el mes anterior
+              {isSameDay ? `Comparado al día ${d} del mes anterior` : 'Comparado con el mes anterior completo'}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
                 {formatMoney(data.spentMonth)}
               </div>
               <div style={{
-                background: diff <= 0 ? 'rgba(22,101,52,0.2)' : 'rgba(239,68,68,0.2)',
-                color: diff <= 0 ? '#4ADE80' : '#FCA5A5',
+                background: isNeutral ? 'rgba(148,163,184,0.2)' : insDiff <= 0 ? 'rgba(22,101,52,0.2)' : 'rgba(239,68,68,0.2)',
+                color: isNeutral ? '#94A3B8' : insDiff <= 0 ? '#4ADE80' : '#FCA5A5',
                 fontWeight: 700, fontSize: 14,
                 padding: '8px 16px', borderRadius: 20,
               }}>
-                {diff <= 0 ? '↓' : '↑'} {diffPct}% vs mes anterior
+                {isNeutral ? '≈' : insDiff <= 0 ? '↓' : '↑'} {insDiffPct}% vs mes anterior
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 56, marginTop: 24 }}>
+            <div style={{ display: 'flex', gap: 40, marginTop: 24, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: 13, color: '#9FB3CB' }}>Este mes</div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>{data.currentMonthLabel}, día {d}</div>
                 <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
                   {formatMoney(data.spentMonth)}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 13, color: '#9FB3CB' }}>Mes anterior</div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>{data.prevMonthLabel}, {isSameDay ? `día ${d}` : 'completo'}</div>
                 <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
-                  {formatMoney(data.spentPrevMonth)}
+                  {formatMoney(prevAmount)}
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: 13, color: '#9FB3CB' }}>Diferencia</div>
                 <div style={{
                   fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4,
-                  color: diff <= 0 ? '#4ADE80' : '#FCA5A5',
+                  color: isNeutral ? '#94A3B8' : insDiff <= 0 ? '#4ADE80' : '#FCA5A5',
                 }}>
-                  {formatMoney(Math.abs(diff))}
+                  {insDiff <= 0 ? '-' : '+'}{formatMoney(Math.abs(insDiff))}
                 </div>
               </div>
             </div>
           </div>
 
-          <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
+          {/* Fixed categories context */}
+          {isSameDay && fixedPaidPrevNotNow.length > 0 && (
+            <div style={{
+              background: '#FEF3C7', borderRadius: 16, padding: '16px 20px',
+              marginBottom: 20, fontSize: 14, color: '#92400E', lineHeight: 1.5,
+            }}>
+              En {data.prevMonthLabel} a esta altura ya habías pagado {fixedPaidPrevNotNow.map(c => c.name).join(', ')} ({formatMoney(fixedPaidSum)}). Sin esos rubros, la diferencia real es {adjustedDiff <= 0 ? '-' : '+'}{adjustedDiffPct}%.
+            </div>
+          )}
+
+          {/* Category breakdown */}
+          <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
             <div style={{
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
               color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 6,
             }}>
-              Desglose por categoría
+              Cambios por categoría
             </div>
             {data.categories.map((cat) => {
-              const catDiff = cat.amount - cat.prevAmount
-              const catPct = cat.prevAmount > 0 ? Math.round(Math.abs(catDiff) / cat.prevAmount * 100) : 0
+              const prev = isSameDay ? (data.spentPrevSameDay.byCat[cat.name] ?? 0) : cat.prevAmount
+              const catDiff = cat.amount - prev
+              const catPct = prev > 0 ? Math.round(Math.abs(catDiff) / prev * 100) : 0
               const isSavings = cat.bucket === 'savings'
               const isPositive = isSavings ? catDiff >= 0 : catDiff <= 0
+              const noBothMonths = cat.amount === 0 && prev === 0
               return (
                 <div key={cat.name} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '16px 0', borderTop: '1px solid #EEF1F6',
+                  padding: '14px 0', borderTop: '1px solid #EEF1F6',
                 }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: '#1E3A5F' }}>{cat.name}</div>
-                      {cat.prevAmount > 0 && (
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>{cat.name}</div>
+                      {!noBothMonths && prev > 0 && (
                         <div style={{
-                          fontSize: '12.5px', fontWeight: 700,
-                          color: isPositive ? '#16A34A' : '#DC2626',
-                          background: isPositive ? '#EAFBF1' : '#FEE2E2',
+                          fontSize: '12px', fontWeight: 700,
+                          color: noBothMonths ? '#94A3B8' : isPositive ? '#16A34A' : '#DC2626',
+                          background: noBothMonths ? '#F1F5F9' : isPositive ? '#EAFBF1' : '#FEE2E2',
                           padding: '3px 9px', borderRadius: 12,
                         }}>
                           {catDiff <= 0 ? '↓' : '↑'} {catPct}%
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-                      <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: '#1E3A5F' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
+                      <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 15, color: '#1E3A5F' }}>
                         {formatMoney(cat.amount)}
                       </div>
-                      {cat.prevAmount > 0 && (
-                        <div style={{ fontSize: 13, color: '#8B9AAE' }}>
-                          ant: {formatMoney(cat.prevAmount)}
+                      {prev > 0 && (
+                        <div style={{ fontSize: 12, color: '#8B9AAE' }}>
+                          ant: {formatMoney(prev)}
                         </div>
                       )}
                     </div>
                   </div>
-                  <svg width="90" height="36" viewBox="0 0 90 36" fill="none">
-                    <polyline
-                      points={`0,${30 - Math.random() * 20} 15,${30 - Math.random() * 20} 30,${30 - Math.random() * 20} 45,${30 - Math.random() * 20} 60,${30 - Math.random() * 20} 75,${30 - Math.random() * 20} 90,${30 - Math.random() * 20}`}
-                      stroke={isPositive ? '#16A34A' : '#EF4444'}
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    />
-                  </svg>
                 </div>
               )
             })}
           </div>
+
+          {/* Lo que zafi nota */}
+          {insights.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px' }}>
+              <div style={{
+                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
+              }}>
+                Lo que zafi nota
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {insights.map((ins, i) => (
+                  <div key={i} style={{
+                    background: ins.tone === 'warn' ? '#FEF3C7' : ins.tone === 'ok' ? '#D1FAE5' : '#DBEAFE',
+                    border: `1px solid ${ins.tone === 'warn' ? '#FDE68A' : ins.tone === 'ok' ? '#A7F3D0' : '#93C5FD'}`,
+                    borderRadius: 12, padding: '14px 18px',
+                    fontSize: 14, color: ins.tone === 'warn' ? '#92400E' : ins.tone === 'ok' ? '#065F46' : '#1E40AF',
+                    lineHeight: 1.5,
+                  }}>
+                    {ins.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
-      )}
+        )
+      })()}
 
       {/* === TENDENCIAS === */}
       {tab === 'tendencias' && (
