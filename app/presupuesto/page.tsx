@@ -195,10 +195,13 @@ export default function PresupuestoPage() {
 
   async function saveAll() {
     setSaving(true);
-    // Save category amounts (for those without sub-items)
     const promises = categories.map(cat =>
       supabase.from('budget_categories')
-        .update({ budgeted_amount: getCategoryTotal(cat.id) })
+        .update({
+          budgeted_amount: getCategoryTotal(cat.id),
+          pace_mode: cat.pace_mode || 'linear',
+          expected_day: cat.pace_mode === 'fixed' ? cat.expected_day : null,
+        })
         .eq('id', cat.id)
     );
     // Save sub-item amounts
@@ -321,6 +324,16 @@ export default function PresupuestoPage() {
     const newFixed = !sub.is_fixed;
     await supabase.from('budget_sub_items').update({ is_fixed: newFixed }).eq('id', id);
     setSubItems(items => items.map(s => s.id === id ? { ...s, is_fixed: newFixed } : s));
+  }
+
+  async function updatePaceMode(catId: string, mode: 'linear' | 'fixed') {
+    setCategories(cats => cats.map(c => c.id === catId ? { ...c, pace_mode: mode, expected_day: mode === 'linear' ? null : c.expected_day } : c));
+    await supabase.from('budget_categories').update({ pace_mode: mode, ...(mode === 'linear' ? { expected_day: null } : {}) }).eq('id', catId);
+  }
+
+  async function updateExpectedDay(catId: string, day: number | null) {
+    setCategories(cats => cats.map(c => c.id === catId ? { ...c, expected_day: day } : c));
+    await supabase.from('budget_categories').update({ expected_day: day }).eq('id', catId);
   }
 
   async function saveVoiceTransactions(transactions: VoiceExtractionResult['transactions']) {
@@ -631,6 +644,36 @@ export default function PresupuestoPage() {
                                 <span>Variables: <strong className="text-gray-700">{fmt(variableTotal)}</strong></span>
                               </div>
                             )}
+
+                            {/* Pace mode controls */}
+                            <div className="flex items-center gap-3 py-2 flex-wrap">
+                              <span className="text-xs font-medium text-gray-600">Ritmo del gasto</span>
+                              <select
+                                className="text-xs border rounded px-2 py-1 bg-white text-gray-600"
+                                value={cat.pace_mode || 'linear'}
+                                onChange={(e) => updatePaceMode(cat.id, e.target.value as 'linear' | 'fixed')}
+                              >
+                                <option value="linear">Durante el mes</option>
+                                <option value="fixed">Fecha fija</option>
+                              </select>
+                              {(cat.pace_mode === 'fixed') && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-gray-500">Día de pago</span>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={31}
+                                    className="w-16 h-7 text-xs text-center"
+                                    value={cat.expected_day ?? ''}
+                                    onChange={(e) => {
+                                      const v = parseInt(e.target.value);
+                                      updateExpectedDay(cat.id, isNaN(v) ? null : Math.max(1, Math.min(31, v)));
+                                    }}
+                                    placeholder="1-31"
+                                  />
+                                </div>
+                              )}
+                            </div>
 
                             {/* Sub-item list */}
                             <div className="space-y-1">
