@@ -60,6 +60,8 @@ export interface BudgetCategory {
   icon: string | null;
   is_default: boolean;
   created_at: string | null;
+  pace_mode: 'linear' | 'fixed';
+  expected_day: number | null;
 }
 
 export interface BudgetSubItem {
