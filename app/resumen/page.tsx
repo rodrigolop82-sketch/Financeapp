@@ -38,6 +38,16 @@ interface PrevDayData {
   byCat: Record<string, number>
 }
 
+interface MonthlyBucketTotals {
+  month: string
+  label: string
+  needs: number
+  wants: number
+  savings: number
+  total: number
+  isPartial: boolean
+}
+
 interface ResumenData {
   userName: string
   householdName: string
@@ -55,6 +65,8 @@ interface ResumenData {
   txMonth: Array<{ category_id: string; amount: number; description: string | null }>
   currentMonthLabel: string
   prevMonthLabel: string
+  totalIncome: number
+  monthlyHistory: MonthlyBucketTotals[]
 }
 
 const STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string; label: string }> = {
@@ -155,6 +167,47 @@ export default function ResumenPage() {
 
       const totalBudget = cats.reduce((s, c) => s + Number(c.budgeted_amount), 0)
 
+      // Fetch financial profile for income
+      const { data: fp } = await supabase
+        .from('financial_profiles').select('total_income').eq('household_id', hid).single()
+      const totalIncome = Number(fp?.total_income ?? 0)
+
+      // Fetch last 6 complete months of transactions for trends
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString().slice(0, 10)
+      const { data: txHistory } = await supabase
+        .from('transactions').select('category_id, amount, date')
+        .eq('household_id', hid).gte('date', sixMonthsAgo)
+
+      const catBucketMap: Record<string, string> = {}
+      cats.forEach(c => { catBucketMap[c.id] = c.bucket })
+
+      const monthlyBuckets: Record<string, { needs: number; wants: number; savings: number; total: number }> = {}
+      ;(txHistory ?? []).forEach((t: { category_id: string; amount: number; date: string }) => {
+        const d = new Date(t.date + 'T12:00:00')
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        if (!monthlyBuckets[key]) monthlyBuckets[key] = { needs: 0, wants: 0, savings: 0, total: 0 }
+        const amt = Number(t.amount)
+        const bucket = catBucketMap[t.category_id] ?? 'needs'
+        monthlyBuckets[key].total += amt
+        if (bucket === 'needs') monthlyBuckets[key].needs += amt
+        else if (bucket === 'wants') monthlyBuckets[key].wants += amt
+        else monthlyBuckets[key].savings += amt
+      })
+
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      const monthlyHistory: MonthlyBucketTotals[] = Object.entries(monthlyBuckets)
+        .map(([key, v]) => {
+          const [y, m] = key.split('-').map(Number)
+          const mDate = new Date(y, m - 1)
+          return {
+            month: key,
+            label: mDate.toLocaleDateString('es-GT', { month: 'short' }),
+            ...v,
+            isPartial: key === currentMonthKey,
+          }
+        })
+        .sort((a, b) => a.month.localeCompare(b.month))
+
       // Build pace items for each budget category
       const spentByCatId: Record<string, number> = {}
       txMonth.forEach((t: { category_id: string; amount: number }) => {
@@ -199,6 +252,8 @@ export default function ResumenPage() {
           amount: Number(t.amount),
           description: t.description,
         })),
+        totalIncome,
+        monthlyHistory,
       })
       setLoading(false)
     }
@@ -212,11 +267,6 @@ export default function ResumenPage() {
       </div>
     )
   }
-
-  const diff = data.spentMonth - data.spentPrevMonth
-  const diffPct = data.spentPrevMonth > 0
-    ? Math.round(Math.abs(diff) / data.spentPrevMonth * 100)
-    : 0
 
   const tabStyle = (t: Tab) => ({
     padding: '10px 22px', borderRadius: 10,
@@ -240,8 +290,16 @@ export default function ResumenPage() {
     return b.spent - a.spent
   })
 
-  const withSpend = sortedPace.filter(p => p.status !== 'sin_gasto' || (p.paceMode === 'fixed' && monthCtx.dayOfMonth < (data.budgetCats.find(c => c.id === p.categoryId)?.expected_day ?? 1)))
-  const noSpend = sortedPace.filter(p => p.status === 'sin_gasto' && !(p.paceMode === 'fixed' && monthCtx.dayOfMonth < (data.budgetCats.find(c => c.id === p.categoryId)?.expected_day ?? 1)))
+  const withSpend = sortedPace.filter(p => {
+    if (p.status !== 'sin_gasto') return true
+    const catRow = data.budgetCats.find(c => c.id === p.categoryId)
+    return catRow?.pace_mode === 'fixed' && monthCtx.dayOfMonth < (catRow?.expected_day ?? 1)
+  })
+  const noSpend = sortedPace.filter(p => {
+    if (p.status !== 'sin_gasto') return false
+    const catRow = data.budgetCats.find(c => c.id === p.categoryId)
+    return !(catRow?.pace_mode === 'fixed' && monthCtx.dayOfMonth < (catRow?.expected_day ?? 1))
+  })
   const noSpendBudgetSum = noSpend.reduce((s, p) => s + p.budget, 0)
 
   // Find largest transaction per category for semaphore copy
@@ -738,55 +796,206 @@ export default function ResumenPage() {
       })()}
 
       {/* === TENDENCIAS === */}
-      {tab === 'tendencias' && (
+      {tab === 'tendencias' && (() => {
+        const history = data.monthlyHistory
+        const complete = history.filter(m => !m.isPartial)
+        const partial = history.find(m => m.isPartial)
+
+        // Average from complete months only
+        const avgTotal = complete.length > 0 ? Math.round(complete.reduce((s, m) => s + m.total, 0) / complete.length) : 0
+
+        const firstLabel = complete.length > 0 ? complete[0].label : ''
+        const lastLabel = complete.length > 0 ? complete[complete.length - 1].label : ''
+        const currentMonthName = data.currentMonthLabel
+
+        // 50/30/20 from complete months
+        const avgNeeds = complete.length > 0 ? complete.reduce((s, m) => s + m.needs, 0) / complete.length : 0
+        const avgWants = complete.length > 0 ? complete.reduce((s, m) => s + m.wants, 0) / complete.length : 0
+        const avgSavings = complete.length > 0 ? complete.reduce((s, m) => s + m.savings, 0) / complete.length : 0
+        const avgSum = avgNeeds + avgWants + avgSavings || 1
+        const pctNeeds = Math.round(avgNeeds / avgSum * 100)
+        const pctWants = Math.round(avgWants / avgSum * 100)
+        const pctSavings = Math.round(avgSavings / avgSum * 100)
+
+        // Alerts from complete months only
+        const alerts: Array<{ text: string; tone: 'warn' | 'success' }> = []
+
+        // Deseos trend: 3+ consecutive months rising or falling
+        if (complete.length >= 3) {
+          const wants = complete.map(m => m.wants)
+          let rising = 0
+          let falling = 0
+          for (let i = 1; i < wants.length; i++) {
+            if (wants[i] > wants[i - 1]) { rising++; falling = 0 }
+            else if (wants[i] < wants[i - 1]) { falling++; rising = 0 }
+            else { rising = 0; falling = 0 }
+          }
+          if (rising >= 2) {
+            const last3 = wants.slice(-3)
+            alerts.push({
+              text: `Deseos crecen ${rising + 1} meses seguidos: ${last3.map(v => formatMoney(v)).join(' → ')}.`,
+              tone: 'warn',
+            })
+          } else if (falling >= 2) {
+            const last3 = wants.slice(-3)
+            alerts.push({
+              text: `Deseos bajan ${falling + 1} meses seguidos: ${last3.map(v => formatMoney(v)).join(' → ')}.`,
+              tone: 'success',
+            })
+          }
+        }
+
+        // Ahorro variability
+        if (complete.length >= 2) {
+          const savingsVals = complete.map(m => m.savings)
+          const savAvg = savingsVals.reduce((s, v) => s + v, 0) / savingsVals.length
+          const savStd = Math.sqrt(savingsVals.reduce((s, v) => s + (v - savAvg) ** 2, 0) / savingsVals.length)
+          const savMin = Math.min(...savingsVals)
+          const savMax = Math.max(...savingsVals)
+          const savRate = data.totalIncome > 0 ? Math.round(savAvg / data.totalIncome * 100) : 0
+          const cv = savAvg > 0 ? savStd / savAvg : 0
+          if (cv < 0.15) {
+            alerts.push({
+              text: `Ahorro estable en ${formatMoney(savMin)}–${formatMoney(savMax)} cada mes. Tasa promedio ${savRate}%.`,
+              tone: 'success',
+            })
+          } else {
+            alerts.push({
+              text: `Ahorro irregular: de ${formatMoney(savMin)} a ${formatMoney(savMax)}. Tasa promedio ${savRate}%.`,
+              tone: 'warn',
+            })
+          }
+        }
+
+        // Necesidades variability
+        if (complete.length >= 2) {
+          const needsVals = complete.map(m => m.needs)
+          const nMin = Math.min(...needsVals)
+          const nMax = Math.max(...needsVals)
+          if (nMin > 0 && nMax / nMin > 2) {
+            const maxMonth = complete.find(m => m.needs === nMax)
+            alerts.push({
+              text: `Necesidades muy variables (${formatMoney(nMin)} a ${formatMoney(nMax)}). Revisa si ${maxMonth?.label ?? ''} tuvo un pago anual.`,
+              tone: 'warn',
+            })
+          }
+        }
+
+        // Evolution chart data
+        const chartMonths = history
+        const chartMax = Math.max(...chartMonths.map(m => m.total), 1)
+        const chartH = 200
+        const chartPadY = 20
+        const usableH = chartH - 2 * chartPadY
+        const toY = (v: number) => chartPadY + usableH - (v / chartMax) * usableH
+        const spacing = chartMonths.length > 1 ? 360 / (chartMonths.length - 1) : 180
+        const toX = (i: number) => 10 + i * spacing
+
+        const totalPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.total)}`).join(' ')
+        const needsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.needs)}`).join(' ')
+        const wantsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.wants)}`).join(' ')
+        const savingsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.savings)}`).join(' ')
+
+        // Split paths for partial month dashed segment
+        const lastIdx = chartMonths.length - 1
+        const hasPartial = chartMonths.length > 0 && chartMonths[lastIdx].isPartial
+        const solidEnd = hasPartial ? lastIdx - 1 : lastIdx
+
+        function splitPath(fullPath: string, pts: Array<{ x: number; y: number }>) {
+          if (!hasPartial || pts.length < 2) return { solid: fullPath, dashed: '' }
+          const solidPts = pts.slice(0, solidEnd + 1)
+          const dashPts = pts.slice(solidEnd)
+          const solid = solidPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+          const dashed = dashPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+          return { solid, dashed }
+        }
+
+        const totalPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.total) }))
+        const needsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.needs) }))
+        const wantsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.wants) }))
+        const savingsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.savings) }))
+
+        const totalSplit = splitPath(totalPath, totalPts)
+        const needsSplit = splitPath(needsPath, needsPts)
+        const wantsSplit = splitPath(wantsPath, wantsPts)
+        const savingsSplit = splitPath(savingsPath, savingsPts)
+
+        // 50/30/20 delta helpers
+        const metaNeeds = 50, metaWants = 30, metaSavings = 20
+        const deltaNeedsVal = pctNeeds - metaNeeds
+        const deltaWantsVal = pctWants - metaWants
+        const deltaSavingsVal = pctSavings - metaSavings
+        const needsFavorable = deltaNeedsVal <= 0
+        const wantsFavorable = deltaWantsVal <= 0
+        const savingsFavorable = deltaSavingsVal >= 0
+        const fmtDelta = (d: number) => (d > 0 ? `+${d}` : `${d}`)
+
+        return (
         <>
+          {/* Promedio mensual */}
           <div style={{
             background: '#1E3A5F', borderRadius: 20,
             padding: '32px 36px', color: '#fff', marginBottom: 20,
           }}>
             <div style={{
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 12,
+              color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 4,
             }}>
-              Promedio mensual (últimos meses)
+              {complete.length >= 2 ? `Promedio mensual · ${firstLabel}–${lastLabel}` : 'Promedio mensual'}
+            </div>
+            <div style={{ fontSize: 13, color: '#7E93AE', marginBottom: 16 }}>
+              Gasto + ahorro. {currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1)} se excluye por estar en curso.
             </div>
             <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
-              {formatMoney(data.monthlyAvg)}
+              {formatMoney(avgTotal)}
             </div>
+
+            {/* Alerts */}
+            {alerts.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
+                {alerts.map((a, i) => (
+                  <div key={i} style={{
+                    background: a.tone === 'success' ? 'rgba(22,163,74,0.15)' : 'rgba(245,158,11,0.15)',
+                    borderRadius: 12, padding: '12px 16px',
+                    fontSize: 14, color: a.tone === 'success' ? '#4ADE80' : '#FDE68A',
+                    lineHeight: 1.5,
+                  }}>
+                    {a.text}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Charts row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-            {/* Donut chart */}
-            <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
-              <div style={{
-                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 20,
+          {/* 50/30/20 Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
+            {[
+              { label: 'Necesidades', pct: pctNeeds, meta: metaNeeds, delta: deltaNeedsVal, favorable: needsFavorable, color: '#2563EB' },
+              { label: 'Deseos', pct: pctWants, meta: metaWants, delta: deltaWantsVal, favorable: wantsFavorable, color: '#F59E0B' },
+              { label: 'Ahorro', pct: pctSavings, meta: metaSavings, delta: deltaSavingsVal, favorable: savingsFavorable, color: '#10B981' },
+            ].map(b => (
+              <div key={b.label} style={{
+                background: '#fff', borderRadius: 16, padding: '24px 20px', textAlign: 'center',
               }}>
-                Gasto fijo vs variable
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <svg width="180" height="180" viewBox="0 0 180 180">
-                  <circle cx="90" cy="90" r="70" fill="none" stroke="#2563EB" strokeWidth="26" />
-                  <circle cx="90" cy="90" r="70" fill="none" stroke="#F59E0B"
-                    strokeWidth="26" strokeDasharray="140 440" strokeDashoffset="-300"
-                    transform="rotate(-90 90 90)" />
-                </svg>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#1E3A5F' }}>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
-                  Fijo 68%
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 8 }}>
+                  {b.label}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#1E3A5F' }}>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
-                  Variable 32%
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 36, color: '#1E3A5F' }}>
+                  {b.pct}%
+                </div>
+                <div style={{
+                  fontSize: 13, fontWeight: 600, marginTop: 6,
+                  color: b.favorable ? '#16A34A' : '#F59E0B',
+                }}>
+                  meta {b.meta}% · {fmtDelta(b.delta)}
                 </div>
               </div>
-            </div>
+            ))}
+          </div>
 
-            {/* Line chart placeholder */}
-            <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
+          {/* Evolution chart */}
+          {chartMonths.length >= 2 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
               <div style={{
                 fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
                 color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 20,
@@ -798,116 +1007,91 @@ export default function ResumenPage() {
                   <span style={{ width: 14, height: 2, background: '#2563EB', display: 'inline-block' }} />Total
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
-                  <span style={{ width: 14, height: 2, background: '#16A34A', display: 'inline-block' }} />Fijo
+                  <span style={{ width: 14, height: 2, background: '#10B981', display: 'inline-block' }} />Ahorro
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
-                  <span style={{ width: 14, height: 2, background: '#F59E0B', display: 'inline-block' }} />Variable
+                  <span style={{ width: 14, height: 2, background: '#F59E0B', display: 'inline-block' }} />Deseos
                 </div>
               </div>
-              <svg width="100%" height="200" viewBox="0 0 380 200" preserveAspectRatio="none">
-                <line x1="0" y1="160" x2="380" y2="160" stroke="#EEF1F6" strokeWidth="1" />
-                <line x1="0" y1="110" x2="380" y2="110" stroke="#EEF1F6" strokeWidth="1" />
-                <line x1="0" y1="60" x2="380" y2="60" stroke="#EEF1F6" strokeWidth="1" />
-                <path d="M10,158 L86,110 L162,40 L238,32 L314,70 L370,158" fill="none" stroke="#2563EB" strokeWidth="2.5" />
-                <path d="M10,158 L86,120 L162,72 L238,68 L314,60 L370,90" fill="none" stroke="#16A34A" strokeWidth="2" strokeDasharray="5 4" />
-                <path d="M10,158 L86,145 L162,120 L238,90 L314,130 L370,158" fill="none" stroke="#F59E0B" strokeWidth="2" strokeDasharray="5 4" />
+              <svg width="100%" height="200" viewBox={`0 0 ${toX(lastIdx) + 10} 200`} preserveAspectRatio="none">
+                <line x1="0" y1={toY(chartMax * 0.25)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.25)} stroke="#EEF1F6" strokeWidth="1" />
+                <line x1="0" y1={toY(chartMax * 0.5)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.5)} stroke="#EEF1F6" strokeWidth="1" />
+                <line x1="0" y1={toY(chartMax * 0.75)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.75)} stroke="#EEF1F6" strokeWidth="1" />
+                {/* Total */}
+                <path d={totalSplit.solid} fill="none" stroke="#2563EB" strokeWidth="2.5" />
+                {totalSplit.dashed && <path d={totalSplit.dashed} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.5" />}
+                {/* Savings */}
+                <path d={savingsSplit.solid} fill="none" stroke="#10B981" strokeWidth="2" />
+                {savingsSplit.dashed && <path d={savingsSplit.dashed} fill="none" stroke="#10B981" strokeWidth="2" strokeDasharray="4 4" opacity="0.5" />}
+                {/* Wants */}
+                <path d={wantsSplit.solid} fill="none" stroke="#F59E0B" strokeWidth="2" />
+                {wantsSplit.dashed && <path d={wantsSplit.dashed} fill="none" stroke="#F59E0B" strokeWidth="2" strokeDasharray="4 4" opacity="0.5" />}
+                {/* Dots */}
+                {totalPts.map((p, i) => (
+                  <circle key={`t${i}`} cx={p.x} cy={p.y} r="3" fill="#2563EB" opacity={chartMonths[i].isPartial ? 0.5 : 1} />
+                ))}
               </svg>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8B9AAE', marginTop: 6 }}>
-                <span>Feb</span><span>Mar</span><span>Abr</span><span>May</span><span>Jun</span><span>Jul</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 6 }}>
+                {chartMonths.map((m, i) => (
+                  <span key={i} style={{ color: m.isPartial ? '#B0BEC5' : '#8B9AAE' }}>
+                    {m.isPartial ? `${m.label} · en curso` : m.label}
+                  </span>
+                ))}
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Observaciones */}
-          {(() => {
-            const expenseAlerts = data.categories.filter(c => c.bucket !== 'savings' && c.amount > 0 && c.prevAmount > 0 && c.amount > c.prevAmount * 1.15)
-            const savingsPositive = data.categories.filter(c => c.bucket === 'savings' && c.amount > 0 && c.prevAmount > 0 && c.amount > c.prevAmount * 1.15)
-            if (expenseAlerts.length === 0 && savingsPositive.length === 0) return null
-            return (
-            <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
+          {/* Distribución mensual */}
+          {chartMonths.length >= 1 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
               <div style={{
                 fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
                 color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
               }}>
-                Observaciones
+                Distribución mensual
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {savingsPositive.slice(0, 2).map(c => (
-                  <div key={c.name} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    background: '#EAFBF1', border: '1px solid #B7EBC8',
-                    borderRadius: 12, padding: '14px 18px',
-                    fontSize: '14.5px', color: '#065F46',
-                  }}>
-                    <span>✓</span>
-                    {c.name} subió {Math.round((c.amount - c.prevAmount) / c.prevAmount * 100)}% vs el mes anterior. ¡Buen ritmo de ahorro!
-                  </div>
-                ))}
-                {expenseAlerts.slice(0, 4).map(c => (
-                  <div key={c.name} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    background: '#FDEEEE', border: '1px solid #F6D3D3',
-                    borderRadius: 12, padding: '14px 18px',
-                    fontSize: '14.5px', color: '#9A3B3B',
-                  }}>
-                    <span>⚠</span>
-                    {c.name} subió {Math.round((c.amount - c.prevAmount) / c.prevAmount * 100)}% vs el mes anterior. Considerá reducirlo.
-                  </div>
-                ))}
+              <div style={{ display: 'flex', gap: 20, marginBottom: 20, fontSize: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1E3A5F' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
+                  Necesidades
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1E3A5F' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
+                  Deseos
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1E3A5F' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+                  Ahorro
+                </div>
               </div>
-            </div>
-            )
-          })()}
-
-          {/* Category bars */}
-          <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
-            <div style={{
-              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
-            }}>
-              Categorías
-            </div>
-            <div style={{ display: 'flex', gap: 20, marginBottom: 20, fontSize: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1E3A5F' }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
-                Necesidades
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1E3A5F' }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
-                Deseos
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1E3A5F' }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
-                Ahorro
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {data.categories.filter(c => c.amount > 0).map(c => {
-                const totalSpent = data.spentMonth || 1
-                const pct = Math.round(c.amount / totalSpent * 100)
-                const barPct = Math.max(pct, 3)
-                return (
-                  <div key={c.name} style={{
-                    display: 'grid', gridTemplateColumns: '130px 1fr 90px 56px',
-                    alignItems: 'center', gap: 14,
-                  }}>
-                    <div style={{ fontSize: 14, color: '#1E3A5F', textAlign: 'right' }}>{c.name}</div>
-                    <div style={{ height: 22, borderRadius: 6, overflow: 'hidden', background: '#F3F5F9' }}>
-                      <div style={{ width: `${barPct}%`, height: '100%', background: '#2563EB', borderRadius: 6 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {chartMonths.map(m => {
+                  const mTotal = m.total || 1
+                  const nPct = Math.round(m.needs / mTotal * 100)
+                  const wPct = Math.round(m.wants / mTotal * 100)
+                  const sPct = 100 - nPct - wPct
+                  return (
+                    <div key={m.month} style={{ opacity: m.isPartial ? 0.55 : 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1E3A5F', marginBottom: 6 }}>
+                        <span style={{ fontWeight: 600 }}>
+                          {m.isPartial ? `${m.label} · en curso` : m.label}
+                        </span>
+                        <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(m.total)}</span>
+                      </div>
+                      <div style={{ display: 'flex', height: 14, borderRadius: 7, overflow: 'hidden' }}>
+                        <div style={{ width: `${nPct}%`, background: '#2563EB' }} />
+                        <div style={{ width: `${wPct}%`, background: '#F59E0B' }} />
+                        <div style={{ width: `${sPct}%`, background: '#10B981' }} />
+                      </div>
                     </div>
-                    <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: '#1E3A5F' }}>
-                      {formatMoney(c.amount)}
-                    </div>
-                    <div style={{ fontSize: '12.5px', color: '#8B9AAE', textAlign: 'right' }}>
-                      {pct}%
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </>
-      )}
+        )
+      })()}
 
       <div className="h-6" />
     </AppShell>
