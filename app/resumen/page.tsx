@@ -310,7 +310,6 @@ export default function ResumenPage() {
     return { amount: sorted[0].amount, description: sorted[0].description ?? '' }
   }
 
-  const verdictColor = ms.verdict.tone === 'danger' ? '#EF4444' : ms.verdict.tone === 'warn' ? '#F59E0B' : '#22C55E'
   const barColor = ms.totalSpent > ms.totalBudget ? '#EF4444' : '#2563EB'
 
   return (
@@ -799,7 +798,6 @@ export default function ResumenPage() {
       {tab === 'tendencias' && (() => {
         const history = data.monthlyHistory
         const complete = history.filter(m => !m.isPartial)
-        const partial = history.find(m => m.isPartial)
 
         // Average from complete months only
         const avgTotal = complete.length > 0 ? Math.round(complete.reduce((s, m) => s + m.total, 0) / complete.length) : 0
@@ -892,7 +890,7 @@ export default function ResumenPage() {
         const toX = (i: number) => 10 + i * spacing
 
         const totalPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.total)}`).join(' ')
-        const needsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.needs)}`).join(' ')
+
         const wantsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.wants)}`).join(' ')
         const savingsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.savings)}`).join(' ')
 
@@ -911,12 +909,12 @@ export default function ResumenPage() {
         }
 
         const totalPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.total) }))
-        const needsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.needs) }))
+
         const wantsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.wants) }))
         const savingsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.savings) }))
 
         const totalSplit = splitPath(totalPath, totalPts)
-        const needsSplit = splitPath(needsPath, needsPts)
+
         const wantsSplit = splitPath(wantsPath, wantsPts)
         const savingsSplit = splitPath(savingsPath, savingsPts)
 
