@@ -5,7 +5,15 @@ import { createClient } from '@/lib/supabase'
 import { localMonthStart } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ChevronRight, ChevronDown } from 'lucide-react'
+import {
+  computeCategoryPace,
+  summarizeMonth,
+  type CategoryBudgetInput,
+  type MonthContext,
+  type CategoryPace,
+  type MonthSummary,
+} from '@/lib/resumen/pace'
 
 type Tab = 'mes' | 'insights' | 'tendencias'
 
@@ -14,6 +22,15 @@ interface CategorySpend {
   bucket: string
   amount: number
   prevAmount: number
+}
+
+interface BudgetCatRow {
+  id: string
+  name: string
+  bucket: string
+  budgeted_amount: number
+  pace_mode: 'linear' | 'fixed'
+  expected_day: number | null
 }
 
 interface ResumenData {
@@ -25,12 +42,25 @@ interface ResumenData {
   categories: CategorySpend[]
   spentPrevMonth: number
   monthlyAvg: number
+  paceItems: CategoryPace[]
+  monthSummary: MonthSummary
+  monthCtx: MonthContext
+  budgetCats: BudgetCatRow[]
+  txMonth: Array<{ category_id: string; amount: number; description: string | null }>
+}
+
+const STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string; label: string }> = {
+  sobregiro: { dot: '#EF4444', pill: '#991B1B', pillBg: '#FEE2E2', label: 'Sobregiro' },
+  riesgo:    { dot: '#F59E0B', pill: '#92400E', pillBg: '#FEF3C7', label: 'En riesgo' },
+  en_linea:  { dot: '#22C55E', pill: '#065F46', pillBg: '#D1FAE5', label: 'En línea' },
+  sin_gasto: { dot: '#94A3B8', pill: '#64748B', pillBg: '#F1F5F9', label: 'Sin gasto' },
 }
 
 export default function ResumenPage() {
   const [data, setData] = useState<ResumenData | null>(null)
-  const [tab, setTab] = useState<Tab>('insights')
+  const [tab, setTab] = useState<Tab>('mes')
   const [loading, setLoading] = useState(true)
+  const [showNoSpend, setShowNoSpend] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -48,16 +78,13 @@ export default function ResumenPage() {
       if (!household) { router.push('/onboarding'); return }
       const hid = household.id as string
 
-      const { data: profile } = await supabase
-        .from('financial_profiles').select('*').eq('household_id', hid)
-        .order('updated_at', { ascending: false }).limit(1).single()
-
       const now = new Date()
       const monthStart = localMonthStart()
       const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10)
       const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10)
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-      const daysLeft = daysInMonth - now.getDate()
+      const dayOfMonth = now.getDate()
+      const daysLeft = daysInMonth - dayOfMonth
 
       const [txMonthRes, categoriesRes, txPrevRes] = await Promise.all([
         supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart),
@@ -67,10 +94,10 @@ export default function ResumenPage() {
 
       const txMonth = txMonthRes.data ?? []
       const txPrev = txPrevRes.data ?? []
-      const cats = categoriesRes.data ?? []
+      const cats = (categoriesRes.data ?? []) as BudgetCatRow[]
 
-      const catMap: Record<string, { name: string; bucket: string }> = {}
-      cats.forEach((c: { id: string; name: string; bucket: string }) => { catMap[c.id] = { name: c.name, bucket: c.bucket } })
+      const catMap: Record<string, BudgetCatRow> = {}
+      cats.forEach((c) => { catMap[c.id] = c })
 
       const spentByCat: Record<string, number> = {}
       const bucketByCat: Record<string, string> = {}
@@ -100,19 +127,49 @@ export default function ResumenPage() {
       const spentMonth = txMonth.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
       const spentPrevMonth = txPrev.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
 
-      const budget = profile?.total_income ? Number(profile.total_income) * 0.8 : 4000
+      const totalBudget = cats.reduce((s, c) => s + Number(c.budgeted_amount), 0)
+
+      // Build pace items for each budget category
+      const spentByCatId: Record<string, number> = {}
+      txMonth.forEach((t: { category_id: string; amount: number }) => {
+        spentByCatId[t.category_id] = (spentByCatId[t.category_id] ?? 0) + Number(t.amount)
+      })
+
+      const monthCtx: MonthContext = { today: now, daysInMonth, dayOfMonth }
+
+      const paceInputs: CategoryBudgetInput[] = cats.map(c => ({
+        categoryId: c.id,
+        name: c.name,
+        budget: Number(c.budgeted_amount),
+        spent: spentByCatId[c.id] ?? 0,
+        paceMode: c.pace_mode || 'linear',
+        expectedDay: c.expected_day,
+      }))
+
+      const paceItems = paceInputs.map(input => computeCategoryPace(input, monthCtx))
+      const monthSummary = summarizeMonth(paceItems, monthCtx)
+
       const fullName = (userProfile?.full_name || 'Usuario') as string
       const firstName = fullName.split(' ')[0]
 
       setData({
         userName: firstName,
         householdName: household.name ?? '',
-        budget,
+        budget: totalBudget,
         spentMonth,
         daysLeft,
         categories,
         spentPrevMonth,
         monthlyAvg: Math.round((spentMonth + spentPrevMonth) / 2),
+        paceItems,
+        monthSummary,
+        monthCtx,
+        budgetCats: cats,
+        txMonth: txMonth.map((t: { category_id: string; amount: number; description: string | null }) => ({
+          category_id: t.category_id,
+          amount: Number(t.amount),
+          description: t.description,
+        })),
       })
       setLoading(false)
     }
@@ -141,6 +198,34 @@ export default function ResumenPage() {
     border: 'none', fontFamily: 'inherit',
   })
 
+  const { monthSummary: ms, paceItems, monthCtx } = data
+  const pctBar = ms.totalBudget > 0 ? Math.min(1, ms.totalSpent / ms.totalBudget) : 0
+  const expectedMark = ms.totalBudget > 0 ? Math.min(1, ms.totalExpected / ms.totalBudget) : 0
+
+  // Sort pace items: sobregiro → riesgo → en_linea → sin_gasto
+  const statusOrder: Record<string, number> = { sobregiro: 0, riesgo: 1, en_linea: 2, sin_gasto: 3 }
+  const sortedPace = [...paceItems].sort((a, b) => {
+    const orderDiff = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9)
+    if (orderDiff !== 0) return orderDiff
+    if (a.status === 'sobregiro') return b.overrun - a.overrun
+    return b.spent - a.spent
+  })
+
+  const withSpend = sortedPace.filter(p => p.status !== 'sin_gasto' || (p.paceMode === 'fixed' && monthCtx.dayOfMonth < (data.budgetCats.find(c => c.id === p.categoryId)?.expected_day ?? 1)))
+  const noSpend = sortedPace.filter(p => p.status === 'sin_gasto' && !(p.paceMode === 'fixed' && monthCtx.dayOfMonth < (data.budgetCats.find(c => c.id === p.categoryId)?.expected_day ?? 1)))
+  const noSpendBudgetSum = noSpend.reduce((s, p) => s + p.budget, 0)
+
+  // Find largest transaction per category for semaphore copy
+  function largestTxForCategory(catId: string): { amount: number; description: string } | null {
+    const catTxs = data!.txMonth.filter(t => t.category_id === catId)
+    if (catTxs.length === 0) return null
+    const sorted = [...catTxs].sort((a, b) => b.amount - a.amount)
+    return { amount: sorted[0].amount, description: sorted[0].description ?? '' }
+  }
+
+  const verdictColor = ms.verdict.tone === 'danger' ? '#EF4444' : ms.verdict.tone === 'warn' ? '#F59E0B' : '#22C55E'
+  const barColor = ms.totalSpent > ms.totalBudget ? '#EF4444' : '#2563EB'
+
   return (
     <AppShell title="Resumen" currentPath="/resumen" userName={data.userName} householdName={data.householdName}>
       {/* Tabs */}
@@ -156,46 +241,241 @@ export default function ResumenPage() {
       {/* === ESTE MES === */}
       {tab === 'mes' && (
         <>
+          {/* 3.1 Estado del mes (hero) */}
           <div style={{
             background: '#1E3A5F', borderRadius: 20,
             padding: '32px 36px', color: '#fff', marginBottom: 20,
           }}>
             <div style={{
-              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 12,
+              fontFamily: "'DM Serif Display', Georgia, serif",
+              fontSize: 22, lineHeight: 1.3, marginBottom: 4,
             }}>
-              Gasto total del mes
+              {ms.verdict.tone === 'danger' ? (
+                <>
+                  Vas <span style={{ color: '#EF4444', fontFamily: "'Outfit', sans-serif", fontWeight: 800 }}>{formatMoney(ms.totalOverrun)}</span> arriba del presupuesto en {ms.overCategories.length} categoría{ms.overCategories.length !== 1 ? 's' : ''}
+                </>
+              ) : (
+                ms.verdict.headline
+              )}
             </div>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
-              {formatMoney(data.spentMonth)}
+            <div style={{ fontSize: 14, color: '#9FB3CB', marginBottom: 20 }}>
+              {ms.verdict.sub}
             </div>
-            <div style={{ fontSize: 14, color: '#9FB3CB', marginTop: 8 }}>
-              de {formatMoney(data.budget)} presupuestados · {data.daysLeft} días restantes
+
+            {/* Pace bar */}
+            <div style={{ position: 'relative', height: 14, background: 'rgba(255,255,255,0.12)', borderRadius: 7, marginBottom: 12 }}>
+              <div style={{
+                width: `${pctBar * 100}%`, height: '100%', borderRadius: 7,
+                background: barColor, transition: 'width 0.3s',
+              }} />
+              <div style={{
+                position: 'absolute', top: -4, left: `${expectedMark * 100}%`,
+                width: 2, height: 22, background: '#fff', borderRadius: 1, opacity: 0.7,
+              }} />
+            </div>
+            <div style={{ fontSize: 13, color: '#9FB3CB' }}>
+              {formatMoney(ms.totalSpent)} gastados de {formatMoney(ms.totalBudget)} · esperado a hoy: {formatMoney(ms.totalExpected)}
+            </div>
+
+            {/* KPIs */}
+            <div style={{ display: 'flex', gap: 40, marginTop: 20 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Gastado</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4 }}>{formatMoney(ms.totalSpent)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#FCA5A5', textTransform: 'uppercase' }}>Sobregiro</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4, color: ms.totalOverrun > 0 ? '#FCA5A5' : '#fff' }}>
+                  {formatMoney(ms.totalOverrun)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#4ADE80', textTransform: 'uppercase' }}>Disponible</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4, color: '#4ADE80' }}>
+                  {formatMoney(ms.available)}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
+          {/* 3.2 Semáforo */}
+          {(ms.overCategories.length > 0 || ms.riskCategories.length > 0) && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16 }}>
+                Necesita atención
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {ms.overCategories.map(cat => {
+                  const largest = largestTxForCategory(cat.categoryId)
+                  const bigExplains = largest && cat.overrun > 0 && largest.amount >= 0.6 * cat.overrun
+                  return (
+                    <div key={cat.categoryId} style={{
+                      background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 12,
+                      padding: '14px 18px', fontSize: 14, color: '#991B1B',
+                    }}>
+                      <strong>{cat.name}</strong> ya superó el presupuesto por {formatMoney(cat.overrun)}.{bigExplains ? ' Una compra explica casi todo.' : ''}
+                    </div>
+                  )
+                })}
+                {ms.riskCategories.map(cat => (
+                  <div key={cat.categoryId} style={{
+                    background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 12,
+                    padding: '14px 18px', fontSize: 14, color: '#92400E',
+                  }}>
+                    <strong>{cat.name}</strong> va al {Math.round(cat.pctOfBudget * 100)}% con {Math.round(cat.pctOfMonthElapsed * 100)}% del mes transcurrido. A este ritmo cerrarías en {formatMoney(cat.projection)}.
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Va bien */}
+          {ms.okCategories.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16 }}>
+                Va bien
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {ms.okCategories.slice(0, 3).map(cat => {
+                  const catRow = data.budgetCats.find(c => c.id === cat.categoryId)
+                  const isPaidFixed = catRow?.pace_mode === 'fixed' && cat.spent > 0 && monthCtx.dayOfMonth >= (catRow?.expected_day ?? 1)
+                  return (
+                    <div key={cat.categoryId} style={{
+                      background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 12,
+                      padding: '14px 18px', fontSize: 14, color: '#065F46',
+                    }}>
+                      {isPaidFixed
+                        ? <><strong>{cat.name}</strong> pagado según lo previsto.</>
+                        : <><strong>{cat.name}</strong> va al {Math.round(cat.pctOfBudget * 100)}% con {Math.round(cat.pctOfMonthElapsed * 100)}% del mes transcurrido.</>
+                      }
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 3.3 Presupuesto por categoría */}
+          <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px' }}>
             <div style={{
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
+              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 4,
             }}>
-              Gasto por categoría
+              Presupuesto por categoría
             </div>
-            {data.categories.map((cat, i) => (
-              <div key={cat.name} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '14px 0', borderTop: i > 0 ? '1px solid #EEF1F6' : 'none',
-              }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F' }}>{cat.name}</div>
-                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: '#1E3A5F' }}>
-                  {formatMoney(cat.amount)}
+            <div style={{ fontSize: 13, color: '#8B9AAE', marginBottom: 20 }}>
+              Toca una categoría para ver sus transacciones
+            </div>
+
+            {withSpend.map(cat => {
+              const catRow = data.budgetCats.find(c => c.id === cat.categoryId)
+              const sc = STATUS_COLORS[cat.status] ?? STATUS_COLORS.en_linea
+              const barPct = cat.budget > 0 ? Math.min(1, cat.spent / cat.budget) : (cat.spent > 0 ? 1 : 0)
+              const expectedPct = cat.budget > 0 ? Math.min(1, cat.expected / cat.budget) : 0
+              const isPendingFixed = catRow?.pace_mode === 'fixed' && cat.spent === 0 && monthCtx.dayOfMonth < (catRow?.expected_day ?? 1)
+
+              return (
+                <div
+                  key={cat.categoryId}
+                  onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${monthCtx.today.getFullYear()}-${String(monthCtx.today.getMonth() + 1).padStart(2, '0')}`)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 6,
+                    padding: '16px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: sc.dot, flexShrink: 0 }} />
+                    <span style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F', flex: 1 }}>{cat.name}</span>
+                    {isPendingFixed ? (
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                        background: '#F1F5F9', color: '#64748B',
+                      }}>
+                        Pendiente · día {catRow?.expected_day}
+                      </span>
+                    ) : (
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                        background: sc.pillBg, color: sc.pill,
+                      }}>
+                        {sc.label}
+                      </span>
+                    )}
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: '#1E3A5F', minWidth: 80, textAlign: 'right' }}>
+                      {formatMoney(cat.spent)}
+                    </span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                  </div>
+
+                  {/* Bar */}
+                  <div style={{ marginLeft: 18, position: 'relative', height: 8, background: '#F3F5F9', borderRadius: 4 }}>
+                    <div style={{
+                      width: `${barPct * 100}%`, height: '100%', borderRadius: 4,
+                      background: cat.status === 'sobregiro' ? '#EF4444' : cat.status === 'riesgo' ? '#F59E0B' : '#2563EB',
+                    }} />
+                    {cat.budget > 0 && (
+                      <div style={{
+                        position: 'absolute', top: -2, left: `${expectedPct * 100}%`,
+                        width: 2, height: 12, background: '#1E3A5F', borderRadius: 1, opacity: 0.4,
+                      }} />
+                    )}
+                  </div>
+
+                  {/* Bottom line */}
+                  <div style={{ marginLeft: 18, display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8B9AAE' }}>
+                    <span>de {formatMoney(cat.budget)} · {Math.round(cat.pctOfBudget * 100)}%</span>
+                    {cat.status === 'sobregiro' ? (
+                      <span style={{ color: '#EF4444', fontWeight: 600 }}>+{formatMoney(cat.overrun)}</span>
+                    ) : (
+                      <span>quedan {formatMoney(cat.remaining)}</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {data.categories.length === 0 && (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#8B9AAE', fontSize: 14 }}>
-                Sin gastos este mes
-              </div>
+              )
+            })}
+
+            {/* Collapsible no-spend categories */}
+            {noSpend.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowNoSpend(!showNoSpend)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '14px 0', borderTop: '1px solid #EEF1F6',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 13, color: '#64748B', fontWeight: 600,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <ChevronDown style={{
+                    width: 16, height: 16,
+                    transform: showNoSpend ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s',
+                  }} />
+                  Ver {noSpend.length} categorías sin movimiento ({formatMoney(noSpendBudgetSum)} presupuestados)
+                </button>
+                {showNoSpend && noSpend.map(cat => (
+                  <div
+                    key={cat.categoryId}
+                    onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${monthCtx.today.getFullYear()}-${String(monthCtx.today.getMonth() + 1).padStart(2, '0')}`)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '12px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94A3B8', flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, color: '#64748B', flex: 1 }}>{cat.name}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                      background: '#F1F5F9', color: '#64748B',
+                    }}>
+                      Sin gasto
+                    </span>
+                    <span style={{ fontSize: 13, color: '#94A3B8' }}>{formatMoney(cat.budget)}</span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                  </div>
+                ))}
+              </>
             )}
           </div>
         </>
@@ -294,7 +574,6 @@ export default function ResumenPage() {
                       )}
                     </div>
                   </div>
-                  {/* Simple sparkline placeholder */}
                   <svg width="90" height="36" viewBox="0 0 90 36" fill="none">
                     <polyline
                       points={`0,${30 - Math.random() * 20} 15,${30 - Math.random() * 20} 30,${30 - Math.random() * 20} 45,${30 - Math.random() * 20} 60,${30 - Math.random() * 20} 75,${30 - Math.random() * 20} 90,${30 - Math.random() * 20}`}
