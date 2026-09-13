@@ -41,6 +41,8 @@ interface Props {
   onUpdateSubRecurrence: (id: string, recurrence: BudgetSubItem['recurrence']) => void
   onAddSubItem: (categoryId: string, name: string, amount: number, isFixed: boolean, payment: BudgetSubItem['payment_method'], recurrence: BudgetSubItem['recurrence']) => void
   onAddCategory: (bucket: 'needs' | 'wants' | 'savings', name: string) => void
+  onUpdatePaceMode: (catId: string, mode: 'linear' | 'fixed') => void
+  onUpdateExpectedDay: (catId: string, day: number | null) => void
   onAddIncomeEntry: (source?: string) => void
   onUpdateIncomeEntry: (id: string, field: string, value: string | number) => void
   onDeleteIncomeEntry: (id: string) => void
@@ -56,6 +58,7 @@ export function BudgetDefinition({
   onDeleteCategory, onDeleteSubItem, onToggleSubFixed,
   onUpdateSubPayment, onUpdateSubRecurrence,
   onAddSubItem, onAddCategory,
+  onUpdatePaceMode, onUpdateExpectedDay,
   onAddIncomeEntry, onUpdateIncomeEntry, onDeleteIncomeEntry,
   getCategoryTotal, monthlyAmount, fmt,
 }: Props) {
@@ -328,6 +331,36 @@ export function BudgetDefinition({
                         {/* Expanded sub-items */}
                         {isExpanded && (
                           <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 12px', background: '#fff' }}>
+                            {/* Pace mode controls */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 12, fontWeight: 500, color: '#64748B' }}>Ritmo del gasto</span>
+                              <select
+                                style={{ fontSize: 12, border: '1px solid #E5E7EB', borderRadius: 6, padding: '3px 8px', background: '#fff', color: '#64748B' }}
+                                value={cat.pace_mode || 'linear'}
+                                onChange={(e) => onUpdatePaceMode(cat.id, e.target.value as 'linear' | 'fixed')}
+                              >
+                                <option value="linear">Durante el mes</option>
+                                <option value="fixed">Fecha fija</option>
+                              </select>
+                              {cat.pace_mode === 'fixed' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontSize: 12, color: '#94A3B8' }}>Día de pago</span>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={31}
+                                    className="w-16 h-7 text-xs text-center"
+                                    value={cat.expected_day ?? ''}
+                                    onChange={(e) => {
+                                      const v = parseInt(e.target.value);
+                                      onUpdateExpectedDay(cat.id, isNaN(v) ? null : Math.max(1, Math.min(31, v)));
+                                    }}
+                                    placeholder="1-31"
+                                  />
+                                </div>
+                              )}
+                            </div>
+
                             {catSubs.map((sub) => (
                               <div key={sub.id} style={{
                                 display: 'flex', alignItems: 'center', gap: 6,

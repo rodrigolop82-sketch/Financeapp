@@ -200,7 +200,11 @@ export default function PresupuestoPage() {
     setSaving(true);
     const promises = categories.map(cat =>
       supabase.from('budget_categories')
-        .update({ budgeted_amount: getCategoryTotal(cat.id) })
+        .update({
+          budgeted_amount: getCategoryTotal(cat.id),
+          pace_mode: cat.pace_mode || 'linear',
+          expected_day: cat.pace_mode === 'fixed' ? cat.expected_day : null,
+        })
         .eq('id', cat.id)
     );
     for (const sub of subItems) {
@@ -296,6 +300,16 @@ export default function PresupuestoPage() {
     const newFixed = !sub.is_fixed;
     await supabase.from('budget_sub_items').update({ is_fixed: newFixed }).eq('id', id);
     setSubItems(items => items.map(s => s.id === id ? { ...s, is_fixed: newFixed } : s));
+  }
+
+  async function updatePaceMode(catId: string, mode: 'linear' | 'fixed') {
+    setCategories(cats => cats.map(c => c.id === catId ? { ...c, pace_mode: mode, expected_day: mode === 'linear' ? null : c.expected_day } : c));
+    await supabase.from('budget_categories').update({ pace_mode: mode, ...(mode === 'linear' ? { expected_day: null } : {}) }).eq('id', catId);
+  }
+
+  async function updateExpectedDay(catId: string, day: number | null) {
+    setCategories(cats => cats.map(c => c.id === catId ? { ...c, expected_day: day } : c));
+    await supabase.from('budget_categories').update({ expected_day: day }).eq('id', catId);
   }
 
   function distributeByRule() {
@@ -453,6 +467,8 @@ export default function PresupuestoPage() {
           onUpdateSubRecurrence={updateSubRecurrence}
           onAddSubItem={addSubItem}
           onAddCategory={addCategoryToBucket}
+          onUpdatePaceMode={updatePaceMode}
+          onUpdateExpectedDay={updateExpectedDay}
           onAddIncomeEntry={addIncomeEntry}
           onUpdateIncomeEntry={updateIncomeEntry}
           onDeleteIncomeEntry={deleteIncomeEntry}

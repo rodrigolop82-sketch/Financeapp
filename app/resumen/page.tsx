@@ -5,55 +5,83 @@ import { createClient } from '@/lib/supabase'
 import { localMonthStart } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
-import { Loader2, TrendingDown, TrendingUp, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Loader2, ChevronRight, ChevronDown } from 'lucide-react'
+import {
+  computeCategoryPace,
+  summarizeMonth,
+  type CategoryBudgetInput,
+  type MonthContext,
+  type CategoryPace,
+  type MonthSummary,
+} from '@/lib/resumen/pace'
 
 type Tab = 'mes' | 'insights' | 'tendencias'
 
 interface CategorySpend {
   name: string
+  bucket: string
   amount: number
   prevAmount: number
-  bucket: 'needs' | 'wants' | 'savings'
 }
 
-const FIXED_CATEGORIES = [
-  'Vivienda/alquiler', 'Servicios', 'Suscripciones',
-  'Educación', 'Salud/medicinas',
-]
+interface BudgetCatRow {
+  id: string
+  name: string
+  bucket: string
+  budgeted_amount: number
+  pace_mode: 'linear' | 'fixed'
+  expected_day: number | null
+}
 
-interface MonthlyTotal {
-  label: string
-  month: string
+interface PrevDayData {
   total: number
-  needsTotal: number
-  wantsTotal: number
-  savingsTotal: number
-  fixedTotal: number
-  variableTotal: number
+  byCat: Record<string, number>
+}
+
+interface MonthlyBucketTotals {
+  month: string
+  label: string
+  needs: number
+  wants: number
+  savings: number
+  total: number
+  isPartial: boolean
 }
 
 interface ResumenData {
   userName: string
   householdName: string
   budget: number
-  income: number
   spentMonth: number
   daysLeft: number
   categories: CategorySpend[]
   spentPrevMonth: number
+  spentPrevSameDay: PrevDayData
   monthlyAvg: number
-  monthlyTotals: MonthlyTotal[]
-  needsPct: number
-  wantsPct: number
-  savingsPct: number
-  fixedPct: number
-  variablePct: number
+  paceItems: CategoryPace[]
+  monthSummary: MonthSummary
+  monthCtx: MonthContext
+  budgetCats: BudgetCatRow[]
+  txMonth: Array<{ category_id: string; amount: number; description: string | null }>
+  currentMonthLabel: string
+  prevMonthLabel: string
+  totalIncome: number
+  monthlyHistory: MonthlyBucketTotals[]
+}
+
+const STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string; label: string }> = {
+  sobregiro: { dot: '#EF4444', pill: '#991B1B', pillBg: '#FEE2E2', label: 'Sobregiro' },
+  riesgo:    { dot: '#F59E0B', pill: '#92400E', pillBg: '#FEF3C7', label: 'En riesgo' },
+  en_linea:  { dot: '#22C55E', pill: '#065F46', pillBg: '#D1FAE5', label: 'En línea' },
+  sin_gasto: { dot: '#94A3B8', pill: '#64748B', pillBg: '#F1F5F9', label: 'Sin gasto' },
 }
 
 export default function ResumenPage() {
   const [data, setData] = useState<ResumenData | null>(null)
-  const [tab, setTab] = useState<Tab>('insights')
+  const [tab, setTab] = useState<Tab>('mes')
   const [loading, setLoading] = useState(true)
+  const [showNoSpend, setShowNoSpend] = useState(false)
+  const [insightsMode, setInsightsMode] = useState<'same_day' | 'full'>('same_day')
   const router = useRouter()
 
   useEffect(() => {
@@ -71,35 +99,26 @@ export default function ResumenPage() {
       if (!household) { router.push('/onboarding'); return }
       const hid = household.id as string
 
-      const { data: profile } = await supabase
-        .from('financial_profiles').select('*').eq('household_id', hid)
-        .order('updated_at', { ascending: false }).limit(1).single()
-
       const now = new Date()
       const monthStart = localMonthStart()
       const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10)
       const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10)
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-      const daysLeft = daysInMonth - now.getDate()
+      const dayOfMonth = now.getDate()
+      const daysLeft = daysInMonth - dayOfMonth
 
-      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10)
-
-      const [txMonthRes, categoriesRes, txPrevRes, txHistoryRes] = await Promise.all([
+      const [txMonthRes, categoriesRes, txPrevRes] = await Promise.all([
         supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
         supabase.from('transactions').select('*').eq('household_id', hid).gte('date', prevMonthStart).lte('date', prevMonthEnd),
-        supabase.from('transactions').select('date, amount, category_id').eq('household_id', hid).gte('date', sixMonthsAgo).order('date', { ascending: true }),
       ])
 
       const txMonth = txMonthRes.data ?? []
       const txPrev = txPrevRes.data ?? []
-      const txHistory = txHistoryRes.data ?? []
-      const cats = categoriesRes.data ?? []
+      const cats = (categoriesRes.data ?? []) as BudgetCatRow[]
 
-      const catMap: Record<string, { name: string; bucket: string }> = {}
-      cats.forEach((c: { id: string; name: string; bucket: string }) => {
-        catMap[c.id] = { name: c.name, bucket: c.bucket }
-      })
+      const catMap: Record<string, BudgetCatRow> = {}
+      cats.forEach((c) => { catMap[c.id] = c })
 
       const spentByCat: Record<string, number> = {}
       const bucketByCat: Record<string, string> = {}
@@ -118,102 +137,123 @@ export default function ResumenPage() {
         if (info) bucketByCat[name] = info.bucket
       })
 
-      const catIdByName: Record<string, string> = {}
-      cats.forEach((c: { id: string; name: string }) => { catIdByName[c.name] = c.id })
-
       const allCatNames = Array.from(new Set([...Object.keys(spentByCat), ...Object.keys(prevByCat)]))
-      const categories: CategorySpend[] = allCatNames.map(name => {
-        const catId = catIdByName[name]
-        return {
-          name,
-          amount: spentByCat[name] ?? 0,
-          prevAmount: prevByCat[name] ?? 0,
-          bucket: (catId ? catMap[catId]?.bucket as 'needs' | 'wants' | 'savings' : null) ?? 'wants',
-        }
-      }).sort((a, b) => b.amount - a.amount)
+      const categories: CategorySpend[] = allCatNames.map(name => ({
+        name,
+        bucket: bucketByCat[name] ?? '',
+        amount: spentByCat[name] ?? 0,
+        prevAmount: prevByCat[name] ?? 0,
+      })).sort((a, b) => b.amount - a.amount)
 
       const spentMonth = txMonth.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
       const spentPrevMonth = txPrev.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
 
-      const MONTH_NAMES_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-      const monthlyBuckets: Record<string, { total: number; needs: number; wants: number; savings: number; fixed: number; variable: number }> = {}
+      // Same-day comparison: prev month up to the same day
+      const prevMonthDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
+      const sameDayCutoff = Math.min(dayOfMonth, prevMonthDays)
+      const sameDayCutoffDate = new Date(now.getFullYear(), now.getMonth() - 1, sameDayCutoff).toISOString().slice(0, 10)
+      const txPrevSameDay = txPrev.filter((t: { date: string }) => t.date <= sameDayCutoffDate)
+      const spentPrevSameDayTotal = txPrevSameDay.reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
+      const prevSameDayByCat: Record<string, number> = {}
+      txPrevSameDay.forEach((t: { category_id: string; amount: number }) => {
+        const info = catMap[t.category_id]
+        const name = info?.name ?? 'Otros'
+        prevSameDayByCat[name] = (prevSameDayByCat[name] ?? 0) + Number(t.amount)
+      })
 
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const currentMonthLabel = now.toLocaleDateString('es-GT', { month: 'long' })
+      const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1)
+      const prevMonthLabel = prevMonthDate.toLocaleDateString('es-GT', { month: 'long' })
+
+      const totalBudget = cats.reduce((s, c) => s + Number(c.budgeted_amount), 0)
+
+      // Fetch financial profile for income
+      const { data: fp } = await supabase
+        .from('financial_profiles').select('total_income').eq('household_id', hid).single()
+      const totalIncome = Number(fp?.total_income ?? 0)
+
+      // Fetch last 6 complete months of transactions for trends
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString().slice(0, 10)
+      const { data: txHistory } = await supabase
+        .from('transactions').select('category_id, amount, date')
+        .eq('household_id', hid).gte('date', sixMonthsAgo)
+
+      const catBucketMap: Record<string, string> = {}
+      cats.forEach(c => { catBucketMap[c.id] = c.bucket })
+
+      const monthlyBuckets: Record<string, { needs: number; wants: number; savings: number; total: number }> = {}
+      ;(txHistory ?? []).forEach((t: { category_id: string; amount: number; date: string }) => {
+        const d = new Date(t.date + 'T12:00:00')
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-        monthlyBuckets[key] = { total: 0, needs: 0, wants: 0, savings: 0, fixed: 0, variable: 0 }
-      }
+        if (!monthlyBuckets[key]) monthlyBuckets[key] = { needs: 0, wants: 0, savings: 0, total: 0 }
+        const amt = Number(t.amount)
+        const bucket = catBucketMap[t.category_id] ?? 'needs'
+        monthlyBuckets[key].total += amt
+        if (bucket === 'needs') monthlyBuckets[key].needs += amt
+        else if (bucket === 'wants') monthlyBuckets[key].wants += amt
+        else monthlyBuckets[key].savings += amt
+      })
 
-      txHistory.forEach((t: { date: string; amount: number; category_id: string }) => {
-        const key = t.date.slice(0, 7)
-        if (monthlyBuckets[key]) {
-          const amt = Number(t.amount)
-          monthlyBuckets[key].total += amt
-          const bucket = (catMap[t.category_id]?.bucket as 'needs' | 'wants' | 'savings') ?? 'wants'
-          monthlyBuckets[key][bucket] += amt
-          const catName = catMap[t.category_id]?.name ?? 'Otros'
-          if (FIXED_CATEGORIES.includes(catName)) {
-            monthlyBuckets[key].fixed += amt
-          } else {
-            monthlyBuckets[key].variable += amt
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      const monthlyHistory: MonthlyBucketTotals[] = Object.entries(monthlyBuckets)
+        .map(([key, v]) => {
+          const [y, m] = key.split('-').map(Number)
+          const mDate = new Date(y, m - 1)
+          return {
+            month: key,
+            label: mDate.toLocaleDateString('es-GT', { month: 'short' }),
+            ...v,
+            isPartial: key === currentMonthKey,
           }
-        }
+        })
+        .sort((a, b) => a.month.localeCompare(b.month))
+
+      // Build pace items for each budget category
+      const spentByCatId: Record<string, number> = {}
+      txMonth.forEach((t: { category_id: string; amount: number }) => {
+        spentByCatId[t.category_id] = (spentByCatId[t.category_id] ?? 0) + Number(t.amount)
       })
 
-      const monthlyTotals: MonthlyTotal[] = Object.entries(monthlyBuckets).map(([key, val]) => {
-        const [y, m] = key.split('-')
-        return {
-          month: key,
-          label: MONTH_NAMES_SHORT[parseInt(m) - 1] + ' ' + y.slice(2),
-          total: Math.round(val.total),
-          needsTotal: Math.round(val.needs),
-          wantsTotal: Math.round(val.wants),
-          savingsTotal: Math.round(val.savings),
-          fixedTotal: Math.round(val.fixed),
-          variableTotal: Math.round(val.variable),
-        }
-      })
+      const monthCtx: MonthContext = { today: now, daysInMonth, dayOfMonth }
 
-      const totalNeeds = monthlyTotals.reduce((s, m) => s + m.needsTotal, 0)
-      const totalWants = monthlyTotals.reduce((s, m) => s + m.wantsTotal, 0)
-      const totalSavings = monthlyTotals.reduce((s, m) => s + m.savingsTotal, 0)
-      const grandTotal = totalNeeds + totalWants + totalSavings
-      const needsPct = grandTotal > 0 ? Math.round((totalNeeds / grandTotal) * 100) : 0
-      const wantsPct = grandTotal > 0 ? Math.round((totalWants / grandTotal) * 100) : 0
-      const savingsPct = 100 - needsPct - wantsPct
+      const paceInputs: CategoryBudgetInput[] = cats.map(c => ({
+        categoryId: c.id,
+        name: c.name,
+        budget: Number(c.budgeted_amount),
+        spent: spentByCatId[c.id] ?? 0,
+        paceMode: c.pace_mode || 'linear',
+        expectedDay: c.expected_day,
+      }))
 
-      const totalFixed = monthlyTotals.reduce((s, m) => s + m.fixedTotal, 0)
-      const totalVariable = monthlyTotals.reduce((s, m) => s + m.variableTotal, 0)
-      const fvTotal = totalFixed + totalVariable
-      const fixedPct = fvTotal > 0 ? Math.round((totalFixed / fvTotal) * 100) : 50
-      const variablePct = 100 - fixedPct
+      const paceItems = paceInputs.map(input => computeCategoryPace(input, monthCtx))
+      const monthSummary = summarizeMonth(paceItems, monthCtx)
 
-      const monthsWithData = monthlyTotals.filter(m => m.total > 0).length
-      const monthlyAvg = monthsWithData > 0
-        ? Math.round(monthlyTotals.reduce((s, m) => s + m.total, 0) / monthsWithData)
-        : 0
-
-      const income = profile?.total_income ? Number(profile.total_income) : 0
-      const budget = income > 0 ? income * 0.8 : 4000
       const fullName = (userProfile?.full_name || 'Usuario') as string
       const firstName = fullName.split(' ')[0]
 
       setData({
         userName: firstName,
         householdName: household.name ?? '',
-        budget,
-        income,
+        budget: totalBudget,
         spentMonth,
         daysLeft,
         categories,
         spentPrevMonth,
-        monthlyAvg,
-        monthlyTotals,
-        needsPct,
-        wantsPct,
-        savingsPct,
-        fixedPct,
-        variablePct,
+        spentPrevSameDay: { total: spentPrevSameDayTotal, byCat: prevSameDayByCat },
+        currentMonthLabel,
+        prevMonthLabel,
+        monthlyAvg: Math.round((spentMonth + spentPrevMonth) / 2),
+        paceItems,
+        monthSummary,
+        monthCtx,
+        budgetCats: cats,
+        txMonth: txMonth.map((t: { category_id: string; amount: number; description: string | null }) => ({
+          category_id: t.category_id,
+          amount: Number(t.amount),
+          description: t.description,
+        })),
+        totalIncome,
+        monthlyHistory,
       })
       setLoading(false)
     }
@@ -222,72 +262,61 @@ export default function ResumenPage() {
 
   if (loading || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zafi-bg)' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F3F5F9' }}>
         <Loader2 className="w-8 h-8 text-electric animate-spin" />
       </div>
     )
   }
 
-  const diff = data.spentMonth - data.spentPrevMonth
-  const diffPct = data.spentPrevMonth > 0
-    ? Math.round(Math.abs(diff) / data.spentPrevMonth * 100)
-    : 0
-
   const tabStyle = (t: Tab) => ({
     padding: '10px 22px', borderRadius: 10,
     fontWeight: 600 as const, fontSize: '14.5px', cursor: 'pointer' as const,
-    background: tab === t ? 'var(--zafi-tab-active)' : 'transparent',
-    color: tab === t ? 'var(--zafi-tab-active-text)' : 'var(--zafi-tab-inactive-text)',
-    boxShadow: tab === t ? 'var(--zafi-tab-shadow)' : 'none',
+    background: tab === t ? '#fff' : 'transparent',
+    color: tab === t ? '#1E3A5F' : '#7E93AE',
+    boxShadow: tab === t ? '0 1px 3px rgba(30,58,95,0.15)' : 'none',
     border: 'none', fontFamily: 'inherit',
   })
 
-  const BUCKET_COLORS: Record<string, string> = {
-    needs: '#2563EB',
-    wants: '#F59E0B',
-    savings: '#16A34A',
+  const { monthSummary: ms, paceItems, monthCtx } = data
+  const pctBar = ms.totalBudget > 0 ? Math.min(1, ms.totalSpent / ms.totalBudget) : 0
+  const expectedMark = ms.totalBudget > 0 ? Math.min(1, ms.totalExpected / ms.totalBudget) : 0
+
+  // Sort pace items: sobregiro → riesgo → en_linea → sin_gasto
+  const statusOrder: Record<string, number> = { sobregiro: 0, riesgo: 1, en_linea: 2, sin_gasto: 3 }
+  const sortedPace = [...paceItems].sort((a, b) => {
+    const orderDiff = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9)
+    if (orderDiff !== 0) return orderDiff
+    if (a.status === 'sobregiro') return b.overrun - a.overrun
+    return b.spent - a.spent
+  })
+
+  const withSpend = sortedPace.filter(p => {
+    if (p.status !== 'sin_gasto') return true
+    const catRow = data.budgetCats.find(c => c.id === p.categoryId)
+    return catRow?.pace_mode === 'fixed' && monthCtx.dayOfMonth < (catRow?.expected_day ?? 1)
+  })
+  const noSpend = sortedPace.filter(p => {
+    if (p.status !== 'sin_gasto') return false
+    const catRow = data.budgetCats.find(c => c.id === p.categoryId)
+    return !(catRow?.pace_mode === 'fixed' && monthCtx.dayOfMonth < (catRow?.expected_day ?? 1))
+  })
+  const noSpendBudgetSum = noSpend.reduce((s, p) => s + p.budget, 0)
+
+  // Find largest transaction per category for semaphore copy
+  function largestTxForCategory(catId: string): { amount: number; description: string } | null {
+    const catTxs = data!.txMonth.filter(t => t.category_id === catId)
+    if (catTxs.length === 0) return null
+    const sorted = [...catTxs].sort((a, b) => b.amount - a.amount)
+    return { amount: sorted[0].amount, description: sorted[0].description ?? '' }
   }
 
-  const recentMonths = data.monthlyTotals.filter(m => m.total > 0)
-  const lastTwo = recentMonths.slice(-2)
-  const signals: { type: 'good' | 'bad'; text: string }[] = []
-
-  if (lastTwo.length === 2) {
-    const [prev, curr] = lastTwo
-    if (curr.savingsTotal > prev.savingsTotal) {
-      signals.push({ type: 'good', text: `Ahorro subió ${formatMoney(curr.savingsTotal - prev.savingsTotal)} vs mes anterior` })
-    } else if (curr.savingsTotal < prev.savingsTotal && prev.savingsTotal > 0) {
-      signals.push({ type: 'bad', text: `Ahorro bajó ${Math.round((1 - curr.savingsTotal / prev.savingsTotal) * 100)}% vs mes anterior` })
-    }
-    if (curr.wantsTotal < prev.wantsTotal) {
-      signals.push({ type: 'good', text: `Gustos se redujeron ${Math.round((1 - curr.wantsTotal / prev.wantsTotal) * 100)}%` })
-    } else if (curr.wantsTotal > prev.wantsTotal * 1.1 && prev.wantsTotal > 0) {
-      signals.push({ type: 'bad', text: `Gustos aumentaron ${Math.round((curr.wantsTotal / prev.wantsTotal - 1) * 100)}%` })
-    }
-    if (curr.needsTotal < prev.needsTotal * 0.95) {
-      signals.push({ type: 'good', text: `Necesidades se redujeron ${Math.round((1 - curr.needsTotal / prev.needsTotal) * 100)}%` })
-    } else if (curr.needsTotal > prev.needsTotal * 1.1 && prev.needsTotal > 0) {
-      signals.push({ type: 'bad', text: `Necesidades subieron ${Math.round((curr.needsTotal / prev.needsTotal - 1) * 100)}%` })
-    }
-  }
-
-  if (data.income > 0) {
-    const latestMonth = recentMonths[recentMonths.length - 1]
-    if (latestMonth) {
-      const savingsRate = latestMonth.savingsTotal / data.income
-      if (savingsRate >= 0.2) {
-        signals.push({ type: 'good', text: `Tasa de ahorro ${Math.round(savingsRate * 100)}% — meta del 20% alcanzada` })
-      } else if (savingsRate < 0.1) {
-        signals.push({ type: 'bad', text: `Tasa de ahorro ${Math.round(savingsRate * 100)}% — lejos del 20% recomendado` })
-      }
-    }
-  }
+  const barColor = ms.totalSpent > ms.totalBudget ? '#EF4444' : '#2563EB'
 
   return (
     <AppShell title="Resumen" currentPath="/resumen" userName={data.userName} householdName={data.householdName}>
       {/* Tabs */}
       <div style={{
-        display: 'flex', background: 'var(--zafi-tab-bg)', borderRadius: 13,
+        display: 'flex', background: '#E7EBF2', borderRadius: 13,
         padding: 4, marginBottom: 24, width: 'fit-content',
       }}>
         <button style={tabStyle('mes')} onClick={() => setTab('mes')}>Este mes</button>
@@ -298,491 +327,769 @@ export default function ResumenPage() {
       {/* === ESTE MES === */}
       {tab === 'mes' && (
         <>
+          {/* 3.1 Estado del mes (hero) */}
           <div style={{
-            background: 'var(--zafi-hero)', borderRadius: 20,
-            padding: '32px 36px', color: 'var(--zafi-hero-text)', marginBottom: 20,
+            background: '#1E3A5F', borderRadius: 20,
+            padding: '32px 36px', color: '#fff', marginBottom: 20,
           }}>
             <div style={{
-              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: 'var(--zafi-hero-text-secondary)', textTransform: 'uppercase', marginBottom: 12,
+              fontFamily: "'DM Serif Display', Georgia, serif",
+              fontSize: 22, lineHeight: 1.3, marginBottom: 4,
             }}>
-              Gasto total del mes
+              {ms.verdict.tone === 'danger' ? (
+                <>
+                  Vas <span style={{ color: '#EF4444', fontFamily: "'Outfit', sans-serif", fontWeight: 800 }}>{formatMoney(ms.totalOverrun)}</span> arriba del presupuesto en {ms.overCategories.length} categoría{ms.overCategories.length !== 1 ? 's' : ''}
+                </>
+              ) : (
+                ms.verdict.headline
+              )}
             </div>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
-              {formatMoney(data.spentMonth)}
+            <div style={{ fontSize: 14, color: '#9FB3CB', marginBottom: 20 }}>
+              {ms.verdict.sub}
             </div>
-            <div style={{ fontSize: 14, color: 'var(--zafi-hero-text-secondary)', marginTop: 8 }}>
-              de {formatMoney(data.budget)} presupuestados · {data.daysLeft} días restantes
-            </div>
-          </div>
 
-          <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px' }}>
-            <div style={{
-              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 16,
-            }}>
-              Gasto por categoría
-            </div>
-            {data.categories.map((cat, i) => {
-              const pct = data.spentMonth > 0 ? Math.round((cat.amount / data.spentMonth) * 100) : 0
-              const bucketColor = BUCKET_COLORS[cat.bucket]
-              return (
-                <div key={cat.name} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '14px 0', borderTop: i > 0 ? '1px solid var(--zafi-border-light)' : 'none',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                    <span style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: bucketColor, display: 'inline-block', flexShrink: 0,
-                    }} />
-                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--zafi-text)' }}>{cat.name}</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexShrink: 0 }}>
-                    <div style={{ fontSize: 13, color: 'var(--zafi-text-faint)', fontWeight: 600 }}>
-                      {pct}%
-                    </div>
-                    <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: 'var(--zafi-text)', minWidth: 90, textAlign: 'right' }}>
-                      {formatMoney(cat.amount)}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-            {data.categories.length === 0 && (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--zafi-text-faint)', fontSize: 14 }}>
-                Sin gastos este mes
-              </div>
-            )}
-
-            {/* Bucket legend */}
-            <div style={{
-              display: 'flex', gap: 20, marginTop: 20, paddingTop: 16,
-              borderTop: '1px solid var(--zafi-border-light)', fontSize: 13, color: 'var(--zafi-text-faint)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
-                Necesidades
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
-                Deseos
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
-                Ahorro
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* === INSIGHTS === */}
-      {tab === 'insights' && (
-        <>
-          <div style={{
-            background: 'var(--zafi-hero)', borderRadius: 20,
-            padding: '32px 36px', color: 'var(--zafi-hero-text)', marginBottom: 20,
-          }}>
-            <div style={{
-              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: 'var(--zafi-hero-text-secondary)', textTransform: 'uppercase', marginBottom: 16,
-            }}>
-              Comparado con el mes anterior
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
-                {formatMoney(data.spentMonth)}
-              </div>
+            {/* Pace bar */}
+            <div style={{ position: 'relative', height: 14, background: 'rgba(255,255,255,0.12)', borderRadius: 7, marginBottom: 12 }}>
               <div style={{
-                background: diff <= 0 ? 'rgba(22,101,52,0.2)' : 'rgba(239,68,68,0.2)',
-                color: diff <= 0 ? '#4ADE80' : '#FCA5A5',
-                fontWeight: 700, fontSize: 14,
-                padding: '8px 16px', borderRadius: 20,
-              }}>
-                {diff <= 0 ? '↓' : '↑'} {diffPct}% vs mes anterior
-              </div>
+                width: `${pctBar * 100}%`, height: '100%', borderRadius: 7,
+                background: barColor, transition: 'width 0.3s',
+              }} />
+              <div style={{
+                position: 'absolute', top: -4, left: `${expectedMark * 100}%`,
+                width: 2, height: 22, background: '#fff', borderRadius: 1, opacity: 0.7,
+              }} />
             </div>
-            <div style={{ display: 'flex', gap: 56, marginTop: 24 }}>
+            <div style={{ fontSize: 13, color: '#9FB3CB' }}>
+              {formatMoney(ms.totalSpent)} gastados de {formatMoney(ms.totalBudget)} · esperado a hoy: {formatMoney(ms.totalExpected)}
+            </div>
+
+            {/* KPIs */}
+            <div style={{ display: 'flex', gap: 40, marginTop: 20 }}>
               <div>
-                <div style={{ fontSize: 13, color: 'var(--zafi-hero-text-secondary)' }}>Este mes</div>
-                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
-                  {formatMoney(data.spentMonth)}
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Gastado</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4 }}>{formatMoney(ms.totalSpent)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#FCA5A5', textTransform: 'uppercase' }}>Sobregiro</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4, color: ms.totalOverrun > 0 ? '#FCA5A5' : '#fff' }}>
+                  {formatMoney(ms.totalOverrun)}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 13, color: 'var(--zafi-hero-text-secondary)' }}>Mes anterior</div>
-                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
-                  {formatMoney(data.spentPrevMonth)}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 13, color: 'var(--zafi-hero-text-secondary)' }}>Diferencia</div>
-                <div style={{
-                  fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4,
-                  color: diff <= 0 ? '#4ADE80' : '#FCA5A5',
-                }}>
-                  {formatMoney(Math.abs(diff))}
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#4ADE80', textTransform: 'uppercase' }}>Disponible</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4, color: '#4ADE80' }}>
+                  {formatMoney(ms.available)}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Category comparison with savings-aware colors */}
-          {(() => {
-            const changedCats = data.categories.filter(c => c.prevAmount > 0 || c.amount > 0)
-            if (changedCats.length === 0) return null
-            return (
-              <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px' }}>
-                <div style={{
-                  fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                  color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 6,
-                }}>
-                  Cambios por categoría
-                </div>
-                {changedCats.map((cat) => {
-                  const catDiff = cat.amount - cat.prevAmount
-                  const catPct = cat.prevAmount > 0 ? Math.round(Math.abs(catDiff) / cat.prevAmount * 100) : 0
-                  const isSavings = cat.bucket === 'savings'
-                  const isPositive = isSavings ? catDiff >= 0 : catDiff <= 0
+          {/* 3.2 Semáforo */}
+          {(ms.overCategories.length > 0 || ms.riskCategories.length > 0) && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16 }}>
+                Necesita atención
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {ms.overCategories.map(cat => {
+                  const largest = largestTxForCategory(cat.categoryId)
+                  const bigExplains = largest && cat.overrun > 0 && largest.amount >= 0.6 * cat.overrun
                   return (
-                    <div key={cat.name} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '16px 0', borderTop: '1px solid var(--zafi-border-light)',
+                    <div key={cat.categoryId} style={{
+                      background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 12,
+                      padding: '14px 18px', fontSize: 14, color: '#991B1B',
                     }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--zafi-text)' }}>{cat.name}</div>
-                          {cat.prevAmount > 0 && (
-                            <div style={{
-                              fontSize: '12.5px', fontWeight: 700,
-                              color: isPositive ? '#16A34A' : '#DC2626',
-                              background: isPositive ? '#EAFBF1' : '#FEE2E2',
-                              padding: '3px 9px', borderRadius: 12,
-                            }}>
-                              {catDiff <= 0 ? '↓' : '↑'} {catPct}%
-                            </div>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-                          <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: 'var(--zafi-text)' }}>
-                            {formatMoney(cat.amount)}
-                          </div>
-                          {cat.prevAmount > 0 && (
-                            <div style={{ fontSize: 13, color: 'var(--zafi-text-faint)' }}>
-                              ant: {formatMoney(cat.prevAmount)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      <strong>{cat.name}</strong> ya superó el presupuesto por {formatMoney(cat.overrun)}.{bigExplains ? ' Una compra explica casi todo.' : ''}
                     </div>
                   )
                 })}
-              </div>
-            )
-          })()}
-        </>
-      )}
-
-      {/* === TENDENCIAS === */}
-      {tab === 'tendencias' && (
-        <>
-          {/* Top summary with avg + signals */}
-          <div style={{
-            background: 'var(--zafi-hero)', borderRadius: 20,
-            padding: '32px 36px', color: 'var(--zafi-hero-text)', marginBottom: 20,
-          }}>
-            <div style={{
-              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: 'var(--zafi-hero-text-secondary)', textTransform: 'uppercase', marginBottom: 12,
-            }}>
-              Promedio mensual (últimos meses)
-            </div>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
-              {formatMoney(data.monthlyAvg)}
-            </div>
-
-            {/* Signals: what's working / what's not */}
-            {signals.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 20 }}>
-                {signals.slice(0, 4).map((s, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    background: s.type === 'good' ? 'rgba(22,163,74,0.15)' : 'rgba(239,68,68,0.15)',
-                    borderRadius: 12, padding: '10px 16px',
-                    fontSize: 14, color: s.type === 'good' ? '#86EFAC' : '#FCA5A5',
+                {ms.riskCategories.map(cat => (
+                  <div key={cat.categoryId} style={{
+                    background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 12,
+                    padding: '14px 18px', fontSize: 14, color: '#92400E',
                   }}>
-                    {s.type === 'good'
-                      ? <CheckCircle2 size={16} strokeWidth={2.5} />
-                      : <AlertTriangle size={16} strokeWidth={2.5} />
-                    }
-                    {s.text}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Distribution summary cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
-            {[
-              { label: 'Necesidades', pct: data.needsPct, color: '#2563EB', target: '50%' },
-              { label: 'Deseos', pct: data.wantsPct, color: '#F59E0B', target: '30%' },
-              { label: 'Ahorro', pct: data.savingsPct, color: '#16A34A', target: '20%' },
-            ].map(item => (
-              <div key={item.label} style={{
-                background: 'var(--zafi-card)', borderRadius: 16, padding: '20px 22px',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: item.color, display: 'inline-block' }} />
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--zafi-text-faint)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    {item.label}
-                  </div>
-                </div>
-                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 28, color: 'var(--zafi-text)' }}>
-                  {item.pct}%
-                </div>
-                <div style={{ fontSize: 13, color: 'var(--zafi-text-faint)', marginTop: 2 }}>
-                  Meta: {item.target}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Charts row: donut + line chart */}
-          {(() => {
-            const donutCircumference = 2 * Math.PI * 70
-            const fixedArc = (data.fixedPct / 100) * donutCircumference
-            const variableArc = (data.variablePct / 100) * donutCircumference
-            const chartW = 380
-            const chartH = 200
-            const pad = 10
-            const maxTotal = Math.max(...data.monthlyTotals.map(m => m.total), 1)
-
-            function toPoints(values: number[]): string {
-              if (values.length === 0) return ''
-              const step = (chartW - pad * 2) / Math.max(values.length - 1, 1)
-              return values.map((v, i) => {
-                const x = pad + i * step
-                const y = chartH - pad - ((v / maxTotal) * (chartH - pad * 2))
-                return `${Math.round(x)},${Math.round(y)}`
-              }).join(' ')
-            }
-
-            const totalLine = toPoints(data.monthlyTotals.map(m => m.total))
-            const savingsLine = toPoints(data.monthlyTotals.map(m => m.savingsTotal))
-
-            return (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-                {/* Donut: fijo vs variable */}
-                <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px' }}>
-                  <div style={{
-                    fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                    color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 20,
-                  }}>
-                    Gasto fijo vs variable
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <svg width="180" height="180" viewBox="0 0 180 180">
-                      <circle cx="90" cy="90" r="70" fill="none" stroke="#E2E8F0" strokeWidth="26" />
-                      <circle cx="90" cy="90" r="70" fill="none" stroke="#2563EB"
-                        strokeWidth="26"
-                        strokeDasharray={`${fixedArc} ${donutCircumference - fixedArc}`}
-                        strokeDashoffset={donutCircumference * 0.25}
-                        strokeLinecap="round"
-                      />
-                      <circle cx="90" cy="90" r="70" fill="none" stroke="#F59E0B"
-                        strokeWidth="26"
-                        strokeDasharray={`${variableArc} ${donutCircumference - variableArc}`}
-                        strokeDashoffset={donutCircumference * 0.25 - fixedArc}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--zafi-text)' }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
-                      Fijo {data.fixedPct}%
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--zafi-text)' }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
-                      Variable {data.variablePct}%
-                    </div>
-                  </div>
-                </div>
-
-                {/* Line chart: total + ahorro */}
-                <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px' }}>
-                  <div style={{
-                    fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                    color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 20,
-                  }}>
-                    Evolución mensual
-                  </div>
-                  <div style={{ display: 'flex', gap: 20, marginBottom: 16, fontSize: 13 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--zafi-text)' }}>
-                      <span style={{ width: 14, height: 2, background: '#2563EB', display: 'inline-block' }} />Total
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--zafi-text)' }}>
-                      <span style={{ width: 14, height: 2, background: '#16A34A', display: 'inline-block' }} />Ahorro
-                    </div>
-                  </div>
-                  <svg width="100%" height="200" viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none">
-                    <line x1={pad} y1={chartH - pad} x2={chartW - pad} y2={chartH - pad} stroke="var(--zafi-border-light)" strokeWidth="1" />
-                    <line x1={pad} y1={chartH / 2} x2={chartW - pad} y2={chartH / 2} stroke="var(--zafi-border-light)" strokeWidth="1" />
-                    <line x1={pad} y1={pad} x2={chartW - pad} y2={pad} stroke="var(--zafi-border-light)" strokeWidth="1" />
-                    {totalLine && <polyline points={totalLine} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
-                    {savingsLine && <polyline points={savingsLine} fill="none" stroke="#16A34A" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
-                  </svg>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--zafi-text-faint)', marginTop: 6 }}>
-                    {data.monthlyTotals.map(m => (
-                      <span key={m.month}>{m.label}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-
-          {/* Stacked bar chart per month: Necesidades / Deseos / Ahorro */}
-          <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
-            <div style={{
-              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 8,
-            }}>
-              Distribución mensual
-            </div>
-            <div style={{ display: 'flex', gap: 20, marginBottom: 20, fontSize: 13 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--zafi-text)' }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
-                Necesidades
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--zafi-text)' }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
-                Deseos
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--zafi-text)' }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
-                Ahorro
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {data.monthlyTotals.map((m) => {
-                const needsPct = m.total > 0 ? (m.needsTotal / m.total) * 100 : 0
-                const wantsPct = m.total > 0 ? (m.wantsTotal / m.total) * 100 : 0
-                const savingsPct = m.total > 0 ? (m.savingsTotal / m.total) * 100 : 0
-
-                return (
-                  <div key={m.month}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--zafi-text)' }}>{m.label}</div>
-                      <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: 'var(--zafi-text)' }}>
-                        {formatMoney(m.total)}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', height: 24, borderRadius: 6, overflow: 'hidden', background: 'var(--zafi-bg)' }}>
-                      {m.total > 0 && (
-                        <>
-                          <div style={{ width: `${needsPct}%`, height: '100%', background: '#2563EB' }} />
-                          <div style={{ width: `${wantsPct}%`, height: '100%', background: '#F59E0B' }} />
-                          <div style={{ width: `${savingsPct}%`, height: '100%', background: '#16A34A' }} />
-                        </>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 12, color: 'var(--zafi-text-faint)' }}>
-                      <span>{formatMoney(m.needsTotal)} nec.</span>
-                      <span>{formatMoney(m.wantsTotal)} des.</span>
-                      <span style={{ color: '#16A34A', fontWeight: 600 }}>{formatMoney(m.savingsTotal)} ahorro</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {data.monthlyTotals.every(m => m.total === 0) && (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--zafi-text-faint)', fontSize: 14 }}>
-                No hay datos históricos aún
-              </div>
-            )}
-          </div>
-
-          {/* Savings trend highlight */}
-          {recentMonths.length >= 2 && (
-            <div style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #047857 100%)',
-              borderRadius: 20, padding: '28px 32px', color: '#fff', marginBottom: 20,
-            }}>
-              <div style={{
-                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', marginBottom: 12,
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}>
-                {recentMonths[recentMonths.length - 1].savingsTotal >= recentMonths[recentMonths.length - 2].savingsTotal
-                  ? <TrendingUp size={14} />
-                  : <TrendingDown size={14} />
-                }
-                Tendencia de ahorro
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
-                {recentMonths.slice(-3).map((m, i) => (
-                  <div key={m.month} style={{ flex: 1, textAlign: 'center' }}>
-                    <div style={{
-                      fontFamily: "'Outfit', sans-serif", fontWeight: 800,
-                      fontSize: i === recentMonths.slice(-3).length - 1 ? 28 : 20,
-                      opacity: i === recentMonths.slice(-3).length - 1 ? 1 : 0.7,
-                    }}>
-                      {formatMoney(m.savingsTotal)}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>{m.label}</div>
+                    <strong>{cat.name}</strong> va al {Math.round(cat.pctOfBudget * 100)}% con {Math.round(cat.pctOfMonthElapsed * 100)}% del mes transcurrido. A este ritmo cerrarías en {formatMoney(cat.projection)}.
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Observaciones — savings-aware */}
-          {(() => {
-            const expenseAlerts = data.categories.filter(c => c.bucket !== 'savings' && c.amount > 0 && c.prevAmount > 0 && c.amount > c.prevAmount * 1.15)
-            const savingsPositive = data.categories.filter(c => c.bucket === 'savings' && c.amount > 0 && c.prevAmount > 0 && c.amount > c.prevAmount * 1.15)
-            if (expenseAlerts.length === 0 && savingsPositive.length === 0) return null
-            return (
-              <div style={{ background: 'var(--zafi-card)', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
-                <div style={{
-                  fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                  color: 'var(--zafi-text-faint)', textTransform: 'uppercase', marginBottom: 16,
-                }}>
-                  Observaciones
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {savingsPositive.slice(0, 2).map(c => (
-                    <div key={c.name} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      background: '#EAFBF1', border: '1px solid #B7EBC8',
-                      borderRadius: 12, padding: '14px 18px',
-                      fontSize: '14.5px', color: '#065F46',
-                    }}>
-                      <CheckCircle2 size={16} />
-                      {c.name} subió {Math.round((c.amount - c.prevAmount) / c.prevAmount * 100)}% vs el mes anterior. ¡Buen ritmo de ahorro!
-                    </div>
-                  ))}
-                  {expenseAlerts.slice(0, 4).map(c => (
-                    <div key={c.name} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      background: '#FDEEEE', border: '1px solid #F6D3D3',
-                      borderRadius: 12, padding: '14px 18px',
-                      fontSize: '14.5px', color: '#9A3B3B',
-                    }}>
-                      <AlertTriangle size={16} />
-                      {c.name} subió {Math.round((c.amount - c.prevAmount) / c.prevAmount * 100)}% vs el mes anterior. Considerá reducirlo.
-                    </div>
-                  ))}
-                </div>
+          {/* Va bien */}
+          {ms.okCategories.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16 }}>
+                Va bien
               </div>
-            )
-          })()}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {ms.okCategories.slice(0, 3).map(cat => {
+                  const catRow = data.budgetCats.find(c => c.id === cat.categoryId)
+                  const isPaidFixed = catRow?.pace_mode === 'fixed' && cat.spent > 0 && monthCtx.dayOfMonth >= (catRow?.expected_day ?? 1)
+                  return (
+                    <div key={cat.categoryId} style={{
+                      background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 12,
+                      padding: '14px 18px', fontSize: 14, color: '#065F46',
+                    }}>
+                      {isPaidFixed
+                        ? <><strong>{cat.name}</strong> pagado según lo previsto.</>
+                        : <><strong>{cat.name}</strong> va al {Math.round(cat.pctOfBudget * 100)}% con {Math.round(cat.pctOfMonthElapsed * 100)}% del mes transcurrido.</>
+                      }
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 3.3 Presupuesto por categoría */}
+          <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px' }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 4,
+            }}>
+              Presupuesto por categoría
+            </div>
+            <div style={{ fontSize: 13, color: '#8B9AAE', marginBottom: 20 }}>
+              Toca una categoría para ver sus transacciones
+            </div>
+
+            {withSpend.map(cat => {
+              const catRow = data.budgetCats.find(c => c.id === cat.categoryId)
+              const sc = STATUS_COLORS[cat.status] ?? STATUS_COLORS.en_linea
+              const barPct = cat.budget > 0 ? Math.min(1, cat.spent / cat.budget) : (cat.spent > 0 ? 1 : 0)
+              const expectedPct = cat.budget > 0 ? Math.min(1, cat.expected / cat.budget) : 0
+              const isPendingFixed = catRow?.pace_mode === 'fixed' && cat.spent === 0 && monthCtx.dayOfMonth < (catRow?.expected_day ?? 1)
+
+              return (
+                <div
+                  key={cat.categoryId}
+                  onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${monthCtx.today.getFullYear()}-${String(monthCtx.today.getMonth() + 1).padStart(2, '0')}`)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 6,
+                    padding: '16px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: sc.dot, flexShrink: 0 }} />
+                    <span style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F', flex: 1 }}>{cat.name}</span>
+                    {isPendingFixed ? (
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                        background: '#F1F5F9', color: '#64748B',
+                      }}>
+                        Pendiente · día {catRow?.expected_day}
+                      </span>
+                    ) : (
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                        background: sc.pillBg, color: sc.pill,
+                      }}>
+                        {sc.label}
+                      </span>
+                    )}
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: '#1E3A5F', minWidth: 80, textAlign: 'right' }}>
+                      {formatMoney(cat.spent)}
+                    </span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                  </div>
+
+                  {/* Bar */}
+                  <div style={{ marginLeft: 18, position: 'relative', height: 8, background: '#F3F5F9', borderRadius: 4 }}>
+                    <div style={{
+                      width: `${barPct * 100}%`, height: '100%', borderRadius: 4,
+                      background: cat.status === 'sobregiro' ? '#EF4444' : cat.status === 'riesgo' ? '#F59E0B' : '#2563EB',
+                    }} />
+                    {cat.budget > 0 && (
+                      <div style={{
+                        position: 'absolute', top: -2, left: `${expectedPct * 100}%`,
+                        width: 2, height: 12, background: '#1E3A5F', borderRadius: 1, opacity: 0.4,
+                      }} />
+                    )}
+                  </div>
+
+                  {/* Bottom line */}
+                  <div style={{ marginLeft: 18, display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8B9AAE' }}>
+                    <span>de {formatMoney(cat.budget)} · {Math.round(cat.pctOfBudget * 100)}%</span>
+                    {cat.status === 'sobregiro' ? (
+                      <span style={{ color: '#EF4444', fontWeight: 600 }}>+{formatMoney(cat.overrun)}</span>
+                    ) : (
+                      <span>quedan {formatMoney(cat.remaining)}</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Collapsible no-spend categories */}
+            {noSpend.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowNoSpend(!showNoSpend)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '14px 0', borderTop: '1px solid #EEF1F6',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 13, color: '#64748B', fontWeight: 600,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <ChevronDown style={{
+                    width: 16, height: 16,
+                    transform: showNoSpend ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s',
+                  }} />
+                  Ver {noSpend.length} categorías sin movimiento ({formatMoney(noSpendBudgetSum)} presupuestados)
+                </button>
+                {showNoSpend && noSpend.map(cat => (
+                  <div
+                    key={cat.categoryId}
+                    onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${monthCtx.today.getFullYear()}-${String(monthCtx.today.getMonth() + 1).padStart(2, '0')}`)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '12px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94A3B8', flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, color: '#64748B', flex: 1 }}>{cat.name}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                      background: '#F1F5F9', color: '#64748B',
+                    }}>
+                      Sin gasto
+                    </span>
+                    <span style={{ fontSize: 13, color: '#94A3B8' }}>{formatMoney(cat.budget)}</span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
         </>
       )}
+
+      {/* === INSIGHTS === */}
+      {tab === 'insights' && (() => {
+        const d = monthCtx.dayOfMonth
+        const isSameDay = insightsMode === 'same_day'
+        const prevAmount = isSameDay ? data.spentPrevSameDay.total : data.spentPrevMonth
+        const insDiff = data.spentMonth - prevAmount
+        const insDiffPct = prevAmount > 0 ? Math.round(Math.abs(insDiff) / prevAmount * 100) : 0
+        const isNeutral = Math.abs(insDiffPct) < 3
+
+        // Fixed categories context line
+        const fixedPaidPrevNotNow = data.budgetCats.filter(c => {
+          if (c.pace_mode !== 'fixed') return false
+          const eid = c.expected_day ?? 1
+          const prevByCatName = isSameDay ? data.spentPrevSameDay.byCat : {}
+          const prevSpent = prevByCatName[c.name] ?? 0
+          const currSpent = data.paceItems.find(p => p.categoryId === c.id)?.spent ?? 0
+          return prevSpent > 0 && currSpent === 0 && d < eid
+        })
+        const fixedPaidSum = fixedPaidPrevNotNow.reduce((s, c) => {
+          const prev = isSameDay ? (data.spentPrevSameDay.byCat[c.name] ?? 0) : (data.categories.find(cat => cat.name === c.name)?.prevAmount ?? 0)
+          return s + prev
+        }, 0)
+        const adjustedDiff = insDiff + fixedPaidSum
+        const adjustedDiffPct = (prevAmount - fixedPaidSum) > 0 ? Math.round(Math.abs(adjustedDiff) / (prevAmount - fixedPaidSum) * 100) : 0
+
+        // Insights
+        const insights: Array<{ text: string; tone: 'warn' | 'ok' | 'info' }> = []
+
+        // Unique category going up while rest goes down
+        const catsUp = data.categories.filter(c => {
+          const prev = isSameDay ? (data.spentPrevSameDay.byCat[c.name] ?? 0) : c.prevAmount
+          return c.amount > prev && prev > 0
+        })
+        const catsDown = data.categories.filter(c => {
+          const prev = isSameDay ? (data.spentPrevSameDay.byCat[c.name] ?? 0) : c.prevAmount
+          return c.amount <= prev && prev > 0
+        })
+        if (catsUp.length === 1 && catsDown.length >= 2) {
+          const cat = catsUp[0]
+          const prev = isSameDay ? (data.spentPrevSameDay.byCat[cat.name] ?? 0) : cat.prevAmount
+          const pctVsPrev = prev > 0 ? Math.round((cat.amount / prev) * 100) : 0
+          insights.push({
+            text: `${cat.name} es la única categoría subiendo, y ya va a ${pctVsPrev}% de ${data.prevMonthLabel} (${formatMoney(prev)}).`,
+            tone: 'warn',
+          })
+        }
+
+        // Pending fixed payments
+        const pendingFixed = data.budgetCats.filter(c => {
+          if (c.pace_mode !== 'fixed') return false
+          const eid = c.expected_day ?? 1
+          const spent = data.paceItems.find(p => p.categoryId === c.id)?.spent ?? 0
+          return spent === 0 && d < eid
+        })
+        if (pendingFixed.length > 0) {
+          const pendingSum = pendingFixed.reduce((s, c) => s + Number(c.budgeted_amount), 0)
+          const names = pendingFixed.map(c => c.name).join(', ')
+          insights.push({
+            text: `Aún no aparece el pago de ${names} este mes. Si son ${formatMoney(pendingSum)}, tu disponible real es ${formatMoney(Math.max(0, ms.available - pendingSum))}.`,
+            tone: 'info',
+          })
+        }
+
+        return (
+        <>
+          {/* Toggle */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+            <button
+              onClick={() => setInsightsMode('same_day')}
+              style={{
+                padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+                background: insightsMode === 'same_day' ? '#2563EB' : '#E7EBF2',
+                color: insightsMode === 'same_day' ? '#fff' : '#64748B',
+              }}
+            >
+              Al día {d} de cada mes
+            </button>
+            <button
+              onClick={() => setInsightsMode('full')}
+              style={{
+                padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+                background: insightsMode === 'full' ? '#2563EB' : '#E7EBF2',
+                color: insightsMode === 'full' ? '#fff' : '#64748B',
+              }}
+            >
+              Mes completo
+            </button>
+          </div>
+
+          <div style={{
+            background: '#1E3A5F', borderRadius: 20,
+            padding: '32px 36px', color: '#fff', marginBottom: 20,
+          }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+              color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 16,
+            }}>
+              {isSameDay ? `Comparado al día ${d} del mes anterior` : 'Comparado con el mes anterior completo'}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
+                {formatMoney(data.spentMonth)}
+              </div>
+              <div style={{
+                background: isNeutral ? 'rgba(148,163,184,0.2)' : insDiff <= 0 ? 'rgba(22,101,52,0.2)' : 'rgba(239,68,68,0.2)',
+                color: isNeutral ? '#94A3B8' : insDiff <= 0 ? '#4ADE80' : '#FCA5A5',
+                fontWeight: 700, fontSize: 14,
+                padding: '8px 16px', borderRadius: 20,
+              }}>
+                {isNeutral ? '≈' : insDiff <= 0 ? '↓' : '↑'} {insDiffPct}% vs mes anterior
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 40, marginTop: 24, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>{data.currentMonthLabel}, día {d}</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
+                  {formatMoney(data.spentMonth)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>{data.prevMonthLabel}, {isSameDay ? `día ${d}` : 'completo'}</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
+                  {formatMoney(prevAmount)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>Diferencia</div>
+                <div style={{
+                  fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4,
+                  color: isNeutral ? '#94A3B8' : insDiff <= 0 ? '#4ADE80' : '#FCA5A5',
+                }}>
+                  {insDiff <= 0 ? '-' : '+'}{formatMoney(Math.abs(insDiff))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Fixed categories context */}
+          {isSameDay && fixedPaidPrevNotNow.length > 0 && (
+            <div style={{
+              background: '#FEF3C7', borderRadius: 16, padding: '16px 20px',
+              marginBottom: 20, fontSize: 14, color: '#92400E', lineHeight: 1.5,
+            }}>
+              En {data.prevMonthLabel} a esta altura ya habías pagado {fixedPaidPrevNotNow.map(c => c.name).join(', ')} ({formatMoney(fixedPaidSum)}). Sin esos rubros, la diferencia real es {adjustedDiff <= 0 ? '-' : '+'}{adjustedDiffPct}%.
+            </div>
+          )}
+
+          {/* Category breakdown */}
+          <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 6,
+            }}>
+              Cambios por categoría
+            </div>
+            {data.categories.map((cat) => {
+              const prev = isSameDay ? (data.spentPrevSameDay.byCat[cat.name] ?? 0) : cat.prevAmount
+              const catDiff = cat.amount - prev
+              const catPct = prev > 0 ? Math.round(Math.abs(catDiff) / prev * 100) : 0
+              const isSavings = cat.bucket === 'savings'
+              const isPositive = isSavings ? catDiff >= 0 : catDiff <= 0
+              const noBothMonths = cat.amount === 0 && prev === 0
+              return (
+                <div key={cat.name} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 0', borderTop: '1px solid #EEF1F6',
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>{cat.name}</div>
+                      {!noBothMonths && prev > 0 && (
+                        <div style={{
+                          fontSize: '12px', fontWeight: 700,
+                          color: noBothMonths ? '#94A3B8' : isPositive ? '#16A34A' : '#DC2626',
+                          background: noBothMonths ? '#F1F5F9' : isPositive ? '#EAFBF1' : '#FEE2E2',
+                          padding: '3px 9px', borderRadius: 12,
+                        }}>
+                          {catDiff <= 0 ? '↓' : '↑'} {catPct}%
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
+                      <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 15, color: '#1E3A5F' }}>
+                        {formatMoney(cat.amount)}
+                      </div>
+                      {prev > 0 && (
+                        <div style={{ fontSize: 12, color: '#8B9AAE' }}>
+                          ant: {formatMoney(prev)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Lo que zafi nota */}
+          {insights.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px' }}>
+              <div style={{
+                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
+              }}>
+                Lo que zafi nota
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {insights.map((ins, i) => (
+                  <div key={i} style={{
+                    background: ins.tone === 'warn' ? '#FEF3C7' : ins.tone === 'ok' ? '#D1FAE5' : '#DBEAFE',
+                    border: `1px solid ${ins.tone === 'warn' ? '#FDE68A' : ins.tone === 'ok' ? '#A7F3D0' : '#93C5FD'}`,
+                    borderRadius: 12, padding: '14px 18px',
+                    fontSize: 14, color: ins.tone === 'warn' ? '#92400E' : ins.tone === 'ok' ? '#065F46' : '#1E40AF',
+                    lineHeight: 1.5,
+                  }}>
+                    {ins.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+        )
+      })()}
+
+      {/* === TENDENCIAS === */}
+      {tab === 'tendencias' && (() => {
+        const history = data.monthlyHistory
+        const complete = history.filter(m => !m.isPartial)
+
+        // Average from complete months only
+        const avgTotal = complete.length > 0 ? Math.round(complete.reduce((s, m) => s + m.total, 0) / complete.length) : 0
+
+        const firstLabel = complete.length > 0 ? complete[0].label : ''
+        const lastLabel = complete.length > 0 ? complete[complete.length - 1].label : ''
+        const currentMonthName = data.currentMonthLabel
+
+        // 50/30/20 from complete months
+        const avgNeeds = complete.length > 0 ? complete.reduce((s, m) => s + m.needs, 0) / complete.length : 0
+        const avgWants = complete.length > 0 ? complete.reduce((s, m) => s + m.wants, 0) / complete.length : 0
+        const avgSavings = complete.length > 0 ? complete.reduce((s, m) => s + m.savings, 0) / complete.length : 0
+        const avgSum = avgNeeds + avgWants + avgSavings || 1
+        const pctNeeds = Math.round(avgNeeds / avgSum * 100)
+        const pctWants = Math.round(avgWants / avgSum * 100)
+        const pctSavings = Math.round(avgSavings / avgSum * 100)
+
+        // Alerts from complete months only
+        const alerts: Array<{ text: string; tone: 'warn' | 'success' }> = []
+
+        // Deseos trend: 3+ consecutive months rising or falling
+        if (complete.length >= 3) {
+          const wants = complete.map(m => m.wants)
+          let rising = 0
+          let falling = 0
+          for (let i = 1; i < wants.length; i++) {
+            if (wants[i] > wants[i - 1]) { rising++; falling = 0 }
+            else if (wants[i] < wants[i - 1]) { falling++; rising = 0 }
+            else { rising = 0; falling = 0 }
+          }
+          if (rising >= 2) {
+            const last3 = wants.slice(-3)
+            alerts.push({
+              text: `Deseos crecen ${rising + 1} meses seguidos: ${last3.map(v => formatMoney(v)).join(' → ')}.`,
+              tone: 'warn',
+            })
+          } else if (falling >= 2) {
+            const last3 = wants.slice(-3)
+            alerts.push({
+              text: `Deseos bajan ${falling + 1} meses seguidos: ${last3.map(v => formatMoney(v)).join(' → ')}.`,
+              tone: 'success',
+            })
+          }
+        }
+
+        // Ahorro variability
+        if (complete.length >= 2) {
+          const savingsVals = complete.map(m => m.savings)
+          const savAvg = savingsVals.reduce((s, v) => s + v, 0) / savingsVals.length
+          const savStd = Math.sqrt(savingsVals.reduce((s, v) => s + (v - savAvg) ** 2, 0) / savingsVals.length)
+          const savMin = Math.min(...savingsVals)
+          const savMax = Math.max(...savingsVals)
+          const savRate = data.totalIncome > 0 ? Math.round(savAvg / data.totalIncome * 100) : 0
+          const cv = savAvg > 0 ? savStd / savAvg : 0
+          if (cv < 0.15) {
+            alerts.push({
+              text: `Ahorro estable en ${formatMoney(savMin)}–${formatMoney(savMax)} cada mes. Tasa promedio ${savRate}%.`,
+              tone: 'success',
+            })
+          } else {
+            alerts.push({
+              text: `Ahorro irregular: de ${formatMoney(savMin)} a ${formatMoney(savMax)}. Tasa promedio ${savRate}%.`,
+              tone: 'warn',
+            })
+          }
+        }
+
+        // Necesidades variability
+        if (complete.length >= 2) {
+          const needsVals = complete.map(m => m.needs)
+          const nMin = Math.min(...needsVals)
+          const nMax = Math.max(...needsVals)
+          if (nMin > 0 && nMax / nMin > 2) {
+            const maxMonth = complete.find(m => m.needs === nMax)
+            alerts.push({
+              text: `Necesidades muy variables (${formatMoney(nMin)} a ${formatMoney(nMax)}). Revisa si ${maxMonth?.label ?? ''} tuvo un pago anual.`,
+              tone: 'warn',
+            })
+          }
+        }
+
+        // Evolution chart data
+        const chartMonths = history
+        const chartMax = Math.max(...chartMonths.map(m => m.total), 1)
+        const chartH = 200
+        const chartPadY = 20
+        const usableH = chartH - 2 * chartPadY
+        const toY = (v: number) => chartPadY + usableH - (v / chartMax) * usableH
+        const spacing = chartMonths.length > 1 ? 360 / (chartMonths.length - 1) : 180
+        const toX = (i: number) => 10 + i * spacing
+
+        const totalPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.total)}`).join(' ')
+
+        const wantsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.wants)}`).join(' ')
+        const savingsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.savings)}`).join(' ')
+
+        // Split paths for partial month dashed segment
+        const lastIdx = chartMonths.length - 1
+        const hasPartial = chartMonths.length > 0 && chartMonths[lastIdx].isPartial
+        const solidEnd = hasPartial ? lastIdx - 1 : lastIdx
+
+        function splitPath(fullPath: string, pts: Array<{ x: number; y: number }>) {
+          if (!hasPartial || pts.length < 2) return { solid: fullPath, dashed: '' }
+          const solidPts = pts.slice(0, solidEnd + 1)
+          const dashPts = pts.slice(solidEnd)
+          const solid = solidPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+          const dashed = dashPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+          return { solid, dashed }
+        }
+
+        const totalPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.total) }))
+
+        const wantsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.wants) }))
+        const savingsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.savings) }))
+
+        const totalSplit = splitPath(totalPath, totalPts)
+
+        const wantsSplit = splitPath(wantsPath, wantsPts)
+        const savingsSplit = splitPath(savingsPath, savingsPts)
+
+        // 50/30/20 delta helpers
+        const metaNeeds = 50, metaWants = 30, metaSavings = 20
+        const deltaNeedsVal = pctNeeds - metaNeeds
+        const deltaWantsVal = pctWants - metaWants
+        const deltaSavingsVal = pctSavings - metaSavings
+        const needsFavorable = deltaNeedsVal <= 0
+        const wantsFavorable = deltaWantsVal <= 0
+        const savingsFavorable = deltaSavingsVal >= 0
+        const fmtDelta = (d: number) => (d > 0 ? `+${d}` : `${d}`)
+
+        return (
+        <>
+          {/* Promedio mensual */}
+          <div style={{
+            background: '#1E3A5F', borderRadius: 20,
+            padding: '32px 36px', color: '#fff', marginBottom: 20,
+          }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+              color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 4,
+            }}>
+              {complete.length >= 2 ? `Promedio mensual · ${firstLabel}–${lastLabel}` : 'Promedio mensual'}
+            </div>
+            <div style={{ fontSize: 13, color: '#7E93AE', marginBottom: 16 }}>
+              Gasto + ahorro. {currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1)} se excluye por estar en curso.
+            </div>
+            <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
+              {formatMoney(avgTotal)}
+            </div>
+
+            {/* Alerts */}
+            {alerts.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
+                {alerts.map((a, i) => (
+                  <div key={i} style={{
+                    background: a.tone === 'success' ? 'rgba(22,163,74,0.15)' : 'rgba(245,158,11,0.15)',
+                    borderRadius: 12, padding: '12px 16px',
+                    fontSize: 14, color: a.tone === 'success' ? '#4ADE80' : '#FDE68A',
+                    lineHeight: 1.5,
+                  }}>
+                    {a.text}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 50/30/20 Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
+            {[
+              { label: 'Necesidades', pct: pctNeeds, meta: metaNeeds, delta: deltaNeedsVal, favorable: needsFavorable, color: '#2563EB' },
+              { label: 'Deseos', pct: pctWants, meta: metaWants, delta: deltaWantsVal, favorable: wantsFavorable, color: '#F59E0B' },
+              { label: 'Ahorro', pct: pctSavings, meta: metaSavings, delta: deltaSavingsVal, favorable: savingsFavorable, color: '#10B981' },
+            ].map(b => (
+              <div key={b.label} style={{
+                background: '#fff', borderRadius: 16, padding: '24px 20px', textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 8 }}>
+                  {b.label}
+                </div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 36, color: '#1E3A5F' }}>
+                  {b.pct}%
+                </div>
+                <div style={{
+                  fontSize: 13, fontWeight: 600, marginTop: 6,
+                  color: b.favorable ? '#16A34A' : '#F59E0B',
+                }}>
+                  meta {b.meta}% · {fmtDelta(b.delta)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Evolution chart */}
+          {chartMonths.length >= 2 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', marginBottom: 20 }}>
+              <div style={{
+                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 20,
+              }}>
+                Evolución mensual
+              </div>
+              <div style={{ display: 'flex', gap: 20, marginBottom: 16, fontSize: 13 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+                  <span style={{ width: 14, height: 2, background: '#2563EB', display: 'inline-block' }} />Total
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+                  <span style={{ width: 14, height: 2, background: '#10B981', display: 'inline-block' }} />Ahorro
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+                  <span style={{ width: 14, height: 2, background: '#F59E0B', display: 'inline-block' }} />Deseos
+                </div>
+              </div>
+              <svg width="100%" height="200" viewBox={`0 0 ${toX(lastIdx) + 10} 200`} preserveAspectRatio="none">
+                <line x1="0" y1={toY(chartMax * 0.25)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.25)} stroke="#EEF1F6" strokeWidth="1" />
+                <line x1="0" y1={toY(chartMax * 0.5)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.5)} stroke="#EEF1F6" strokeWidth="1" />
+                <line x1="0" y1={toY(chartMax * 0.75)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.75)} stroke="#EEF1F6" strokeWidth="1" />
+                {/* Total */}
+                <path d={totalSplit.solid} fill="none" stroke="#2563EB" strokeWidth="2.5" />
+                {totalSplit.dashed && <path d={totalSplit.dashed} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.5" />}
+                {/* Savings */}
+                <path d={savingsSplit.solid} fill="none" stroke="#10B981" strokeWidth="2" />
+                {savingsSplit.dashed && <path d={savingsSplit.dashed} fill="none" stroke="#10B981" strokeWidth="2" strokeDasharray="4 4" opacity="0.5" />}
+                {/* Wants */}
+                <path d={wantsSplit.solid} fill="none" stroke="#F59E0B" strokeWidth="2" />
+                {wantsSplit.dashed && <path d={wantsSplit.dashed} fill="none" stroke="#F59E0B" strokeWidth="2" strokeDasharray="4 4" opacity="0.5" />}
+                {/* Dots */}
+                {totalPts.map((p, i) => (
+                  <circle key={`t${i}`} cx={p.x} cy={p.y} r="3" fill="#2563EB" opacity={chartMonths[i].isPartial ? 0.5 : 1} />
+                ))}
+              </svg>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 6 }}>
+                {chartMonths.map((m, i) => (
+                  <span key={i} style={{ color: m.isPartial ? '#B0BEC5' : '#8B9AAE' }}>
+                    {m.isPartial ? `${m.label} · en curso` : m.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Distribución mensual */}
+          {chartMonths.length >= 1 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '28px 32px' }}>
+              <div style={{
+                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
+              }}>
+                Distribución mensual
+              </div>
+              <div style={{ display: 'flex', gap: 20, marginBottom: 20, fontSize: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1E3A5F' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} />
+                  Necesidades
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1E3A5F' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
+                  Deseos
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1E3A5F' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+                  Ahorro
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {chartMonths.map(m => {
+                  const mTotal = m.total || 1
+                  const nPct = Math.round(m.needs / mTotal * 100)
+                  const wPct = Math.round(m.wants / mTotal * 100)
+                  const sPct = 100 - nPct - wPct
+                  return (
+                    <div key={m.month} style={{ opacity: m.isPartial ? 0.55 : 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1E3A5F', marginBottom: 6 }}>
+                        <span style={{ fontWeight: 600 }}>
+                          {m.isPartial ? `${m.label} · en curso` : m.label}
+                        </span>
+                        <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(m.total)}</span>
+                      </div>
+                      <div style={{ display: 'flex', height: 14, borderRadius: 7, overflow: 'hidden' }}>
+                        <div style={{ width: `${nPct}%`, background: '#2563EB' }} />
+                        <div style={{ width: `${wPct}%`, background: '#F59E0B' }} />
+                        <div style={{ width: `${sPct}%`, background: '#10B981' }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </>
+        )
+      })()}
 
       <div className="h-6" />
     </AppShell>
