@@ -115,6 +115,7 @@ function CaptureContent() {
     setError(null)
 
     const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
     const { error: insertError } = await supabase.from('transactions').insert({
       household_id: householdId,
       category_id: categoryId || null,
@@ -123,6 +124,7 @@ function CaptureContent() {
       date,
       source: 'ocr',
       payment_method: paymentMethod,
+      created_by: user?.id ?? null,
     })
 
     if (insertError) {

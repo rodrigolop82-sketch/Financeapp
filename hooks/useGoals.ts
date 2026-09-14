@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
+import { getUserHousehold } from '@/lib/household'
 import { projectGoal, type ProjectionResult } from '@/lib/goal-projector'
 
 export type GoalType = 'emergency_fund' | 'travel' | 'vehicle' | 'education' | 'investment' | 'custom'
@@ -72,13 +73,7 @@ export function useGoals(): UseGoalsReturn {
         return
       }
 
-      const { data: household } = await supabase
-        .from('households')
-        .select('id')
-        .eq('owner_id', user.id)
-        .limit(1)
-        .single()
-
+      const household = await getUserHousehold(supabase, user.id)
       const householdId = household?.id as string | undefined
 
       // Fetch goals + monthly averages in parallel

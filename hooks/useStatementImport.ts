@@ -271,6 +271,7 @@ export function useStatementImport(householdId: string) {
       date: t.date || localToday(),
       source: 'csv' as const,
       payment_method: 'tarjeta' as const,
+      created_by: user.id,
     }))
 
     const { data: inserted, error } = await supabase

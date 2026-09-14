@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
+import { getUserHousehold } from '@/lib/household';
 import { localMonth } from '@/lib/dates';
 import { Button } from '@/components/ui/button';
 import { BudgetCategory, BudgetSubItem } from '@/types';
@@ -33,6 +34,7 @@ export default function PresupuestoPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [householdId, setHouseholdId] = useState('');
+  const [userId, setUserId] = useState('');
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -54,15 +56,10 @@ export default function PresupuestoPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
-      const { data: hh } = await supabase
-        .from('households')
-        .select('id')
-        .eq('owner_id', user.id)
-        .limit(1)
-        .single();
-
+      const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
       setHouseholdId(hh.id);
+      setUserId(user.id);
 
       const [{ data: cats }, { data: fp }, { data: subs }, { data: entries }] = await Promise.all([
         supabase.from('budget_categories').select('*').eq('household_id', hh.id),
@@ -357,6 +354,7 @@ export default function PresupuestoPage() {
         date: tx.date,
         source: 'voice',
         voice_raw_text: voiceResult?.raw_text ?? null,
+        created_by: userId,
       }))
     );
     setVoiceResult(null);

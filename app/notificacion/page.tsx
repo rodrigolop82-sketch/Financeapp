@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { getUserHousehold } from '@/lib/household'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { localToday } from '@/lib/dates'
 
@@ -30,6 +31,7 @@ function NotificacionContent() {
   const [categoryId, setCategoryId] = useState('')
   const [categories, setCategories] = useState<{ id: string; name: string; bucket: string }[]>([])
   const [householdId, setHouseholdId] = useState('')
+  const [userId, setUserId] = useState('')
 
   const router = useRouter()
   const params = useSearchParams()
@@ -51,10 +53,10 @@ function NotificacionContent() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
-    const { data: hh } = await supabase
-      .from('households').select('id').eq('owner_id', user.id).limit(1).single()
+    const hh = await getUserHousehold(supabase, user.id)
     if (!hh) { router.push('/dashboard'); return }
     setHouseholdId(hh.id)
+    setUserId(user.id)
 
     const { data: cats } = await supabase
       .from('budget_categories').select('id, name, bucket').eq('household_id', hh.id).order('bucket')
@@ -114,6 +116,7 @@ function NotificacionContent() {
       source: 'ocr' as const,
       original_amount: parsed?.original_amount ?? null,
       original_currency: parsed?.original_currency ?? null,
+      created_by: userId,
     })
 
     setStep('saved')

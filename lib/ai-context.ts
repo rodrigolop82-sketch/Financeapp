@@ -1,19 +1,13 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { localMonthStart, localMonth } from '@/lib/dates'
+import { getUserHousehold } from '@/lib/household'
 
 export async function buildZafiSystemPrompt(
   userId: string,
   supabase: SupabaseClient
 ): Promise<string> {
 
-  // First get the user's household (household_id ≠ user.id)
-  const { data: household } = await supabase
-    .from('households')
-    .select('id')
-    .eq('owner_id', userId)
-    .limit(1)
-    .single()
-
+  const household = await getUserHousehold(supabase, userId)
   const householdId = household?.id
 
   const [userRes, profileRes, debtsRes, planRes, categoriesRes, snapshotsRes] =

@@ -95,6 +95,7 @@ export function useExpenseForm({
 
     setIsSubmitting(true)
     const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('transactions').insert({
       household_id: householdId,
       amount: num,
@@ -102,6 +103,7 @@ export function useExpenseForm({
       category_id: selectedCategory?.id ?? null,
       date: localToday(),
       source: 'manual' as const,
+      created_by: user?.id ?? null,
     })
     setIsSubmitting(false)
 

@@ -304,6 +304,7 @@ export default function DashboardPage() {
       source: 'voice' as const,
       payment_method: 'efectivo' as const,
       voice_raw_text: voiceResult?.raw_text ?? null,
+      created_by: data.userId,
     }))
     const { error } = await supabase.from('transactions').insert(rows)
 

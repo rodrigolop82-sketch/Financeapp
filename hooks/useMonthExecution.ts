@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import { getUserHousehold } from '@/lib/household'
 import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
 import { buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import type { BudgetCategory, Transaction } from '@/types'
@@ -42,8 +43,7 @@ export function useMonthExecution() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setError('No autenticado'); return }
 
-      const { data: household } = await supabase
-        .from('households').select('id').eq('owner_id', user.id).limit(1).single()
+      const household = await getUserHousehold(supabase, user.id)
       if (!household) { setError('Sin hogar'); return }
 
       const hid = household.id as string
