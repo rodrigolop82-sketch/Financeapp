@@ -45,3 +45,20 @@ begin
   );
 end;
 $$;
+
+-- Decrement function for rollback on failed operations
+create or replace function decrement_usage(
+  p_user_id uuid,
+  p_feature text,
+  p_period text
+)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  update usage_counters
+  set count = greatest(0, count - 1), updated_at = now()
+  where user_id = p_user_id and feature = p_feature and period = p_period;
+end;
+$$;

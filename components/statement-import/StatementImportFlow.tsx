@@ -66,6 +66,56 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
   )
 
   function renderStep() {
+    if (imp.limitReached && imp.limitData) {
+      return (
+        <div style={{ padding: 24 }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)',
+            borderRadius: 16, padding: '24px', color: '#fff',
+          }}>
+            <p style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+              Importa sin límites con Premium
+            </p>
+            <p style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.5, marginBottom: 8 }}>
+              Usaste tus {imp.limitData.limit} importaciones gratis de este mes.
+            </p>
+            <p style={{ fontSize: 12, opacity: 0.7, marginBottom: 20 }}>
+              Se renuevan el {new Date(imp.limitData.resetsAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' })}
+            </p>
+            <button
+              onClick={async () => {
+                const res = await fetch('/api/stripe/checkout', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ plan: 'monthly' }),
+                })
+                const { url } = await res.json()
+                if (url) window.location.href = url
+              }}
+              style={{
+                background: '#fff', color: '#1E3A5F',
+                border: 'none', borderRadius: 10, padding: '12px 24px',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                width: '100%',
+              }}
+            >
+              Pasar a Premium
+            </button>
+          </div>
+          <button
+            onClick={imp.closeImport}
+            style={{
+              width: '100%', marginTop: 12, padding: '10px',
+              background: 'none', border: 'none', color: '#64748B',
+              fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            Cerrar
+          </button>
+        </div>
+      )
+    }
+
     switch (imp.step) {
       case 'upload':
         return (
@@ -76,6 +126,7 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
             onFileSelect={imp.setFile}
             onAnalyze={imp.processFile}
             onBack={imp.closeImport}
+            importUsage={imp.importUsage}
           />
         )
       case 'processing':

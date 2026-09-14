@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { getUserHousehold } from '@/lib/household'
 import { toGTQ } from '@/lib/currency'
+import { checkAndIncrement, rollbackIncrement } from '@/lib/usage'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const maxDuration = 300
@@ -92,6 +93,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Formato no aceptado. Solo se permiten archivos JPG, PNG, WebP o PDF.' }, { status: 400 })
   }
 
+  const usage = await checkAndIncrement(user.id, 'statement_import')
+  if (!usage.allowed) {
+    return NextResponse.json(
+      { code: 'IMPORT_LIMIT_REACHED', used: usage.used, limit: usage.limit, resetsAt: usage.resetsAt },
+      { status: 402 },
+    )
+  }
+
   const bytes = await file.arrayBuffer()
   const base64 = Buffer.from(bytes).toString('base64')
   const isPdf = isPdfByType || isPdfByExt
@@ -150,6 +159,7 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error('Anthropic API error:', err)
     const errMsg = err instanceof Error ? err.message : String(err)
+    await rollbackIncrement(user.id, 'statement_import')
     if (errMsg.includes('Could not process') || errMsg.includes('document') || errMsg.includes('invalid_request')) {
       return NextResponse.json(
         { error: 'No se pudo procesar este PDF. El archivo puede estar protegido, dañado o en un formato no compatible. Intenta con otro archivo o usa una captura de pantalla.' },
@@ -165,6 +175,7 @@ export async function POST(req: NextRequest) {
   const wasTruncated = stopReason === 'max_tokens'
 
   if (!text) {
+    await rollbackIncrement(user.id, 'statement_import')
     return NextResponse.json(
       { error: 'No se pudo leer el contenido del documento. Verifica que el archivo sea legible y vuelve a intentarlo.' },
       { status: 500 }

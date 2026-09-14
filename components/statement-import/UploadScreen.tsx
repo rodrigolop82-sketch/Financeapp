@@ -9,11 +9,12 @@ interface UploadScreenProps {
   onFileSelect: (file: File) => void
   onAnalyze: () => void
   onBack: () => void
+  importUsage?: { used: number; limit: number } | null
 }
 
 const BANKS = ['Banrural', 'BAM', 'Industrial', 'G&T', 'Bantrab', 'BAC Credomatic']
 
-export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze, onBack }: UploadScreenProps) {
+export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze, onBack, importUsage }: UploadScreenProps) {
   const [mode, setMode] = useState<'photo' | 'pdf'>('photo')
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
@@ -35,6 +36,17 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
           Importar estado de cuenta
         </h2>
       </div>
+
+      {/* Usage counter for free users */}
+      {importUsage && (
+        <p style={{
+          fontSize: 12,
+          color: importUsage.limit - importUsage.used <= 1 ? '#EF4444' : '#8B9AAE',
+          textAlign: 'center', marginBottom: 12,
+        }}>
+          Importaciones gratis este mes: {importUsage.used} de {importUsage.limit}
+        </p>
+      )}
 
       {/* Mode toggle */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>

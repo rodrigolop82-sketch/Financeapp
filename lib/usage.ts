@@ -89,3 +89,17 @@ export async function checkAndIncrement(
     resetsAt,
   }
 }
+
+export async function rollbackIncrement(
+  userId: string,
+  feature: UsageFeature,
+): Promise<void> {
+  const supabase = getServiceSupabase()
+  const period = getCurrentPeriod()
+
+  await supabase.rpc('decrement_usage', {
+    p_user_id: userId,
+    p_feature: feature,
+    p_period: period,
+  })
+}

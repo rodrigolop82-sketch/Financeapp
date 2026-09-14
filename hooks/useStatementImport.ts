@@ -37,6 +37,9 @@ interface ImportState {
   stats: ImportStats | null
   isLoading: boolean
   error: string | null
+  limitReached: boolean
+  limitData: { used: number; limit: number; resetsAt: string } | null
+  importUsage: { used: number; limit: number } | null
 }
 
 function genId(): string {
@@ -55,6 +58,9 @@ export function useStatementImport(householdId: string) {
     stats: null,
     isLoading: false,
     error: null,
+    limitReached: false,
+    limitData: null,
+    importUsage: null,
   })
 
   // Use refs to avoid stale closures
@@ -62,16 +68,37 @@ export function useStatementImport(householdId: string) {
   const stateRef = useRef(state)
   stateRef.current = state
 
+  const fetchUsage = useCallback(async () => {
+    try {
+      const res = await fetch('/api/usage')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.plan === 'free') {
+          setState(s => ({
+            ...s,
+            limitReached: data.imports.remaining === 0,
+            limitData: data.imports.remaining === 0
+              ? { used: data.imports.used, limit: data.imports.limit, resetsAt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString() }
+              : null,
+            importUsage: { used: data.imports.used, limit: data.imports.limit },
+          }))
+        }
+      }
+    } catch { /* best effort */ }
+  }, [])
+
   const startImport = useCallback(() => {
     fileRef.current = null
     setState(s => ({ ...s, step: 'upload', error: null, file: null, filePreview: null }))
-  }, [])
+    fetchUsage()
+  }, [fetchUsage])
 
   const closeImport = useCallback(() => {
     fileRef.current = null
     setState({
       step: 'idle', file: null, filePreview: null, bankDetected: null,
       period: null, transactions: [], stats: null, isLoading: false, error: null,
+      limitReached: false, limitData: null, importUsage: null,
     })
   }, [])
 
@@ -114,6 +141,18 @@ export function useStatementImport(householdId: string) {
         return
       }
       clearTimeout(timeout)
+
+      if (res.status === 402) {
+        const errData = await res.json()
+        setState(s => ({
+          ...s,
+          isLoading: false,
+          limitReached: true,
+          limitData: { used: errData.used, limit: errData.limit, resetsAt: errData.resetsAt },
+          step: 'upload',
+        }))
+        return
+      }
 
       if (!res.ok) {
         let errorMsg = 'Error al procesar el archivo'
