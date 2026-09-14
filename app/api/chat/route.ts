@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { buildZafiSystemPrompt } from '@/lib/ai-context'
+import { checkAndIncrement } from '@/lib/usage'
 import { NextRequest, NextResponse } from 'next/server'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -20,6 +21,14 @@ export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  const usage = await checkAndIncrement(user.id, 'ai_message')
+  if (!usage.allowed) {
+    return NextResponse.json(
+      { code: 'AI_LIMIT_REACHED', used: usage.used, limit: usage.limit, resetsAt: usage.resetsAt },
+      { status: 402 },
+    )
+  }
 
   const systemPrompt = await buildZafiSystemPrompt(user.id, supabase)
 

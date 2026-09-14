@@ -39,6 +39,11 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' })
 }
 
+interface UsageData {
+  plan: 'free' | 'premium'
+  ai: { used: number; limit: number | null; remaining: number | null }
+}
+
 export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null)
@@ -48,6 +53,9 @@ export default function ChatPage() {
   const [authChecked, setAuthChecked] = useState(false)
   const [loadingConversations, setLoadingConversations] = useState(true)
   const [view, setView] = useState<'list' | 'chat'>('list')
+  const [usage, setUsage] = useState<UsageData | null>(null)
+  const [limitReached, setLimitReached] = useState(false)
+  const [resetsAt, setResetsAt] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -58,6 +66,14 @@ export default function ChatPage() {
       if (!user) { router.push('/login'); return }
       setAuthChecked(true)
       await loadConversations()
+      const usageRes = await fetch('/api/usage')
+      if (usageRes.ok) {
+        const ud = await usageRes.json()
+        setUsage(ud)
+        if (ud.plan === 'free' && ud.ai.remaining === 0) {
+          setLimitReached(true)
+        }
+      }
     }
     init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -172,6 +188,16 @@ export default function ChatPage() {
         }),
       })
 
+      if (res.status === 402) {
+        const errData = await res.json()
+        setLimitReached(true)
+        setResetsAt(errData.resetsAt)
+        setUsage(prev => prev ? { ...prev, ai: { used: errData.used, limit: errData.limit, remaining: 0 } } : prev)
+        setMessages(prev => prev.slice(0, -1))
+        setIsStreaming(false)
+        return
+      }
+
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
 
@@ -188,6 +214,13 @@ export default function ChatPage() {
           return updated
         })
       }
+
+      setUsage(prev => {
+        if (!prev || prev.plan === 'premium') return prev
+        const newUsed = (prev.ai.used ?? 0) + 1
+        const limit = prev.ai.limit ?? 0
+        return { ...prev, ai: { used: newUsed, limit: prev.ai.limit, remaining: Math.max(0, limit - newUsed) } }
+      })
     } catch (err) {
       console.error('Error en chat:', err)
     } finally {
@@ -390,37 +423,83 @@ export default function ChatPage() {
 
         {/* Input */}
         <div className="p-4 border-t">
-          <div className="flex gap-2">
-            <VoiceButton
-              mode="chat"
-              onTranscription={(text) => {
-                setInput(text)
-                sendMessage(text)
-              }}
-              onError={() => {}}
-            />
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
-              placeholder="Preguntale algo a Zafi..."
-              disabled={isStreaming}
-              className="flex-1 px-4 py-2.5 rounded-xl border text-sm
-                         focus:outline-none focus:border-electric-light"
-            />
-            <button
-              onClick={() => sendMessage(input)}
-              disabled={isStreaming || !input.trim()}
-              className="px-4 py-2.5 bg-electric text-white rounded-xl text-sm
-                         disabled:opacity-40 hover:bg-navy transition-colors"
-            >
-              Enviar
-            </button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            Zafi conoce tu situación financiera real y responde en base a ella.
-          </p>
+          {limitReached ? (
+            <div style={{
+              background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)',
+              borderRadius: 16, padding: '20px 24px', color: '#fff',
+            }}>
+              <p style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
+                Zafi AI sin límites
+              </p>
+              <p style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.5, marginBottom: 16 }}>
+                Con Premium puedes hablar con Zafi todas las veces que necesites.
+                {resetsAt && ` Tus mensajes gratis se renuevan el ${new Date(resetsAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' })}.`}
+              </p>
+              <button
+                onClick={async () => {
+                  const res = await fetch('/api/stripe/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan: 'monthly' }),
+                  })
+                  const { url } = await res.json()
+                  if (url) window.location.href = url
+                }}
+                style={{
+                  background: '#fff', color: '#1E3A5F',
+                  border: 'none', borderRadius: 10, padding: '12px 24px',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  width: '100%',
+                }}
+              >
+                Pasar a Premium
+              </button>
+            </div>
+          ) : (
+            <>
+              {usage && usage.plan === 'free' && usage.ai.remaining !== null && (
+                <p style={{
+                  fontSize: 12, color: usage.ai.remaining <= 3 ? '#EF4444' : '#8B9AAE',
+                  textAlign: 'center', marginBottom: 8,
+                }}>
+                  {usage.ai.remaining > 0
+                    ? `Te quedan ${usage.ai.remaining} de ${usage.ai.limit} mensajes este mes`
+                    : `Alcanzaste tus ${usage.ai.limit} mensajes de este mes`}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <VoiceButton
+                  mode="chat"
+                  onTranscription={(text) => {
+                    setInput(text)
+                    sendMessage(text)
+                  }}
+                  onError={() => {}}
+                />
+                <input
+                  type="text"
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
+                  placeholder="Preguntale algo a Zafi..."
+                  disabled={isStreaming}
+                  className="flex-1 px-4 py-2.5 rounded-xl border text-sm
+                             focus:outline-none focus:border-electric-light"
+                />
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={isStreaming || !input.trim()}
+                  className="px-4 py-2.5 bg-electric text-white rounded-xl text-sm
+                             disabled:opacity-40 hover:bg-navy transition-colors"
+                >
+                  Enviar
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Zafi conoce tu situación financiera real y responde en base a ella.
+              </p>
+            </>
+          )}
         </div>
       </div>
     </AppShell>
