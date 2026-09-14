@@ -38,6 +38,11 @@ export default function CuentaPage() {
   );
 }
 
+interface UsageInfo {
+  ai: { used: number; limit: number; remaining: number };
+  imports: { used: number; limit: number; remaining: number };
+}
+
 function CuentaContent() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ email: string; full_name: string; plan: string; trial_ends_at: string; show_decimals: boolean; currency: string } | null>(null);
@@ -45,6 +50,7 @@ function CuentaContent() {
   const [upgrading, setUpgrading] = useState(false);
   const [showDecimals, setShowDecimals] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [usage, setUsage] = useState<UsageInfo | null>(null);
   const [notifPrefs, setNotifPrefs] = useState({
     inactivity_enabled: true,
     inactivity_threshold_days: 5,
@@ -80,6 +86,16 @@ function CuentaContent() {
         });
       }
       setLoading(false);
+
+      if (profile?.plan !== 'premium') {
+        try {
+          const usageRes = await fetch('/api/usage');
+          if (usageRes.ok) {
+            const usageData = await usageRes.json();
+            setUsage({ ai: usageData.ai, imports: usageData.imports });
+          }
+        } catch { /* best effort */ }
+      }
     }
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -348,7 +364,28 @@ function CuentaContent() {
             {!isPremium && (
               <div className="space-y-3">
                 <Separator />
-                <p className="text-sm text-gray-600">Mejora tu plan para desbloquear todas las funciones:</p>
+
+                {usage && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tu uso este mes</p>
+                    <div className="flex gap-3">
+                      <div className="flex-1 p-3 bg-gray-50 rounded-lg">
+                        <p className="text-xs text-gray-500">Mensajes IA</p>
+                        <p className="text-sm font-semibold" style={{ color: usage.ai.remaining <= 2 ? '#EF4444' : '#1E3A5F' }}>
+                          {usage.ai.used} de {usage.ai.limit}
+                        </p>
+                      </div>
+                      <div className="flex-1 p-3 bg-gray-50 rounded-lg">
+                        <p className="text-xs text-gray-500">Importaciones</p>
+                        <p className="text-sm font-semibold" style={{ color: usage.imports.remaining === 0 ? '#EF4444' : '#1E3A5F' }}>
+                          {usage.imports.used} de {usage.imports.limit}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-sm text-gray-600">Mejora tu plan para desbloquear todo:</p>
                 <div className="grid grid-cols-2 gap-3">
                   <Button variant="outline" onClick={() => handleUpgrade('monthly')} disabled={upgrading}>
                     $4.99/mes
@@ -359,10 +396,10 @@ function CuentaContent() {
                   </Button>
                 </div>
                 <ul className="text-xs text-gray-500 space-y-1">
-                  <li>&#10003; Deudas ilimitadas</li>
-                  <li>&#10003; Modo familia</li>
-                  <li>&#10003; Zafi AI — planner personal</li>
-                  <li>&#10003; Historial completo</li>
+                  <li>&#10003; Zafi AI sin límite de mensajes</li>
+                  <li>&#10003; Importaciones ilimitadas</li>
+                  <li>&#10003; Insights y tendencias en Resumen</li>
+                  <li>&#10003; Cápsulas educativas premium</li>
                 </ul>
               </div>
             )}
