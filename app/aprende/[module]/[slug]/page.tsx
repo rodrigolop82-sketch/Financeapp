@@ -16,6 +16,8 @@ interface CapsuleData {
   module_title: string
   module_slug: string
   module_color: string
+  is_premium: boolean
+  locked: boolean
 }
 
 export default function CapsulePage() {
@@ -50,16 +52,28 @@ export default function CapsulePage() {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mod = data.capsule_modules as any
+
+      let plan: 'free' | 'premium' = 'free'
+      if (user) {
+        const { data: userRow } = await supabase.from('users').select('plan').eq('id', user.id).single()
+        plan = (userRow?.plan ?? 'free') as 'free' | 'premium'
+      }
+
+      const isPremiumCapsule = data.is_premium === true
+      const locked = isPremiumCapsule && plan === 'free'
+
       setCapsule({
         id: data.id,
         title: data.title,
         subtitle: data.subtitle,
-        content_md: data.content_md,
-        key_takeaway: data.key_takeaway,
+        content_md: locked ? '' : data.content_md,
+        key_takeaway: locked ? null : data.key_takeaway,
         read_time_minutes: data.read_time_minutes,
         module_title: mod.title,
         module_slug: mod.slug,
         module_color: mod.color,
+        is_premium: isPremiumCapsule,
+        locked,
       })
 
       // Mark as read + check bookmark
@@ -148,54 +162,91 @@ export default function CapsulePage() {
         </p>
       </div>
 
-      {/* Key takeaway */}
-      {capsule.key_takeaway && (
-        <div className="mb-6 p-4 bg-surface-tint border border-electric-soft rounded-xl">
-          <p className="text-xs font-medium text-electric-dark mb-1">Lo mas importante</p>
-          <p className="text-sm font-medium text-navy">{capsule.key_takeaway}</p>
+      {capsule.locked ? (
+        <div style={{
+          background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)',
+          borderRadius: 20, padding: '32px 24px', color: '#fff',
+          textAlign: 'center', marginTop: 8,
+        }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+          <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, fontFamily: "'DM Serif Display', Georgia, serif" }}>
+            Contenido Premium
+          </p>
+          <p style={{ fontSize: 14, opacity: 0.9, lineHeight: 1.5, marginBottom: 24 }}>
+            Esta cápsula es exclusiva para usuarios Premium. Desbloquea todo el contenido educativo de Zafi.
+          </p>
+          <button
+            onClick={async () => {
+              const res = await fetch('/api/stripe/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan: 'monthly' }),
+              })
+              const { url } = await res.json()
+              if (url) window.location.href = url
+            }}
+            style={{
+              background: '#fff', color: '#1E3A5F',
+              border: 'none', borderRadius: 10, padding: '12px 24px',
+              fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%',
+              maxWidth: 280,
+            }}
+          >
+            Desbloquear con Premium
+          </button>
         </div>
+      ) : (
+        <>
+          {/* Key takeaway */}
+          {capsule.key_takeaway && (
+            <div className="mb-6 p-4 bg-surface-tint border border-electric-soft rounded-xl">
+              <p className="text-xs font-medium text-electric-dark mb-1">Lo mas importante</p>
+              <p className="text-sm font-medium text-navy">{capsule.key_takeaway}</p>
+            </div>
+          )}
+
+          {/* Markdown content — article style */}
+          <article className="prose prose-sm max-w-none
+            prose-headings:text-navy prose-headings:font-semibold
+            prose-h2:text-lg prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:border-gray-200 prose-h2:pb-2
+            prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2
+            prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4
+            prose-strong:text-navy
+            prose-ul:my-3 prose-li:text-gray-700 prose-li:leading-relaxed
+            prose-ol:my-3
+            prose-table:border-collapse prose-table:w-full prose-table:text-sm prose-table:my-4
+            prose-thead:bg-surface-tint prose-thead:border-b-2 prose-thead:border-electric-soft
+            prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-navy prose-th:font-semibold prose-th:text-xs prose-th:uppercase prose-th:tracking-wide
+            prose-td:px-3 prose-td:py-2 prose-td:border-b prose-td:border-gray-100
+            prose-tr:even:bg-gray-50/50
+            prose-blockquote:border-l-[#2563EB] prose-blockquote:bg-surface-tint prose-blockquote:py-1 prose-blockquote:rounded-r-lg
+            prose-a:text-electric prose-a:no-underline hover:prose-a:underline
+          ">
+            {ReactMarkdown && remarkGfm ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{capsule.content_md}</ReactMarkdown>
+            ) : (
+              <div className="whitespace-pre-wrap text-gray-700">{capsule.content_md}</div>
+            )}
+          </article>
+
+          {/* CTA: ask Zafi */}
+          <div className="mt-8 p-4 bg-secondary rounded-xl">
+            <p className="text-sm font-medium text-foreground mb-1">
+              ¿Querés aplicar esto a tu situación?
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">
+              Preguntale a Zafi como se aplica esto a tus finanzas reales.
+            </p>
+            <Link
+              href={`/chat?q=Leí sobre ${encodeURIComponent(capsule.title)} — ¿cómo aplica esto a mi situación?`}
+              className="inline-block text-sm font-medium text-white bg-electric
+                         px-4 py-2 rounded-lg hover:bg-navy transition-colors"
+            >
+              Preguntarle a Zafi →
+            </Link>
+          </div>
+        </>
       )}
-
-      {/* Markdown content — article style */}
-      <article className="prose prose-sm max-w-none
-        prose-headings:text-navy prose-headings:font-semibold
-        prose-h2:text-lg prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:border-gray-200 prose-h2:pb-2
-        prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2
-        prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4
-        prose-strong:text-navy
-        prose-ul:my-3 prose-li:text-gray-700 prose-li:leading-relaxed
-        prose-ol:my-3
-        prose-table:border-collapse prose-table:w-full prose-table:text-sm prose-table:my-4
-        prose-thead:bg-surface-tint prose-thead:border-b-2 prose-thead:border-electric-soft
-        prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-navy prose-th:font-semibold prose-th:text-xs prose-th:uppercase prose-th:tracking-wide
-        prose-td:px-3 prose-td:py-2 prose-td:border-b prose-td:border-gray-100
-        prose-tr:even:bg-gray-50/50
-        prose-blockquote:border-l-[#2563EB] prose-blockquote:bg-surface-tint prose-blockquote:py-1 prose-blockquote:rounded-r-lg
-        prose-a:text-electric prose-a:no-underline hover:prose-a:underline
-      ">
-        {ReactMarkdown && remarkGfm ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{capsule.content_md}</ReactMarkdown>
-        ) : (
-          <div className="whitespace-pre-wrap text-gray-700">{capsule.content_md}</div>
-        )}
-      </article>
-
-      {/* CTA: ask Zafi */}
-      <div className="mt-8 p-4 bg-secondary rounded-xl">
-        <p className="text-sm font-medium text-foreground mb-1">
-          ¿Querés aplicar esto a tu situación?
-        </p>
-        <p className="text-xs text-muted-foreground mb-3">
-          Preguntale a Zafi como se aplica esto a tus finanzas reales.
-        </p>
-        <Link
-          href={`/chat?q=Leí sobre ${encodeURIComponent(capsule.title)} — ¿cómo aplica esto a mi situación?`}
-          className="inline-block text-sm font-medium text-white bg-electric
-                     px-4 py-2 rounded-lg hover:bg-navy transition-colors"
-        >
-          Preguntarle a Zafi →
-        </Link>
-      </div>
     </div>
   )
 }

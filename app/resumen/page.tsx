@@ -82,6 +82,7 @@ export default function ResumenPage() {
   const [loading, setLoading] = useState(true)
   const [showNoSpend, setShowNoSpend] = useState(false)
   const [insightsMode, setInsightsMode] = useState<'same_day' | 'full'>('same_day')
+  const [userPlan, setUserPlan] = useState<'free' | 'premium'>('free')
   const router = useRouter()
 
   useEffect(() => {
@@ -99,6 +100,10 @@ export default function ResumenPage() {
       if (!household) { router.push('/onboarding'); return }
       const hid = household.id as string
 
+      const { data: userRow } = await supabase.from('users').select('plan').eq('id', user.id).single()
+      const plan = (userRow?.plan ?? 'free') as 'free' | 'premium'
+      setUserPlan(plan)
+
       const now = new Date()
       const monthStart = localMonthStart()
       const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10)
@@ -107,11 +112,14 @@ export default function ResumenPage() {
       const dayOfMonth = now.getDate()
       const daysLeft = daysInMonth - dayOfMonth
 
-      const [txMonthRes, categoriesRes, txPrevRes] = await Promise.all([
+      const [txMonthRes, categoriesRes] = await Promise.all([
         supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
-        supabase.from('transactions').select('*').eq('household_id', hid).gte('date', prevMonthStart).lte('date', prevMonthEnd),
       ])
+
+      const txPrevRes = plan === 'premium'
+        ? await supabase.from('transactions').select('*').eq('household_id', hid).gte('date', prevMonthStart).lte('date', prevMonthEnd)
+        : { data: null }
 
       const txMonth = txMonthRes.data ?? []
       const txPrev = txPrevRes.data ?? []
@@ -172,11 +180,15 @@ export default function ResumenPage() {
         .from('financial_profiles').select('total_income').eq('household_id', hid).single()
       const totalIncome = Number(fp?.total_income ?? 0)
 
-      // Fetch last 6 complete months of transactions for trends
-      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString().slice(0, 10)
-      const { data: txHistory } = await supabase
-        .from('transactions').select('category_id, amount, date')
-        .eq('household_id', hid).gte('date', sixMonthsAgo)
+      // Fetch last 6 complete months of transactions for trends (premium only)
+      let txHistory: Array<{ category_id: string; amount: number; date: string }> | null = null
+      if (plan === 'premium') {
+        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString().slice(0, 10)
+        const { data } = await supabase
+          .from('transactions').select('category_id, amount, date')
+          .eq('household_id', hid).gte('date', sixMonthsAgo)
+        txHistory = data
+      }
 
       const catBucketMap: Record<string, string> = {}
       cats.forEach(c => { catBucketMap[c.id] = c.bucket })
@@ -568,7 +580,69 @@ export default function ResumenPage() {
       )}
 
       {/* === INSIGHTS === */}
-      {tab === 'insights' && (() => {
+      {tab === 'insights' && userPlan === 'free' && (
+        <div style={{
+          position: 'relative', borderRadius: 20, overflow: 'hidden',
+          minHeight: 320, marginBottom: 20,
+        }}>
+          <div style={{
+            filter: 'blur(8px)', opacity: 0.5, pointerEvents: 'none',
+            padding: '32px 36px', background: '#1E3A5F', borderRadius: 20,
+            color: '#fff', minHeight: 200,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 16 }}>
+              Comparado con el mes anterior
+            </div>
+            <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>Q 0,000.00</div>
+            <div style={{ marginTop: 24, display: 'flex', gap: 40 }}>
+              <div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>Este mes</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>Q 0,000.00</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>Mes anterior</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>Q 0,000.00</div>
+              </div>
+            </div>
+          </div>
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center',
+          }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)',
+              borderRadius: 20, padding: '32px 28px', color: '#fff', maxWidth: 340, width: '100%',
+              boxShadow: '0 8px 32px rgba(37,99,235,0.3)',
+            }}>
+              <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, fontFamily: "'DM Serif Display', Georgia, serif" }}>
+                Insights detallados
+              </p>
+              <p style={{ fontSize: 14, opacity: 0.9, lineHeight: 1.5, marginBottom: 20 }}>
+                Compara tu gasto con el mes anterior, detecta categorías que suben y recibe alertas inteligentes.
+              </p>
+              <button
+                onClick={async () => {
+                  const res = await fetch('/api/stripe/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan: 'monthly' }),
+                  })
+                  const { url } = await res.json()
+                  if (url) window.location.href = url
+                }}
+                style={{
+                  background: '#fff', color: '#1E3A5F',
+                  border: 'none', borderRadius: 10, padding: '12px 24px',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%',
+                }}
+              >
+                Desbloquear con Premium
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {tab === 'insights' && userPlan === 'premium' && (() => {
         const d = monthCtx.dayOfMonth
         const isSameDay = insightsMode === 'same_day'
         const prevAmount = isSameDay ? data.spentPrevSameDay.total : data.spentPrevMonth
@@ -795,7 +869,73 @@ export default function ResumenPage() {
       })()}
 
       {/* === TENDENCIAS === */}
-      {tab === 'tendencias' && (() => {
+      {tab === 'tendencias' && userPlan === 'free' && (
+        <div style={{
+          position: 'relative', borderRadius: 20, overflow: 'hidden',
+          minHeight: 320, marginBottom: 20,
+        }}>
+          <div style={{
+            filter: 'blur(8px)', opacity: 0.5, pointerEvents: 'none',
+            padding: '32px 36px', background: '#1E3A5F', borderRadius: 20,
+            color: '#fff', minHeight: 200,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 4 }}>
+              Promedio mensual
+            </div>
+            <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>Q 0,000.00</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 24 }}>
+              <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: '#9FB3CB' }}>Necesidades</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 28, marginTop: 4 }}>50%</div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: '#9FB3CB' }}>Deseos</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 28, marginTop: 4 }}>30%</div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: '#9FB3CB' }}>Ahorro</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 28, marginTop: 4 }}>20%</div>
+              </div>
+            </div>
+          </div>
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center',
+          }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)',
+              borderRadius: 20, padding: '32px 28px', color: '#fff', maxWidth: 340, width: '100%',
+              boxShadow: '0 8px 32px rgba(37,99,235,0.3)',
+            }}>
+              <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, fontFamily: "'DM Serif Display', Georgia, serif" }}>
+                Tendencias de gasto
+              </p>
+              <p style={{ fontSize: 14, opacity: 0.9, lineHeight: 1.5, marginBottom: 20 }}>
+                Ve tu evolución mensual, distribución 50/30/20, y alertas sobre patrones de gasto en los últimos 6 meses.
+              </p>
+              <button
+                onClick={async () => {
+                  const res = await fetch('/api/stripe/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan: 'monthly' }),
+                  })
+                  const { url } = await res.json()
+                  if (url) window.location.href = url
+                }}
+                style={{
+                  background: '#fff', color: '#1E3A5F',
+                  border: 'none', borderRadius: 10, padding: '12px 24px',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%',
+                }}
+              >
+                Desbloquear con Premium
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {tab === 'tendencias' && userPlan === 'premium' && (() => {
         const history = data.monthlyHistory
         const complete = history.filter(m => !m.isPartial)
 
