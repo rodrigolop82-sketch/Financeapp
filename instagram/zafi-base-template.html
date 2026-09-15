@@ -1,0 +1,205 @@
+<title>zafi Base Template</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Serif+Display&family=Outfit:wght@800&display=swap">
+<style>
+  :root {
+    --navy: #1E3A5F;
+    --navy-deep: #142B47;
+    --electric-blue: #2563EB;
+    --pale-blue: #60A5FA;
+    --white: #FFFFFF;
+    --white-60: rgba(255, 255, 255, 0.6);
+    --white-15: rgba(255, 255, 255, 0.15);
+    --white-06: rgba(255, 255, 255, 0.06);
+    --green: #10B981;
+    --amber: #F59E0B;
+    --red: #EF4444;
+  }
+
+  body {
+    background: #0c1a2e;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding-block: 24px;
+  }
+
+  .canvas-wrapper {
+    width: 100%;
+    max-width: 540px;
+  }
+
+  .canvas {
+    width: 100%;
+    aspect-ratio: 1080 / 1350;
+    background: linear-gradient(175deg, var(--navy) 0%, var(--navy-deep) 100%);
+    position: relative;
+    overflow: hidden;
+    container-type: inline-size;
+    border-radius: 4px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+  }
+
+  .safe-zone {
+    position: absolute;
+    inset: 5.93% 7.41%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .safe-zone-border {
+    position: absolute;
+    inset: 5.93% 7.41%;
+    border: 1px dashed var(--white-06);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+
+  .corner-mark {
+    position: absolute;
+    width: 1.5cqw;
+    height: 1.5cqw;
+    pointer-events: none;
+  }
+
+  .corner-mark::before,
+  .corner-mark::after {
+    content: '';
+    position: absolute;
+    background: var(--white-15);
+  }
+
+  .corner-mark.tl { top: 5.93%; left: 7.41%; }
+  .corner-mark.tr { top: 5.93%; right: 7.41%; }
+  .corner-mark.bl { bottom: 5.93%; left: 7.41%; }
+  .corner-mark.br { bottom: 5.93%; right: 7.41%; }
+
+  .corner-mark.tl::before, .corner-mark.tr::before,
+  .corner-mark.bl::before, .corner-mark.br::before {
+    width: 100%; height: 1px;
+  }
+
+  .corner-mark.tl::after, .corner-mark.tr::after,
+  .corner-mark.bl::after, .corner-mark.br::after {
+    width: 1px; height: 100%;
+  }
+
+  .corner-mark.tl::before, .corner-mark.tl::after { top: 0; left: 0; }
+  .corner-mark.tr::before { top: 0; right: 0; }
+  .corner-mark.tr::after { top: 0; right: 0; }
+  .corner-mark.bl::before { bottom: 0; left: 0; }
+  .corner-mark.bl::after { bottom: 0; left: 0; }
+  .corner-mark.br::before { bottom: 0; right: 0; }
+  .corner-mark.br::after { bottom: 0; right: 0; }
+
+  .content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5cqw;
+  }
+
+  .crosshair {
+    width: 4cqw;
+    height: 4cqw;
+    position: relative;
+    opacity: 0.12;
+  }
+
+  .crosshair::before,
+  .crosshair::after {
+    content: '';
+    position: absolute;
+    background: var(--white);
+  }
+
+  .crosshair::before {
+    width: 1px;
+    height: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .crosshair::after {
+    height: 1px;
+    width: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .guide-label {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 1.2cqw;
+    color: var(--white-15);
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+  }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding-top: 2cqw;
+  }
+
+  .wordmark {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 2.6cqw;
+    color: var(--white-60);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .wordmark-i {
+    color: var(--pale-blue);
+    opacity: 0.85;
+  }
+
+  .handle {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    font-size: 1.5cqw;
+    color: var(--white-60);
+    line-height: 1;
+  }
+
+  .dim-label {
+    position: absolute;
+    bottom: 2.2%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1cqw;
+    color: var(--white-06);
+    letter-spacing: 0.15em;
+    white-space: nowrap;
+  }
+</style>
+
+<div class="canvas-wrapper">
+  <div class="canvas">
+    <div class="corner-mark tl"></div>
+    <div class="corner-mark tr"></div>
+    <div class="corner-mark bl"></div>
+    <div class="corner-mark br"></div>
+    <div class="safe-zone-border"></div>
+
+    <div class="safe-zone">
+      <div class="content-area">
+        <div class="crosshair"></div>
+        <span class="guide-label">Zona de contenido</span>
+      </div>
+
+      <div class="footer">
+        <span class="wordmark">zaf<span class="wordmark-i">i</span></span>
+        <span class="handle">@usezafi</span>
+      </div>
+    </div>
+
+    <span class="dim-label">1080 &times; 1350 px &mdash; Feed 4:5</span>
+  </div>
+</div>
