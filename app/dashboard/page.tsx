@@ -27,6 +27,8 @@ interface EnrichedTransaction {
   amount: number
   date: string
   source: 'manual' | 'voice' | 'ocr' | 'csv'
+  categoryIcon?: string | null
+  categoryColor?: string | null
 }
 
 interface DashboardData {
@@ -123,7 +125,8 @@ export default function DashboardPage() {
     const spentPrevWeek = (txPrevWeekRes.data ?? []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
 
     const categoryMap: Record<string, string> = {}
-    categories.forEach((c) => { categoryMap[c.id] = c.name })
+    const categoryMeta: Record<string, { icon?: string | null; color?: string | null }> = {}
+    categories.forEach((c) => { categoryMap[c.id] = c.name; categoryMeta[c.id] = { icon: c.icon, color: c.color } })
 
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
     const daysLeft = daysInMonth - now.getDate()
@@ -140,6 +143,8 @@ export default function DashboardPage() {
       amount: Number(t.amount),
       date: t.date,
       source: t.source ?? 'manual',
+      categoryIcon: categoryMeta[t.category_id]?.icon,
+      categoryColor: categoryMeta[t.category_id]?.color,
     }))
 
     const spentByCat: Record<string, number> = {}

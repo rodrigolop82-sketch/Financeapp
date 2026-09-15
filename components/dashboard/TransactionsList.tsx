@@ -9,6 +9,8 @@ interface Transaction {
   amount: number
   date: string
   source: 'manual' | 'voice' | 'ocr' | 'csv'
+  categoryIcon?: string | null
+  categoryColor?: string | null
 }
 
 const CATEGORY_ICONS: Record<string, { bg: string; icon: string }> = {
@@ -30,7 +32,20 @@ const CATEGORY_ICONS: Record<string, { bg: string; icon: string }> = {
   'Pago de deudas extra':   { bg: '#FFF7ED', icon: 'card' },
 }
 
-function CategoryIcon({ category }: { category: string }) {
+function CategoryIcon({ category, emoji, emojiColor }: { category: string; emoji?: string | null; emojiColor?: string | null }) {
+  if (emoji) {
+    return (
+      <div style={{
+        width: 36, height: 36, borderRadius: 10,
+        background: emojiColor ? `${emojiColor}18` : '#F1F5F9',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 18, flexShrink: 0,
+      }}>
+        {emoji}
+      </div>
+    )
+  }
+
   const config = CATEGORY_ICONS[category] ?? { bg: '#F1F5F9', icon: 'card' }
   const color = '#475569'
 
@@ -119,7 +134,7 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
               padding: '12px 16px',
               borderBottom: i < recent.length - 1 ? '1px solid #F1F5F9' : 'none'
             }}>
-              <CategoryIcon category={tx.category} />
+              <CategoryIcon category={tx.category} emoji={tx.categoryIcon} emojiColor={tx.categoryColor} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
                   fontSize: 14, fontWeight: 500, color: '#1E3A5F',
