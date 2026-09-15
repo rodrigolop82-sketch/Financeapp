@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { localToday } from '@/lib/dates'
 import { getUserHousehold } from '@/lib/household'
+import { CategoryGrid } from '@/components/categories/CategoryGrid'
 
 function CaptureContent() {
   const [mode, setMode] = useState<'choose' | 'form'>('choose')
@@ -21,7 +22,8 @@ function CaptureContent() {
   const [amount, setAmount] = useState(0)
   const [date, setDate] = useState(localToday())
   const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'tarjeta' | 'cheque' | 'transferencia'>('efectivo')
-  const [categories, setCategories] = useState<{ id: string; name: string; bucket: string }[]>([])
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; bucket: string; icon?: string | null; color?: string | null; is_default: boolean; parent_category_id?: string | null; archived_at?: string | null }>>([])
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
   const [householdId, setHouseholdId] = useState('')
   const [confidence, setConfidence] = useState<number | null>(null)
 
@@ -41,11 +43,22 @@ function CaptureContent() {
       if (!hh) { router.push('/onboarding'); return }
       setHouseholdId(hh.id)
 
-      const { data: cats } = await supabase
-        .from('budget_categories').select('id, name, bucket')
-        .eq('household_id', hh.id).order('bucket')
-      setCategories((cats || []) as { id: string; name: string; bucket: string }[])
-      if (cats && cats.length > 0) setCategoryId(cats[0].id)
+      const [catResult, hiddenResult] = await Promise.all([
+        supabase
+          .from('budget_categories')
+          .select('id, name, bucket, icon, color, is_default, parent_category_id, archived_at')
+          .eq('household_id', hh.id)
+          .is('archived_at', null)
+          .order('bucket'),
+        supabase
+          .from('household_hidden_categories')
+          .select('category_id')
+          .eq('household_id', hh.id),
+      ])
+      const catList = (catResult.data || []) as typeof categories
+      setCategories(catList)
+      setHiddenIds(new Set((hiddenResult.data || []).map(h => h.category_id)))
+      if (catList.length > 0) setCategoryId(catList[0].id)
 
       // Check for URL params (legacy OCR flow)
       const rawAmount = parseFloat(params.get('amount') || '0')
@@ -439,31 +452,17 @@ function CaptureContent() {
           <label style={{
             fontSize: 10, fontWeight: 700, color: '#64748B',
             letterSpacing: '.06em', display: 'block', marginBottom: 6,
-          }}>CATEGORIA</label>
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            style={{
-              width: '100%', padding: '11px 13px', fontSize: 14,
-              border: '1px solid #E2E8F0', borderRadius: 11,
-              background: 'white', color: '#1E3A5F',
-              fontFamily: 'inherit', outline: 'none',
+          }}>CATEGORÍA</label>
+          <CategoryGrid
+            categories={categories}
+            hiddenIds={hiddenIds}
+            selectedId={categoryId}
+            onSelect={setCategoryId}
+            householdId={householdId}
+            onCategoryCreated={(cat) => {
+              setCategories(prev => [...prev, cat as typeof prev[number]])
             }}
-          >
-            <option value="">Sin categoria</option>
-            {['needs', 'wants', 'savings'].map(bucket => {
-              const bucketCats = categories.filter(c => c.bucket === bucket)
-              if (bucketCats.length === 0) return null
-              const label = bucket === 'needs' ? 'Necesidades' : bucket === 'wants' ? 'Gustos' : 'Ahorro/Deudas'
-              return (
-                <optgroup key={bucket} label={label}>
-                  {bucketCats.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </optgroup>
-              )
-            })}
-          </select>
+          />
         </div>
 
         {/* Fecha y metodo de pago */}
