@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,8 @@ import {
   Shield,
   Eye,
   Coins,
+  Tags,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function CuentaPage() {
@@ -163,6 +166,26 @@ function CuentaContent() {
               </button>
             </div>
           </CardContent>
+        </Card>
+
+        {/* Categories */}
+        <Card className="mb-4">
+          <Link href="/cuenta/categorias" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Tags className="w-5 h-5 text-gray-500" />
+                  <CardTitle className="text-base">Categorías</CardTitle>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-500">
+                Crea, edita y organiza tus categorías personalizadas de gastos.
+              </p>
+            </CardContent>
+          </Link>
         </Card>
 
         {/* Currency */}
