@@ -144,6 +144,18 @@ export interface MonthlySnapshot {
   plan_completed: boolean;
 }
 
+export interface BudgetSnapshot {
+  id: string;
+  household_id: string;
+  category_id: string;
+  month: string;
+  amount: number;
+  pace_mode: 'linear' | 'fixed';
+  expected_day: number | null;
+  is_backfilled: boolean;
+  created_at: string;
+}
+
 export interface Subscription {
   id: string;
   user_id: string;
