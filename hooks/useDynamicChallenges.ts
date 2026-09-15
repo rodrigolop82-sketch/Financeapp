@@ -75,7 +75,7 @@ export function useDynamicChallenges() {
       const threeMonthsAgo = months[2].start
 
       const [txAllRes, categoriesRes, profileRes, tx60Res] = await Promise.all([
-        supabase.from('transactions').select('amount,date,category_id').eq('household_id', hid).gte('date', threeMonthsAgo).order('date', { ascending: true }),
+        supabase.from('transactions').select('amount,date,category_id').eq('household_id', hid).eq('type', 'expense').gte('date', threeMonthsAgo).order('date', { ascending: true }),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
         supabase.from('transactions').select('date').eq('household_id', hid).gte('date', localDaysAgo(60)),

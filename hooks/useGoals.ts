@@ -260,6 +260,7 @@ async function computeMonthlyAverages(
     .from('transactions')
     .select('amount, date')
     .eq('household_id', householdId)
+    .eq('type', 'expense')
     .gte('date', startDate)
     .lt('date', endDate)
 

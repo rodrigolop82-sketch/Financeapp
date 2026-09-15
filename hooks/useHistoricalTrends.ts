@@ -68,7 +68,7 @@ export function useHistoricalTrends() {
       const startDate = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`
 
       const [txRes, categoriesRes] = await Promise.all([
-        supabase.from('transactions').select('amount,date,category_id').eq('household_id', hid).gte('date', startDate).order('date', { ascending: true }),
+        supabase.from('transactions').select('amount,date,category_id').eq('household_id', hid).eq('type', 'expense').gte('date', startDate).order('date', { ascending: true }),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
       ])
 

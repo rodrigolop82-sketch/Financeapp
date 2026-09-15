@@ -93,6 +93,7 @@ export default function CategoriaDetallePage() {
         .select('id, amount, description, date, payment_method, source')
         .eq('household_id', hid)
         .eq('category_id', categoryId)
+        .eq('type', 'expense')
         .gte('date', monthStart)
         .lte('date', monthEnd)
         .order('amount', { ascending: false })
@@ -128,6 +129,7 @@ export default function CategoriaDetallePage() {
           .select('amount')
           .eq('household_id', hid)
           .eq('category_id', categoryId)
+          .eq('type', 'expense')
           .gte('date', hm.toISOString().slice(0, 10))
           .lte('date', hmEnd.toISOString().slice(0, 10))
 

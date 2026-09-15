@@ -226,6 +226,7 @@ export default function ImportarPage() {
         description: r.description,
         date: r.date,
         source: 'csv' as const,
+        type: 'expense' as const,
         payment_method: 'tarjeta' as const,
         created_by: user.id,
       }))

@@ -36,6 +36,7 @@ export function useHealthScore(householdId: string | null) {
         .from('transactions')
         .select('amount')
         .eq('household_id', householdId)
+        .eq('type', 'expense')
         .gte('date', monthStart)
         .lt('date', nextMonthStr),
       supabase

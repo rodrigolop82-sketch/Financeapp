@@ -30,6 +30,7 @@ interface EnrichedTransaction {
   amount: number
   date: string
   source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
+  type?: 'expense' | 'income'
   categoryIcon?: string | null
   categoryColor?: string | null
 }
@@ -131,10 +132,10 @@ export default function DashboardPage() {
     const prevWeekStart = localDaysAgo(14)
     const [profileRes, txMonthRes, categoriesRes, prevWeekRes, allDatesRes] = await Promise.all([
       supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
-      supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).lt('date', nextMonthStr).order('date', { ascending: false }),
+      supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', monthStart).lt('date', nextMonthStr).order('date', { ascending: false }),
       supabase.from('budget_categories').select('*').eq('household_id', hid),
       isCurrentMonth
-        ? supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart)
+        ? supabase.from('transactions').select('amount').eq('household_id', hid).eq('type', 'expense').gte('date', prevWeekStart).lt('date', weekStart)
         : Promise.resolve({ data: [] }),
       supabase.from('transactions').select('date').eq('household_id', hid),
     ])
@@ -164,6 +165,7 @@ export default function DashboardPage() {
       amount: Number(t.amount),
       date: t.date,
       source: t.source ?? 'manual',
+      type: t.type ?? 'expense',
       categoryIcon: categoryMeta[t.category_id]?.icon,
       categoryColor: categoryMeta[t.category_id]?.color,
     }))
@@ -307,6 +309,7 @@ export default function DashboardPage() {
       category_id: t.category_id ?? null,
       date: t.date || localToday(),
       source: 'voice' as const,
+      type: 'expense' as const,
       payment_method: 'efectivo' as const,
       voice_raw_text: voiceResult?.raw_text ?? null,
       created_by: data.userId,

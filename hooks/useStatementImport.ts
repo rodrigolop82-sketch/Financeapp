@@ -270,6 +270,7 @@ export function useStatementImport(householdId: string) {
       category_id: t.category_id || null,
       date: t.date || localToday(),
       source: 'csv' as const,
+      type: 'expense' as const,
       payment_method: 'tarjeta' as const,
       created_by: user.id,
     }))

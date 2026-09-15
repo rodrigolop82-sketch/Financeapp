@@ -95,6 +95,7 @@ export default function PresupuestoPage() {
         .from('transactions')
         .select('category_id, amount')
         .eq('household_id', householdId)
+        .eq('type', 'expense')
         .gte('date', from)
         .lte('date', to);
       const spent: Record<string, number> = {};
@@ -353,6 +354,7 @@ export default function PresupuestoPage() {
         description: tx.description,
         date: tx.date,
         source: 'voice',
+        type: 'expense' as const,
         voice_raw_text: voiceResult?.raw_text ?? null,
         created_by: userId,
       }))

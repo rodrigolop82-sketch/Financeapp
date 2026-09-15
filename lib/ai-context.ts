@@ -59,6 +59,7 @@ export async function buildZafiSystemPrompt(
         .from('transactions')
         .select('amount, category_id')
         .eq('household_id', householdId)
+        .eq('type', 'expense')
         .gte('date', monthStart)
     : { data: [] }
 

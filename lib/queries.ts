@@ -76,6 +76,7 @@ export async function getUserDashboardData(supabase: SupabaseClient) {
       .from('transactions')
       .select('*, budget_categories(name, bucket)')
       .eq('household_id', household.id)
+      .eq('type', 'expense')
       .gte('date', localMonthStart())
       .order('date', { ascending: false }),
   ]);

@@ -58,12 +58,12 @@ export function useMonthExecution() {
       const prevMonthStart = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-01`
 
       const [txMonthRes, categoriesRes, profileRes, tx90Res, txPrevWeekRes, txPrevMonthRes] = await Promise.all([
-        supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart).order('date', { ascending: false }),
+        supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', monthStart).order('date', { ascending: false }),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
         supabase.from('financial_profiles').select('total_income').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
         supabase.from('transactions').select('date').eq('household_id', hid).gte('date', localDaysAgo(90)),
-        supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevWeekStart).lt('date', weekStart),
-        supabase.from('transactions').select('amount').eq('household_id', hid).gte('date', prevMonthStart).lt('date', monthStart),
+        supabase.from('transactions').select('amount').eq('household_id', hid).eq('type', 'expense').gte('date', prevWeekStart).lt('date', weekStart),
+        supabase.from('transactions').select('amount').eq('household_id', hid).eq('type', 'expense').gte('date', prevMonthStart).lt('date', monthStart),
       ])
 
       const txMonth = (txMonthRes.data ?? []) as Transaction[]

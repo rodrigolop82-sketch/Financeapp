@@ -9,6 +9,7 @@ interface Transaction {
   amount: number
   date: string
   source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
+  type?: 'expense' | 'income'
   original_amount?: number | null
   original_currency?: string | null
   categoryIcon?: string | null
@@ -149,8 +150,8 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
                 </div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#1E3A5F' }}>
-                  {money(tx.amount)}
+                <div style={{ fontSize: 14, fontWeight: 500, color: tx.type === 'income' ? '#16A34A' : '#1E3A5F' }}>
+                  {tx.type === 'income' ? '+' : ''}{money(tx.amount)}
                 </div>
                 {tx.original_currency && (
                   <div style={{ fontSize: 11, color: '#94A3B8' }}>
@@ -158,7 +159,15 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
                     {Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 )}
-                {tx.source === 'voice' && (
+                {tx.type === 'income' && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 500, padding: '1px 5px',
+                    borderRadius: 4, background: '#DCFCE7', color: '#166534'
+                  }}>
+                    ingreso
+                  </span>
+                )}
+                {tx.source === 'voice' && tx.type !== 'income' && (
                   <span style={{
                     fontSize: 10, fontWeight: 500, padding: '1px 5px',
                     borderRadius: 4, background: '#DBEAFE', color: '#1E40AF'

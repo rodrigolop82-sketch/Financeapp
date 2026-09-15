@@ -76,7 +76,8 @@ export default function FamiliaPage() {
           supabase
             .from('transactions')
             .select('created_by, amount')
-            .eq('household_id', hhId),
+            .eq('household_id', hhId)
+            .eq('type', 'expense'),
         ]);
 
         if (membersRes.ok) {

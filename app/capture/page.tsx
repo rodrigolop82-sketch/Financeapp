@@ -136,6 +136,7 @@ function CaptureContent() {
       description: description || null,
       date,
       source: 'ocr',
+      type: 'expense',
       payment_method: paymentMethod,
       created_by: user?.id ?? null,
     })

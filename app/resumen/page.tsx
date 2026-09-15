@@ -113,12 +113,12 @@ export default function ResumenPage() {
       const daysLeft = daysInMonth - dayOfMonth
 
       const [txMonthRes, categoriesRes] = await Promise.all([
-        supabase.from('transactions').select('*').eq('household_id', hid).gte('date', monthStart),
+        supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', monthStart),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
       ])
 
       const txPrevRes = plan === 'premium'
-        ? await supabase.from('transactions').select('*').eq('household_id', hid).gte('date', prevMonthStart).lte('date', prevMonthEnd)
+        ? await supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', prevMonthStart).lte('date', prevMonthEnd)
         : { data: null }
 
       const txMonth = txMonthRes.data ?? []
@@ -186,7 +186,7 @@ export default function ResumenPage() {
         const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString().slice(0, 10)
         const { data } = await supabase
           .from('transactions').select('category_id, amount, date')
-          .eq('household_id', hid).gte('date', sixMonthsAgo)
+          .eq('household_id', hid).eq('type', 'expense').gte('date', sixMonthsAgo)
         txHistory = data
       }
 

@@ -43,6 +43,7 @@ function TransaccionesPageInner() {
     description: '',
     date: localToday(),
     payment_method: 'efectivo' as 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia',
+    type: 'expense' as 'expense' | 'income',
   });
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -141,6 +142,7 @@ function TransaccionesPageInner() {
         description: newTx.description,
         date: newTx.date,
         source: 'manual',
+        type: newTx.type,
         payment_method: newTx.payment_method,
         created_by: userId || null,
       })
@@ -160,7 +162,7 @@ function TransaccionesPageInner() {
         bucket: (data.budget_categories as { bucket: string } | null)?.bucket || '',
       } as Transaction & { category_name?: string; bucket?: string };
       setTransactions([mapped, ...transactions]);
-      setNewTx({ ...newTx, amount: 0, description: '', payment_method: 'efectivo' });
+      setNewTx({ ...newTx, amount: 0, description: '', payment_method: 'efectivo', type: 'expense' });
       setShowForm(false);
     }
     setSaving(false);
@@ -178,6 +180,7 @@ function TransaccionesPageInner() {
           description: tx.description,
           date: tx.date,
           source: 'voice',
+          type: 'expense' as const,
           payment_method: 'efectivo' as const,
           voice_raw_text: voiceResult?.raw_text ?? null,
           created_by: userId || null,
@@ -271,7 +274,7 @@ function TransaccionesPageInner() {
     .filter(t => {
       const d = new Date(t.date);
       const now = new Date();
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && t.type !== 'income';
     })
     .reduce((s, t) => s + Number(t.amount), 0);
 
@@ -372,9 +375,35 @@ function TransaccionesPageInner() {
         {showForm && (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="text-base">Registrar gasto</CardTitle>
+              <CardTitle className="text-base">Registrar movimiento</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex rounded-lg overflow-hidden border" style={{ height: 40 }}>
+                <button
+                  type="button"
+                  onClick={() => setNewTx({ ...newTx, type: 'expense' })}
+                  className="flex-1 text-sm font-semibold transition-colors"
+                  style={{
+                    background: newTx.type === 'expense' ? '#1E3A5F' : 'white',
+                    color: newTx.type === 'expense' ? 'white' : '#64748B',
+                    border: 'none', cursor: 'pointer',
+                  }}
+                >
+                  Gasto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewTx({ ...newTx, type: 'income' })}
+                  className="flex-1 text-sm font-semibold transition-colors"
+                  style={{
+                    background: newTx.type === 'income' ? '#16A34A' : 'white',
+                    color: newTx.type === 'income' ? 'white' : '#64748B',
+                    border: 'none', cursor: 'pointer',
+                  }}
+                >
+                  Ingreso
+                </button>
+              </div>
               <div>
                 <Label>Categoria</Label>
                 <select
@@ -446,7 +475,7 @@ function TransaccionesPageInner() {
               <div className="flex gap-3">
                 <Button onClick={addTransaction} disabled={saving || newTx.amount <= 0}>
                   {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ArrowUpCircle className="w-4 h-4 mr-2" />}
-                  Registrar gasto
+                  {newTx.type === 'income' ? 'Registrar ingreso' : 'Registrar gasto'}
                 </Button>
                 <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
               </div>
@@ -581,11 +610,18 @@ function TransaccionesPageInner() {
                                 Importado
                               </span>
                             )}
+                            {tx.type === 'income' && (
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#DCFCE7', color: '#166534' }}>
+                                Ingreso
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="text-right flex items-center gap-2">
                           <div>
-                            <span className="font-medium text-sm">{fmt(Number(tx.amount))}</span>
+                            <span className="font-medium text-sm" style={{ color: tx.type === 'income' ? '#16A34A' : undefined }}>
+                              {tx.type === 'income' ? '+' : ''}{fmt(Number(tx.amount))}
+                            </span>
                             {tx.original_currency && (
                               <div className="text-[11px] text-muted-foreground">
                                 {tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : tx.original_currency} {Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

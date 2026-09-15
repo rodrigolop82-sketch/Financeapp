@@ -13,6 +13,7 @@ interface UseExpenseFormProps {
   householdId: string
   categories: BudgetCategory[]
   onSuccess: () => void
+  transactionType?: 'expense' | 'income'
 }
 
 export interface UseExpenseFormReturn {
@@ -34,6 +35,7 @@ export function useExpenseForm({
   householdId,
   categories,
   onSuccess,
+  transactionType = 'expense',
 }: UseExpenseFormProps): UseExpenseFormReturn {
   const [amount, setAmount] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<BudgetCategory | null>(null)
@@ -54,6 +56,7 @@ export function useExpenseForm({
       .from('transactions')
       .select('category_id, amount')
       .eq('household_id', householdId)
+      .eq('type', 'expense')
       .gte('date', localMonthStart())
 
     if (!txData) return
@@ -103,6 +106,7 @@ export function useExpenseForm({
       category_id: selectedCategory?.id ?? null,
       date: localToday(),
       source: 'manual' as const,
+      type: transactionType,
       created_by: user?.id ?? null,
     })
     setIsSubmitting(false)

@@ -59,6 +59,7 @@ export function useInsights() {
           .from('transactions')
           .select('amount,date,category_id')
           .eq('household_id', hid)
+          .eq('type', 'expense')
           .gte('date', startStr)
           .order('date', { ascending: true }),
         supabase

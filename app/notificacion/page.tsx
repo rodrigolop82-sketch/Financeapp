@@ -114,6 +114,7 @@ function NotificacionContent() {
       description,
       date: localToday(),
       source: 'ocr' as const,
+      type: 'expense',
       original_amount: parsed?.original_amount ?? null,
       original_currency: parsed?.original_currency ?? null,
       created_by: userId,

@@ -95,6 +95,7 @@ export interface Transaction {
   date: string;
   source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement';
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
+  type: 'expense' | 'income';
   voice_raw_text: string | null;
   original_amount: number | null;
   original_currency: string | null;
