@@ -6,6 +6,7 @@ import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { localToday } from '@/lib/dates'
+import { CategoryGrid } from '@/components/categories/CategoryGrid'
 
 interface CaptureData {
   amount: number
@@ -25,7 +26,8 @@ function CaptureContent() {
   const [categoryId, setCategoryId] = useState('')
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState(0)
-  const [categories, setCategories] = useState<{ id: string; name: string; bucket: string }[]>([])
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; bucket: string; icon?: string | null; color?: string | null; is_default: boolean; parent_category_id?: string | null; archived_at?: string | null }>>([])
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
   const [householdId, setHouseholdId] = useState('')
 
   const router = useRouter()
@@ -62,11 +64,22 @@ function CaptureContent() {
       if (!hh) { router.push('/dashboard'); return }
       setHouseholdId(hh.id)
 
-      const { data: cats } = await supabase
-        .from('budget_categories').select('id, name, bucket').eq('household_id', hh.id).order('bucket')
+      const [catResult, hiddenResult] = await Promise.all([
+        supabase
+          .from('budget_categories')
+          .select('id, name, bucket, icon, color, is_default, parent_category_id, archived_at')
+          .eq('household_id', hh.id)
+          .is('archived_at', null)
+          .order('bucket'),
+        supabase
+          .from('household_hidden_categories')
+          .select('category_id')
+          .eq('household_id', hh.id),
+      ])
 
-      const catList = (cats || []) as { id: string; name: string; bucket: string }[]
+      const catList = (catResult.data || []) as typeof categories
       setCategories(catList)
+      setHiddenIds(new Set((hiddenResult.data || []).map(h => h.category_id)))
 
       // Try to auto-match category
       if (category) {
@@ -252,30 +265,16 @@ function CaptureContent() {
           }}>
             CATEGORÍA
           </label>
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            style={{
-              width: '100%', padding: '11px 13px', fontSize: 14,
-              border: '1px solid #E2E8F0', borderRadius: 11,
-              background: 'white', color: '#1E3A5F',
-              fontFamily: 'inherit', outline: 'none',
+          <CategoryGrid
+            categories={categories}
+            hiddenIds={hiddenIds}
+            selectedId={categoryId}
+            onSelect={setCategoryId}
+            householdId={householdId}
+            onCategoryCreated={(cat) => {
+              setCategories(prev => [...prev, cat as typeof prev[number]])
             }}
-          >
-            <option value="">Sin categoría</option>
-            {['needs', 'wants', 'savings'].map(bucket => {
-              const bucketCats = categories.filter(c => c.bucket === bucket)
-              if (bucketCats.length === 0) return null
-              const label = bucket === 'needs' ? 'Necesidades' : bucket === 'wants' ? 'Gustos' : 'Ahorro/Deudas'
-              return (
-                <optgroup key={bucket} label={label}>
-                  {bucketCats.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </optgroup>
-              )
-            })}
-          </select>
+          />
         </div>
 
         {/* Descripción */}
