@@ -14,6 +14,11 @@ import {
   type CategoryPace,
   type MonthSummary,
 } from '@/lib/resumen/pace'
+import {
+  computeClosedMonth,
+  type ClosedMonthResult,
+  type ClosedCategoryInput,
+} from '@/lib/resumen/closed-month'
 import { useSelectedMonth } from '@/hooks/useSelectedMonth'
 import { MonthNavigator } from '@/components/resumen/MonthNavigator'
 import { MonthPickerSheet } from '@/components/resumen/MonthPickerSheet'
@@ -70,11 +75,19 @@ interface ResumenData {
   prevMonthLabel: string
   totalIncome: number
   monthlyHistory: MonthlyBucketTotals[]
+  closedResult: ClosedMonthResult | null
+  isBackfilled: boolean
 }
 
 const STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string; label: string }> = {
   sobregiro: { dot: '#EF4444', pill: '#991B1B', pillBg: '#FEE2E2', label: 'Sobregiro' },
   riesgo:    { dot: '#F59E0B', pill: '#92400E', pillBg: '#FEF3C7', label: 'En riesgo' },
+  en_linea:  { dot: '#22C55E', pill: '#065F46', pillBg: '#D1FAE5', label: 'En línea' },
+  sin_gasto: { dot: '#94A3B8', pill: '#64748B', pillBg: '#F1F5F9', label: 'Sin gasto' },
+}
+
+const CLOSED_STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string; label: string }> = {
+  sobregiro: { dot: '#EF4444', pill: '#991B1B', pillBg: '#FEE2E2', label: 'Sobregiro' },
   en_linea:  { dot: '#22C55E', pill: '#065F46', pillBg: '#D1FAE5', label: 'En línea' },
   sin_gasto: { dot: '#94A3B8', pill: '#64748B', pillBg: '#F1F5F9', label: 'Sin gasto' },
 }
@@ -279,17 +292,78 @@ function ResumenContent() {
       const monthDate = isCurrentMonth ? now : new Date(selY, selM - 1, dayOfMonth)
       const monthCtx: MonthContext = { today: monthDate, daysInMonth, dayOfMonth }
 
-      const paceInputs: CategoryBudgetInput[] = cats.map(c => ({
-        categoryId: c.id,
-        name: c.name,
-        budget: Number(c.budgeted_amount),
-        spent: spentByCatId[c.id] ?? 0,
-        paceMode: c.pace_mode || 'linear',
-        expectedDay: c.expected_day,
-      }))
+      let paceItems: CategoryPace[]
+      let monthSummary: MonthSummary
+      let closedResult: ClosedMonthResult | null = null
+      let isBackfilledFlag = false
 
-      const paceItems = paceInputs.map(input => computeCategoryPace(input, monthCtx))
-      const monthSummary = summarizeMonth(paceItems, monthCtx)
+      if (!isCurrentMonth) {
+        // Closed month: fetch budget snapshots
+        const { data: snapshots } = await supabase
+          .from('budget_snapshots')
+          .select('*')
+          .eq('household_id', hid)
+          .eq('month', monthStart)
+
+        const snapMap = new Map<string, { amount: number; pace_mode: string; expected_day: number | null; is_backfilled: boolean }>()
+        for (const s of snapshots ?? []) {
+          snapMap.set(s.category_id, {
+            amount: Number(s.amount),
+            pace_mode: s.pace_mode,
+            expected_day: s.expected_day,
+            is_backfilled: s.is_backfilled,
+          })
+        }
+        isBackfilledFlag = Array.from(snapMap.values()).some(s => s.is_backfilled)
+
+        const closedCatInputs: ClosedCategoryInput[] = cats.map(c => {
+          const snap = snapMap.get(c.id)
+          return {
+            categoryId: c.id,
+            name: c.name,
+            budget: snap ? snap.amount : Number(c.budgeted_amount),
+            spent: spentByCatId[c.id] ?? 0,
+          }
+        })
+
+        // Fetch up to 3 previous closed months for average
+        const prevKeys: string[] = []
+        for (let i = 1; i <= 3; i++) {
+          const pd = new Date(selY, selM - 1 - i, 1)
+          const pk = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}`
+          if (pk < currentMonthKey) prevKeys.push(pk)
+        }
+        const prevMonthsSpent = prevKeys.map(pk => monthlyBuckets[pk]?.total ?? 0)
+
+        closedResult = computeClosedMonth({ categories: closedCatInputs, prevMonthsSpent })
+
+        // Still compute pace items for compatibility with other tabs
+        const paceInputs: CategoryBudgetInput[] = cats.map(c => {
+          const snap = snapMap.get(c.id)
+          return {
+            categoryId: c.id,
+            name: c.name,
+            budget: snap ? snap.amount : Number(c.budgeted_amount),
+            spent: spentByCatId[c.id] ?? 0,
+            paceMode: (snap?.pace_mode ?? c.pace_mode ?? 'linear') as 'linear' | 'fixed',
+            expectedDay: snap?.expected_day ?? c.expected_day,
+          }
+        })
+        paceItems = paceInputs.map(input => computeCategoryPace(input, monthCtx))
+        monthSummary = summarizeMonth(paceItems, monthCtx)
+      } else {
+        const paceInputs: CategoryBudgetInput[] = cats.map(c => ({
+          categoryId: c.id,
+          name: c.name,
+          budget: Number(c.budgeted_amount),
+          spent: spentByCatId[c.id] ?? 0,
+          paceMode: c.pace_mode || 'linear',
+          expectedDay: c.expected_day,
+        }))
+
+        paceItems = paceInputs.map(input => computeCategoryPace(input, monthCtx))
+        monthSummary = summarizeMonth(paceItems, monthCtx)
+      }
 
       const fullName = (userProfile?.full_name || 'Usuario') as string
       const firstName = fullName.split(' ')[0]
@@ -337,6 +411,8 @@ function ResumenContent() {
         })),
         totalIncome,
         monthlyHistory,
+        closedResult,
+        isBackfilled: isBackfilledFlag,
       })
       setLoading(false)
     }
@@ -429,8 +505,250 @@ function ResumenContent() {
         <button style={tabStyle('tendencias')} onClick={() => setTab('tendencias')}>Tendencias</button>
       </div>
 
-      {/* === ESTE MES === */}
-      {tab === 'mes' && (
+      {/* === MES === */}
+      {tab === 'mes' && selectedMonth.isClosed && data.closedResult && (() => {
+        const cr = data.closedResult
+        const closedBarPct = cr.totalBudget > 0 ? Math.min(1, cr.totalSpent / cr.totalBudget) : (cr.totalSpent > 0 ? 1 : 0)
+        const closedBarColor = cr.totalSpent > cr.totalBudget ? '#EF4444' : '#2563EB'
+
+        const closedWithSpend = cr.categories.filter(c => c.status !== 'sin_gasto')
+          .sort((a, b) => {
+            if (a.status === 'sobregiro' && b.status !== 'sobregiro') return -1
+            if (a.status !== 'sobregiro' && b.status === 'sobregiro') return 1
+            if (a.status === 'sobregiro' && b.status === 'sobregiro') return a.diff - b.diff
+            return b.spent - a.spent
+          })
+        const closedNoSpend = cr.noSpendCategories
+        const closedNoSpendBudget = closedNoSpend.reduce((s, c) => s + c.budget, 0)
+
+        return (
+        <>
+          {/* Backfill warning */}
+          {data.isBackfilled && (
+            <div style={{
+              background: '#FEF3C7', borderRadius: 12, padding: '12px 16px',
+              marginBottom: 16, fontSize: 13, color: '#92400E', lineHeight: 1.5,
+            }}>
+              Los montos presupuestados de este mes se calcularon con base en tu presupuesto actual. Si cambiaste montos después, podrían no coincidir con lo que tenías en ese momento.
+            </div>
+          )}
+
+          {/* Hero */}
+          <div style={{
+            background: '#1E3A5F', borderRadius: 20,
+            padding: '32px 36px', color: '#fff', marginBottom: 20,
+          }}>
+            <div style={{
+              fontFamily: "'DM Serif Display', Georgia, serif",
+              fontSize: 22, lineHeight: 1.3, marginBottom: 4,
+            }}>
+              {cr.tone === 'bad' ? (
+                <>
+                  Cerraste con <span style={{ color: '#EF4444', fontFamily: "'Outfit', sans-serif", fontWeight: 800 }}>{formatMoney(cr.overrun)}</span> de sobregiro
+                </>
+              ) : (
+                cr.headline
+              )}
+            </div>
+            <div style={{ fontSize: 14, color: '#9FB3CB', marginBottom: 20 }}>
+              {cr.sub}
+            </div>
+
+            {/* Final bar (no expected marker) */}
+            <div style={{ position: 'relative', height: 14, background: 'rgba(255,255,255,0.12)', borderRadius: 7, marginBottom: 12 }}>
+              <div style={{
+                width: `${closedBarPct * 100}%`, height: '100%', borderRadius: 7,
+                background: closedBarColor, transition: 'width 0.3s',
+              }} />
+            </div>
+            <div style={{ fontSize: 13, color: '#9FB3CB' }}>
+              {formatMoney(cr.totalSpent)} gastados de {formatMoney(cr.totalBudget)}
+            </div>
+
+            {/* KPIs */}
+            <div style={{ display: 'flex', gap: 40, marginTop: 20 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Gastado</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4 }}>{formatMoney(cr.totalSpent)}</div>
+              </div>
+              {cr.overrun > 0 ? (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#FCA5A5', textTransform: 'uppercase' }}>Sobregiro</div>
+                  <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4, color: '#FCA5A5' }}>
+                    {formatMoney(cr.overrun)}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#4ADE80', textTransform: 'uppercase' }}>Sobrante</div>
+                  <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4, color: '#4ADE80' }}>
+                    {formatMoney(cr.available)}
+                  </div>
+                </div>
+              )}
+              {cr.avgPrevMonths !== null && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>vs promedio</div>
+                  <div style={{
+                    fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4,
+                    color: (cr.diffVsAvg ?? 0) <= 0 ? '#4ADE80' : '#FCA5A5',
+                  }}>
+                    {(cr.diffVsAvg ?? 0) <= 0 ? '' : '+'}{cr.diffVsAvgPct}%
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sobregiro summary cards */}
+          {cr.overCategories.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16 }}>
+                Se excedieron
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {cr.overCategories.map(cat => (
+                  <div key={cat.categoryId} style={{
+                    background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 12,
+                    padding: '14px 18px', fontSize: 14, color: '#991B1B',
+                  }}>
+                    <strong>{cat.name}</strong> cerró {formatMoney(Math.abs(cat.diff))} arriba del presupuesto de {formatMoney(cat.budget)}.
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* En línea summary */}
+          {cr.okCategories.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16 }}>
+                Dentro del presupuesto
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {cr.okCategories.slice(0, 3).map(cat => (
+                  <div key={cat.categoryId} style={{
+                    background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 12,
+                    padding: '14px 18px', fontSize: 14, color: '#065F46',
+                  }}>
+                    <strong>{cat.name}</strong> cerró en {formatMoney(cat.spent)} de {formatMoney(cat.budget)} ({Math.round(cat.pctOfBudget * 100)}%).
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Categories list */}
+          <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px' }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 4,
+            }}>
+              Resultado por categoría
+            </div>
+            <div style={{ fontSize: 13, color: '#8B9AAE', marginBottom: 20 }}>
+              Toca una categoría para ver sus transacciones
+            </div>
+
+            {closedWithSpend.map(cat => {
+              const sc = CLOSED_STATUS_COLORS[cat.status] ?? CLOSED_STATUS_COLORS.en_linea
+              const barPct = cat.budget > 0 ? Math.min(1, cat.spent / cat.budget) : (cat.spent > 0 ? 1 : 0)
+
+              return (
+                <div
+                  key={cat.categoryId}
+                  onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${selectedMonth.month}`)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 6,
+                    padding: '16px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: sc.dot, flexShrink: 0 }} />
+                    <span style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F', flex: 1 }}>{cat.name}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                      background: sc.pillBg, color: sc.pill,
+                    }}>
+                      {sc.label}
+                    </span>
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: '#1E3A5F', minWidth: 80, textAlign: 'right' }}>
+                      {formatMoney(cat.spent)}
+                    </span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                  </div>
+
+                  {/* Bar (no expected marker for closed months) */}
+                  <div style={{ marginLeft: 18, position: 'relative', height: 8, background: '#F3F5F9', borderRadius: 4 }}>
+                    <div style={{
+                      width: `${barPct * 100}%`, height: '100%', borderRadius: 4,
+                      background: cat.status === 'sobregiro' ? '#EF4444' : '#2563EB',
+                    }} />
+                  </div>
+
+                  {/* Bottom line */}
+                  <div style={{ marginLeft: 18, display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8B9AAE' }}>
+                    <span>de {formatMoney(cat.budget)} · {Math.round(cat.pctOfBudget * 100)}%</span>
+                    {cat.status === 'sobregiro' ? (
+                      <span style={{ color: '#EF4444', fontWeight: 600 }}>+{formatMoney(Math.abs(cat.diff))}</span>
+                    ) : (
+                      <span>sobraron {formatMoney(cat.diff)}</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Collapsible no-spend categories */}
+            {closedNoSpend.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowNoSpend(!showNoSpend)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '14px 0', borderTop: '1px solid #EEF1F6',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 13, color: '#64748B', fontWeight: 600,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <ChevronDown style={{
+                    width: 16, height: 16,
+                    transform: showNoSpend ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s',
+                  }} />
+                  {closedNoSpend.length} categorías sin movimiento ({formatMoney(closedNoSpendBudget)} presupuestados)
+                </button>
+                {showNoSpend && closedNoSpend.map(cat => (
+                  <div
+                    key={cat.categoryId}
+                    onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${selectedMonth.month}`)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '12px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94A3B8', flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, color: '#64748B', flex: 1 }}>{cat.name}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                      background: '#F1F5F9', color: '#64748B',
+                    }}>
+                      Sin gasto
+                    </span>
+                    <span style={{ fontSize: 13, color: '#94A3B8' }}>{formatMoney(cat.budget)}</span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </>
+        )
+      })()}
+
+      {/* === ESTE MES (current) === */}
+      {tab === 'mes' && !selectedMonth.isClosed && (
         <>
           {/* 3.1 Estado del mes (hero) */}
           <div style={{
