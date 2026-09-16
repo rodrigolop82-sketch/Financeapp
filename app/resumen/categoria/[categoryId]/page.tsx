@@ -52,6 +52,7 @@ export default function CategoriaDetallePage() {
   const [expandedMerchants, setExpandedMerchants] = useState<Set<string>>(new Set())
   const [history, setHistory] = useState<HistMonth[]>([])
   const [budget, setBudget] = useState(0)
+  const [isClosed, setIsClosed] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -69,7 +70,6 @@ export default function CategoriaDetallePage() {
       if (!cat) { router.push('/resumen'); return }
 
       setCategoryName(cat.name)
-      setBudget(Number(cat.budgeted_amount))
 
       const now = new Date()
       let year = now.getFullYear()
@@ -85,6 +85,25 @@ export default function CategoriaDetallePage() {
       const isCurrentMonth = year === now.getFullYear() && month === now.getMonth()
       const dayOfMonth = isCurrentMonth ? now.getDate() : daysInMonth
 
+      // For closed months, try to get the budget from snapshots
+      let effectiveBudget = Number(cat.budgeted_amount)
+      let snapshotBackfilled = false
+      if (!isCurrentMonth) {
+        const { data: snap } = await supabase
+          .from('budget_snapshots')
+          .select('amount, is_backfilled')
+          .eq('household_id', hid)
+          .eq('category_id', categoryId)
+          .eq('month', monthStart)
+          .single()
+        if (snap) {
+          effectiveBudget = Number(snap.amount)
+          snapshotBackfilled = snap.is_backfilled
+        }
+      }
+      setBudget(effectiveBudget)
+
+      setIsClosed(!isCurrentMonth)
       const mCtx: MonthContext = { today: now, daysInMonth, dayOfMonth }
       setMonthCtx(mCtx)
 
@@ -112,7 +131,7 @@ export default function CategoriaDetallePage() {
       const paceResult = computeCategoryPace({
         categoryId,
         name: cat.name,
-        budget: Number(cat.budgeted_amount),
+        budget: effectiveBudget,
         spent,
         paceMode: cat.pace_mode || 'linear',
         expectedDay: cat.expected_day,
@@ -160,7 +179,7 @@ export default function CategoriaDetallePage() {
 
   const barPct = pace.budget > 0 ? Math.min(1, pace.spent / pace.budget) : (pace.spent > 0 ? 1 : 0)
   const expectedPct = pace.budget > 0 ? Math.min(1, pace.expected / pace.budget) : 0
-  const barColor = pace.status === 'sobregiro' ? '#EF4444' : pace.status === 'riesgo' ? '#F59E0B' : '#2563EB'
+  const barColor = pace.status === 'sobregiro' ? '#EF4444' : (!isClosed && pace.status === 'riesgo') ? '#F59E0B' : '#2563EB'
 
   // Overrun explanation
   let overrunExplanation: string | null = null
@@ -258,7 +277,7 @@ export default function CategoriaDetallePage() {
           padding: '28px 32px', color: '#fff', marginBottom: 20,
         }}>
           <div style={{ fontSize: 13, color: '#9FB3CB', marginBottom: 4 }}>
-            {monthLabel} · día {monthCtx.dayOfMonth} de {monthCtx.daysInMonth}
+            {isClosed ? `${monthLabel} · Mes cerrado` : `${monthLabel} · día ${monthCtx.dayOfMonth} de ${monthCtx.daysInMonth}`}
           </div>
           <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 40, marginBottom: 4 }}>
             {formatMoney(pace.spent)}
@@ -272,7 +291,7 @@ export default function CategoriaDetallePage() {
             <div style={{
               width: `${barPct * 100}%`, height: '100%', borderRadius: 5, background: barColor,
             }} />
-            {pace.budget > 0 && (
+            {!isClosed && pace.budget > 0 && (
               <div style={{
                 position: 'absolute', top: -3, left: `${expectedPct * 100}%`,
                 width: 2, height: 16, background: '#fff', borderRadius: 1, opacity: 0.7,
@@ -280,28 +299,39 @@ export default function CategoriaDetallePage() {
             )}
           </div>
 
-          {/* Three KPIs */}
+          {/* KPIs */}
           <div style={{ display: 'flex', gap: 32 }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: pace.overrun > 0 ? '#FCA5A5' : '#9FB3CB', textTransform: 'uppercase' }}>
-                {pace.overrun > 0 ? 'Sobregiro' : 'Restante'}
+                {pace.overrun > 0 ? 'Sobregiro' : 'Sobrante'}
               </div>
               <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 4, color: pace.overrun > 0 ? '#FCA5A5' : '#4ADE80' }}>
                 {formatMoney(pace.overrun > 0 ? pace.overrun : pace.remaining)}
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Ritmo esperado</div>
-              <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 4 }}>
-                {formatMoney(pace.expected)}
+            {isClosed ? (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Uso</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 4 }}>
+                  {pace.budget > 0 ? `${Math.round(pace.pctOfBudget * 100)}%` : '—'}
+                </div>
               </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Proyección</div>
-              <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 4 }}>
-                {formatMoney(pace.projection)}
-              </div>
-            </div>
+            ) : (
+              <>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Ritmo esperado</div>
+                  <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 4 }}>
+                    {formatMoney(pace.expected)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Proyección</div>
+                  <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 4 }}>
+                    {formatMoney(pace.projection)}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -459,6 +489,75 @@ export default function CategoriaDetallePage() {
           )}
         </div>
 
+        {/* 4.4 Comparado con tu promedio (closed months) */}
+        {isClosed && histAvg > 0 && (() => {
+          const diffVsAvg = pace.spent - histAvg
+          const diffPct = histAvg > 0 ? Math.round(Math.abs(diffVsAvg) / histAvg * 100) : 0
+          const maxBar = Math.max(pace.spent, histAvg, budget)
+          const spentBarW = maxBar > 0 ? (pace.spent / maxBar) * 100 : 0
+          const avgBarW = maxBar > 0 ? (histAvg / maxBar) * 100 : 0
+          const budgetBarW = maxBar > 0 ? (budget / maxBar) * 100 : 0
+
+          return (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
+              <div style={{
+                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
+              }}>
+                Comparado con tu promedio
+              </div>
+
+              {/* Mini bar chart */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1E3A5F', marginBottom: 4 }}>
+                    <span style={{ fontWeight: 600 }}>Este mes</span>
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(pace.spent)}</span>
+                  </div>
+                  <div style={{ height: 12, background: '#F3F5F9', borderRadius: 6 }}>
+                    <div style={{
+                      width: `${spentBarW}%`, height: '100%', borderRadius: 6,
+                      background: pace.spent > budget ? '#EF4444' : '#2563EB',
+                    }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1E3A5F', marginBottom: 4 }}>
+                    <span style={{ fontWeight: 600 }}>Promedio ({history.filter(h => h.total > 0).length} meses)</span>
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(histAvg)}</span>
+                  </div>
+                  <div style={{ height: 12, background: '#F3F5F9', borderRadius: 6 }}>
+                    <div style={{ width: `${avgBarW}%`, height: '100%', borderRadius: 6, background: '#94A3B8' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1E3A5F', marginBottom: 4 }}>
+                    <span style={{ fontWeight: 600 }}>Presupuesto</span>
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(budget)}</span>
+                  </div>
+                  <div style={{ height: 12, background: '#F3F5F9', borderRadius: 6 }}>
+                    <div style={{ width: `${budgetBarW}%`, height: '100%', borderRadius: 6, background: '#22C55E' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Diff summary */}
+              <div style={{
+                marginTop: 16, padding: '12px 16px', borderRadius: 10,
+                background: diffVsAvg <= 0 ? '#D1FAE5' : '#FEE2E2',
+                fontSize: 14, color: diffVsAvg <= 0 ? '#065F46' : '#991B1B', lineHeight: 1.5,
+              }}>
+                {diffVsAvg <= 0
+                  ? `Gastaste ${diffPct}% menos que tu promedio. ${formatMoney(Math.abs(diffVsAvg))} de ahorro relativo.`
+                  : `Gastaste ${diffPct}% más que tu promedio. ${formatMoney(diffVsAvg)} por encima de lo habitual.`
+                }
+              </div>
+            </div>
+          )
+        })()}
+
         {/* 4.4 Historic */}
         {history.some(h => h.total > 0) && (
           <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
@@ -466,7 +565,7 @@ export default function CategoriaDetallePage() {
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
               color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
             }}>
-              Este mismo mes, antes
+              {isClosed ? 'Meses anteriores' : 'Este mismo mes, antes'}
             </div>
 
             {history.map(h => (
@@ -493,7 +592,7 @@ export default function CategoriaDetallePage() {
               </div>
             )}
 
-            {budgetBelowAvg && (
+            {!isClosed && budgetBelowAvg && (
               <div style={{
                 background: '#FEF3C7', borderRadius: 12, padding: '14px 18px',
                 marginTop: 12, fontSize: 14, color: '#92400E', lineHeight: 1.5,
