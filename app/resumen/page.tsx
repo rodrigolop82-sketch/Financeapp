@@ -1055,14 +1055,15 @@ function ResumenContent() {
       )}
       {tab === 'insights' && userPlan === 'premium' && (() => {
         const d = monthCtx.dayOfMonth
-        const isSameDay = insightsMode === 'same_day'
+        const isClosed = selectedMonth.isClosed
+        const isSameDay = isClosed ? false : insightsMode === 'same_day'
         const prevAmount = isSameDay ? data.spentPrevSameDay.total : data.spentPrevMonth
         const insDiff = data.spentMonth - prevAmount
         const insDiffPct = prevAmount > 0 ? Math.round(Math.abs(insDiff) / prevAmount * 100) : 0
         const isNeutral = Math.abs(insDiffPct) < 3
 
-        // Fixed categories context line
-        const fixedPaidPrevNotNow = data.budgetCats.filter(c => {
+        // Fixed categories context line (only for current month with same_day mode)
+        const fixedPaidPrevNotNow = isClosed ? [] : data.budgetCats.filter(c => {
           if (c.pace_mode !== 'fixed') return false
           const eid = c.expected_day ?? 1
           const prevByCatName = isSameDay ? data.spentPrevSameDay.byCat : {}
@@ -1094,30 +1095,35 @@ function ResumenContent() {
           const prev = isSameDay ? (data.spentPrevSameDay.byCat[cat.name] ?? 0) : cat.prevAmount
           const pctVsPrev = prev > 0 ? Math.round((cat.amount / prev) * 100) : 0
           insights.push({
-            text: `${cat.name} es la única categoría subiendo, y ya va a ${pctVsPrev}% de ${data.prevMonthLabel} (${formatMoney(prev)}).`,
+            text: isClosed
+              ? `${cat.name} fue la única categoría que subió: ${formatMoney(cat.amount)} vs ${formatMoney(prev)} en ${data.prevMonthLabel}.`
+              : `${cat.name} es la única categoría subiendo, y ya va a ${pctVsPrev}% de ${data.prevMonthLabel} (${formatMoney(prev)}).`,
             tone: 'warn',
           })
         }
 
-        // Pending fixed payments
-        const pendingFixed = data.budgetCats.filter(c => {
-          if (c.pace_mode !== 'fixed') return false
-          const eid = c.expected_day ?? 1
-          const spent = data.paceItems.find(p => p.categoryId === c.id)?.spent ?? 0
-          return spent === 0 && d < eid
-        })
-        if (pendingFixed.length > 0) {
-          const pendingSum = pendingFixed.reduce((s, c) => s + Number(c.budgeted_amount), 0)
-          const names = pendingFixed.map(c => c.name).join(', ')
-          insights.push({
-            text: `Aún no aparece el pago de ${names} este mes. Si son ${formatMoney(pendingSum)}, tu disponible real es ${formatMoney(Math.max(0, ms.available - pendingSum))}.`,
-            tone: 'info',
+        // Pending fixed payments (only for current month)
+        if (!isClosed) {
+          const pendingFixed = data.budgetCats.filter(c => {
+            if (c.pace_mode !== 'fixed') return false
+            const eid = c.expected_day ?? 1
+            const spent = data.paceItems.find(p => p.categoryId === c.id)?.spent ?? 0
+            return spent === 0 && d < eid
           })
+          if (pendingFixed.length > 0) {
+            const pendingSum = pendingFixed.reduce((s, c) => s + Number(c.budgeted_amount), 0)
+            const names = pendingFixed.map(c => c.name).join(', ')
+            insights.push({
+              text: `Aún no aparece el pago de ${names} este mes. Si son ${formatMoney(pendingSum)}, tu disponible real es ${formatMoney(Math.max(0, ms.available - pendingSum))}.`,
+              tone: 'info',
+            })
+          }
         }
 
         return (
         <>
-          {/* Toggle */}
+          {/* Toggle (only for current month) */}
+          {!isClosed && (
           <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
             <button
               onClick={() => setInsightsMode('same_day')}
@@ -1142,6 +1148,7 @@ function ResumenContent() {
               Mes completo
             </button>
           </div>
+          )}
 
           <div style={{
             background: '#1E3A5F', borderRadius: 20,
@@ -1151,7 +1158,10 @@ function ResumenContent() {
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
               color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 16,
             }}>
-              {isSameDay ? `Comparado al día ${d} del mes anterior` : 'Comparado con el mes anterior completo'}
+              {isClosed
+                ? `${data.currentMonthLabel} vs ${data.prevMonthLabel} completo`
+                : isSameDay ? `Comparado al día ${d} del mes anterior` : 'Comparado con el mes anterior completo'
+              }
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
@@ -1168,13 +1178,17 @@ function ResumenContent() {
             </div>
             <div style={{ display: 'flex', gap: 40, marginTop: 24, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: 13, color: '#9FB3CB' }}>{data.currentMonthLabel}, día {d}</div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>
+                  {isClosed ? data.currentMonthLabel : `${data.currentMonthLabel}, día ${d}`}
+                </div>
                 <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
                   {formatMoney(data.spentMonth)}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 13, color: '#9FB3CB' }}>{data.prevMonthLabel}, {isSameDay ? `día ${d}` : 'completo'}</div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>
+                  {isClosed ? data.prevMonthLabel : `${data.prevMonthLabel}, ${isSameDay ? `día ${d}` : 'completo'}`}
+                </div>
                 <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
                   {formatMoney(prevAmount)}
                 </div>
@@ -1493,7 +1507,9 @@ function ResumenContent() {
               {complete.length >= 2 ? `Promedio mensual · ${firstLabel}–${lastLabel}` : 'Promedio mensual'}
             </div>
             <div style={{ fontSize: 13, color: '#7E93AE', marginBottom: 16 }}>
-              Gasto + ahorro. {currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1)} se excluye por estar en curso.
+              {complete.length > 0
+                ? `Gasto + ahorro de meses cerrados.${history.some(m => m.isPartial) ? ` ${currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1)} se excluye por estar en curso.` : ''}`
+                : 'Gasto + ahorro.'}
             </div>
             <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
               {formatMoney(avgTotal)}
@@ -1575,17 +1591,31 @@ function ResumenContent() {
                 {/* Wants */}
                 <path d={wantsSplit.solid} fill="none" stroke="#F59E0B" strokeWidth="2" />
                 {wantsSplit.dashed && <path d={wantsSplit.dashed} fill="none" stroke="#F59E0B" strokeWidth="2" strokeDasharray="4 4" opacity="0.5" />}
-                {/* Dots */}
-                {totalPts.map((p, i) => (
-                  <circle key={`t${i}`} cx={p.x} cy={p.y} r="3" fill="#2563EB" opacity={chartMonths[i].isPartial ? 0.5 : 1} />
-                ))}
+                {/* Dots — selected month gets a highlight ring */}
+                {totalPts.map((p, i) => {
+                  const isSelected = chartMonths[i].month === selectedMonth.month
+                  return (
+                    <g key={`t${i}`}>
+                      {isSelected && (
+                        <circle cx={p.x} cy={p.y} r="7" fill="none" stroke="#2563EB" strokeWidth="2" opacity="0.4" />
+                      )}
+                      <circle cx={p.x} cy={p.y} r={isSelected ? 5 : 3} fill="#2563EB" opacity={chartMonths[i].isPartial ? 0.5 : 1} />
+                    </g>
+                  )
+                })}
               </svg>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 6 }}>
-                {chartMonths.map((m, i) => (
-                  <span key={i} style={{ color: m.isPartial ? '#B0BEC5' : '#8B9AAE' }}>
-                    {m.isPartial ? `${m.label} · en curso` : m.label}
-                  </span>
-                ))}
+                {chartMonths.map((m, i) => {
+                  const isSelected = m.month === selectedMonth.month
+                  return (
+                    <span key={i} style={{
+                      color: isSelected ? '#2563EB' : m.isPartial ? '#B0BEC5' : '#8B9AAE',
+                      fontWeight: isSelected ? 700 : 400,
+                    }}>
+                      {m.isPartial ? `${m.label} · en curso` : m.label}
+                    </span>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -1619,10 +1649,17 @@ function ResumenContent() {
                   const nPct = Math.round(m.needs / mTotal * 100)
                   const wPct = Math.round(m.wants / mTotal * 100)
                   const sPct = 100 - nPct - wPct
+                  const isSelected = m.month === selectedMonth.month
                   return (
-                    <div key={m.month} style={{ opacity: m.isPartial ? 0.55 : 1 }}>
+                    <div key={m.month} style={{
+                      opacity: m.isPartial ? 0.55 : 1,
+                      background: isSelected ? '#EFF6FF' : 'transparent',
+                      borderRadius: isSelected ? 10 : 0,
+                      padding: isSelected ? '10px 12px' : 0,
+                      border: isSelected ? '1.5px solid #BFDBFE' : 'none',
+                    }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1E3A5F', marginBottom: 6 }}>
-                        <span style={{ fontWeight: 600 }}>
+                        <span style={{ fontWeight: isSelected ? 700 : 600 }}>
                           {m.isPartial ? `${m.label} · en curso` : m.label}
                         </span>
                         <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(m.total)}</span>
