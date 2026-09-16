@@ -176,6 +176,10 @@ function ResumenContent() {
         supabase.from('budget_categories').select('*').eq('household_id', hid),
       ])
 
+      console.log('[DEBUG Resumen] hid:', hid, 'monthStart:', monthStart, 'monthEnd:', monthEnd)
+      console.log('[DEBUG Resumen] allTxDates count:', allTxDates?.length ?? 0, 'allTxDates sample:', (allTxDates ?? []).slice(0, 5))
+      console.log('[DEBUG Resumen] txMonthRes:', { data: txMonthRes.data?.length ?? 0, error: txMonthRes.error })
+
       const txPrevRes = plan === 'premium'
         ? await supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', prevMonthStart).lte('date', prevMonthEnd)
         : { data: null }
