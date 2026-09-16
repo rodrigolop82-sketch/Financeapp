@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useRef, useCallback, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { localMonthStart } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
@@ -14,6 +14,14 @@ import {
   type CategoryPace,
   type MonthSummary,
 } from '@/lib/resumen/pace'
+import {
+  computeClosedMonth,
+  type ClosedMonthResult,
+  type ClosedCategoryInput,
+} from '@/lib/resumen/closed-month'
+import { useSelectedMonth } from '@/hooks/useSelectedMonth'
+import { MonthNavigator } from '@/components/resumen/MonthNavigator'
+import { MonthPickerSheet } from '@/components/resumen/MonthPickerSheet'
 
 type Tab = 'mes' | 'insights' | 'tendencias'
 
@@ -67,6 +75,8 @@ interface ResumenData {
   prevMonthLabel: string
   totalIncome: number
   monthlyHistory: MonthlyBucketTotals[]
+  closedResult: ClosedMonthResult | null
+  isBackfilled: boolean
 }
 
 const STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string; label: string }> = {
@@ -76,14 +86,38 @@ const STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string;
   sin_gasto: { dot: '#94A3B8', pill: '#64748B', pillBg: '#F1F5F9', label: 'Sin gasto' },
 }
 
+const CLOSED_STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string; label: string }> = {
+  sobregiro: { dot: '#EF4444', pill: '#991B1B', pillBg: '#FEE2E2', label: 'Sobregiro' },
+  en_linea:  { dot: '#22C55E', pill: '#065F46', pillBg: '#D1FAE5', label: 'En línea' },
+  sin_gasto: { dot: '#94A3B8', pill: '#64748B', pillBg: '#F1F5F9', label: 'Sin gasto' },
+}
+
 export default function ResumenPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F3F5F9' }}>
+        <Loader2 className="w-8 h-8 text-electric animate-spin" />
+      </div>
+    }>
+      <ResumenContent />
+    </Suspense>
+  )
+}
+
+function ResumenContent() {
   const [data, setData] = useState<ResumenData | null>(null)
   const [tab, setTab] = useState<Tab>('mes')
   const [loading, setLoading] = useState(true)
   const [showNoSpend, setShowNoSpend] = useState(false)
   const [insightsMode, setInsightsMode] = useState<'same_day' | 'full'>('same_day')
   const [userPlan, setUserPlan] = useState<'free' | 'premium'>('free')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [availableMonths, setAvailableMonths] = useState<string[]>([])
+  const [monthResults, setMonthResults] = useState<Array<{ key: string; hasData: boolean; result: 'ok' | 'warn' | 'bad' | 'live' | null }>>([])
   const router = useRouter()
+
+  const selectedMonth = useSelectedMonth(availableMonths)
+  const touchRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -104,16 +138,42 @@ export default function ResumenPage() {
       const plan = (userRow?.plan ?? 'free') as 'free' | 'premium'
       setUserPlan(plan)
 
+      // Determine month to display
+      const selMonth = selectedMonth.month
+      const [selY, selM] = selMonth.split('-').map(Number)
       const now = new Date()
-      const monthStart = localMonthStart()
-      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10)
-      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10)
-      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-      const dayOfMonth = now.getDate()
-      const daysLeft = daysInMonth - dayOfMonth
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      const isCurrentMonth = selMonth === currentMonthKey
+
+      const monthStart = `${selMonth}-01`
+      const monthEndDate = new Date(selY, selM, 0)
+      const monthEnd = `${selY}-${String(selM).padStart(2, '0')}-${String(monthEndDate.getDate()).padStart(2, '0')}`
+
+      const prevMonthDate = new Date(selY, selM - 2, 1)
+      const prevMonthStart = prevMonthDate.toISOString().slice(0, 10)
+      const prevMonthEndDate = new Date(selY, selM - 1, 0)
+      const prevMonthEnd = prevMonthEndDate.toISOString().slice(0, 10)
+
+      const daysInMonth = monthEndDate.getDate()
+      const dayOfMonth = isCurrentMonth ? now.getDate() : daysInMonth
+      const daysLeft = isCurrentMonth ? daysInMonth - dayOfMonth : 0
+
+      // Fetch available months for navigation
+      const { data: allTxDates } = await supabase
+        .from('transactions')
+        .select('date')
+        .eq('household_id', hid)
+        .eq('type', 'expense')
+      const txMonthSet = new Set<string>()
+      for (const t of allTxDates ?? []) {
+        txMonthSet.add((t.date as string).slice(0, 7))
+      }
+      txMonthSet.add(currentMonthKey)
+      const sortedAvailable = Array.from(txMonthSet).sort()
+      setAvailableMonths(sortedAvailable)
 
       const [txMonthRes, categoriesRes] = await Promise.all([
-        supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', monthStart),
+        supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', monthStart).lte('date', monthEnd),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
       ])
 
@@ -169,9 +229,10 @@ export default function ResumenPage() {
         prevSameDayByCat[name] = (prevSameDayByCat[name] ?? 0) + Number(t.amount)
       })
 
-      const currentMonthLabel = now.toLocaleDateString('es-GT', { month: 'long' })
-      const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1)
-      const prevMonthLabel = prevMonthDate.toLocaleDateString('es-GT', { month: 'long' })
+      const selDate = new Date(selY, selM - 1)
+      const currentMonthLabel = selDate.toLocaleDateString('es-GT', { month: 'long' })
+      const prevLabelDate = new Date(selY, selM - 2)
+      const prevMonthLabel = prevLabelDate.toLocaleDateString('es-GT', { month: 'long' })
 
       const totalBudget = cats.reduce((s, c) => s + Number(c.budgeted_amount), 0)
 
@@ -183,10 +244,13 @@ export default function ResumenPage() {
       // Fetch last 6 complete months of transactions for trends (premium only)
       let txHistory: Array<{ category_id: string; amount: number; date: string }> | null = null
       if (plan === 'premium') {
-        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString().slice(0, 10)
-        const { data } = await supabase
+        const sixMonthsAgo = new Date(selY, selM - 7, 1).toISOString().slice(0, 10)
+        const trendEnd = isCurrentMonth ? undefined : `${selY}-${String(selM).padStart(2, '0')}-${String(monthEndDate.getDate()).padStart(2, '0')}`
+        let q = supabase
           .from('transactions').select('category_id, amount, date')
           .eq('household_id', hid).eq('type', 'expense').gte('date', sixMonthsAgo)
+        if (trendEnd) q = q.lte('date', trendEnd)
+        const { data } = await q
         txHistory = data
       }
 
@@ -206,7 +270,6 @@ export default function ResumenPage() {
         else monthlyBuckets[key].savings += amt
       })
 
-      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
       const monthlyHistory: MonthlyBucketTotals[] = Object.entries(monthlyBuckets)
         .map(([key, v]) => {
           const [y, m] = key.split('-').map(Number)
@@ -226,22 +289,104 @@ export default function ResumenPage() {
         spentByCatId[t.category_id] = (spentByCatId[t.category_id] ?? 0) + Number(t.amount)
       })
 
-      const monthCtx: MonthContext = { today: now, daysInMonth, dayOfMonth }
+      const monthDate = isCurrentMonth ? now : new Date(selY, selM - 1, dayOfMonth)
+      const monthCtx: MonthContext = { today: monthDate, daysInMonth, dayOfMonth }
 
-      const paceInputs: CategoryBudgetInput[] = cats.map(c => ({
-        categoryId: c.id,
-        name: c.name,
-        budget: Number(c.budgeted_amount),
-        spent: spentByCatId[c.id] ?? 0,
-        paceMode: c.pace_mode || 'linear',
-        expectedDay: c.expected_day,
-      }))
+      let paceItems: CategoryPace[]
+      let monthSummary: MonthSummary
+      let closedResult: ClosedMonthResult | null = null
+      let isBackfilledFlag = false
 
-      const paceItems = paceInputs.map(input => computeCategoryPace(input, monthCtx))
-      const monthSummary = summarizeMonth(paceItems, monthCtx)
+      if (!isCurrentMonth) {
+        // Closed month: fetch budget snapshots
+        const { data: snapshots } = await supabase
+          .from('budget_snapshots')
+          .select('*')
+          .eq('household_id', hid)
+          .eq('month', monthStart)
+
+        const snapMap = new Map<string, { amount: number; pace_mode: string; expected_day: number | null; is_backfilled: boolean }>()
+        for (const s of snapshots ?? []) {
+          snapMap.set(s.category_id, {
+            amount: Number(s.amount),
+            pace_mode: s.pace_mode,
+            expected_day: s.expected_day,
+            is_backfilled: s.is_backfilled,
+          })
+        }
+        isBackfilledFlag = Array.from(snapMap.values()).some(s => s.is_backfilled)
+
+        const closedCatInputs: ClosedCategoryInput[] = cats.map(c => {
+          const snap = snapMap.get(c.id)
+          return {
+            categoryId: c.id,
+            name: c.name,
+            budget: snap ? snap.amount : Number(c.budgeted_amount),
+            spent: spentByCatId[c.id] ?? 0,
+          }
+        })
+
+        // Fetch up to 3 previous closed months for average
+        const prevKeys: string[] = []
+        for (let i = 1; i <= 3; i++) {
+          const pd = new Date(selY, selM - 1 - i, 1)
+          const pk = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}`
+          if (pk < currentMonthKey) prevKeys.push(pk)
+        }
+        const prevMonthsSpent = prevKeys.map(pk => monthlyBuckets[pk]?.total ?? 0)
+
+        closedResult = computeClosedMonth({ categories: closedCatInputs, prevMonthsSpent })
+
+        // Still compute pace items for compatibility with other tabs
+        const paceInputs: CategoryBudgetInput[] = cats.map(c => {
+          const snap = snapMap.get(c.id)
+          return {
+            categoryId: c.id,
+            name: c.name,
+            budget: snap ? snap.amount : Number(c.budgeted_amount),
+            spent: spentByCatId[c.id] ?? 0,
+            paceMode: (snap?.pace_mode ?? c.pace_mode ?? 'linear') as 'linear' | 'fixed',
+            expectedDay: snap?.expected_day ?? c.expected_day,
+          }
+        })
+        paceItems = paceInputs.map(input => computeCategoryPace(input, monthCtx))
+        monthSummary = summarizeMonth(paceItems, monthCtx)
+      } else {
+        const paceInputs: CategoryBudgetInput[] = cats.map(c => ({
+          categoryId: c.id,
+          name: c.name,
+          budget: Number(c.budgeted_amount),
+          spent: spentByCatId[c.id] ?? 0,
+          paceMode: c.pace_mode || 'linear',
+          expectedDay: c.expected_day,
+        }))
+
+        paceItems = paceInputs.map(input => computeCategoryPace(input, monthCtx))
+        monthSummary = summarizeMonth(paceItems, monthCtx)
+      }
 
       const fullName = (userProfile?.full_name || 'Usuario') as string
       const firstName = fullName.split(' ')[0]
+
+      // Compute per-month results for picker
+      const pickerMonths = sortedAvailable.map(mk => {
+        const mkSpent = (allTxDates ?? [])
+          .filter(t => (t.date as string).slice(0, 7) === mk)
+          .reduce((s, t) => s + 1, 0)
+        const hasData = mkSpent > 0 || mk === currentMonthKey
+        let result: 'ok' | 'warn' | 'bad' | 'live' | null = null
+        if (mk === currentMonthKey) {
+          result = 'live'
+        } else if (hasData) {
+          // Simple heuristic: compare total spent vs total budget for closed months
+          const mkTotalSpent = monthlyBuckets[mk]?.total ?? 0
+          if (mkTotalSpent > totalBudget) result = 'bad'
+          else if (mkTotalSpent > totalBudget * 0.95) result = 'warn'
+          else result = 'ok'
+        }
+        return { key: mk, hasData, result }
+      })
+      setMonthResults(pickerMonths)
 
       setData({
         userName: firstName,
@@ -266,11 +411,13 @@ export default function ResumenPage() {
         })),
         totalIncome,
         monthlyHistory,
+        closedResult,
+        isBackfilled: isBackfilledFlag,
       })
       setLoading(false)
     }
     load()
-  }, [router])
+  }, [router, selectedMonth.month]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading || !data) {
     return (
@@ -326,18 +473,282 @@ export default function ResumenPage() {
 
   return (
     <AppShell title="Resumen" currentPath="/resumen" userName={data.userName} householdName={data.householdName}>
+      {/* Month navigator */}
+      <MonthNavigator
+        label={selectedMonth.label}
+        isCurrent={selectedMonth.isCurrent}
+        dayOfMonth={data.monthCtx.dayOfMonth}
+        daysInMonth={data.monthCtx.daysInMonth}
+        canGoPrev={availableMonths.length > 0 && selectedMonth.month > availableMonths[0]}
+        canGoNext={!selectedMonth.isCurrent}
+        onPrev={selectedMonth.goPrev}
+        onNext={selectedMonth.goNext}
+        onTap={() => setPickerOpen(true)}
+      />
+
+      <MonthPickerSheet
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        selected={selectedMonth.month}
+        currentMonth={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`}
+        availableMonths={monthResults}
+        onSelect={selectedMonth.setMonth}
+      />
+
       {/* Tabs */}
       <div style={{
         display: 'flex', background: '#E7EBF2', borderRadius: 13,
         padding: 4, marginBottom: 24, width: 'fit-content',
       }}>
-        <button style={tabStyle('mes')} onClick={() => setTab('mes')}>Este mes</button>
+        <button style={tabStyle('mes')} onClick={() => setTab('mes')}>Mes</button>
         <button style={tabStyle('insights')} onClick={() => setTab('insights')}>Insights</button>
         <button style={tabStyle('tendencias')} onClick={() => setTab('tendencias')}>Tendencias</button>
       </div>
 
-      {/* === ESTE MES === */}
-      {tab === 'mes' && (
+      {/* === MES === */}
+      {tab === 'mes' && selectedMonth.isClosed && data.closedResult && (() => {
+        const cr = data.closedResult
+        const closedBarPct = cr.totalBudget > 0 ? Math.min(1, cr.totalSpent / cr.totalBudget) : (cr.totalSpent > 0 ? 1 : 0)
+        const closedBarColor = cr.totalSpent > cr.totalBudget ? '#EF4444' : '#2563EB'
+
+        const closedWithSpend = cr.categories.filter(c => c.status !== 'sin_gasto')
+          .sort((a, b) => {
+            if (a.status === 'sobregiro' && b.status !== 'sobregiro') return -1
+            if (a.status !== 'sobregiro' && b.status === 'sobregiro') return 1
+            if (a.status === 'sobregiro' && b.status === 'sobregiro') return a.diff - b.diff
+            return b.spent - a.spent
+          })
+        const closedNoSpend = cr.noSpendCategories
+        const closedNoSpendBudget = closedNoSpend.reduce((s, c) => s + c.budget, 0)
+
+        return (
+        <>
+          {/* Backfill warning */}
+          {data.isBackfilled && (
+            <div style={{
+              background: '#FEF3C7', borderRadius: 12, padding: '12px 16px',
+              marginBottom: 16, fontSize: 13, color: '#92400E', lineHeight: 1.5,
+            }}>
+              Los montos presupuestados de este mes se calcularon con base en tu presupuesto actual. Si cambiaste montos después, podrían no coincidir con lo que tenías en ese momento.
+            </div>
+          )}
+
+          {/* Hero */}
+          <div style={{
+            background: '#1E3A5F', borderRadius: 20,
+            padding: '32px 36px', color: '#fff', marginBottom: 20,
+          }}>
+            <div style={{
+              fontFamily: "'DM Serif Display', Georgia, serif",
+              fontSize: 22, lineHeight: 1.3, marginBottom: 4,
+            }}>
+              {cr.tone === 'bad' ? (
+                <>
+                  Cerraste con <span style={{ color: '#EF4444', fontFamily: "'Outfit', sans-serif", fontWeight: 800 }}>{formatMoney(cr.overrun)}</span> de sobregiro
+                </>
+              ) : (
+                cr.headline
+              )}
+            </div>
+            <div style={{ fontSize: 14, color: '#9FB3CB', marginBottom: 20 }}>
+              {cr.sub}
+            </div>
+
+            {/* Final bar (no expected marker) */}
+            <div style={{ position: 'relative', height: 14, background: 'rgba(255,255,255,0.12)', borderRadius: 7, marginBottom: 12 }}>
+              <div style={{
+                width: `${closedBarPct * 100}%`, height: '100%', borderRadius: 7,
+                background: closedBarColor, transition: 'width 0.3s',
+              }} />
+            </div>
+            <div style={{ fontSize: 13, color: '#9FB3CB' }}>
+              {formatMoney(cr.totalSpent)} gastados de {formatMoney(cr.totalBudget)}
+            </div>
+
+            {/* KPIs */}
+            <div style={{ display: 'flex', gap: 40, marginTop: 20 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Gastado</div>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4 }}>{formatMoney(cr.totalSpent)}</div>
+              </div>
+              {cr.overrun > 0 ? (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#FCA5A5', textTransform: 'uppercase' }}>Sobregiro</div>
+                  <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4, color: '#FCA5A5' }}>
+                    {formatMoney(cr.overrun)}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#4ADE80', textTransform: 'uppercase' }}>Sobrante</div>
+                  <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4, color: '#4ADE80' }}>
+                    {formatMoney(cr.available)}
+                  </div>
+                </div>
+              )}
+              {cr.avgPrevMonths !== null && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>vs promedio</div>
+                  <div style={{
+                    fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, marginTop: 4,
+                    color: (cr.diffVsAvg ?? 0) <= 0 ? '#4ADE80' : '#FCA5A5',
+                  }}>
+                    {(cr.diffVsAvg ?? 0) <= 0 ? '' : '+'}{cr.diffVsAvgPct}%
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sobregiro summary cards */}
+          {cr.overCategories.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16 }}>
+                Se excedieron
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {cr.overCategories.map(cat => (
+                  <div key={cat.categoryId} style={{
+                    background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 12,
+                    padding: '14px 18px', fontSize: 14, color: '#991B1B',
+                  }}>
+                    <strong>{cat.name}</strong> cerró {formatMoney(Math.abs(cat.diff))} arriba del presupuesto de {formatMoney(cat.budget)}.
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* En línea summary */}
+          {cr.okCategories.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16 }}>
+                Dentro del presupuesto
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {cr.okCategories.slice(0, 3).map(cat => (
+                  <div key={cat.categoryId} style={{
+                    background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 12,
+                    padding: '14px 18px', fontSize: 14, color: '#065F46',
+                  }}>
+                    <strong>{cat.name}</strong> cerró en {formatMoney(cat.spent)} de {formatMoney(cat.budget)} ({Math.round(cat.pctOfBudget * 100)}%).
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Categories list */}
+          <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px' }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 4,
+            }}>
+              Resultado por categoría
+            </div>
+            <div style={{ fontSize: 13, color: '#8B9AAE', marginBottom: 20 }}>
+              Toca una categoría para ver sus transacciones
+            </div>
+
+            {closedWithSpend.map(cat => {
+              const sc = CLOSED_STATUS_COLORS[cat.status] ?? CLOSED_STATUS_COLORS.en_linea
+              const barPct = cat.budget > 0 ? Math.min(1, cat.spent / cat.budget) : (cat.spent > 0 ? 1 : 0)
+
+              return (
+                <div
+                  key={cat.categoryId}
+                  onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${selectedMonth.month}`)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 6,
+                    padding: '16px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: sc.dot, flexShrink: 0 }} />
+                    <span style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F', flex: 1 }}>{cat.name}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                      background: sc.pillBg, color: sc.pill,
+                    }}>
+                      {sc.label}
+                    </span>
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: '#1E3A5F', minWidth: 80, textAlign: 'right' }}>
+                      {formatMoney(cat.spent)}
+                    </span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                  </div>
+
+                  {/* Bar (no expected marker for closed months) */}
+                  <div style={{ marginLeft: 18, position: 'relative', height: 8, background: '#F3F5F9', borderRadius: 4 }}>
+                    <div style={{
+                      width: `${barPct * 100}%`, height: '100%', borderRadius: 4,
+                      background: cat.status === 'sobregiro' ? '#EF4444' : '#2563EB',
+                    }} />
+                  </div>
+
+                  {/* Bottom line */}
+                  <div style={{ marginLeft: 18, display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8B9AAE' }}>
+                    <span>de {formatMoney(cat.budget)} · {Math.round(cat.pctOfBudget * 100)}%</span>
+                    {cat.status === 'sobregiro' ? (
+                      <span style={{ color: '#EF4444', fontWeight: 600 }}>+{formatMoney(Math.abs(cat.diff))}</span>
+                    ) : (
+                      <span>sobraron {formatMoney(cat.diff)}</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Collapsible no-spend categories */}
+            {closedNoSpend.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowNoSpend(!showNoSpend)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '14px 0', borderTop: '1px solid #EEF1F6',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 13, color: '#64748B', fontWeight: 600,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <ChevronDown style={{
+                    width: 16, height: 16,
+                    transform: showNoSpend ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s',
+                  }} />
+                  {closedNoSpend.length} categorías sin movimiento ({formatMoney(closedNoSpendBudget)} presupuestados)
+                </button>
+                {showNoSpend && closedNoSpend.map(cat => (
+                  <div
+                    key={cat.categoryId}
+                    onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${selectedMonth.month}`)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '12px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94A3B8', flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, color: '#64748B', flex: 1 }}>{cat.name}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                      background: '#F1F5F9', color: '#64748B',
+                    }}>
+                      Sin gasto
+                    </span>
+                    <span style={{ fontSize: 13, color: '#94A3B8' }}>{formatMoney(cat.budget)}</span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </>
+        )
+      })()}
+
+      {/* === ESTE MES (current) === */}
+      {tab === 'mes' && !selectedMonth.isClosed && (
         <>
           {/* 3.1 Estado del mes (hero) */}
           <div style={{
@@ -475,7 +886,7 @@ export default function ResumenPage() {
               return (
                 <div
                   key={cat.categoryId}
-                  onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${monthCtx.today.getFullYear()}-${String(monthCtx.today.getMonth() + 1).padStart(2, '0')}`)}
+                  onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${selectedMonth.month}`)}
                   style={{
                     display: 'flex', flexDirection: 'column', gap: 6,
                     padding: '16px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
@@ -555,7 +966,7 @@ export default function ResumenPage() {
                 {showNoSpend && noSpend.map(cat => (
                   <div
                     key={cat.categoryId}
-                    onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${monthCtx.today.getFullYear()}-${String(monthCtx.today.getMonth() + 1).padStart(2, '0')}`)}
+                    onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${selectedMonth.month}`)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
                       padding: '12px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
@@ -644,14 +1055,15 @@ export default function ResumenPage() {
       )}
       {tab === 'insights' && userPlan === 'premium' && (() => {
         const d = monthCtx.dayOfMonth
-        const isSameDay = insightsMode === 'same_day'
+        const isClosed = selectedMonth.isClosed
+        const isSameDay = isClosed ? false : insightsMode === 'same_day'
         const prevAmount = isSameDay ? data.spentPrevSameDay.total : data.spentPrevMonth
         const insDiff = data.spentMonth - prevAmount
         const insDiffPct = prevAmount > 0 ? Math.round(Math.abs(insDiff) / prevAmount * 100) : 0
         const isNeutral = Math.abs(insDiffPct) < 3
 
-        // Fixed categories context line
-        const fixedPaidPrevNotNow = data.budgetCats.filter(c => {
+        // Fixed categories context line (only for current month with same_day mode)
+        const fixedPaidPrevNotNow = isClosed ? [] : data.budgetCats.filter(c => {
           if (c.pace_mode !== 'fixed') return false
           const eid = c.expected_day ?? 1
           const prevByCatName = isSameDay ? data.spentPrevSameDay.byCat : {}
@@ -683,30 +1095,35 @@ export default function ResumenPage() {
           const prev = isSameDay ? (data.spentPrevSameDay.byCat[cat.name] ?? 0) : cat.prevAmount
           const pctVsPrev = prev > 0 ? Math.round((cat.amount / prev) * 100) : 0
           insights.push({
-            text: `${cat.name} es la única categoría subiendo, y ya va a ${pctVsPrev}% de ${data.prevMonthLabel} (${formatMoney(prev)}).`,
+            text: isClosed
+              ? `${cat.name} fue la única categoría que subió: ${formatMoney(cat.amount)} vs ${formatMoney(prev)} en ${data.prevMonthLabel}.`
+              : `${cat.name} es la única categoría subiendo, y ya va a ${pctVsPrev}% de ${data.prevMonthLabel} (${formatMoney(prev)}).`,
             tone: 'warn',
           })
         }
 
-        // Pending fixed payments
-        const pendingFixed = data.budgetCats.filter(c => {
-          if (c.pace_mode !== 'fixed') return false
-          const eid = c.expected_day ?? 1
-          const spent = data.paceItems.find(p => p.categoryId === c.id)?.spent ?? 0
-          return spent === 0 && d < eid
-        })
-        if (pendingFixed.length > 0) {
-          const pendingSum = pendingFixed.reduce((s, c) => s + Number(c.budgeted_amount), 0)
-          const names = pendingFixed.map(c => c.name).join(', ')
-          insights.push({
-            text: `Aún no aparece el pago de ${names} este mes. Si son ${formatMoney(pendingSum)}, tu disponible real es ${formatMoney(Math.max(0, ms.available - pendingSum))}.`,
-            tone: 'info',
+        // Pending fixed payments (only for current month)
+        if (!isClosed) {
+          const pendingFixed = data.budgetCats.filter(c => {
+            if (c.pace_mode !== 'fixed') return false
+            const eid = c.expected_day ?? 1
+            const spent = data.paceItems.find(p => p.categoryId === c.id)?.spent ?? 0
+            return spent === 0 && d < eid
           })
+          if (pendingFixed.length > 0) {
+            const pendingSum = pendingFixed.reduce((s, c) => s + Number(c.budgeted_amount), 0)
+            const names = pendingFixed.map(c => c.name).join(', ')
+            insights.push({
+              text: `Aún no aparece el pago de ${names} este mes. Si son ${formatMoney(pendingSum)}, tu disponible real es ${formatMoney(Math.max(0, ms.available - pendingSum))}.`,
+              tone: 'info',
+            })
+          }
         }
 
         return (
         <>
-          {/* Toggle */}
+          {/* Toggle (only for current month) */}
+          {!isClosed && (
           <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
             <button
               onClick={() => setInsightsMode('same_day')}
@@ -731,6 +1148,7 @@ export default function ResumenPage() {
               Mes completo
             </button>
           </div>
+          )}
 
           <div style={{
             background: '#1E3A5F', borderRadius: 20,
@@ -740,7 +1158,10 @@ export default function ResumenPage() {
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
               color: '#9FB3CB', textTransform: 'uppercase', marginBottom: 16,
             }}>
-              {isSameDay ? `Comparado al día ${d} del mes anterior` : 'Comparado con el mes anterior completo'}
+              {isClosed
+                ? `${data.currentMonthLabel} vs ${data.prevMonthLabel} completo`
+                : isSameDay ? `Comparado al día ${d} del mes anterior` : 'Comparado con el mes anterior completo'
+              }
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
@@ -757,13 +1178,17 @@ export default function ResumenPage() {
             </div>
             <div style={{ display: 'flex', gap: 40, marginTop: 24, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: 13, color: '#9FB3CB' }}>{data.currentMonthLabel}, día {d}</div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>
+                  {isClosed ? data.currentMonthLabel : `${data.currentMonthLabel}, día ${d}`}
+                </div>
                 <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
                   {formatMoney(data.spentMonth)}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 13, color: '#9FB3CB' }}>{data.prevMonthLabel}, {isSameDay ? `día ${d}` : 'completo'}</div>
+                <div style={{ fontSize: 13, color: '#9FB3CB' }}>
+                  {isClosed ? data.prevMonthLabel : `${data.prevMonthLabel}, ${isSameDay ? `día ${d}` : 'completo'}`}
+                </div>
                 <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4 }}>
                   {formatMoney(prevAmount)}
                 </div>
@@ -1082,7 +1507,9 @@ export default function ResumenPage() {
               {complete.length >= 2 ? `Promedio mensual · ${firstLabel}–${lastLabel}` : 'Promedio mensual'}
             </div>
             <div style={{ fontSize: 13, color: '#7E93AE', marginBottom: 16 }}>
-              Gasto + ahorro. {currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1)} se excluye por estar en curso.
+              {complete.length > 0
+                ? `Gasto + ahorro de meses cerrados.${history.some(m => m.isPartial) ? ` ${currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1)} se excluye por estar en curso.` : ''}`
+                : 'Gasto + ahorro.'}
             </div>
             <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44 }}>
               {formatMoney(avgTotal)}
@@ -1164,17 +1591,31 @@ export default function ResumenPage() {
                 {/* Wants */}
                 <path d={wantsSplit.solid} fill="none" stroke="#F59E0B" strokeWidth="2" />
                 {wantsSplit.dashed && <path d={wantsSplit.dashed} fill="none" stroke="#F59E0B" strokeWidth="2" strokeDasharray="4 4" opacity="0.5" />}
-                {/* Dots */}
-                {totalPts.map((p, i) => (
-                  <circle key={`t${i}`} cx={p.x} cy={p.y} r="3" fill="#2563EB" opacity={chartMonths[i].isPartial ? 0.5 : 1} />
-                ))}
+                {/* Dots — selected month gets a highlight ring */}
+                {totalPts.map((p, i) => {
+                  const isSelected = chartMonths[i].month === selectedMonth.month
+                  return (
+                    <g key={`t${i}`}>
+                      {isSelected && (
+                        <circle cx={p.x} cy={p.y} r="7" fill="none" stroke="#2563EB" strokeWidth="2" opacity="0.4" />
+                      )}
+                      <circle cx={p.x} cy={p.y} r={isSelected ? 5 : 3} fill="#2563EB" opacity={chartMonths[i].isPartial ? 0.5 : 1} />
+                    </g>
+                  )
+                })}
               </svg>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 6 }}>
-                {chartMonths.map((m, i) => (
-                  <span key={i} style={{ color: m.isPartial ? '#B0BEC5' : '#8B9AAE' }}>
-                    {m.isPartial ? `${m.label} · en curso` : m.label}
-                  </span>
-                ))}
+                {chartMonths.map((m, i) => {
+                  const isSelected = m.month === selectedMonth.month
+                  return (
+                    <span key={i} style={{
+                      color: isSelected ? '#2563EB' : m.isPartial ? '#B0BEC5' : '#8B9AAE',
+                      fontWeight: isSelected ? 700 : 400,
+                    }}>
+                      {m.isPartial ? `${m.label} · en curso` : m.label}
+                    </span>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -1208,10 +1649,17 @@ export default function ResumenPage() {
                   const nPct = Math.round(m.needs / mTotal * 100)
                   const wPct = Math.round(m.wants / mTotal * 100)
                   const sPct = 100 - nPct - wPct
+                  const isSelected = m.month === selectedMonth.month
                   return (
-                    <div key={m.month} style={{ opacity: m.isPartial ? 0.55 : 1 }}>
+                    <div key={m.month} style={{
+                      opacity: m.isPartial ? 0.55 : 1,
+                      background: isSelected ? '#EFF6FF' : 'transparent',
+                      borderRadius: isSelected ? 10 : 0,
+                      padding: isSelected ? '10px 12px' : 0,
+                      border: isSelected ? '1.5px solid #BFDBFE' : 'none',
+                    }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1E3A5F', marginBottom: 6 }}>
-                        <span style={{ fontWeight: 600 }}>
+                        <span style={{ fontWeight: isSelected ? 700 : 600 }}>
                           {m.isPartial ? `${m.label} · en curso` : m.label}
                         </span>
                         <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(m.total)}</span>
