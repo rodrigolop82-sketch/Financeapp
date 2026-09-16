@@ -1,8 +1,7 @@
 'use client'
-import { useEffect, useState, useRef, useCallback, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { localMonthStart } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
 import { Loader2, ChevronRight, ChevronDown } from 'lucide-react'
@@ -117,7 +116,7 @@ function ResumenContent() {
   const router = useRouter()
 
   const selectedMonth = useSelectedMonth(availableMonths)
-  const touchRef = useRef<{ x: number; y: number } | null>(null)
+
 
   useEffect(() => {
     async function load() {
@@ -372,7 +371,7 @@ function ResumenContent() {
       const pickerMonths = sortedAvailable.map(mk => {
         const mkSpent = (allTxDates ?? [])
           .filter(t => (t.date as string).slice(0, 7) === mk)
-          .reduce((s, t) => s + 1, 0)
+          .length
         const hasData = mkSpent > 0 || mk === currentMonthKey
         let result: 'ok' | 'warn' | 'bad' | 'live' | null = null
         if (mk === currentMonthKey) {
