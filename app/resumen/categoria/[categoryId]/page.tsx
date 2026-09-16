@@ -240,7 +240,7 @@ export default function CategoriaDetallePage() {
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         {/* Back button */}
         <button
-          onClick={() => router.push('/resumen')}
+          onClick={() => router.push(mes ? `/resumen?mes=${mes}` : '/resumen')}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'none', border: 'none', cursor: 'pointer',

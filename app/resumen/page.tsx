@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useRef, useCallback, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { localMonthStart } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
@@ -14,6 +14,9 @@ import {
   type CategoryPace,
   type MonthSummary,
 } from '@/lib/resumen/pace'
+import { useSelectedMonth } from '@/hooks/useSelectedMonth'
+import { MonthNavigator } from '@/components/resumen/MonthNavigator'
+import { MonthPickerSheet } from '@/components/resumen/MonthPickerSheet'
 
 type Tab = 'mes' | 'insights' | 'tendencias'
 
@@ -77,13 +80,31 @@ const STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string;
 }
 
 export default function ResumenPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F3F5F9' }}>
+        <Loader2 className="w-8 h-8 text-electric animate-spin" />
+      </div>
+    }>
+      <ResumenContent />
+    </Suspense>
+  )
+}
+
+function ResumenContent() {
   const [data, setData] = useState<ResumenData | null>(null)
   const [tab, setTab] = useState<Tab>('mes')
   const [loading, setLoading] = useState(true)
   const [showNoSpend, setShowNoSpend] = useState(false)
   const [insightsMode, setInsightsMode] = useState<'same_day' | 'full'>('same_day')
   const [userPlan, setUserPlan] = useState<'free' | 'premium'>('free')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [availableMonths, setAvailableMonths] = useState<string[]>([])
+  const [monthResults, setMonthResults] = useState<Array<{ key: string; hasData: boolean; result: 'ok' | 'warn' | 'bad' | 'live' | null }>>([])
   const router = useRouter()
+
+  const selectedMonth = useSelectedMonth(availableMonths)
+  const touchRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -104,16 +125,42 @@ export default function ResumenPage() {
       const plan = (userRow?.plan ?? 'free') as 'free' | 'premium'
       setUserPlan(plan)
 
+      // Determine month to display
+      const selMonth = selectedMonth.month
+      const [selY, selM] = selMonth.split('-').map(Number)
       const now = new Date()
-      const monthStart = localMonthStart()
-      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10)
-      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10)
-      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-      const dayOfMonth = now.getDate()
-      const daysLeft = daysInMonth - dayOfMonth
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      const isCurrentMonth = selMonth === currentMonthKey
+
+      const monthStart = `${selMonth}-01`
+      const monthEndDate = new Date(selY, selM, 0)
+      const monthEnd = `${selY}-${String(selM).padStart(2, '0')}-${String(monthEndDate.getDate()).padStart(2, '0')}`
+
+      const prevMonthDate = new Date(selY, selM - 2, 1)
+      const prevMonthStart = prevMonthDate.toISOString().slice(0, 10)
+      const prevMonthEndDate = new Date(selY, selM - 1, 0)
+      const prevMonthEnd = prevMonthEndDate.toISOString().slice(0, 10)
+
+      const daysInMonth = monthEndDate.getDate()
+      const dayOfMonth = isCurrentMonth ? now.getDate() : daysInMonth
+      const daysLeft = isCurrentMonth ? daysInMonth - dayOfMonth : 0
+
+      // Fetch available months for navigation
+      const { data: allTxDates } = await supabase
+        .from('transactions')
+        .select('date')
+        .eq('household_id', hid)
+        .eq('type', 'expense')
+      const txMonthSet = new Set<string>()
+      for (const t of allTxDates ?? []) {
+        txMonthSet.add((t.date as string).slice(0, 7))
+      }
+      txMonthSet.add(currentMonthKey)
+      const sortedAvailable = Array.from(txMonthSet).sort()
+      setAvailableMonths(sortedAvailable)
 
       const [txMonthRes, categoriesRes] = await Promise.all([
-        supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', monthStart),
+        supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', monthStart).lte('date', monthEnd),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
       ])
 
@@ -169,9 +216,10 @@ export default function ResumenPage() {
         prevSameDayByCat[name] = (prevSameDayByCat[name] ?? 0) + Number(t.amount)
       })
 
-      const currentMonthLabel = now.toLocaleDateString('es-GT', { month: 'long' })
-      const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1)
-      const prevMonthLabel = prevMonthDate.toLocaleDateString('es-GT', { month: 'long' })
+      const selDate = new Date(selY, selM - 1)
+      const currentMonthLabel = selDate.toLocaleDateString('es-GT', { month: 'long' })
+      const prevLabelDate = new Date(selY, selM - 2)
+      const prevMonthLabel = prevLabelDate.toLocaleDateString('es-GT', { month: 'long' })
 
       const totalBudget = cats.reduce((s, c) => s + Number(c.budgeted_amount), 0)
 
@@ -183,10 +231,13 @@ export default function ResumenPage() {
       // Fetch last 6 complete months of transactions for trends (premium only)
       let txHistory: Array<{ category_id: string; amount: number; date: string }> | null = null
       if (plan === 'premium') {
-        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString().slice(0, 10)
-        const { data } = await supabase
+        const sixMonthsAgo = new Date(selY, selM - 7, 1).toISOString().slice(0, 10)
+        const trendEnd = isCurrentMonth ? undefined : `${selY}-${String(selM).padStart(2, '0')}-${String(monthEndDate.getDate()).padStart(2, '0')}`
+        let q = supabase
           .from('transactions').select('category_id, amount, date')
           .eq('household_id', hid).eq('type', 'expense').gte('date', sixMonthsAgo)
+        if (trendEnd) q = q.lte('date', trendEnd)
+        const { data } = await q
         txHistory = data
       }
 
@@ -206,7 +257,6 @@ export default function ResumenPage() {
         else monthlyBuckets[key].savings += amt
       })
 
-      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
       const monthlyHistory: MonthlyBucketTotals[] = Object.entries(monthlyBuckets)
         .map(([key, v]) => {
           const [y, m] = key.split('-').map(Number)
@@ -226,7 +276,8 @@ export default function ResumenPage() {
         spentByCatId[t.category_id] = (spentByCatId[t.category_id] ?? 0) + Number(t.amount)
       })
 
-      const monthCtx: MonthContext = { today: now, daysInMonth, dayOfMonth }
+      const monthDate = isCurrentMonth ? now : new Date(selY, selM - 1, dayOfMonth)
+      const monthCtx: MonthContext = { today: monthDate, daysInMonth, dayOfMonth }
 
       const paceInputs: CategoryBudgetInput[] = cats.map(c => ({
         categoryId: c.id,
@@ -242,6 +293,26 @@ export default function ResumenPage() {
 
       const fullName = (userProfile?.full_name || 'Usuario') as string
       const firstName = fullName.split(' ')[0]
+
+      // Compute per-month results for picker
+      const pickerMonths = sortedAvailable.map(mk => {
+        const mkSpent = (allTxDates ?? [])
+          .filter(t => (t.date as string).slice(0, 7) === mk)
+          .reduce((s, t) => s + 1, 0)
+        const hasData = mkSpent > 0 || mk === currentMonthKey
+        let result: 'ok' | 'warn' | 'bad' | 'live' | null = null
+        if (mk === currentMonthKey) {
+          result = 'live'
+        } else if (hasData) {
+          // Simple heuristic: compare total spent vs total budget for closed months
+          const mkTotalSpent = monthlyBuckets[mk]?.total ?? 0
+          if (mkTotalSpent > totalBudget) result = 'bad'
+          else if (mkTotalSpent > totalBudget * 0.95) result = 'warn'
+          else result = 'ok'
+        }
+        return { key: mk, hasData, result }
+      })
+      setMonthResults(pickerMonths)
 
       setData({
         userName: firstName,
@@ -270,7 +341,7 @@ export default function ResumenPage() {
       setLoading(false)
     }
     load()
-  }, [router])
+  }, [router, selectedMonth.month]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading || !data) {
     return (
@@ -326,12 +397,34 @@ export default function ResumenPage() {
 
   return (
     <AppShell title="Resumen" currentPath="/resumen" userName={data.userName} householdName={data.householdName}>
+      {/* Month navigator */}
+      <MonthNavigator
+        label={selectedMonth.label}
+        isCurrent={selectedMonth.isCurrent}
+        dayOfMonth={data.monthCtx.dayOfMonth}
+        daysInMonth={data.monthCtx.daysInMonth}
+        canGoPrev={availableMonths.length > 0 && selectedMonth.month > availableMonths[0]}
+        canGoNext={!selectedMonth.isCurrent}
+        onPrev={selectedMonth.goPrev}
+        onNext={selectedMonth.goNext}
+        onTap={() => setPickerOpen(true)}
+      />
+
+      <MonthPickerSheet
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        selected={selectedMonth.month}
+        currentMonth={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`}
+        availableMonths={monthResults}
+        onSelect={selectedMonth.setMonth}
+      />
+
       {/* Tabs */}
       <div style={{
         display: 'flex', background: '#E7EBF2', borderRadius: 13,
         padding: 4, marginBottom: 24, width: 'fit-content',
       }}>
-        <button style={tabStyle('mes')} onClick={() => setTab('mes')}>Este mes</button>
+        <button style={tabStyle('mes')} onClick={() => setTab('mes')}>Mes</button>
         <button style={tabStyle('insights')} onClick={() => setTab('insights')}>Insights</button>
         <button style={tabStyle('tendencias')} onClick={() => setTab('tendencias')}>Tendencias</button>
       </div>
@@ -475,7 +568,7 @@ export default function ResumenPage() {
               return (
                 <div
                   key={cat.categoryId}
-                  onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${monthCtx.today.getFullYear()}-${String(monthCtx.today.getMonth() + 1).padStart(2, '0')}`)}
+                  onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${selectedMonth.month}`)}
                   style={{
                     display: 'flex', flexDirection: 'column', gap: 6,
                     padding: '16px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
@@ -555,7 +648,7 @@ export default function ResumenPage() {
                 {showNoSpend && noSpend.map(cat => (
                   <div
                     key={cat.categoryId}
-                    onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${monthCtx.today.getFullYear()}-${String(monthCtx.today.getMonth() + 1).padStart(2, '0')}`)}
+                    onClick={() => router.push(`/resumen/categoria/${cat.categoryId}?mes=${selectedMonth.month}`)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
                       padding: '12px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
