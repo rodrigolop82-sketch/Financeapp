@@ -87,18 +87,16 @@ export default function CategoriaDetallePage() {
 
       // For closed months, try to get the budget from snapshots
       let effectiveBudget = Number(cat.budgeted_amount)
-      let snapshotBackfilled = false
       if (!isCurrentMonth) {
         const { data: snap } = await supabase
           .from('budget_snapshots')
-          .select('amount, is_backfilled')
+          .select('amount')
           .eq('household_id', hid)
           .eq('category_id', categoryId)
           .eq('month', monthStart)
           .single()
         if (snap) {
           effectiveBudget = Number(snap.amount)
-          snapshotBackfilled = snap.is_backfilled
         }
       }
       setBudget(effectiveBudget)
