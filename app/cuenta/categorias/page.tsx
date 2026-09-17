@@ -37,7 +37,6 @@ export default function CategoriasPage() {
   const [reassignId, setReassignId] = useState('')
   const [archiving, setArchiving] = useState(false)
   const [toast, setToast] = useState('')
-  const [debugError, setDebugError] = useState('')
   const router = useRouter()
 
   const supabase = createClient()
@@ -62,16 +61,6 @@ export default function CategoriasPage() {
         .select('category_id')
         .eq('household_id', hh.id),
     ])
-
-    console.log('[DEBUG Categorias] catResult:', { data: catResult.data?.length ?? 0, error: catResult.error })
-    console.log('[DEBUG Categorias] hiddenResult:', { data: hiddenResult.data?.length ?? 0, error: hiddenResult.error })
-    if (catResult.error) {
-      console.error('[DEBUG Categorias] Query error:', catResult.error.message, catResult.error.details)
-      setDebugError(`Cat error: ${catResult.error.message}`)
-    }
-    if (hiddenResult.error) {
-      setDebugError(prev => prev + ` | Hidden error: ${hiddenResult.error!.message}`)
-    }
 
     setCategories((catResult.data || []) as CategoryItem[])
     setHiddenIds(new Set((hiddenResult.data || []).map(h => h.category_id)))
@@ -212,12 +201,6 @@ export default function CategoriasPage() {
   return (
     <AppShell title="Categorías" currentPath="/cuenta">
       <div style={{ maxWidth: 600, margin: '0 auto' }}>
-
-        {debugError && (
-          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 12, color: '#DC2626', wordBreak: 'break-all' }}>
-            <strong>DEBUG:</strong> {debugError}
-          </div>
-        )}
 
         {/* Counter + Create button */}
         <div style={{

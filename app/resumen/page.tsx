@@ -176,22 +176,6 @@ function ResumenContent() {
         supabase.from('budget_categories').select('*').eq('household_id', hid),
       ])
 
-      // DEBUG: comprehensive diagnosis
-      const { data: allTxNoFilter, error: allTxErr } = await supabase
-        .from('transactions').select('id', { count: 'exact', head: true }).eq('household_id', hid)
-      const { data: allTxNoHid, error: noHidErr } = await supabase
-        .from('transactions').select('id', { count: 'exact', head: true })
-      const { data: hmRows } = await supabase
-        .from('household_members').select('household_id, role').eq('user_id', user.id)
-      console.log('[DEBUG Resumen] user.id:', user.id)
-      console.log('[DEBUG Resumen] hid:', hid, 'monthStart:', monthStart, 'monthEnd:', monthEnd)
-      console.log('[DEBUG Resumen] household_members for user:', hmRows)
-      console.log('[DEBUG Resumen] allTxDates (no date filter, with hid):', { count: allTxNoFilter, error: allTxErr })
-      console.log('[DEBUG Resumen] allTx (no filters at all):', { count: allTxNoHid, error: noHidErr })
-      console.log('[DEBUG Resumen] allTxDates (expense only):', allTxDates?.length ?? 0)
-      console.log('[DEBUG Resumen] txMonthRes:', { rows: txMonthRes.data?.length ?? 0, error: txMonthRes.error })
-      console.log('[DEBUG Resumen] categoriesRes:', { rows: categoriesRes.data?.length ?? 0 })
-
       const txPrevRes = plan === 'premium'
         ? await supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', prevMonthStart).lte('date', prevMonthEnd)
         : { data: null }

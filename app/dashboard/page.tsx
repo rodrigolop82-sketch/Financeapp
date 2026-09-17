@@ -140,10 +140,6 @@ export default function DashboardPage() {
       supabase.from('transactions').select('date').eq('household_id', hid),
     ])
 
-    console.log('[DEBUG Dashboard] hid:', hid, 'monthStart:', monthStart, 'nextMonthStr:', nextMonthStr)
-    console.log('[DEBUG Dashboard] txMonthRes:', { data: txMonthRes.data?.length ?? 0, error: txMonthRes.error })
-    console.log('[DEBUG Dashboard] allDatesRes:', { data: allDatesRes.data?.length ?? 0, error: allDatesRes.error })
-
     const profile = profileRes.data as FinancialProfile | null
     const txMonth = (txMonthRes.data ?? []) as Transaction[]
     const categories = (categoriesRes.data ?? []) as BudgetCategory[]
