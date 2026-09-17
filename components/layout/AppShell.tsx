@@ -9,8 +9,8 @@ import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav } from '@/components/dashboard/BottomNav'
 import {
   BarChart3, TrendingUp, Wallet, CreditCard, Target, Receipt,
-  MessageCircle, BookOpen, Clock, Users, Settings,
-  Menu, ArrowLeft, ShieldCheck, Trophy,
+  MessageCircle, BookOpen, Users, Settings,
+  Menu, ArrowLeft, ShieldCheck, Trophy, Landmark, ClipboardCheck,
   ChevronRight,
 } from 'lucide-react'
 
@@ -40,6 +40,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/metas', icon: Trophy, label: 'Metas' },
       { href: '/deudas', icon: CreditCard, label: 'Deudas' },
       { href: '/plan', icon: Target, label: 'Plan' },
+      { href: '/mis-fuentes', icon: Landmark, label: 'Mis Fuentes' },
+      { href: '/cierre-mes', icon: ClipboardCheck, label: 'Cierre de mes' },
     ],
   },
   {
@@ -48,7 +50,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
       { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
       { href: '/aprende', icon: BookOpen, label: 'Aprende' },
-      { href: '/historial', icon: Clock, label: 'Historial' },
     ],
   },
   {
@@ -104,9 +105,12 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#F3F5F9' }}>
+    <div className="min-h-screen" style={{ background: 'var(--zafi-bg)' }}>
       {/* Mobile header */}
-      <header className="lg:hidden sticky top-0 z-40 bg-navy/95 backdrop-blur-md border-b border-white/[0.08] px-4 py-3 flex items-center gap-3">
+      <header
+        className="lg:hidden sticky top-0 z-40 backdrop-blur-md border-b border-white/[0.08] px-4 py-3 flex items-center gap-3"
+        style={{ background: 'var(--zafi-header)' }}
+      >
         <button onClick={() => setSidebarOpen(!sidebarOpen)}>
           <Menu className="w-5 h-5 text-white/60" />
         </button>
@@ -125,7 +129,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
           }`}
           style={{
             width: 252,
-            background: '#1E3A5F',
+            background: 'var(--zafi-sidebar)',
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
@@ -147,7 +151,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
                 <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <div style={{
                     fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
-                    color: '#7E93AE', padding: '0 12px 8px', textTransform: 'uppercase',
+                    color: 'var(--zafi-sidebar-group)', padding: '0 12px 8px', textTransform: 'uppercase',
                   }}>
                     {group.label}
                   </div>
@@ -161,8 +165,8 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
                         style={{
                           display: 'flex', alignItems: 'center', gap: 11,
                           padding: '10px 12px', borderRadius: 10,
-                          background: isActive ? '#2563EB' : 'transparent',
-                          color: isActive ? '#fff' : '#B9C6D9',
+                          background: isActive ? 'var(--zafi-sidebar-active)' : 'transparent',
+                          color: isActive ? '#fff' : 'var(--zafi-sidebar-text)',
                           fontWeight: isActive ? 600 : 500,
                           fontSize: '14.5px', textDecoration: 'none',
                           transition: 'background 0.15s, color 0.15s',
@@ -176,7 +180,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
                         onMouseLeave={(e) => {
                           if (!isActive) {
                             e.currentTarget.style.background = 'transparent'
-                            e.currentTarget.style.color = '#B9C6D9'
+                            e.currentTarget.style.color = 'var(--zafi-sidebar-text)'
                           }
                         }}
                       >
@@ -194,11 +198,11 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
           {userName && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 11,
-              padding: '12px 28px', borderTop: '1px solid #2A4A6E',
+              padding: '12px 28px', borderTop: `1px solid var(--zafi-sidebar-border)`,
             }}>
               <div style={{
                 width: 32, height: 32, borderRadius: '50%',
-                background: '#2563EB', display: 'flex',
+                background: 'var(--zafi-sidebar-active)', display: 'flex',
                 alignItems: 'center', justifyContent: 'center',
                 fontWeight: 700, fontSize: 13, color: '#fff',
                 flexShrink: 0,
@@ -210,13 +214,13 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
                   {userName}
                 </div>
                 {householdName && (
-                  <div style={{ fontSize: '11.5px', color: '#8FA3BE', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: '11.5px', color: 'var(--zafi-sidebar-group)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {householdName}
                   </div>
                 )}
               </div>
               <button onClick={handleLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                <ChevronRight style={{ width: 16, height: 16, color: '#8FA3BE' }} />
+                <ChevronRight style={{ width: 16, height: 16, color: 'var(--zafi-sidebar-group)' }} />
               </button>
             </div>
           )}
@@ -234,7 +238,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
         <main className="flex-1 min-w-0">
           {/* Desktop header */}
           <div className="hidden lg:flex items-baseline justify-between" style={{ padding: '44px 52px 0' }}>
-            <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 36, color: '#1E3A5F', margin: 0 }}>
+            <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 36, color: 'var(--zafi-text)', margin: 0 }}>
               {title}
             </h1>
             {headerRight}

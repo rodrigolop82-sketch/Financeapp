@@ -79,6 +79,7 @@ CREATE TABLE transactions (
   date DATE NOT NULL DEFAULT CURRENT_DATE,
   source TEXT DEFAULT 'manual' CHECK (source IN ('manual', 'ocr', 'csv')),
   payment_method TEXT DEFAULT 'efectivo' CHECK (payment_method IN ('efectivo', 'tarjeta', 'cheque', 'transferencia')),
+  type TEXT NOT NULL DEFAULT 'expense' CHECK (type IN ('expense', 'income')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -122,6 +123,20 @@ CREATE TABLE monthly_snapshots (
   UNIQUE (household_id, month)
 );
 
+-- Snapshots de presupuesto por mes (historial de budget por categoría)
+CREATE TABLE budget_snapshots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  category_id UUID NOT NULL REFERENCES budget_categories(id),
+  month DATE NOT NULL,
+  amount NUMERIC(12,2) NOT NULL,
+  pace_mode TEXT NOT NULL CHECK (pace_mode IN ('linear', 'fixed')),
+  expected_day SMALLINT CHECK (expected_day BETWEEN 1 AND 31),
+  is_backfilled BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (household_id, category_id, month)
+);
+
 -- Suscripciones Stripe
 CREATE TABLE subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -155,6 +170,7 @@ ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE debts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE action_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE monthly_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE budget_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
@@ -225,6 +241,10 @@ CREATE POLICY "Members can view snapshots" ON monthly_snapshots
   FOR SELECT USING (household_id IN (SELECT get_my_household_ids()));
 CREATE POLICY "Members can manage snapshots" ON monthly_snapshots
   FOR ALL USING (household_id IN (SELECT get_my_household_ids()));
+
+-- Budget snapshots: read-only for members, write via service role
+CREATE POLICY "Members can view budget snapshots" ON budget_snapshots
+  FOR SELECT USING (household_id IN (SELECT get_my_household_ids()));
 
 -- Subscriptions: solo el usuario
 CREATE POLICY "Users can view own subscriptions" ON subscriptions

@@ -1,36 +1,43 @@
 import { createClient } from '@/lib/supabase'
-import type { ScoreBreakdown } from '@/lib/scoring'
+import type { ScoreComponent } from '@/lib/score-calculator'
 import type { CapsuleRecommendation } from '@/types'
 
-/**
- * Devuelve hasta 3 cápsulas recomendadas según los componentes débiles del puntaje.
- * El usuario no las busca — Zafi las sugiere proactivamente en el dashboard.
- */
+const KEY_TO_DB: Record<string, string> = {
+  savings:   'savingsRate',
+  debt:      'debtBurden',
+  emergency: 'emergencyFund',
+  spending:  'expenseRatio',
+  stability: 'incomeStability',
+}
+
+const REASON_MAP: Record<string, string> = {
+  savings:   'Tu tasa de ahorro tiene espacio para mejorar',
+  debt:      'Tus deudas están impactando tu puntaje',
+  emergency: 'Todavía no tenés fondo de emergencia completo',
+  spending:  'Tus gastos son altos en relación al ingreso',
+  stability: 'Tu ingreso variable requiere planificación especial',
+}
+
 export async function getRecommendedCapsules(
   userId: string,
-  score: ScoreBreakdown,
+  components: ScoreComponent[],
   limit = 3
 ): Promise<CapsuleRecommendation[]> {
+  if (components.length === 0) return []
+
+  const weakComponents = [...components]
+    .sort((a, b) => (a.score / a.max) - (b.score / b.max))
+    .slice(0, 3)
+    .map(c => c.key)
+
+  const dbComponents = weakComponents
+    .map(k => KEY_TO_DB[k])
+    .filter(Boolean)
+
+  if (dbComponents.length === 0) return []
+
   const supabase = createClient()
 
-  // Determinar qué componentes están más débiles
-  const componentRatios = {
-    savingsRate:     score.components.savingsRate / 30,
-    debtBurden:      score.components.debtBurden / 25,
-    emergencyFund:   score.components.emergencyFund / 20,
-    expenseRatio:    score.components.expenseRatio / 15,
-    incomeStability: score.components.incomeStability / 10,
-  }
-
-  // Ordenar por debilidad (menor ratio = más débil = más prioritario)
-  const weakComponents = Object.entries(componentRatios)
-    .sort(([, a], [, b]) => a - b)
-    .slice(0, 3)
-    .map(([component]) => component)
-
-  if (weakComponents.length === 0) return []
-
-  // Obtener cápsulas ya leídas para no recomendar las mismas
   const { data: readCapsules } = await supabase
     .from('user_capsule_progress')
     .select('capsule_id')
@@ -38,14 +45,13 @@ export async function getRecommendedCapsules(
 
   const readIds = readCapsules?.map(r => r.capsule_id) ?? []
 
-  // Buscar cápsulas relacionadas a los componentes débiles
   let query = supabase
     .from('capsules')
     .select(`
       id, slug, title, subtitle, read_time_minutes, related_score_component,
       capsule_modules!inner(title, slug)
     `)
-    .in('related_score_component', weakComponents)
+    .in('related_score_component', dbComponents)
     .eq('is_premium', false)
     .order('order_index')
     .limit(limit)
@@ -58,13 +64,8 @@ export async function getRecommendedCapsules(
 
   if (!capsules) return []
 
-  const reasonMap: Record<string, string> = {
-    savingsRate:     'Tu tasa de ahorro tiene espacio para mejorar',
-    debtBurden:      'Tus deudas están impactando tu puntaje',
-    emergencyFund:   'Todavía no tenés fondo de emergencia completo',
-    expenseRatio:    'Tus gastos fijos son altos en relación al ingreso',
-    incomeStability: 'Tu ingreso variable requiere planificación especial',
-  }
+  const dbToKey: Record<string, string> = {}
+  for (const [k, v] of Object.entries(KEY_TO_DB)) dbToKey[v] = k
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return capsules.map((c: any) => ({
@@ -75,6 +76,6 @@ export async function getRecommendedCapsules(
     module_slug: c.capsule_modules.slug,
     slug: c.slug,
     read_time_minutes: c.read_time_minutes,
-    reason: reasonMap[c.related_score_component ?? ''] ?? 'Relevante para tu situación',
+    reason: REASON_MAP[dbToKey[c.related_score_component] ?? ''] ?? 'Relevante para tu situación',
   }))
 }

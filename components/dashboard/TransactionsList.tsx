@@ -8,7 +8,12 @@ interface Transaction {
   category: string
   amount: number
   date: string
-  source: 'manual' | 'voice' | 'ocr' | 'csv'
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
+  type?: 'expense' | 'income'
+  original_amount?: number | null
+  original_currency?: string | null
+  categoryIcon?: string | null
+  categoryColor?: string | null
 }
 
 const CATEGORY_ICONS: Record<string, { bg: string; icon: string }> = {
@@ -30,7 +35,20 @@ const CATEGORY_ICONS: Record<string, { bg: string; icon: string }> = {
   'Pago de deudas extra':   { bg: '#FFF7ED', icon: 'card' },
 }
 
-function CategoryIcon({ category }: { category: string }) {
+function CategoryIcon({ category, emoji, emojiColor }: { category: string; emoji?: string | null; emojiColor?: string | null }) {
+  if (emoji) {
+    return (
+      <div style={{
+        width: 36, height: 36, borderRadius: 10,
+        background: emojiColor ? `${emojiColor}18` : '#F1F5F9',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 18, flexShrink: 0,
+      }}>
+        {emoji}
+      </div>
+    )
+  }
+
   const config = CATEGORY_ICONS[category] ?? { bg: '#F1F5F9', icon: 'card' }
   const color = '#475569'
 
@@ -119,7 +137,7 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
               padding: '12px 16px',
               borderBottom: i < recent.length - 1 ? '1px solid #F1F5F9' : 'none'
             }}>
-              <CategoryIcon category={tx.category} />
+              <CategoryIcon category={tx.category} emoji={tx.categoryIcon} emojiColor={tx.categoryColor} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
                   fontSize: 14, fontWeight: 500, color: '#1E3A5F',
@@ -132,10 +150,24 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
                 </div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#1E3A5F' }}>
-                  {money(tx.amount)}
+                <div style={{ fontSize: 14, fontWeight: 500, color: tx.type === 'income' ? '#16A34A' : '#1E3A5F' }}>
+                  {tx.type === 'income' ? '+' : ''}{money(tx.amount)}
                 </div>
-                {tx.source === 'voice' && (
+                {tx.original_currency && (
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>
+                    {tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : tx.original_currency}{' '}
+                    {Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                )}
+                {tx.type === 'income' && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 500, padding: '1px 5px',
+                    borderRadius: 4, background: '#DCFCE7', color: '#166534'
+                  }}>
+                    ingreso
+                  </span>
+                )}
+                {tx.source === 'voice' && tx.type !== 'income' && (
                   <span style={{
                     fontSize: 10, fontWeight: 500, padding: '1px 5px',
                     borderRadius: 4, background: '#DBEAFE', color: '#1E40AF'

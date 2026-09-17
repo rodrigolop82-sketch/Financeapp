@@ -30,6 +30,101 @@
     --radius-card:    16px;
     --radius-btn:     100px;
     --radius-input:   12px;
+
+    --zafi-bg: #F3F5F9;
+    --zafi-card: #FFFFFF;
+    --zafi-card-alt: #F8F9FC;
+    --zafi-text: #1E3A5F;
+    --zafi-text-secondary: #64748B;
+    --zafi-text-muted: #94A3B8;
+    --zafi-text-faint: #8B9AAE;
+    --zafi-border: #E2E8F0;
+    --zafi-border-light: #EEF1F6;
+    --zafi-sidebar: #1E3A5F;
+    --zafi-sidebar-text: #B9C6D9;
+    --zafi-sidebar-active: #2563EB;
+    --zafi-sidebar-group: #7E93AE;
+    --zafi-sidebar-border: #2A4A6E;
+    --zafi-header: rgba(30,58,95,0.95);
+    --zafi-bottomnav: rgba(13,31,54,0.98);
+    --zafi-nav-active: #60A5FA;
+    --zafi-nav-inactive: rgba(255,255,255,0.4);
+    --zafi-hero: #1E3A5F;
+    --zafi-hero-text: #FFFFFF;
+    --zafi-hero-text-secondary: #9FB3CB;
+    --zafi-input-bg: #FFFFFF;
+    --zafi-hover: rgba(0,0,0,0.03);
+    --zafi-tab-bg: #E7EBF2;
+    --zafi-tab-active: #FFFFFF;
+    --zafi-tab-active-text: #1E3A5F;
+    --zafi-tab-inactive-text: #7E93AE;
+    --zafi-tab-shadow: 0 1px 3px rgba(30,58,95,0.15);
+    --zafi-success-bg: #F0FDF4;
+    --zafi-success-border: #BBF7D0;
+    --zafi-success-text: #065F46;
+    --zafi-error-bg: #FEF2F2;
+    --zafi-error-border: #FECACA;
+    --zafi-error-text: #991B1B;
+  }
+
+  .dark {
+    --background: 222 47% 5%;
+    --foreground: 214 32% 91%;
+    --card: 222 39% 12%;
+    --card-foreground: 214 32% 91%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 39% 14%;
+    --secondary-foreground: 214 32% 91%;
+    --muted: 222 39% 16%;
+    --muted-foreground: 215 16% 57%;
+    --accent: 222 39% 18%;
+    --accent-foreground: 214 32% 91%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 30% 18%;
+    --input: 222 30% 18%;
+    --ring: 217 91% 60%;
+
+    --color-navy:     #E2E8F0;
+    --color-electric: #3B82F6;
+    --color-surface:  #141D2E;
+    --color-bg:       #0B1120;
+
+    --zafi-bg: #0B1120;
+    --zafi-card: #141D2E;
+    --zafi-card-alt: #1A2435;
+    --zafi-text: #E2E8F0;
+    --zafi-text-secondary: #94A3B8;
+    --zafi-text-muted: #64748B;
+    --zafi-text-faint: #64748B;
+    --zafi-border: #1E293B;
+    --zafi-border-light: #1E293B;
+    --zafi-sidebar: #070D1A;
+    --zafi-sidebar-text: #94A3B8;
+    --zafi-sidebar-active: #3B82F6;
+    --zafi-sidebar-group: #64748B;
+    --zafi-sidebar-border: #1E293B;
+    --zafi-header: rgba(11,17,32,0.95);
+    --zafi-bottomnav: rgba(7,13,26,0.98);
+    --zafi-nav-active: #60A5FA;
+    --zafi-nav-inactive: rgba(255,255,255,0.3);
+    --zafi-hero: #141D2E;
+    --zafi-hero-text: #E2E8F0;
+    --zafi-hero-text-secondary: #64748B;
+    --zafi-input-bg: #1A2435;
+    --zafi-hover: rgba(255,255,255,0.05);
+    --zafi-tab-bg: #1A2435;
+    --zafi-tab-active: #243044;
+    --zafi-tab-active-text: #E2E8F0;
+    --zafi-tab-inactive-text: #64748B;
+    --zafi-tab-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --zafi-success-bg: rgba(22,163,74,0.15);
+    --zafi-success-border: rgba(22,163,74,0.3);
+    --zafi-success-text: #86EFAC;
+    --zafi-error-bg: rgba(239,68,68,0.15);
+    --zafi-error-border: rgba(239,68,68,0.3);
+    --zafi-error-text: #FCA5A5;
   }
 
   * {
@@ -37,7 +132,9 @@
   }
 
   body {
-    @apply bg-surface-bg text-navy font-sans;
+    background: var(--zafi-bg);
+    color: var(--zafi-text);
+    @apply font-sans;
     -webkit-tap-highlight-color: transparent;
   }
 

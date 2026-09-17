@@ -14,11 +14,21 @@ import "@fontsource/dm-sans/500.css";
 import "@fontsource/dm-sans/600.css";
 import "@fontsource/dm-sans/700.css";
 import "./globals.css";
+import { InstallPromptManager } from "@/components/install/InstallPromptManager";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Zafi — Ordená tu dinero. Construí tu futuro.",
   description:
     "Tu planner financiero personal para Latinoamérica. Diagnóstico honesto, plan de acción priorizado, y acompañamiento proactivo mes a mes.",
+  manifest: "/manifest.json",
+  themeColor: "#1E3A5F",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Zafi",
+  },
 };
 
 export default function RootLayout({
@@ -27,9 +37,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+      </head>
       <body className="font-sans antialiased">
-        {children}
+        <ThemeProvider>
+          <ServiceWorkerRegistration />
+          <InstallPromptManager>
+            {children}
+          </InstallPromptManager>
+        </ThemeProvider>
       </body>
     </html>
   );

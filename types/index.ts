@@ -62,6 +62,15 @@ export interface BudgetCategory {
   created_at: string | null;
   pace_mode: 'linear' | 'fixed';
   expected_day: number | null;
+  parent_category_id: string | null;
+  color: string | null;
+  archived_at: string | null;
+}
+
+export interface HouseholdHiddenCategory {
+  household_id: string;
+  category_id: string;
+  created_at: string;
 }
 
 export interface BudgetSubItem {
@@ -71,6 +80,7 @@ export interface BudgetSubItem {
   name: string;
   amount: number;
   is_fixed: boolean;
+  recurrence: 'mensual' | 'trimestral' | 'semestral' | 'anual' | 'unica';
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
   frequency: 'mensual' | 'trimestral' | 'anual';
   created_at: string;
@@ -83,9 +93,12 @@ export interface Transaction {
   amount: number;
   description: string | null;
   date: string;
-  source: 'manual' | 'voice' | 'ocr' | 'csv';
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement';
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
+  type: 'expense' | 'income';
   voice_raw_text: string | null;
+  original_amount: number | null;
+  original_currency: string | null;
   created_at: string;
 }
 
@@ -129,6 +142,18 @@ export interface MonthlySnapshot {
   expenses: number;
   savings: number;
   plan_completed: boolean;
+}
+
+export interface BudgetSnapshot {
+  id: string;
+  household_id: string;
+  category_id: string;
+  month: string;
+  amount: number;
+  pace_mode: 'linear' | 'fixed';
+  expected_day: number | null;
+  is_backfilled: boolean;
+  created_at: string;
 }
 
 export interface Subscription {
@@ -186,6 +211,8 @@ export interface ExtractedTransaction {
   category_id?: string;
   date: string;
   confidence: number;
+  original_amount?: number | null;
+  original_currency?: string | null;
 }
 
 export interface VoiceExtractionResult {
@@ -246,13 +273,35 @@ export interface CapsuleRecommendation {
   reason: string;
 }
 
-// Income entry (stored in localStorage)
+// Income entry (persisted in financial_profiles.income_entries JSONB)
 export interface IncomeEntry {
   id: string;
   source: string;
   member: string;
   amount: number;
   frequency: 'mensual' | 'quincenal' | 'semanal' | 'anual';
+}
+
+export type SourceType = 'tarjeta_credito' | 'cuenta_bancaria' | 'efectivo'
+export type DetectionMethod = 'auto' | 'manual'
+
+export interface UserSource {
+  id: string
+  user_id: string
+  type: SourceType
+  bank_name: string
+  nickname: string | null
+  detection_method: DetectionMethod
+  active: boolean
+  created_at: string
+}
+
+export interface SourceMonthlyStatus {
+  id: string
+  user_source_id: string
+  year_month: string
+  loaded: boolean
+  loaded_at: string | null
 }
 
 // Legacy formatCurrency — new code should use formatMoney from @/lib/format
@@ -266,20 +315,20 @@ export function formatCurrency(amount: number, currency = 'GTQ'): string {
 // Default budget categories
 export const DEFAULT_CATEGORIES: Omit<BudgetCategory, 'id' | 'household_id'>[] = [
   // Necesidades (50%)
-  { name: 'Vivienda/alquiler', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Alimentación', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Transporte', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Salud/medicinas', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Servicios', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Educación', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
+  { name: 'Vivienda/alquiler', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Alimentación', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Transporte', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Salud/medicinas', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Servicios', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Educación', bucket: 'needs', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
   // Gustos (30%)
-  { name: 'Restaurantes y salidas', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Ropa', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Entretenimiento', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Suscripciones', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Varios personales', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
+  { name: 'Restaurantes y salidas', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Ropa', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Entretenimiento', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Suscripciones', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Varios personales', bucket: 'wants', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
   // Ahorro/Deudas (20%)
-  { name: 'Fondo de emergencia', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Ahorro para metas', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
-  { name: 'Pago extra de deudas', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null },
+  { name: 'Fondo de emergencia', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Ahorro para metas', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Pago extra de deudas', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
 ];
