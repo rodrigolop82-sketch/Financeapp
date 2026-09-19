@@ -59,10 +59,11 @@ const MONTHS_ES = [
 export function formatMonthRange(dates: string[]): string {
   if (dates.length === 0) return '';
 
-  const months = [...new Set(dates.map((d) => {
+  const monthKeys = dates.map((d) => {
     const parts = d.split('-');
-    return { y: Number(parts[0]), m: Number(parts[1]) - 1 };
-  }).map((p) => `${p.y}-${p.m}`))];
+    return `${Number(parts[0])}-${Number(parts[1]) - 1}`;
+  });
+  const months = Array.from(new Set(monthKeys));
 
   const parsed = months.map((m) => {
     const [y, mo] = m.split('-').map(Number);
