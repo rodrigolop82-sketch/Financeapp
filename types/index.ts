@@ -86,7 +86,30 @@ export interface Transaction {
   source: 'manual' | 'voice' | 'ocr' | 'csv';
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
   voice_raw_text: string | null;
+  category_source: 'auto' | 'manual' | 'bulk';
+  transaction_type: 'gasto' | 'ingreso' | 'ahorro';
   created_at: string;
+}
+
+export interface MerchantCategoryOverride {
+  id: string;
+  merchant_key: string;
+  category_id: string;
+  household_id: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface SearchTransaction extends Transaction {
+  category_name: string;
+  category_bucket: 'needs' | 'wants' | 'savings';
+  category_icon: string | null;
+}
+
+export interface SearchMonthTotal {
+  month: string;
+  count: number;
+  sum_gastos: number;
 }
 
 export interface Debt {
