@@ -63,7 +63,7 @@ export function EditSheet({
     <BottomSheet open={open} onClose={onClose}>
       <div className="flex justify-between items-start gap-3 px-5 pt-2">
         <h2
-          className="font-serif text-2xl outline-none"
+          className="font-serif text-2xl text-ink-900 outline-none"
           tabIndex={-1}
         >
           Editar transacción

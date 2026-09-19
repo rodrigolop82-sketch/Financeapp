@@ -55,8 +55,8 @@ export function CategoryGrid({
             <span
               className={`flex flex-col items-center justify-center gap-1 h-[78px] px-1 rounded-[14px] border text-center text-xs font-medium leading-tight transition-colors ${
                 active
-                  ? 'border-electric bg-electric-ghost/30 font-bold'
-                  : 'border-ink-200 bg-white hover:border-ink-400'
+                  ? 'border-electric bg-electric-ghost/30 font-bold text-electric-dark'
+                  : 'border-ink-200 bg-white text-ink-700 hover:border-ink-400'
               } peer-focus-visible:ring-2 peer-focus-visible:ring-electric-pale peer-focus-visible:ring-offset-2`}
             >
               <span className="text-[22px]" aria-hidden="true">

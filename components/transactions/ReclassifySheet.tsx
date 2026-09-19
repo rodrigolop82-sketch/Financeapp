@@ -94,7 +94,7 @@ export function ReclassifySheet({
     <BottomSheet open={open} onClose={onClose}>
       <div className="px-5 pt-2 pb-1">
         <h2
-          className="font-serif text-2xl outline-none"
+          className="font-serif text-2xl text-ink-900 outline-none"
           tabIndex={-1}
         >
           ¿Cambiar también los demás de {merchantName}?
@@ -102,7 +102,7 @@ export function ReclassifySheet({
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-3">
-        <p className="text-sm text-ink-600 leading-relaxed">
+        <p className="text-sm text-ink-700 leading-relaxed">
           Hay{' '}
           <span className="font-semibold">{matches.length}</span>{' '}
           {matches.length === 1 ? 'gasto' : 'gastos'} más de{' '}
@@ -137,7 +137,7 @@ export function ReclassifySheet({
                 className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                   selectedCount === matches.length
                     ? 'bg-electric border-electric'
-                    : 'border-ink-300 bg-white'
+                    : 'border-ink-200 bg-white'
                 }`}
               >
                 {selectedCount === matches.length && (
@@ -161,7 +161,7 @@ export function ReclassifySheet({
                       className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                         checked
                           ? 'bg-electric border-electric'
-                          : 'border-ink-300 bg-white'
+                          : 'border-ink-200 bg-white'
                       }`}
                     >
                       {checked && (
