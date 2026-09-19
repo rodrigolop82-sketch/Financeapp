@@ -412,15 +412,15 @@ function TransaccionesPageInner() {
     setTransactions(transactions.filter(t => t.id !== id));
   }
 
-  function startEdit(tx: Transaction & { category_name?: string }) {
-    setEditingId(tx.id);
-    setEditData({
-      category_id: tx.category_id,
-      amount: Number(tx.amount),
-      description: tx.description || '',
-      date: tx.date,
-      payment_method: tx.payment_method || 'efectivo',
-    });
+  function startEdit(tx: Transaction & { category_name?: string; bucket?: string }) {
+    const cat = categories.find((c) => c.id === tx.category_id);
+    const asST: SearchTransaction = {
+      ...tx,
+      category_name: cat?.name ?? tx.category_name ?? 'Sin categoría',
+      category_bucket: (cat?.bucket ?? tx.bucket ?? 'wants') as 'needs' | 'wants' | 'savings',
+      category_icon: cat?.icon ?? null,
+    };
+    flow.openEdit(asST);
   }
 
   async function saveEdit() {
