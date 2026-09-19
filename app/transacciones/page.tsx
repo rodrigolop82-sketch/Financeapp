@@ -16,6 +16,10 @@ import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import { SearchBar } from '@/components/transactions/SearchBar';
 import { SearchFilters } from '@/components/transactions/SearchFilters';
 import { SearchResults } from '@/components/transactions/SearchResults';
+import { EditSheet } from '@/components/transactions/EditSheet';
+import { ReclassifySheet } from '@/components/transactions/ReclassifySheet';
+import { UndoToast } from '@/components/transactions/UndoToast';
+import { useReclassifyFlow } from '@/lib/transactions/useReclassifyFlow';
 import {
   Plus,
   Loader2,
@@ -107,6 +111,8 @@ export default function TransaccionesPage() {
   const router = useRouter();
   const supabase = createClient();
   const fmt = useFormatMoney();
+
+  const flow = useReclassifyFlow(categories, () => setSearchGen((g) => g + 1));
 
   const trimmedQuery = searchQuery.trim();
   const effectivePeriod = explicitPeriod ?? (trimmedQuery.length >= 2 ? 'all' : 'month');
@@ -262,8 +268,7 @@ export default function TransaccionesPage() {
   }
 
   function handleSearchSelect(tx: SearchTransaction) {
-    startEdit(tx);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    flow.openEdit(tx);
   }
 
   async function addTransaction() {
@@ -396,10 +401,6 @@ export default function TransaccionesPage() {
       } as Transaction & { category_name?: string; bucket?: string };
 
       setTransactions(transactions.map(t => t.id === editingId ? mapped : t));
-
-      if (isSearchMode) {
-        setSearchGen((g) => g + 1);
-      }
     }
 
     setEditingId(null);
@@ -546,27 +547,18 @@ export default function TransaccionesPage() {
         />
 
         {isSearchMode ? (
-          <>
-            {/* Edit card above search results */}
-            {editingId && (
-              <Card className="mb-4 border-electric-pale/30">
-                <CardContent className="p-0">{editForm}</CardContent>
-              </Card>
-            )}
-
-            <SearchResults
-              results={searchResults}
-              totals={searchTotals}
-              query={searchQuery}
-              loading={searchLoading}
-              hasMore={searchHasMore}
-              onLoadMore={loadMoreResults}
-              onSelect={handleSearchSelect}
-              onClearFilters={clearSearchFilters}
-              hasActiveFilters={hasActiveFilters}
-              fmt={fmt}
-            />
-          </>
+          <SearchResults
+            results={searchResults}
+            totals={searchTotals}
+            query={searchQuery}
+            loading={searchLoading}
+            hasMore={searchHasMore}
+            onLoadMore={loadMoreResults}
+            onSelect={handleSearchSelect}
+            onClearFilters={clearSearchFilters}
+            hasActiveFilters={hasActiveFilters}
+            fmt={fmt}
+          />
         ) : (
           <>
             {/* Action row */}
@@ -823,6 +815,39 @@ export default function TransaccionesPage() {
           </>
         )}
       </div>
+
+      {/* Edit & reclassify sheets (search mode) */}
+      <EditSheet
+        open={flow.step === 'editing'}
+        transaction={flow.editingTx}
+        categories={categories}
+        onSave={flow.saveCategory}
+        onClose={flow.closeEdit}
+        saving={flow.saving}
+        fmt={fmt}
+      />
+
+      <ReclassifySheet
+        open={flow.step === 'reclassifying'}
+        merchantName={flow.merchantName}
+        newCategoryName={flow.newCategoryName}
+        matches={flow.matches}
+        defaultSelectedIds={flow.defaultSelectedIds}
+        truncated={flow.truncated}
+        saving={flow.saving}
+        onConfirm={flow.confirmBulk}
+        onSingleOnly={flow.singleOnly}
+        onClose={flow.closeEdit}
+        fmt={fmt}
+      />
+
+      <UndoToast
+        visible={flow.undoVisible}
+        title={flow.undoTitle}
+        subtitle={flow.undoSubtitle}
+        onUndo={flow.doUndo}
+        onDismiss={flow.dismissUndo}
+      />
     </AppShell>
   );
 }
