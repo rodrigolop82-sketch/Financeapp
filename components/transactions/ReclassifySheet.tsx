@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { BottomSheet } from './BottomSheet';
 import { formatMonthRange } from '@/lib/transactions/reclassify';
@@ -54,6 +54,14 @@ export function ReclassifySheet({
   const [selected, setSelected] = useState<Set<string>>(() => new Set(defaultSelectedIds));
   const [showList, setShowList] = useState(false);
   const [remember, setRemember] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setSelected(new Set(defaultSelectedIds));
+      setShowList(false);
+      setRemember(false);
+    }
+  }, [open, defaultSelectedIds]);
 
   const monthRange = useMemo(
     () => formatMonthRange(matches.map((m) => m.date)),

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import type { SearchTransaction, BudgetCategory } from '@/types';
+import { getMerchantKey } from '@/lib/transactions/merchant-key';
 
 type Step = 'idle' | 'editing' | 'reclassifying';
 
@@ -46,6 +47,7 @@ export function useReclassifyFlow(
     categorySource: string;
   } | null>(null);
   const newCategoryIdRef = useRef<string>('');
+  const merchantKeyRef = useRef<string | null>(null);
   const undoRef = useRef<UndoPayload | null>(null);
 
   const openEdit = useCallback((tx: SearchTransaction) => {
@@ -81,6 +83,7 @@ export function useReclassifyFlow(
         const data = await res.json();
         firstSnapshotRef.current = data.snapshot;
         newCategoryIdRef.current = categoryId;
+        merchantKeyRef.current = getMerchantKey(editingTx.description);
 
         const catObj = categories.find((c) => c.id === categoryId);
         const catName = catObj?.name ?? '';
@@ -98,7 +101,7 @@ export function useReclassifyFlow(
           undoRef.current = {
             items: [data.snapshot],
             overrideCreated: false,
-            merchantKey: null,
+            merchantKey: merchantKeyRef.current,
             householdId: editingTx.household_id,
             title: 'Categoría actualizada',
             subtitle: `${editingTx.description ?? ''} → ${catName}`,
@@ -154,7 +157,7 @@ export function useReclassifyFlow(
         undoRef.current = {
           items: allItems,
           overrideCreated: data.overrideCreated ?? false,
-          merchantKey: null,
+          merchantKey: merchantKeyRef.current,
           householdId: editingTx.household_id,
           title: `${1 + bulkCount} ${1 + bulkCount === 1 ? 'gasto' : 'gastos'} reclasificados`,
           subtitle: `${merchantName} → ${newCategoryName}`,
@@ -199,7 +202,7 @@ export function useReclassifyFlow(
             undoRef.current = {
               items: [firstSnapshotRef.current!],
               overrideCreated: data.overrideCreated ?? false,
-              merchantKey: null,
+              merchantKey: merchantKeyRef.current,
               householdId: editingTx.household_id,
               title: 'Categoría actualizada',
               subtitle: `${merchantName} → ${newCategoryName}`,
@@ -213,7 +216,7 @@ export function useReclassifyFlow(
         undoRef.current = {
           items: [firstSnapshotRef.current],
           overrideCreated: false,
-          merchantKey: null,
+          merchantKey: merchantKeyRef.current,
           householdId: editingTx.household_id,
           title: 'Categoría actualizada',
           subtitle: `${merchantName} → ${newCategoryName}`,

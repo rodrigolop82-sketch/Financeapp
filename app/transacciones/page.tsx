@@ -157,6 +157,25 @@ export default function TransaccionesPage() {
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-fetch normal list after reclassify mutations
+  useEffect(() => {
+    if (searchGen === 0 || !householdId) return;
+    supabase
+      .from('transactions')
+      .select('*, budget_categories(name, bucket)')
+      .eq('household_id', householdId)
+      .order('date', { ascending: false })
+      .limit(50)
+      .then(({ data: txs }) => {
+        const mapped = (txs || []).map((tx: Record<string, unknown>) => ({
+          ...tx,
+          category_name: (tx.budget_categories as { name: string } | null)?.name || 'Sin categoría',
+          bucket: (tx.budget_categories as { bucket: string } | null)?.bucket || '',
+        })) as (Transaction & { category_name?: string; bucket?: string })[];
+        setTransactions(mapped);
+      });
+  }, [searchGen, householdId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Search effect
   useEffect(() => {
     const q = searchQuery.trim();
