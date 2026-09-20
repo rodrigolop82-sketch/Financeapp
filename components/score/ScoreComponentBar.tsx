@@ -38,7 +38,7 @@ export function ScoreComponentBar({ component }: { component: ScoreComponent }) 
           transition: 'width 0.6s ease-out',
         }} />
       </div>
-      <p className="font-sans text-gray-500" style={{ fontSize: 11, marginTop: 3 }}>
+      <p className="font-sans text-ink-500" style={{ fontSize: 11, marginTop: 3 }}>
         {component.tip}
       </p>
     </div>

@@ -83,7 +83,7 @@ export function CategoryGrid({
         {/* Custom categories */}
         {custom.length > 0 && (
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', letterSpacing: '.06em', marginBottom: 8 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '.06em', marginBottom: 8 }}>
               TUS CATEGORÍAS
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
@@ -127,7 +127,7 @@ export function CategoryGrid({
 
         {/* Default categories */}
         <div>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', letterSpacing: '.06em', marginBottom: 8 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '.06em', marginBottom: 8 }}>
             CATEGORÍAS DE ZAFI
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>

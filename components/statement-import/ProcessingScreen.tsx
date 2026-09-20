@@ -104,7 +104,7 @@ export function ProcessingScreen({ bankDetected, isLoading }: ProcessingScreenPr
                   width: 24, height: 24, borderRadius: '50%',
                   background: '#E2E8F0', display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: '#94A3B8', flexShrink: 0,
+                  fontSize: 11, fontWeight: 700, color: '#64748B', flexShrink: 0,
                 }}>
                   {step.id}
                 </div>

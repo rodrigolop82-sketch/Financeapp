@@ -16,7 +16,7 @@ const BUCKET_COLORS: Record<string, string> = {
 export function HorizontalBarChart({ categories }: HorizontalBarChartProps) {
   if (categories.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '24px 0', color: '#94A3B8', fontSize: 14 }}>
+      <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748B', fontSize: 14 }}>
         Sin datos
       </div>
     )
@@ -45,9 +45,9 @@ export function HorizontalBarChart({ categories }: HorizontalBarChartProps) {
           formatter={(value) => [formatMoney(Number(value)), 'Gasto']}
           contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }}
         />
-        <Bar dataKey="amount" radius={[0, 4, 4, 0]} maxBarSize={16} label={{ position: 'right', fontSize: 10, fill: '#94A3B8', formatter: (v: unknown) => formatMoney(Number(v)) }}>
+        <Bar dataKey="amount" radius={[0, 4, 4, 0]} maxBarSize={16} label={{ position: 'right', fontSize: 10, fill: '#64748B', formatter: (v: unknown) => formatMoney(Number(v)) }}>
           {data.map((entry, index) => (
-            <Cell key={index} fill={BUCKET_COLORS[entry.bucket] ?? '#94A3B8'} />
+            <Cell key={index} fill={BUCKET_COLORS[entry.bucket] ?? '#64748B'} />
           ))}
         </Bar>
       </BarChart>

@@ -127,7 +127,7 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
 
       <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden' }}>
         {recent.length === 0 ? (
-          <div style={{ padding: '20px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>
+          <div style={{ padding: '20px 16px', textAlign: 'center', color: '#64748B', fontSize: 14 }}>
             No hay gastos registrados.
           </div>
         ) : (
@@ -145,7 +145,7 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
                 }}>
                   {tx.description ? cleanTransactionName(tx.description) : tx.category}
                 </div>
-                <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 1 }}>
+                <div style={{ fontSize: 12, color: '#64748B', marginTop: 1 }}>
                   {tx.category} · {formatRelativeDate(tx.date)}
                 </div>
               </div>
@@ -154,7 +154,7 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
                   {tx.type === 'income' ? '+' : ''}{money(tx.amount)}
                 </div>
                 {tx.original_currency && (
-                  <div style={{ fontSize: 11, color: '#94A3B8' }}>
+                  <div style={{ fontSize: 11, color: '#64748B' }}>
                     {tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : tx.original_currency}{' '}
                     {Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>

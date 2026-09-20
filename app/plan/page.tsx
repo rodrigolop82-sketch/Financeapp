@@ -71,7 +71,7 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 12, color: '#94A3B8' }}>
+        <span style={{ fontSize: 12, color: '#64748B' }}>
           {challenge.unit === 'Q'
             ? `Q${challenge.current.toLocaleString()} / Q${challenge.target.toLocaleString()}`
             : `${challenge.current} / ${challenge.target} ${challenge.unit}`
@@ -145,7 +145,7 @@ export default function PlanPage() {
 
           {/* Subtitle */}
           <div style={{ margin: '0 16px 12px' }}>
-            <p style={{ fontSize: 12, color: '#94A3B8', margin: 0, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 12, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
               Retos generados automáticamente a partir de tus gastos reales. El progreso se actualiza solo.
             </p>
           </div>
@@ -166,7 +166,7 @@ export default function PlanPage() {
               <p style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', margin: '0 0 4px' }}>
                 Sin datos suficientes
               </p>
-              <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>
+              <p style={{ fontSize: 12, color: '#64748B', margin: 0 }}>
                 Registrá gastos por unos días para que se generen tus retos.
               </p>
             </div>

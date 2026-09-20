@@ -195,7 +195,7 @@ export default function OnboardingPage() {
               <AppIcon size="xs" variant="electric" />
               <Wordmark size="xs" />
             </div>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-ink-500">
               Paso {step} de {TOTAL_STEPS}
             </span>
           </div>
@@ -228,7 +228,7 @@ export default function OnboardingPage() {
                     onChange={(e) => setData({ ...data, householdName: e.target.value })}
                     className="mt-1"
                   />
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-ink-500 mt-1">
                     Ponle un nombre para identificar este presupuesto.
                   </p>
                 </div>
@@ -267,7 +267,7 @@ export default function OnboardingPage() {
                     </div>
                     <div>
                       <p className="font-medium">{opt.label}</p>
-                      <p className="text-sm text-gray-500">{opt.desc}</p>
+                      <p className="text-sm text-ink-500">{opt.desc}</p>
                     </div>
                   </button>
                 ))}
@@ -293,7 +293,7 @@ export default function OnboardingPage() {
                 <div>
                   <Label htmlFor="income">Ingreso mensual total (GTQ)</Label>
                   <div className="relative mt-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">
                       Q
                     </span>
                     <Input
@@ -327,7 +327,7 @@ export default function OnboardingPage() {
                         }`}
                       >
                         <p className="font-medium text-sm">{opt.label}</p>
-                        <p className="text-xs text-gray-500">{opt.desc}</p>
+                        <p className="text-xs text-ink-500">{opt.desc}</p>
                       </button>
                     ))}
                   </div>
@@ -373,7 +373,7 @@ export default function OnboardingPage() {
                         {expense.label}
                       </Label>
                       <div className="relative mt-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 text-sm">
                           Q
                         </span>
                         <Input
@@ -403,7 +403,7 @@ export default function OnboardingPage() {
                   <span className="text-lg">{fmt(totalFixedExpenses)}</span>
                 </div>
                 {data.totalIncome > 0 && (
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-ink-500">
                     Esto es el {Math.round((totalFixedExpenses / data.totalIncome) * 100)}% de tu
                     ingreso mensual.
                   </p>
@@ -455,7 +455,7 @@ export default function OnboardingPage() {
                       <div key={i} className="border rounded-lg p-4 space-y-3 relative">
                         <button
                           onClick={() => removeDebt(i)}
-                          className="absolute top-2 right-2 text-gray-400 hover:text-red-500"
+                          className="absolute top-2 right-2 text-ink-500 hover:text-red-500"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -564,11 +564,11 @@ export default function OnboardingPage() {
               <CardContent className="space-y-6">
                 <div>
                   <Label>Efectivo disponible (cuentas de ahorro, efectivo)</Label>
-                  <p className="text-xs text-gray-500 mb-1">
+                  <p className="text-xs text-ink-500 mb-1">
                     Dinero que puedes usar de inmediato si lo necesitas.
                   </p>
                   <div className="relative mt-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">
                       Q
                     </span>
                     <Input
@@ -586,11 +586,11 @@ export default function OnboardingPage() {
 
                 <div>
                   <Label>Inversiones (plazos fijos, fondos, acciones)</Label>
-                  <p className="text-xs text-gray-500 mb-1">
+                  <p className="text-xs text-ink-500 mb-1">
                     Dinero invertido que no tiene disponibilidad inmediata.
                   </p>
                   <div className="relative mt-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">
                       Q
                     </span>
                     <Input
@@ -608,14 +608,14 @@ export default function OnboardingPage() {
 
                 {(data.savingsCash > 0 || data.savingsInvestments > 0) && (
                   <div className="bg-gray-50 rounded-lg p-3 flex justify-between text-sm">
-                    <span className="text-gray-600">Total ahorros</span>
+                    <span className="text-ink-700">Total ahorros</span>
                     <span className="font-semibold">{fmt(data.totalSavings)}</span>
                   </div>
                 )}
 
                 <div>
                   <Label>¿Tienes un fondo de emergencia separado?</Label>
-                  <p className="text-sm text-gray-500 mb-2">
+                  <p className="text-sm text-ink-500 mb-2">
                     Un fondo de emergencia es dinero reservado exclusivamente para imprevistos
                     (enfermedades, reparaciones, pérdida de empleo).
                   </p>
@@ -670,14 +670,14 @@ export default function OnboardingPage() {
                   <p className={`text-xl font-semibold mt-3 capitalize ${scoreColorClass}`}>
                     {score.label}
                   </p>
-                  <p className="text-sm text-gray-500">de 100 puntos posibles</p>
+                  <p className="text-sm text-ink-500">de 100 puntos posibles</p>
                 </div>
 
                 <Separator />
 
                 {/* Score breakdown */}
                 <div className="space-y-3">
-                  <h4 className="font-semibold text-sm text-gray-700">Desglose del puntaje</h4>
+                  <h4 className="font-semibold text-sm text-ink-700">Desglose del puntaje</h4>
                   {[
                     { label: 'Tasa de ahorro', value: score.components.savingsRate, max: 30 },
                     { label: 'Carga de deuda', value: score.components.debtBurden, max: 25 },
@@ -687,7 +687,7 @@ export default function OnboardingPage() {
                   ].map((comp) => (
                     <div key={comp.label}>
                       <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-600">{comp.label}</span>
+                        <span className="text-ink-700">{comp.label}</span>
                         <span className="font-medium">
                           {comp.value}/{comp.max}
                         </span>
@@ -706,11 +706,11 @@ export default function OnboardingPage() {
 
                 {/* Insights */}
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-sm text-gray-700">Observaciones</h4>
+                  <h4 className="font-semibold text-sm text-ink-700">Observaciones</h4>
                   {score.insights.map((insight, i) => (
                     <div key={i} className="flex gap-2 text-sm">
                       <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                      <p className="text-gray-600">{insight}</p>
+                      <p className="text-ink-700">{insight}</p>
                     </div>
                   ))}
                 </div>
@@ -718,19 +718,19 @@ export default function OnboardingPage() {
                 {/* Summary */}
                 <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Ingreso mensual</span>
+                    <span className="text-ink-500">Ingreso mensual</span>
                     <span className="font-medium">{fmt(data.totalIncome)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Gastos fijos</span>
+                    <span className="text-ink-500">Gastos fijos</span>
                     <span className="font-medium">{fmt(totalFixedExpenses)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Deuda total</span>
+                    <span className="text-ink-500">Deuda total</span>
                     <span className="font-medium">{fmt(totalDebt)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Ahorros</span>
+                    <span className="text-ink-500">Ahorros</span>
                     <span className="font-medium">{fmt(data.totalSavings)}</span>
                   </div>
                 </div>
@@ -776,18 +776,18 @@ export default function OnboardingPage() {
                           : 'border-gray-300'
                       }`}
                     >
-                      <span className="text-xs font-bold text-gray-400">{i + 1}</span>
+                      <span className="text-xs font-bold text-ink-500">{i + 1}</span>
                     </div>
                     <div>
                       <p className="font-medium text-sm">{item.title}</p>
-                      <p className="text-sm text-gray-500 mt-0.5">{item.description}</p>
+                      <p className="text-sm text-ink-500 mt-0.5">{item.description}</p>
                       <span
                         className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${
                           item.priority === 'high'
                             ? 'bg-red-100 text-red-700'
                             : item.priority === 'medium'
                             ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-gray-100 text-gray-600'
+                            : 'bg-gray-100 text-ink-700'
                         }`}
                       >
                         {item.priority === 'high'
@@ -822,7 +822,7 @@ export default function OnboardingPage() {
                     </>
                   )}
                 </Button>
-                <p className="text-center text-sm text-gray-500">
+                <p className="text-center text-sm text-ink-500">
                   Puedes ajustar tu plan en cualquier momento desde la sección de Plan.
                 </p>
               </CardContent>

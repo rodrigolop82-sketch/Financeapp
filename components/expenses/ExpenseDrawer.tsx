@@ -91,11 +91,11 @@ export function ExpenseDrawer({ householdId, categories, onSuccess, onVoiceOverl
     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 0', flexShrink: 0 }}>
         <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1E3A5F', margin: 0, fontFamily: 'DM Serif Display, serif' }}>Agregar gasto</h2>
-        <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4, lineHeight: 1 }}><X size={20} /></button>
+        <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', padding: 4, lineHeight: 1 }}><X size={20} /></button>
       </div>
       <div style={{ padding: '18px 20px 32px', flex: 1 }}>
         <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Monto</label>
+          <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Monto</label>
           <div style={{ display: 'flex', alignItems: 'center', border: '2px solid #2563EB', borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
             <span style={{ padding: '0 14px', fontSize: 22, fontWeight: 700, color: '#1E3A5F', fontFamily: 'Outfit, sans-serif', borderRight: '1.5px solid #EFF6FF', userSelect: 'none', flexShrink: 0 }}>Q</span>
             <input type="number" inputMode="decimal" placeholder="0" value={form.amount} onChange={e => form.setAmount(e.target.value.replace(/[^\d.]/g, ''))}
@@ -106,14 +106,14 @@ export function ExpenseDrawer({ householdId, categories, onSuccess, onVoiceOverl
           </div>
         </div>
         <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Categoría</label>
+          <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Categoría</label>
           <ExpenseCategoryPicker recentCategories={form.recentCategories} allCategories={form.allCategories} selected={form.selectedCategory} onSelect={form.setSelectedCategory} />
         </div>
         <div style={{ marginBottom: 24 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Nota (opcional)</label>
+          <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Nota (opcional)</label>
           <textarea value={form.note} onChange={e => form.setNote(e.target.value.slice(0, 200))} placeholder="ej. almuerzo con mamá, bus zona 1…" rows={2}
             style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E2E8F0', fontSize: 14, color: '#374151', resize: 'none', outline: 'none', boxSizing: 'border-box', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.5 }} />
-          <span style={{ fontSize: 11, color: '#94A3B8', display: 'block', textAlign: 'right', marginTop: 2 }}>{form.note.length}/200</span>
+          <span style={{ fontSize: 11, color: '#64748B', display: 'block', textAlign: 'right', marginTop: 2 }}>{form.note.length}/200</span>
         </div>
         <button onClick={form.submit} disabled={!canSubmit} style={{ width: '100%', padding: '14px 20px', background: canSubmit ? '#2563EB' : '#CBD5E1', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: canSubmit ? 'pointer' : 'not-allowed', transition: 'background 0.2s ease', boxShadow: canSubmit ? '0 4px 14px rgba(37,99,235,0.25)' : 'none' }}>
           {form.isSubmitting ? 'Guardando…' : 'Registrar gasto'}

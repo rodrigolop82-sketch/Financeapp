@@ -34,7 +34,7 @@ export default function TerminosPage() {
         >
           Términos de servicio
         </h1>
-        <p style={{ fontSize: 13, color: '#94A3B8', margin: '0 0 32px' }}>
+        <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 32px' }}>
           Última actualización: 2 de agosto de 2026
         </p>
 

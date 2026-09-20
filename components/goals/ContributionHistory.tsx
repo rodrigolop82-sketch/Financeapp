@@ -24,7 +24,7 @@ export function ContributionHistory({ contributions, isLoading }: ContributionHi
 
   if (contributions.length === 0) {
     return (
-      <p style={{ fontSize: 13, color: '#94A3B8', textAlign: 'center', padding: '24px 0' }}>
+      <p style={{ fontSize: 13, color: '#64748B', textAlign: 'center', padding: '24px 0' }}>
         Aún no hay aportes registrados
       </p>
     )
@@ -60,7 +60,7 @@ export function ContributionHistory({ contributions, isLoading }: ContributionHi
               <p style={{ fontSize: 14, fontWeight: 600, color: '#0F172A' }}>
                 {c.note || 'Aporte manual'}
               </p>
-              <p style={{ fontSize: 12, color: '#94A3B8' }}>{dateStr}</p>
+              <p style={{ fontSize: 12, color: '#64748B' }}>{dateStr}</p>
             </div>
             <p style={{
               fontSize: 15, fontWeight: 800, color: '#10B981',

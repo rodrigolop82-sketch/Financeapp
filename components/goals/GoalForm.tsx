@@ -80,7 +80,7 @@ export function GoalForm({ emoji, templateName, goalType, avgMonthlyExpenses, on
           <div style={{ position: 'relative' }}>
             <span style={{
               position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
-              color: '#94A3B8', fontSize: 16, fontWeight: 700,
+              color: '#64748B', fontSize: 16, fontWeight: 700,
               fontFamily: 'var(--font-outfit)',
             }}>
               Q
@@ -119,7 +119,7 @@ export function GoalForm({ emoji, templateName, goalType, avgMonthlyExpenses, on
 
         <div>
           <label style={labelStyle}>
-            Fecha deseada <span style={{ fontWeight: 400, color: '#94A3B8' }}>(opcional)</span>
+            Fecha deseada <span style={{ fontWeight: 400, color: '#64748B' }}>(opcional)</span>
           </label>
           <input
             type="date"
@@ -131,7 +131,7 @@ export function GoalForm({ emoji, templateName, goalType, avgMonthlyExpenses, on
 
         <div>
           <label style={labelStyle}>
-            Aporte mensual planeado <span style={{ fontWeight: 400, color: '#94A3B8' }}>(opcional)</span>
+            Aporte mensual planeado <span style={{ fontWeight: 400, color: '#64748B' }}>(opcional)</span>
           </label>
           <input
             type="number"

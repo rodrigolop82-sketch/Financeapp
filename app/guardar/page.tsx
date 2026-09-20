@@ -116,12 +116,12 @@ export default function GuardarPage() {
               <CheckCircle2 className="w-8 h-8 text-electric" />
             </div>
             <h2 className="font-serif text-2xl text-navy mb-2">Revisá tu correo</h2>
-            <p className="text-gray-500 mb-4">
+            <p className="text-ink-500 mb-4">
               Enviamos un enlace de confirmación a{' '}
               <strong className="text-navy">{email}</strong>.
               Hacé clic en el enlace para activar tu cuenta.
             </p>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-ink-500">
               ¿No lo ves? Revisá tu carpeta de spam.
             </p>
           </div>
@@ -137,7 +137,7 @@ export default function GuardarPage() {
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100">
         <Wordmark size="sm" variant="light" />
-        <Link href="/login" className="text-sm text-gray-500 hover:text-navy transition-colors">
+        <Link href="/login" className="text-sm text-ink-500 hover:text-navy transition-colors">
           Ya tengo cuenta
         </Link>
       </header>
@@ -147,11 +147,11 @@ export default function GuardarPage() {
         {analisis?.score && scoreColor && (
           <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm mb-6">
             <div className={`w-3 h-3 rounded-full flex-shrink-0 ${SCORE_DOT_COLORS[scoreColor]}`} />
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-ink-700">
               Tu score:{' '}
               <strong className="text-navy">{analisis.score}</strong>
               {' · '}
-              <span className="text-gray-500">{getScoreLabel(analisis.score)}</span>
+              <span className="text-ink-500">{getScoreLabel(analisis.score)}</span>
             </span>
           </div>
         )}
@@ -160,7 +160,7 @@ export default function GuardarPage() {
         <h1 className="font-serif text-2xl text-navy mb-1">
           Guardá tu plan gratis
         </h1>
-        <p className="text-sm text-gray-500 mb-5">
+        <p className="text-sm text-ink-500 mb-5">
           Creá tu cuenta para acceder a tu dashboard completo
         </p>
 
@@ -195,7 +195,7 @@ export default function GuardarPage() {
 
         <div className="relative my-4">
           <Separator />
-          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-50 px-2 text-xs text-gray-400">
+          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-50 px-2 text-xs text-ink-500">
             o con correo
           </span>
         </div>
@@ -254,7 +254,7 @@ export default function GuardarPage() {
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-400 mt-5">
+        <p className="text-center text-sm text-ink-500 mt-5">
           ¿Ya tenés cuenta?{' '}
           <Link href="/login" className="text-electric font-medium hover:underline">
             Entrá aquí

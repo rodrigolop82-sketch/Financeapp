@@ -94,7 +94,7 @@ export default function AdminPage() {
         <Card className="max-w-md">
           <CardContent className="p-8 text-center">
             <ShieldCheck className="w-12 h-12 text-red-400 mx-auto mb-3" />
-            <p className="font-medium text-gray-700">{error}</p>
+            <p className="font-medium text-ink-700">{error}</p>
             <Link href="/dashboard">
               <Button variant="outline" className="mt-4">Volver al dashboard</Button>
             </Link>
@@ -142,7 +142,7 @@ export default function AdminPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold">Panel de Admin</h1>
-            <p className="text-sm text-gray-500">Métricas agregadas — sin datos individuales</p>
+            <p className="text-sm text-ink-500">Métricas agregadas — sin datos individuales</p>
           </div>
           <div className="ml-auto flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-1.5 rounded-full">
             <ShieldCheck className="w-4 h-4" />
@@ -156,7 +156,7 @@ export default function AdminPage() {
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Users className="w-4 h-4 text-electric" />
-                <p className="text-xs text-gray-500">Usuarios totales</p>
+                <p className="text-xs text-ink-500">Usuarios totales</p>
               </div>
               <p className="text-3xl font-bold">{overview.totalUsers}</p>
             </CardContent>
@@ -165,7 +165,7 @@ export default function AdminPage() {
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Home className="w-4 h-4 text-electric" />
-                <p className="text-xs text-gray-500">Hogares</p>
+                <p className="text-xs text-ink-500">Hogares</p>
               </div>
               <p className="text-3xl font-bold">{overview.totalHouseholds}</p>
             </CardContent>
@@ -174,7 +174,7 @@ export default function AdminPage() {
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Receipt className="w-4 h-4 text-electric" />
-                <p className="text-xs text-gray-500">Transacciones</p>
+                <p className="text-xs text-ink-500">Transacciones</p>
               </div>
               <p className="text-3xl font-bold">{overview.totalTransactions}</p>
             </CardContent>
@@ -183,7 +183,7 @@ export default function AdminPage() {
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
                 <MessageSquare className="w-4 h-4 text-electric" />
-                <p className="text-xs text-gray-500">Mensajes al chat</p>
+                <p className="text-xs text-ink-500">Mensajes al chat</p>
               </div>
               <p className="text-3xl font-bold">{overview.totalChatMessages}</p>
             </CardContent>
@@ -201,23 +201,23 @@ export default function AdminPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-sm text-gray-600">Transacciones hoy</span>
+                <span className="text-sm text-ink-700">Transacciones hoy</span>
                 <span className="text-lg font-bold">{activity.transactionsToday}</span>
               </div>
               <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-sm text-gray-600">Transacciones esta semana</span>
+                <span className="text-sm text-ink-700">Transacciones esta semana</span>
                 <span className="text-lg font-bold">{activity.transactionsWeek}</span>
               </div>
               <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-sm text-gray-600">Transacciones este mes</span>
+                <span className="text-sm text-ink-700">Transacciones este mes</span>
                 <span className="text-lg font-bold">{activity.transactionsMonth}</span>
               </div>
               <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-sm text-gray-600">Hogares activos (7 días)</span>
+                <span className="text-sm text-ink-700">Hogares activos (7 días)</span>
                 <span className="text-lg font-bold">{activity.activeHouseholdsWeek}</span>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-sm text-gray-600">Hogares activos (30 días)</span>
+                <span className="text-sm text-ink-700">Hogares activos (30 días)</span>
                 <span className="text-lg font-bold">{activity.activeHouseholdsMonth}</span>
               </div>
             </CardContent>
@@ -238,7 +238,7 @@ export default function AdminPage() {
                 return (
                   <div key={source}>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600">{sourceLabels[source] || source}</span>
+                      <span className="text-ink-700">{sourceLabels[source] || source}</span>
                       <span className="font-medium">{count} ({pct}%)</span>
                     </div>
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -251,12 +251,12 @@ export default function AdminPage() {
                 );
               })}
               {Object.keys(sourceBreakdown).length === 0 && (
-                <p className="text-sm text-gray-400">Sin transacciones aún</p>
+                <p className="text-sm text-ink-500">Sin transacciones aún</p>
               )}
               <div className="pt-3 border-t">
                 <div className="flex items-center gap-2">
                   <Mic className="w-4 h-4 text-electric-light" />
-                  <span className="text-sm text-gray-600">Adopción de voz:</span>
+                  <span className="text-sm text-ink-700">Adopción de voz:</span>
                   <span className="text-sm font-bold">{voicePct}%</span>
                 </div>
               </div>
@@ -277,18 +277,18 @@ export default function AdminPage() {
                   const dayLabel = new Date(date + 'T12:00:00').toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
                   return (
                     <div key={date} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-xs font-medium text-gray-700">{count}</span>
+                      <span className="text-xs font-medium text-ink-700">{count}</span>
                       <div
                         className="w-full bg-electric rounded-t-sm min-h-[4px]"
                         style={{ height: `${height}%` }}
                       />
-                      <span className="text-[10px] text-gray-400 whitespace-nowrap">{dayLabel}</span>
+                      <span className="text-[10px] text-ink-500 whitespace-nowrap">{dayLabel}</span>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 text-center py-8">Sin datos aún</p>
+              <p className="text-sm text-ink-500 text-center py-8">Sin datos aún</p>
             )}
           </CardContent>
         </Card>
@@ -305,7 +305,7 @@ export default function AdminPage() {
                   const dayLabel = new Date(date + 'T12:00:00').toLocaleDateString('es-GT', { weekday: 'short', day: 'numeric', month: 'short' });
                   return (
                     <div key={date} className="flex items-center gap-3">
-                      <span className="text-xs text-gray-500 w-24">{dayLabel}</span>
+                      <span className="text-xs text-ink-500 w-24">{dayLabel}</span>
                       <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
                         <div
                           className="h-full bg-electric-light rounded-full"
@@ -318,7 +318,7 @@ export default function AdminPage() {
                 })}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 text-center py-8">Sin registros recientes</p>
+              <p className="text-sm text-ink-500 text-center py-8">Sin registros recientes</p>
             )}
           </CardContent>
         </Card>
@@ -329,7 +329,7 @@ export default function AdminPage() {
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
                 <CreditCard className="w-4 h-4 text-electric" />
-                <p className="text-xs text-gray-500">Deudas registradas</p>
+                <p className="text-xs text-ink-500">Deudas registradas</p>
               </div>
               <p className="text-2xl font-bold">{overview.totalDebts}</p>
             </CardContent>
@@ -338,7 +338,7 @@ export default function AdminPage() {
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Mic className="w-4 h-4 text-electric" />
-                <p className="text-xs text-gray-500">Transacciones por voz</p>
+                <p className="text-xs text-ink-500">Transacciones por voz</p>
               </div>
               <p className="text-2xl font-bold">{activity.voiceTransactions}</p>
             </CardContent>
@@ -357,12 +357,12 @@ export default function AdminPage() {
             <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
               <thead>
                 <tr className="border-b-2 border-gray-200">
-                  <th className="text-left text-xs font-semibold text-gray-500 py-2 px-2">Email</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 py-2 px-2">Registro</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 py-2 px-2">Último acceso</th>
-                  <th className="text-right text-xs font-semibold text-gray-500 py-2 px-2">Transacciones</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 py-2 px-2">Última transacción</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 py-2 px-2">Estado</th>
+                  <th className="text-left text-xs font-semibold text-ink-500 py-2 px-2">Email</th>
+                  <th className="text-left text-xs font-semibold text-ink-500 py-2 px-2">Registro</th>
+                  <th className="text-left text-xs font-semibold text-ink-500 py-2 px-2">Último acceso</th>
+                  <th className="text-right text-xs font-semibold text-ink-500 py-2 px-2">Transacciones</th>
+                  <th className="text-left text-xs font-semibold text-ink-500 py-2 px-2">Última transacción</th>
+                  <th className="text-center text-xs font-semibold text-ink-500 py-2 px-2">Estado</th>
                 </tr>
               </thead>
               <tbody>
@@ -379,22 +379,22 @@ export default function AdminPage() {
                   return (
                     <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-2 px-2 font-medium text-navy">{u.email}</td>
-                      <td className="py-2 px-2 text-gray-600">{fmtDate(u.createdAt)}</td>
-                      <td className="py-2 px-2 text-gray-600">
+                      <td className="py-2 px-2 text-ink-700">{fmtDate(u.createdAt)}</td>
+                      <td className="py-2 px-2 text-ink-700">
                         {fmtDate(u.lastSignIn)}
                         {daysSinceLogin !== null && (
-                          <span className="text-xs text-gray-400 ml-1">({daysSinceLogin}d)</span>
+                          <span className="text-xs text-ink-500 ml-1">({daysSinceLogin}d)</span>
                         )}
                       </td>
                       <td className="py-2 px-2 text-right font-medium tabular-nums">{u.transactionCount}</td>
-                      <td className="py-2 px-2 text-gray-600">{fmtDate(u.lastTransaction)}</td>
+                      <td className="py-2 px-2 text-ink-700">{fmtDate(u.lastTransaction)}</td>
                       <td className="py-2 px-2 text-center">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                           isActive
                             ? 'bg-green-50 text-green-700'
                             : isRecent
                             ? 'bg-yellow-50 text-yellow-700'
-                            : 'bg-gray-100 text-gray-500'
+                            : 'bg-gray-100 text-ink-500'
                         }`}>
                           {isActive ? 'Activo' : isRecent ? 'Reciente' : 'Inactivo'}
                         </span>
@@ -405,7 +405,7 @@ export default function AdminPage() {
               </tbody>
             </table>
             {data.userList.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-6">Sin usuarios registrados</p>
+              <p className="text-sm text-ink-500 text-center py-6">Sin usuarios registrados</p>
             )}
           </CardContent>
         </Card>

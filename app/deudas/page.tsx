@@ -277,7 +277,7 @@ export default function DeudasPage() {
       <div className="max-w-4xl mx-auto">
         {/* Action button */}
         <div className="flex items-center justify-between mb-6">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-ink-500">
             {activeDebts.length} deuda{activeDebts.length !== 1 ? 's' : ''} activa{activeDebts.length !== 1 ? 's' : ''} - Total: {fmt(totalBalance)}
           </p>
           <Button onClick={() => setShowForm(true)}>
@@ -290,24 +290,24 @@ export default function DeudasPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <Card>
             <CardContent className="p-5">
-              <p className="text-sm text-gray-500">Deuda total</p>
+              <p className="text-sm text-ink-500">Deuda total</p>
               <p className="text-2xl font-bold mt-1">{fmt(totalBalance)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-5">
-              <p className="text-sm text-gray-500">Pago mínimo mensual</p>
+              <p className="text-sm text-ink-500">Pago mínimo mensual</p>
               <p className="text-2xl font-bold mt-1">{fmt(totalMinPayment)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-5">
-              <p className="text-sm text-gray-500">Libre de deuda en</p>
+              <p className="text-sm text-ink-500">Libre de deuda en</p>
               <p className="text-2xl font-bold mt-1">
                 {sim.totalMonths > 0 ? formatMonths(sim.totalMonths) : 'N/A'}
               </p>
               {sim.totalInterest > 0 && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-ink-500 mt-1">
                   Intereses totales: {fmt(sim.totalInterest)}
                 </p>
               )}
@@ -341,9 +341,9 @@ export default function DeudasPage() {
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-sm">{fmt(Number(debt.balance))}</span>
                     {isExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-gray-400" />
+                      <ChevronUp className="w-4 h-4 text-ink-500" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                      <ChevronDown className="w-4 h-4 text-ink-500" />
                     )}
                   </div>
                 </button>
@@ -418,24 +418,24 @@ export default function DeudasPage() {
                   <CardContent className="px-4 pb-4 pt-0 border-t">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                       <div>
-                        <p className="text-xs text-gray-500">Pago mínimo</p>
+                        <p className="text-xs text-ink-500">Pago mínimo</p>
                         <p className="text-sm font-medium">{fmt(Number(debt.min_payment))}/mes</p>
                       </div>
                       {Number(debt.interest_rate) > 0 && (
                         <div>
-                          <p className="text-xs text-gray-500">Tasa anual</p>
+                          <p className="text-xs text-ink-500">Tasa anual</p>
                           <p className="text-sm font-medium">{debt.interest_rate}%</p>
                         </div>
                       )}
                       {Number(debt.interest_rate) > 0 && (
                         <div>
-                          <p className="text-xs text-gray-500">Interés mensual</p>
+                          <p className="text-xs text-ink-500">Interés mensual</p>
                           <p className="text-sm font-medium text-amber-600">{fmt(Math.round(monthlyInterest))}</p>
                         </div>
                       )}
                       {debt.due_day > 0 && (
                         <div>
-                          <p className="text-xs text-gray-500">Vence</p>
+                          <p className="text-xs text-ink-500">Vence</p>
                           <p className="text-sm font-medium">Día {debt.due_day}</p>
                         </div>
                       )}
@@ -474,8 +474,8 @@ export default function DeudasPage() {
             <Card>
               <CardContent className="p-8 text-center">
                 <TrendingDown className="w-12 h-12 text-electric-soft mx-auto mb-3" />
-                <p className="font-medium text-gray-700">No tienes deudas activas</p>
-                <p className="text-sm text-gray-500 mt-1">Excelente. Sigue así.</p>
+                <p className="font-medium text-ink-700">No tienes deudas activas</p>
+                <p className="text-sm text-ink-500 mt-1">Excelente. Sigue así.</p>
               </CardContent>
             </Card>
           )}
@@ -498,7 +498,7 @@ export default function DeudasPage() {
               <div>
                 <Label>Pago extra mensual (además de los mínimos)</Label>
                 <div className="relative mt-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Q</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500">Q</span>
                   <Input
                     type="number"
                     className="pl-8"
@@ -520,7 +520,7 @@ export default function DeudasPage() {
 
               {/* Strategy comparison — side by side */}
               <div>
-                <p className="text-sm font-semibold text-gray-700 mb-3">
+                <p className="text-sm font-semibold text-ink-700 mb-3">
                   Comparación de estrategias (con pago extra de {fmt(extraPayment)}/mes):
                 </p>
                 <div className="grid grid-cols-2 gap-3">
@@ -536,26 +536,26 @@ export default function DeudasPage() {
                         <Zap className="w-4 h-4 text-yellow-500" />
                         <span className="font-semibold text-sm">Bola de nieve</span>
                       </div>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-ink-500">
                         Paga la deuda más pequeña primero
                       </p>
                     </div>
                     <div className="p-3 space-y-2">
                       <div>
-                        <p className="text-xs text-gray-500">Tiempo total</p>
-                        <p className="text-lg font-bold text-gray-900">{formatMonths(simSnowball.totalMonths)}</p>
+                        <p className="text-xs text-ink-500">Tiempo total</p>
+                        <p className="text-lg font-bold text-ink-900">{formatMonths(simSnowball.totalMonths)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Intereses totales</p>
+                        <p className="text-xs text-ink-500">Intereses totales</p>
                         <p className="text-sm font-bold text-amber-600">{fmt(simSnowball.totalInterest)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Costo total</p>
+                        <p className="text-xs text-ink-500">Costo total</p>
                         <p className="text-sm font-medium">{fmt(simSnowball.totalPaid)}</p>
                       </div>
                       {simSnowball.order.length > 0 && (
                         <div>
-                          <p className="text-xs text-gray-500">Primera deuda eliminada</p>
+                          <p className="text-xs text-ink-500">Primera deuda eliminada</p>
                           <p className="text-xs font-medium text-green-600">
                             {simSnowball.order[0].name} en {formatMonths(simSnowball.order[0].months)}
                           </p>
@@ -581,26 +581,26 @@ export default function DeudasPage() {
                         <Mountain className="w-4 h-4 text-blue-500" />
                         <span className="font-semibold text-sm">Avalancha</span>
                       </div>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-ink-500">
                         Paga la de mayor interés primero
                       </p>
                     </div>
                     <div className="p-3 space-y-2">
                       <div>
-                        <p className="text-xs text-gray-500">Tiempo total</p>
-                        <p className="text-lg font-bold text-gray-900">{formatMonths(simAvalanche.totalMonths)}</p>
+                        <p className="text-xs text-ink-500">Tiempo total</p>
+                        <p className="text-lg font-bold text-ink-900">{formatMonths(simAvalanche.totalMonths)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Intereses totales</p>
+                        <p className="text-xs text-ink-500">Intereses totales</p>
                         <p className="text-sm font-bold text-amber-600">{fmt(simAvalanche.totalInterest)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Costo total</p>
+                        <p className="text-xs text-ink-500">Costo total</p>
                         <p className="text-sm font-medium">{fmt(simAvalanche.totalPaid)}</p>
                       </div>
                       {simAvalanche.order.length > 0 && (
                         <div>
-                          <p className="text-xs text-gray-500">Primera deuda eliminada</p>
+                          <p className="text-xs text-ink-500">Primera deuda eliminada</p>
                           <p className="text-xs font-medium text-green-600">
                             {simAvalanche.order[0].name} en {formatMonths(simAvalanche.order[0].months)}
                           </p>
@@ -642,12 +642,12 @@ export default function DeudasPage() {
               {/* Projection vs baseline */}
               {extraPayment > 0 && baseline.totalMonths > 0 && (
                 <div className="bg-gradient-to-r from-[#F8F9FF] to-blue-50 rounded-lg p-4 space-y-3">
-                  <p className="text-sm font-semibold text-gray-700">Impacto del pago extra:</p>
+                  <p className="text-sm font-semibold text-ink-700">Impacto del pago extra:</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-white rounded-lg p-3 text-center">
-                      <p className="text-xs text-gray-500">Solo pagos mínimos</p>
-                      <p className="text-lg font-bold text-gray-400">{formatMonths(baseline.totalMonths)}</p>
-                      <p className="text-xs text-gray-400">Intereses: {fmt(baseline.totalInterest)}</p>
+                      <p className="text-xs text-ink-500">Solo pagos mínimos</p>
+                      <p className="text-lg font-bold text-ink-500">{formatMonths(baseline.totalMonths)}</p>
+                      <p className="text-xs text-ink-500">Intereses: {fmt(baseline.totalInterest)}</p>
                     </div>
                     <div className="bg-white rounded-lg p-3 text-center border-2 border-green-200">
                       <p className="text-xs text-green-600 font-medium">Con +{fmt(extraPayment)}/mes</p>
@@ -663,7 +663,7 @@ export default function DeudasPage() {
                     </div>
                   )}
                   <div className="bg-white rounded-lg p-3">
-                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                    <div className="flex justify-between text-xs text-ink-500 mb-1">
                       <span>Solo mínimos</span>
                       <span>Con extra</span>
                     </div>
@@ -674,7 +674,7 @@ export default function DeudasPage() {
                       />
                     </div>
                     <div className="flex justify-between text-xs mt-1">
-                      <span className="text-gray-400">{formatMonths(baseline.totalMonths)}</span>
+                      <span className="text-ink-500">{formatMonths(baseline.totalMonths)}</span>
                       <span className="text-green-600 font-medium">{formatMonths(sim.totalMonths)}</span>
                     </div>
                   </div>
@@ -684,7 +684,7 @@ export default function DeudasPage() {
               {/* Payoff timeline */}
               {sim.order.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">Orden de pago:</p>
+                  <p className="text-sm font-medium text-ink-700 mb-2">Orden de pago:</p>
                   <div className="space-y-2">
                     {sim.order.map((d, i) => (
                       <div key={d.name} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
@@ -693,7 +693,7 @@ export default function DeudasPage() {
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-medium">{d.name}</p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-ink-500">
                             {d.months >= 360 ? 'No se paga en 30 años' : `Se paga en ${formatMonths(d.months)}`} - Total pagado: {fmt(d.totalPaid)}
                             <span className="text-amber-600 ml-1">(intereses: {fmt(d.interestPaid)})</span>
                           </p>
@@ -710,7 +710,7 @@ export default function DeudasPage() {
         {/* Paid debts */}
         {debts.some(d => d.is_paid) && (
           <div className="mt-8">
-            <h3 className="text-sm font-medium text-gray-500 mb-3">Deudas pagadas</h3>
+            <h3 className="text-sm font-medium text-ink-500 mb-3">Deudas pagadas</h3>
             {debts.filter(d => d.is_paid).map(debt => (
               <div key={debt.id} className="flex items-center gap-3 p-3 bg-surface-tint rounded-lg mb-2">
                 <CheckCircle2 className="w-5 h-5 text-electric-light" />

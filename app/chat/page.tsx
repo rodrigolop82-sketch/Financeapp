@@ -324,7 +324,7 @@ export default function ChatPage() {
                     }}>
                       {conv.title}
                     </p>
-                    <p style={{ fontSize: 12, color: '#94A3B8', margin: '3px 0 0' }}>
+                    <p style={{ fontSize: 12, color: '#64748B', margin: '3px 0 0' }}>
                       {timeAgo(conv.updated_at)}
                     </p>
                   </div>
@@ -332,7 +332,7 @@ export default function ChatPage() {
                     onClick={(e) => deleteConversation(conv.id, e)}
                     style={{
                       background: 'none', border: 'none', cursor: 'pointer',
-                      padding: 6, borderRadius: 8, color: '#94A3B8',
+                      padding: 6, borderRadius: 8, color: '#64748B',
                     }}
                   >
                     <Trash2 size={16} />

@@ -249,7 +249,7 @@ export function ReviewScreen({
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                <span style={{ fontSize: 11, color: '#94A3B8' }}>{tx.date}</span>
+                <span style={{ fontSize: 11, color: '#64748B' }}>{tx.date}</span>
                 <span style={{
                   padding: '1px 6px', borderRadius: 4,
                   background: '#F1F5F9', fontSize: 10, color: '#64748B',
@@ -267,7 +267,7 @@ export function ReviewScreen({
             }}>
               {tx.type === 'income' ? '+' : ''}{formatMoney(tx.amount)}
               {tx.original_currency && (
-                <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 400, marginLeft: 4 }}>
+                <span style={{ fontSize: 10, color: '#64748B', fontWeight: 400, marginLeft: 4 }}>
                   ({tx.original_currency === 'USD' ? '$' : tx.original_currency} {Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                 </span>
               )}

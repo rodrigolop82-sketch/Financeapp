@@ -104,7 +104,7 @@ export function AddContributionSheet({
             fontSize: 42, fontWeight: 900, color: '#0F172A',
             fontFamily: 'var(--font-outfit)',
           }}>
-            <span style={{ fontSize: 20, color: '#94A3B8', fontWeight: 700 }}>Q</span>
+            <span style={{ fontSize: 20, color: '#64748B', fontWeight: 700 }}>Q</span>
             {displayAmount}
           </p>
         </div>
@@ -158,7 +158,7 @@ export function AddContributionSheet({
 
         {/* Note */}
         <p style={{ fontSize: 13, fontWeight: 600, color: '#2563EB', marginBottom: 6 }}>
-          Nota <span style={{ fontWeight: 400, color: '#94A3B8' }}>(opcional)</span>
+          Nota <span style={{ fontWeight: 400, color: '#64748B' }}>(opcional)</span>
         </p>
         <input
           type="text"

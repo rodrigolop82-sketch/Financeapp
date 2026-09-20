@@ -141,7 +141,7 @@ function NotificacionContent() {
           </svg>
         </div>
         <p style={{ fontSize: 16, fontWeight: 700, color: '#1E3A5F' }}>Gasto registrado</p>
-        <p style={{ fontSize: 12, color: '#94A3B8' }}>Volviendo al dashboard...</p>
+        <p style={{ fontSize: 12, color: '#64748B' }}>Volviendo al dashboard...</p>
       </div>
     )
   }
@@ -290,7 +290,7 @@ function NotificacionContent() {
                 {fmt(parsed.amount)}
               </div>
               {parsed.original_currency && (
-                <div style={{ fontSize: 13, color: '#94A3B8', marginBottom: 2 }}>
+                <div style={{ fontSize: 13, color: '#64748B', marginBottom: 2 }}>
                   Monto original: {parsed.original_currency === 'USD' ? '$' : parsed.original_currency === 'EUR' ? '€' : parsed.original_currency}{' '}
                   {Number(parsed.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   {' '}(TC ≈ {parsed.original_currency === 'USD' ? '7.75' : parsed.original_currency === 'EUR' ? '8.50' : parsed.original_currency === 'MXN' ? '0.45' : '?'})
@@ -369,11 +369,11 @@ function NotificacionContent() {
 
             {/* Raw text */}
             <details>
-              <summary style={{ fontSize: 11, color: '#94A3B8', cursor: 'pointer', listStyle: 'none' }}>
+              <summary style={{ fontSize: 11, color: '#64748B', cursor: 'pointer', listStyle: 'none' }}>
                 Ver notificación original ↓
               </summary>
               <p style={{
-                fontSize: 10, color: '#94A3B8', marginTop: 6,
+                fontSize: 10, color: '#64748B', marginTop: 6,
                 padding: '8px 10px', background: '#F1F5F9',
                 borderRadius: 8, fontFamily: 'monospace', lineHeight: 1.5,
               }}>
@@ -430,7 +430,7 @@ export default function NotificacionPage() {
           border: '3px solid #DBEAFE', borderTopColor: '#2563EB',
           animation: 'spin 0.8s linear infinite',
         }}/>
-        <p style={{ fontSize: 13, color: '#94A3B8' }}>Cargando...</p>
+        <p style={{ fontSize: 13, color: '#64748B' }}>Cargando...</p>
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     }>

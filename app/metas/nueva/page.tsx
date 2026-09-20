@@ -44,7 +44,7 @@ export default function NuevaMetaPage() {
           <ArrowLeft size={18} />
           {step === 2 ? 'Cambiar template' : 'Mis metas'}
         </button>
-        <p style={{ fontSize: 13, color: '#94A3B8' }}>
+        <p style={{ fontSize: 13, color: '#64748B' }}>
           Paso {step} de 2
         </p>
       </div>

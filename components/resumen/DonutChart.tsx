@@ -18,7 +18,7 @@ export function DonutChart({ fixed, variable, fixedMonthlyAvg, variableMonthlyAv
 
   if (total === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '24px 0', color: '#94A3B8', fontSize: 14 }}>
+      <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748B', fontSize: 14 }}>
         Sin datos de gastos
       </div>
     )
@@ -61,13 +61,13 @@ export function DonutChart({ fixed, variable, fixedMonthlyAvg, variableMonthlyAv
       {(fixedMonthlyAvg !== undefined || variableMonthlyAvg !== undefined) && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 12, padding: '10px 0 4px', borderTop: '1px solid #E2E8F0' }}>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: 10, color: '#94A3B8', margin: '0 0 2px', textTransform: 'uppercase' }}>Prom. fijo/mes</p>
+            <p style={{ fontSize: 10, color: '#64748B', margin: '0 0 2px', textTransform: 'uppercase' }}>Prom. fijo/mes</p>
             <p style={{ fontSize: 15, fontWeight: 700, color: '#2563EB', margin: 0, fontFamily: 'Outfit, sans-serif' }}>
               {formatMoney(fixedMonthlyAvg ?? 0)}
             </p>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: 10, color: '#94A3B8', margin: '0 0 2px', textTransform: 'uppercase' }}>Prom. variable/mes</p>
+            <p style={{ fontSize: 10, color: '#64748B', margin: '0 0 2px', textTransform: 'uppercase' }}>Prom. variable/mes</p>
             <p style={{ fontSize: 15, fontWeight: 700, color: '#F59E0B', margin: 0, fontFamily: 'Outfit, sans-serif' }}>
               {formatMoney(variableMonthlyAvg ?? 0)}
             </p>

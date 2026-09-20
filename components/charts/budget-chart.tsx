@@ -20,7 +20,7 @@ export function BudgetChart({ needs, wants, savings }: BudgetChartProps) {
 
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
+      <div className="flex items-center justify-center h-48 text-ink-500 text-sm">
         Sin datos de presupuesto
       </div>
     );
@@ -57,7 +57,7 @@ export function BudgetChart({ needs, wants, savings }: BudgetChartProps) {
               className="w-2.5 h-2.5 rounded-full"
               style={{ backgroundColor: COLORS[i] }}
             />
-            <span className="text-gray-600">{LABELS[i]}</span>
+            <span className="text-ink-700">{LABELS[i]}</span>
           </div>
         ))}
       </div>

@@ -251,9 +251,9 @@ export default function FamiliaPage() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Link2 className="w-4 h-4 text-electric" />
-                  <span className="text-sm font-medium text-gray-700">Compartir link de invitación</span>
+                  <span className="text-sm font-medium text-ink-700">Compartir link de invitación</span>
                 </div>
-                <p className="text-sm text-gray-500 mb-3">
+                <p className="text-sm text-ink-500 mb-3">
                   Generá un link y compartilo por WhatsApp o cualquier medio. La persona puede registrarse y unirse directamente.
                 </p>
                 {!inviteLink ? (
@@ -270,7 +270,7 @@ export default function FamiliaPage() {
                       <input
                         readOnly
                         value={inviteLink}
-                        className="flex-1 text-sm bg-transparent border-none outline-none text-gray-700 truncate"
+                        className="flex-1 text-sm bg-transparent border-none outline-none text-ink-700 truncate"
                       />
                     </div>
                     <div className="flex gap-2">
@@ -283,7 +283,7 @@ export default function FamiliaPage() {
                         Compartir
                       </Button>
                     </div>
-                    <p className="text-xs text-gray-400 text-center">
+                    <p className="text-xs text-ink-500 text-center">
                       Este link es válido por 7 días
                     </p>
                   </div>
@@ -293,17 +293,17 @@ export default function FamiliaPage() {
               <div className="relative">
                 <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
                 <div className="relative flex justify-center">
-                  <span className="bg-white px-2 text-xs text-gray-400">o agregar directamente</span>
+                  <span className="bg-white px-2 text-xs text-ink-500">o agregar directamente</span>
                 </div>
               </div>
 
               {/* Option 2: Direct email */}
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <Mail className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700">Por correo electrónico</span>
+                  <Mail className="w-4 h-4 text-ink-500" />
+                  <span className="text-sm font-medium text-ink-700">Por correo electrónico</span>
                 </div>
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="text-xs text-ink-500 mb-2">
                   Solo funciona si la persona ya tiene cuenta en Zafi.
                 </p>
                 <div className="flex gap-2">
@@ -320,7 +320,7 @@ export default function FamiliaPage() {
                 </div>
               </div>
 
-              <Button variant="ghost" size="sm" className="w-full text-gray-400" onClick={() => { setShowInvite(false); setInviteLink(''); }}>
+              <Button variant="ghost" size="sm" className="w-full text-ink-500" onClick={() => { setShowInvite(false); setInviteLink(''); }}>
                 Cerrar
               </Button>
             </CardContent>
@@ -331,7 +331,7 @@ export default function FamiliaPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-gray-500" />
+              <Users className="w-5 h-5 text-ink-500" />
               <CardTitle className="text-base">Miembros del hogar</CardTitle>
             </div>
           </CardHeader>
@@ -343,7 +343,7 @@ export default function FamiliaPage() {
                 }`}>
                   {member.role === 'owner'
                     ? <Crown className="w-5 h-5 text-amber-600" />
-                    : <User className="w-5 h-5 text-gray-400" />
+                    : <User className="w-5 h-5 text-ink-500" />
                   }
                 </div>
                 <div className="flex-1 min-w-0">
@@ -351,9 +351,9 @@ export default function FamiliaPage() {
                     {member.users?.full_name || member.users?.email || 'Usuario'}
                   </p>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{member.users?.email}</span>
+                    <span className="text-xs text-ink-500">{member.users?.email}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded ${
-                      member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                      member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-ink-700'
                     }`}>
                       {member.role === 'owner' ? 'Dueño' : 'Miembro'}
                     </span>
@@ -362,7 +362,7 @@ export default function FamiliaPage() {
                 {isOwner && member.role !== 'owner' && (
                   <button
                     onClick={() => removeMember(member.user_id)}
-                    className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
+                    className="opacity-0 group-hover:opacity-100 text-ink-400 hover:text-red-500 transition-all"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -371,9 +371,9 @@ export default function FamiliaPage() {
             ))}
             {members.length === 0 && (
               <div className="p-8 text-center">
-                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="font-medium text-gray-700">Sin miembros</p>
-                <p className="text-sm text-gray-500 mt-1">
+                <Users className="w-12 h-12 text-ink-400 mx-auto mb-3" />
+                <p className="font-medium text-ink-700">Sin miembros</p>
+                <p className="text-sm text-ink-500 mt-1">
                   {isOwner ? 'Invita a familiares para compartir el presupuesto.' : 'No hay otros miembros en este hogar.'}
                 </p>
               </div>
@@ -400,13 +400,13 @@ export default function FamiliaPage() {
             <Card className="mt-4">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-gray-500" />
+                  <Receipt className="w-5 h-5 text-ink-500" />
                   <CardTitle className="text-base">Gastos por miembro</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between text-sm border-b pb-3">
-                  <span className="text-gray-500">Total del hogar</span>
+                  <span className="text-ink-500">Total del hogar</span>
                   <span className="font-bold text-navy">{fmt(totalSpending)}</span>
                 </div>
                 {members.map(member => {
@@ -419,18 +419,18 @@ export default function FamiliaPage() {
                       <div className="flex items-center justify-between text-sm mb-1.5">
                         <div className="flex items-center gap-2">
                           <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                            member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                            member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-ink-700'
                           }`}>
                             {name[0]?.toUpperCase()}
                           </div>
                           <div>
                             <span className="font-medium">{name}</span>
-                            <span className="text-xs text-gray-400 ml-1.5">{count} tx</span>
+                            <span className="text-xs text-ink-500 ml-1.5">{count} tx</span>
                           </div>
                         </div>
                         <div className="text-right">
                           <span className="font-semibold">{fmt(amount)}</span>
-                          <span className="text-gray-400 text-xs ml-1.5">{pct}%</span>
+                          <span className="text-ink-500 text-xs ml-1.5">{pct}%</span>
                         </div>
                       </div>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -445,10 +445,10 @@ export default function FamiliaPage() {
                 {unattributedSpending > 0 && (
                   <div>
                     <div className="flex items-center justify-between text-sm mb-1.5">
-                      <span className="text-gray-400 italic">Sin atribuir</span>
+                      <span className="text-ink-500 italic">Sin atribuir</span>
                       <div className="text-right">
-                        <span className="text-gray-500">{fmt(unattributedSpending)}</span>
-                        <span className="text-gray-400 text-xs ml-1.5">
+                        <span className="text-ink-500">{fmt(unattributedSpending)}</span>
+                        <span className="text-ink-500 text-xs ml-1.5">
                           {Math.round((unattributedSpending / totalSpending) * 100)}%
                         </span>
                       </div>

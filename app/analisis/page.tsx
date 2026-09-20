@@ -130,7 +130,7 @@ export default function AnalisisPage() {
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100">
         <Wordmark size="sm" variant="light" />
-        <Link href="/login" className="text-sm text-gray-500 hover:text-navy transition-colors">
+        <Link href="/login" className="text-sm text-ink-500 hover:text-navy transition-colors">
           Ya tengo cuenta
         </Link>
       </header>
@@ -159,7 +159,7 @@ export default function AnalisisPage() {
               <h1 className="font-serif text-2xl text-navy mb-1">
                 ¿Cuánto ganás al mes?
               </h1>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-ink-500 mb-6">
                 Tu ingreso total mensual, antes de gastos
               </p>
 
@@ -168,7 +168,7 @@ export default function AnalisisPage() {
                   Ingreso mensual
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">Q</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">Q</span>
                   <input
                     type="number"
                     min="0"
@@ -198,7 +198,7 @@ export default function AnalisisPage() {
                       }`}
                     >
                       <div className="font-semibold">{t.label}</div>
-                      <div className={`text-xs mt-0.5 ${tipoIngreso === t.value ? 'text-white/70' : 'text-gray-400'}`}>
+                      <div className={`text-xs mt-0.5 ${tipoIngreso === t.value ? 'text-white/70' : 'text-ink-500'}`}>
                         {t.desc}
                       </div>
                     </button>
@@ -221,7 +221,7 @@ export default function AnalisisPage() {
               <h1 className="font-serif text-2xl text-navy mb-1">
                 ¿Cuánto gastás al mes?
               </h1>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-ink-500 mb-6">
                 Incluí renta, comida, transporte, entretenimiento — todo
               </p>
 
@@ -230,7 +230,7 @@ export default function AnalisisPage() {
                   Gastos mensuales totales
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">Q</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">Q</span>
                   <input
                     type="number"
                     min="0"
@@ -244,7 +244,7 @@ export default function AnalisisPage() {
               </div>
 
               {ingresos && gastos && Number(gastos) > 0 && Number(ingresos) > 0 && (
-                <div className="p-3 bg-gray-100 rounded-xl text-sm text-gray-600">
+                <div className="p-3 bg-gray-100 rounded-xl text-sm text-ink-700">
                   Estás gastando el{' '}
                   <span className={`font-semibold ${Number(gastos) / Number(ingresos) > 0.9 ? 'text-red-600' : 'text-navy'}`}>
                     {Math.round((Number(gastos) / Number(ingresos)) * 100)}%
@@ -264,7 +264,7 @@ export default function AnalisisPage() {
               <h1 className="font-serif text-2xl text-navy mb-1">
                 Deudas y ahorros
               </h1>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-ink-500 mb-6">
                 Poné 0 si no aplicá — no hay respuesta incorrecta
               </p>
 
@@ -273,7 +273,7 @@ export default function AnalisisPage() {
                   ¿Cuánto debés en total?
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">Q</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">Q</span>
                   <input
                     type="number"
                     min="0"
@@ -283,7 +283,7 @@ export default function AnalisisPage() {
                     className="input-base w-full pl-8"
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">Tarjetas, préstamos, créditos — sumados</p>
+                <p className="text-xs text-ink-500 mt-1">Tarjetas, préstamos, créditos — sumados</p>
                 {errors.deudas && <p className="text-red-500 text-xs mt-1">{errors.deudas}</p>}
               </div>
 
@@ -292,7 +292,7 @@ export default function AnalisisPage() {
                   ¿Cuánto tenés ahorrado?
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">Q</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">Q</span>
                   <input
                     type="number"
                     min="0"
@@ -302,7 +302,7 @@ export default function AnalisisPage() {
                     className="input-base w-full pl-8"
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">Cuenta bancaria, efectivo, inversiones</p>
+                <p className="text-xs text-ink-500 mt-1">Cuenta bancaria, efectivo, inversiones</p>
                 {errors.ahorros && <p className="text-red-500 text-xs mt-1">{errors.ahorros}</p>}
               </div>
             </div>
@@ -314,7 +314,7 @@ export default function AnalisisPage() {
               <h1 className="font-serif text-2xl text-navy mb-1">
                 ¿Cuál es tu meta principal?
               </h1>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-ink-500 mb-6">
                 Elegí una — la que más te importa ahora mismo
               </p>
 
@@ -344,7 +344,7 @@ export default function AnalisisPage() {
               <button
                 type="button"
                 onClick={goBack}
-                className="flex items-center gap-1.5 px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:border-navy/40 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-ink-700 hover:border-navy/40 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Atrás

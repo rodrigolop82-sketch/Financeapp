@@ -94,7 +94,7 @@ export default function HistorialAccesoPage() {
           <Loader2 className="w-8 h-8 text-electric animate-spin" />
         </div>
       ) : entries.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#94A3B8', padding: '40px 0', fontSize: 14 }}>
+        <p style={{ textAlign: 'center', color: '#64748B', padding: '40px 0', fontSize: 14 }}>
           No hay registros de acceso todavía.
         </p>
       ) : (
@@ -136,7 +136,7 @@ export default function HistorialAccesoPage() {
                   <p style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', margin: 0 }}>
                     {mapped.label}
                   </p>
-                  <p style={{ fontSize: 12, color: '#94A3B8', margin: '2px 0 0' }}>
+                  <p style={{ fontSize: 12, color: '#64748B', margin: '2px 0 0' }}>
                     {timeAgo(entry.created_at)}
                   </p>
                 </div>

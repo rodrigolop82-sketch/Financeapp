@@ -84,11 +84,11 @@ function RegistroForm() {
               <CheckCircle2 className="w-8 h-8 text-electric" />
             </div>
             <h2 className="text-xl font-bold mb-2">Revisa tu correo</h2>
-            <p className="text-gray-600 mb-4">
+            <p className="text-ink-700 mb-4">
               Enviamos un enlace de confirmación a <strong>{email}</strong>.
               Haz clic en el enlace para activar tu cuenta.
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-ink-500">
               ¿No lo ves? Revisa tu carpeta de spam.
             </p>
           </CardContent>
@@ -130,7 +130,7 @@ function RegistroForm() {
 
           <div className="relative my-4">
             <Separator />
-            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-gray-500">
+            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-ink-500">
               o con correo
             </span>
           </div>
@@ -177,7 +177,7 @@ function RegistroForm() {
             </Button>
           </form>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
+          <p className="text-center text-sm text-ink-500 mt-6">
             ¿Ya tienes cuenta?{' '}
             <Link href={inviteCode ? `/login?invite=${inviteCode}` : '/login'} className="text-electric font-medium hover:underline">
               Inicia sesión

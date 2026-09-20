@@ -87,7 +87,7 @@ export default function InvitePage() {
           {state === 'loading' && (
             <div className="py-8">
               <Loader2 className="w-8 h-8 text-electric-light animate-spin mx-auto" />
-              <p className="text-gray-500 mt-3">Verificando invitación...</p>
+              <p className="text-ink-500 mt-3">Verificando invitación...</p>
             </div>
           )}
 
@@ -96,8 +96,8 @@ export default function InvitePage() {
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertCircle className="w-8 h-8 text-red-500" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Invitación inválida</h2>
-              <p className="text-gray-600 mb-6">{errorMsg}</p>
+              <h2 className="text-xl font-bold text-ink-900 mb-2">Invitación inválida</h2>
+              <p className="text-ink-700 mb-6">{errorMsg}</p>
               <Link href="/login">
                 <Button variant="outline">Ir al inicio</Button>
               </Link>
@@ -109,14 +109,14 @@ export default function InvitePage() {
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="w-8 h-8 text-electric" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Te invitaron a un hogar</h2>
-              <p className="text-gray-600 mb-1">
+              <h2 className="text-xl font-bold text-ink-900 mb-2">Te invitaron a un hogar</h2>
+              <p className="text-ink-700 mb-1">
                 <strong>{ownerName}</strong> te invita a unirte al hogar
               </p>
               <p className="text-lg font-semibold text-navy mb-6">
                 &ldquo;{householdName}&rdquo;
               </p>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-ink-500 mb-6">
                 Podrán compartir presupuesto, registrar gastos y ver el progreso financiero juntos.
               </p>
               <div className="space-y-3">
@@ -135,14 +135,14 @@ export default function InvitePage() {
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="w-8 h-8 text-electric" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Te invitaron a un hogar</h2>
-              <p className="text-gray-600 mb-1">
+              <h2 className="text-xl font-bold text-ink-900 mb-2">Te invitaron a un hogar</h2>
+              <p className="text-ink-700 mb-1">
                 <strong>{ownerName}</strong> te invita a unirte al hogar
               </p>
               <p className="text-lg font-semibold text-navy mb-6">
                 &ldquo;{householdName}&rdquo;
               </p>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-ink-500 mb-6">
                 Podrán compartir presupuesto, registrar gastos y ver el progreso financiero juntos.
               </p>
               <Button className="w-full" onClick={handleJoin}>
@@ -154,7 +154,7 @@ export default function InvitePage() {
           {state === 'joining' && (
             <div className="py-8">
               <Loader2 className="w-8 h-8 text-electric-light animate-spin mx-auto" />
-              <p className="text-gray-500 mt-3">Uniéndote al hogar...</p>
+              <p className="text-ink-500 mt-3">Uniéndote al hogar...</p>
             </div>
           )}
 
@@ -163,11 +163,11 @@ export default function InvitePage() {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-8 h-8 text-green-600" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">¡Te uniste exitosamente!</h2>
-              <p className="text-gray-600 mb-2">
+              <h2 className="text-xl font-bold text-ink-900 mb-2">¡Te uniste exitosamente!</h2>
+              <p className="text-ink-700 mb-2">
                 Ahora eres parte del hogar &ldquo;{householdName}&rdquo;
               </p>
-              <p className="text-sm text-gray-400">Redirigiendo al dashboard...</p>
+              <p className="text-sm text-ink-500">Redirigiendo al dashboard...</p>
             </div>
           )}
 
@@ -176,8 +176,8 @@ export default function InvitePage() {
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-8 h-8 text-electric" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Ya eres miembro</h2>
-              <p className="text-gray-600 mb-6">
+              <h2 className="text-xl font-bold text-ink-900 mb-2">Ya eres miembro</h2>
+              <p className="text-ink-700 mb-6">
                 Ya formas parte del hogar &ldquo;{householdName}&rdquo;
               </p>
               <Link href="/dashboard">

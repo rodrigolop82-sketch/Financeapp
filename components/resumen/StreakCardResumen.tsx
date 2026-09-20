@@ -13,13 +13,13 @@ export function StreakCardResumen({ currentStreak, bestStreak, weekDays }: Strea
     <div style={{ margin: '0 16px 16px', background: '#F8FAFC', borderRadius: 16, padding: '16px 18px', border: '1px solid #E2E8F0' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
-          <p style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Racha actual</p>
+          <p style={{ fontSize: 11, color: '#64748B', fontWeight: 600, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Racha actual</p>
           <p style={{ fontSize: 22, fontWeight: 800, color: '#1E3A5F', margin: 0, fontFamily: 'Outfit, sans-serif' }}>
             🔥 {currentStreak} días
           </p>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <p style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mejor racha</p>
+          <p style={{ fontSize: 11, color: '#64748B', fontWeight: 600, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mejor racha</p>
           <p style={{ fontSize: 16, fontWeight: 700, color: '#64748B', margin: 0, fontFamily: 'Outfit, sans-serif' }}>
             {bestStreak} días
           </p>
@@ -38,7 +38,7 @@ export function StreakCardResumen({ currentStreak, bestStreak, weekDays }: Strea
             }}>
               {status === 'done' ? '✓' : status === 'today' ? '·' : ''}
             </div>
-            <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 600 }}>{DAY_LABELS[i]}</span>
+            <span style={{ fontSize: 10, color: '#64748B', fontWeight: 600 }}>{DAY_LABELS[i]}</span>
           </div>
         ))}
       </div>

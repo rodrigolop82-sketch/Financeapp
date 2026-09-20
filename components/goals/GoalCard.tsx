@@ -78,7 +78,7 @@ export function GoalCard({ goal }: GoalCardProps) {
             </span>
           </p>
         ) : (
-          <p style={{ fontSize: 12, color: '#94A3B8' }}>
+          <p style={{ fontSize: 12, color: '#64748B' }}>
             {goal.projection.message}
           </p>
         )}

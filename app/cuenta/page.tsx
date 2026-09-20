@@ -201,18 +201,18 @@ function CuentaContent() {
         <Card className="mb-4">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <User className="w-5 h-5 text-gray-500" />
+              <User className="w-5 h-5 text-ink-500" />
               <CardTitle className="text-base">Perfil</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Nombre</span>
+              <span className="text-sm text-ink-500">Nombre</span>
               <span className="text-sm font-medium">{user?.full_name || '-'}</span>
             </div>
             <Separator />
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Correo</span>
+              <span className="text-sm text-ink-500">Correo</span>
               <span className="text-sm font-medium">{user?.email}</span>
             </div>
           </CardContent>
@@ -222,7 +222,7 @@ function CuentaContent() {
         <Card className="mb-4">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Eye className="w-5 h-5 text-gray-500" />
+              <Eye className="w-5 h-5 text-ink-500" />
               <CardTitle className="text-base">Preferencias de visualización</CardTitle>
             </div>
           </CardHeader>
@@ -256,14 +256,14 @@ function CuentaContent() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Tags className="w-5 h-5 text-gray-500" />
+                  <Tags className="w-5 h-5 text-ink-500" />
                   <CardTitle className="text-base">Categorías</CardTitle>
                 </div>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-ink-500" />
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-ink-500">
                 Crea, edita y organiza tus categorías personalizadas de gastos.
               </p>
             </CardContent>
@@ -274,7 +274,7 @@ function CuentaContent() {
         <Card className="mb-4">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Coins className="w-5 h-5 text-gray-500" />
+              <Coins className="w-5 h-5 text-ink-500" />
               <CardTitle className="text-base">Moneda</CardTitle>
             </div>
           </CardHeader>
@@ -352,7 +352,7 @@ function CuentaContent() {
         <Card className="mb-4">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <CreditCard className="w-5 h-5 text-gray-500" />
+              <CreditCard className="w-5 h-5 text-ink-500" />
               <CardTitle className="text-base">Plan y facturación</CardTitle>
             </div>
           </CardHeader>
@@ -371,12 +371,12 @@ function CuentaContent() {
                   )}
                 </div>
                 {isTrialing && trialDaysLeft > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-ink-500 mt-1">
                     Tu prueba termina en {trialDaysLeft} día{trialDaysLeft !== 1 ? 's' : ''}
                   </p>
                 )}
                 {subscription?.current_period_end && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-ink-500 mt-1">
                     Próximo cobro: {new Date(subscription.current_period_end).toLocaleDateString('es-GT')}
                   </p>
                 )}
@@ -389,16 +389,16 @@ function CuentaContent() {
 
                 {usage && (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tu uso este mes</p>
+                    <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider">Tu uso este mes</p>
                     <div className="flex gap-3">
                       <div className="flex-1 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-xs text-gray-500">Mensajes IA</p>
+                        <p className="text-xs text-ink-500">Mensajes IA</p>
                         <p className="text-sm font-semibold" style={{ color: usage.ai.remaining <= 2 ? '#EF4444' : '#1E3A5F' }}>
                           {usage.ai.used} de {usage.ai.limit}
                         </p>
                       </div>
                       <div className="flex-1 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-xs text-gray-500">Importaciones</p>
+                        <p className="text-xs text-ink-500">Importaciones</p>
                         <p className="text-sm font-semibold" style={{ color: usage.imports.remaining === 0 ? '#EF4444' : '#1E3A5F' }}>
                           {usage.imports.used} de {usage.imports.limit}
                         </p>
@@ -407,7 +407,7 @@ function CuentaContent() {
                   </div>
                 )}
 
-                <p className="text-sm text-gray-600">Mejora tu plan para desbloquear todo:</p>
+                <p className="text-sm text-ink-700">Mejora tu plan para desbloquear todo:</p>
                 <div className="grid grid-cols-2 gap-3">
                   <Button variant="outline" onClick={() => handleUpgrade('monthly')} disabled={upgrading}>
                     $4.99/mes
@@ -417,7 +417,7 @@ function CuentaContent() {
                     $39.99/año (ahorra 33%)
                   </Button>
                 </div>
-                <ul className="text-xs text-gray-500 space-y-1">
+                <ul className="text-xs text-ink-500 space-y-1">
                   <li>&#10003; Zafi AI sin límite de mensajes</li>
                   <li>&#10003; Importaciones ilimitadas</li>
                   <li>&#10003; Insights y tendencias en Resumen</li>
@@ -459,7 +459,7 @@ function CuentaContent() {
               </div>
               {notifPrefs.inactivity_enabled && (
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs text-gray-500">Después de</span>
+                  <span className="text-xs text-ink-500">Después de</span>
                   <select
                     value={notifPrefs.inactivity_threshold_days}
                     onChange={(e) => updateNotifPref({ inactivity_threshold_days: Number(e.target.value) })}
@@ -499,7 +499,7 @@ function CuentaContent() {
               </div>
               {notifPrefs.month_close_enabled && (
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs text-gray-500">Enviar el día</span>
+                  <span className="text-xs text-ink-500">Enviar el día</span>
                   <select
                     value={notifPrefs.month_close_day}
                     onChange={(e) => updateNotifPref({ month_close_day: Number(e.target.value) })}
@@ -511,7 +511,7 @@ function CuentaContent() {
                     <option value={5}>5</option>
                     <option value={7}>7</option>
                   </select>
-                  <span className="text-xs text-gray-500">de cada mes</span>
+                  <span className="text-xs text-ink-500">de cada mes</span>
                 </div>
               )}
             </div>
@@ -527,7 +527,7 @@ function CuentaContent() {
             </div>
           </CardHeader>
           <CardContent className="space-y-1">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tus datos</p>
+            <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-3">Tus datos</p>
 
             <button
               onClick={() => router.push('/cuenta/privacidad')}
@@ -536,9 +536,9 @@ function CuentaContent() {
               <ShieldCheck className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[#1E3A5F]">Cómo protegemos tu info</p>
-                <p className="text-xs text-gray-500">Encriptación, RLS y acceso exclusivo</p>
+                <p className="text-xs text-ink-500">Encriptación, RLS y acceso exclusivo</p>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <ChevronRight className="w-4 h-4 text-ink-500 flex-shrink-0" />
             </button>
 
             <Separator />
@@ -550,9 +550,9 @@ function CuentaContent() {
               <History className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[#1E3A5F]">Historial de acceso</p>
-                <p className="text-xs text-gray-500">Últimos accesos a tu cuenta</p>
+                <p className="text-xs text-ink-500">Últimos accesos a tu cuenta</p>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <ChevronRight className="w-4 h-4 text-ink-500 flex-shrink-0" />
             </button>
 
             <Separator />
@@ -567,22 +567,22 @@ function CuentaContent() {
                 <p className="text-sm font-medium text-[#1E3A5F]">
                   {exporting ? 'Exportando…' : 'Exportar mis datos'}
                 </p>
-                <p className="text-xs text-gray-500">Descarga toda tu información</p>
+                <p className="text-xs text-ink-500">Descarga toda tu información</p>
               </div>
-              {!exporting && <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />}
-              {exporting && <Loader2 className="w-4 h-4 text-gray-400 flex-shrink-0 animate-spin" />}
+              {!exporting && <ChevronRight className="w-4 h-4 text-ink-500 flex-shrink-0" />}
+              {exporting && <Loader2 className="w-4 h-4 text-ink-500 flex-shrink-0 animate-spin" />}
             </button>
 
             <Separator className="my-3" />
 
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Seguridad</p>
+            <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-3">Seguridad</p>
 
             {/* TODO: Link to TOTP settings when implemented */}
             <div className="flex items-center gap-3 p-3 rounded-lg opacity-60">
               <Lock className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[#1E3A5F]">Verificación en dos pasos</p>
-                <p className="text-xs text-gray-500">Próximamente</p>
+                <p className="text-xs text-ink-500">Próximamente</p>
               </div>
             </div>
 
@@ -595,23 +595,23 @@ function CuentaContent() {
               <UserX className="w-5 h-5 text-red-500 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-red-600">Eliminar mi cuenta</p>
-                <p className="text-xs text-gray-500">Borra todos tus datos permanentemente</p>
+                <p className="text-xs text-ink-500">Borra todos tus datos permanentemente</p>
               </div>
             </div>
 
             <Separator className="my-3" />
 
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Legal</p>
+            <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-3">Legal</p>
 
             <button
               onClick={() => router.push('/privacidad')}
               className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
             >
-              <Shield className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              <Shield className="w-5 h-5 text-ink-500 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[#1E3A5F]">Política de privacidad</p>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <ChevronRight className="w-4 h-4 text-ink-500 flex-shrink-0" />
             </button>
 
             <Separator />
@@ -620,11 +620,11 @@ function CuentaContent() {
               onClick={() => router.push('/terminos')}
               className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
             >
-              <Shield className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              <Shield className="w-5 h-5 text-ink-500 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[#1E3A5F]">Términos de servicio</p>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <ChevronRight className="w-4 h-4 text-ink-500 flex-shrink-0" />
             </button>
           </CardContent>
         </Card>

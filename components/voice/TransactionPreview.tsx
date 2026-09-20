@@ -35,14 +35,14 @@ export function TransactionPreview({ result, onConfirm, onCancel }: TransactionP
         <CardContent className="p-4 text-center">
           <p className="text-sm text-orange-800">No se detectaron gastos.</p>
           {result.raw_text && (
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-ink-500 mt-1">
               Escuché: &ldquo;{result.raw_text}&rdquo;
             </p>
           )}
           {result.clarification && (
             <p className="text-xs text-orange-700 mt-1">{result.clarification}</p>
           )}
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-ink-500 mt-2">
             Intentá decir algo como: &ldquo;Gasté 50 quetzales en gasolina&rdquo;
           </p>
           <Button variant="outline" size="sm" onClick={onCancel} className="mt-2">
@@ -57,7 +57,7 @@ export function TransactionPreview({ result, onConfirm, onCancel }: TransactionP
     <Card className="border-electric-soft">
       <CardContent className="p-4">
         {/* Raw text feedback */}
-        <div className="flex items-center gap-2 mb-3 text-xs text-gray-500">
+        <div className="flex items-center gap-2 mb-3 text-xs text-ink-500">
           <Mic className="w-3 h-3" />
           <span className="italic">&ldquo;{result.raw_text}&rdquo;</span>
         </div>
@@ -97,7 +97,7 @@ export function TransactionPreview({ result, onConfirm, onCancel }: TransactionP
                 ) : (
                   <>
                     <p className="text-sm font-medium truncate">{tx.description}</p>
-                    <p className="text-xs text-gray-500">{tx.category}</p>
+                    <p className="text-xs text-ink-500">{tx.category}</p>
                   </>
                 )}
               </div>
@@ -108,13 +108,13 @@ export function TransactionPreview({ result, onConfirm, onCancel }: TransactionP
                 )}
                 <button
                   onClick={() => setEditing(editing === i ? null : i)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-ink-500 hover:text-ink-700"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => removeTransaction(i)}
-                  className="text-gray-400 hover:text-red-500"
+                  className="text-ink-500 hover:text-red-500"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>

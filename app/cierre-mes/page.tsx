@@ -115,7 +115,7 @@ export default function CierreMesPage() {
 
       {!checklist || checklist.totalCount === 0 ? (
         <div style={{
-          textAlign: 'center', padding: '40px 20px', color: '#94A3B8',
+          textAlign: 'center', padding: '40px 20px', color: '#64748B',
           fontSize: 14, lineHeight: 1.6,
         }}>
           <Wallet size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
@@ -164,7 +164,7 @@ export default function CierreMesPage() {
                 transition: 'width 0.4s ease',
               }} />
             </div>
-            <span style={{ fontSize: 12, color: '#94A3B8', marginTop: 4, display: 'block' }}>
+            <span style={{ fontSize: 12, color: '#64748B', marginTop: 4, display: 'block' }}>
               {checklist.completedCount} de {checklist.totalCount} completados
             </span>
           </div>

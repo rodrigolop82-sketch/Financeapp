@@ -72,7 +72,7 @@ export default function GoalDetailPage() {
   if (!goal) {
     return (
       <AppShell title="Meta" currentPath="/metas">
-        <p style={{ textAlign: 'center', color: '#94A3B8', padding: '40px 0' }}>
+        <p style={{ textAlign: 'center', color: '#64748B', padding: '40px 0' }}>
           Meta no encontrada
         </p>
       </AppShell>
@@ -238,7 +238,7 @@ export default function GoalDetailPage() {
         }}>
           <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Emoji</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Emoji</label>
               <input
                 value={editEmoji}
                 onChange={e => setEditEmoji(e.target.value)}
@@ -249,7 +249,7 @@ export default function GoalDetailPage() {
               />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Nombre</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Nombre</label>
               <input
                 value={editName}
                 onChange={e => setEditName(e.target.value)}
@@ -264,7 +264,7 @@ export default function GoalDetailPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Meta (Q)</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Meta (Q)</label>
               <input
                 type="number"
                 value={editTarget}
@@ -278,7 +278,7 @@ export default function GoalDetailPage() {
               />
             </div>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Aporte mensual (Q)</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Aporte mensual (Q)</label>
               <input
                 type="number"
                 value={editMonthly}
@@ -294,7 +294,7 @@ export default function GoalDetailPage() {
             </div>
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Fecha objetivo</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Fecha objetivo</label>
             <input
               type="date"
               value={editDate}
@@ -374,7 +374,7 @@ export default function GoalDetailPage() {
           padding: '14px 16px',
           marginBottom: 16,
         }}>
-          <p style={{ fontSize: 13, color: '#94A3B8' }}>
+          <p style={{ fontSize: 13, color: '#64748B' }}>
             {goal.projection.message}
           </p>
         </div>
