@@ -104,7 +104,7 @@ export function AndroidInstallSheet({ deferredPrompt, platform, onDismiss, onIns
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
               fontFamily: "'DM Sans', sans-serif", fontSize: 14,
-              color: '#94A3B8', fontWeight: 500, padding: '8px 16px',
+              color: '#64748B', fontWeight: 500, padding: '8px 16px',
             }}
           >
             Ahora no

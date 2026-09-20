@@ -116,7 +116,7 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
                 <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', display: 'block' }}>
                   Tomar foto
                 </span>
-                <span style={{ fontSize: 12, color: '#94A3B8' }}>
+                <span style={{ fontSize: 12, color: '#64748B' }}>
                   Usa la cámara para capturar el estado de cuenta
                 </span>
               </div>
@@ -148,7 +148,7 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
                 <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', display: 'block' }}>
                   Seleccionar de galería
                 </span>
-                <span style={{ fontSize: 12, color: '#94A3B8' }}>
+                <span style={{ fontSize: 12, color: '#64748B' }}>
                   Elige una foto ya tomada · JPG, PNG, WebP · Máx 10MB
                 </span>
               </div>
@@ -181,7 +181,7 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
             <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F' }}>
               Seleccionar archivo PDF
             </span>
-            <span style={{ fontSize: 12, color: '#94A3B8' }}>
+            <span style={{ fontSize: 12, color: '#64748B' }}>
               Máximo 10MB · PDF
             </span>
           </button>
@@ -215,7 +215,7 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
             <p style={{ fontSize: 13, fontWeight: 600, color: '#1E3A5F', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {file.name}
             </p>
-            <p style={{ fontSize: 11, color: '#94A3B8', margin: '2px 0 0' }}>
+            <p style={{ fontSize: 11, color: '#64748B', margin: '2px 0 0' }}>
               {(file.size / 1024).toFixed(0)} KB
             </p>
           </div>
@@ -224,7 +224,7 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
               const ref = mode === 'photo' ? galleryRef : pdfRef
               ref.current?.click()
             }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#94A3B8' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#64748B' }}
           >
             <X size={18} />
           </button>
@@ -244,7 +244,7 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
 
       {/* Bank chips */}
       <div style={{ marginTop: 20 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
           Bancos soportados
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

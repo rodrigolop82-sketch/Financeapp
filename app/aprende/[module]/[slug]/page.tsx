@@ -210,9 +210,9 @@ export default function CapsulePage() {
             prose-headings:text-navy prose-headings:font-semibold
             prose-h2:text-lg prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:border-gray-200 prose-h2:pb-2
             prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2
-            prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4
+            prose-p:text-ink-700 prose-p:leading-relaxed prose-p:mb-4
             prose-strong:text-navy
-            prose-ul:my-3 prose-li:text-gray-700 prose-li:leading-relaxed
+            prose-ul:my-3 prose-li:text-ink-700 prose-li:leading-relaxed
             prose-ol:my-3
             prose-table:border-collapse prose-table:w-full prose-table:text-sm prose-table:my-4
             prose-thead:bg-surface-tint prose-thead:border-b-2 prose-thead:border-electric-soft
@@ -225,7 +225,7 @@ export default function CapsulePage() {
             {ReactMarkdown && remarkGfm ? (
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{capsule.content_md}</ReactMarkdown>
             ) : (
-              <div className="whitespace-pre-wrap text-gray-700">{capsule.content_md}</div>
+              <div className="whitespace-pre-wrap text-ink-700">{capsule.content_md}</div>
             )}
           </article>
 

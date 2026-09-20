@@ -172,7 +172,7 @@ function CaptureContent() {
         <p style={{ fontSize: 16, fontWeight: 700, color: '#1E3A5F' }}>
           Gasto guardado
         </p>
-        <p style={{ fontSize: 12, color: '#94A3B8' }}>
+        <p style={{ fontSize: 12, color: '#64748B' }}>
           Volviendo al dashboard...
         </p>
       </div>
@@ -229,7 +229,7 @@ function CaptureContent() {
             </div>
             <div style={{ textAlign: 'left' }}>
               <p style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F' }}>Tomar foto</p>
-              <p style={{ fontSize: 12, color: '#94A3B8' }}>Usa la camara para capturar el recibo</p>
+              <p style={{ fontSize: 12, color: '#64748B' }}>Usa la camara para capturar el recibo</p>
             </div>
           </button>
 
@@ -256,7 +256,7 @@ function CaptureContent() {
             </div>
             <div style={{ textAlign: 'left' }}>
               <p style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F' }}>Subir imagen</p>
-              <p style={{ fontSize: 12, color: '#94A3B8' }}>Selecciona una foto de tu galeria</p>
+              <p style={{ fontSize: 12, color: '#64748B' }}>Selecciona una foto de tu galeria</p>
             </div>
           </button>
 
@@ -282,7 +282,7 @@ function CaptureContent() {
             </div>
             <div style={{ textAlign: 'left' }}>
               <p style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F' }}>Ingreso manual</p>
-              <p style={{ fontSize: 12, color: '#94A3B8' }}>Escribe los datos del gasto directamente</p>
+              <p style={{ fontSize: 12, color: '#64748B' }}>Escribe los datos del gasto directamente</p>
             </div>
           </button>
 
@@ -555,7 +555,7 @@ export default function CapturePage() {
           border: '3px solid #DBEAFE', borderTopColor: '#2563EB',
           animation: 'spin 0.8s linear infinite',
         }}/>
-        <p style={{ fontSize: 13, color: '#94A3B8' }}>Cargando...</p>
+        <p style={{ fontSize: 13, color: '#64748B' }}>Cargando...</p>
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     }>

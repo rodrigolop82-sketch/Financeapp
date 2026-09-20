@@ -214,7 +214,7 @@ export default function ResultadosPage() {
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100">
         <Wordmark size="sm" variant="light" />
-        <Link href="/login" className="text-sm text-gray-500 hover:text-navy transition-colors">
+        <Link href="/login" className="text-sm text-ink-500 hover:text-navy transition-colors">
           Ya tengo cuenta
         </Link>
       </header>
@@ -222,9 +222,9 @@ export default function ResultadosPage() {
       <div className="flex-1 max-w-md mx-auto w-full px-6 py-8 animate-[fade-in_0.4s_ease-out]">
         {/* Score section */}
         <div className={`rounded-2xl p-6 mb-6 ${SCORE_BG[color]}`}>
-          <p className="text-sm font-medium text-gray-500 text-center mb-4">Tu salud financiera</p>
+          <p className="text-sm font-medium text-ink-500 text-center mb-4">Tu salud financiera</p>
           <ScoreCircle score={score} color={color} />
-          <p className="text-center text-sm text-gray-600 mt-4 leading-relaxed">
+          <p className="text-center text-sm text-ink-700 mt-4 leading-relaxed">
             {getScoreInterpretacion(score)}
           </p>
         </div>
@@ -241,7 +241,7 @@ export default function ResultadosPage() {
                     {rec.prioridad === 'alta' ? 'Urgente' : rec.prioridad === 'media' ? 'Importante' : 'Sugerido'}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 leading-relaxed">{rec.descripcion}</p>
+                <p className="text-xs text-ink-500 leading-relaxed">{rec.descripcion}</p>
               </div>
             ))}
           </div>
@@ -253,12 +253,12 @@ export default function ResultadosPage() {
             Guardar mi plan gratis
             <ArrowRight className="w-4 h-4" />
           </Link>
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-ink-500 mt-2">
             También te lo enviamos por correo. Sin spam.
           </p>
           <button
             onClick={() => { sessionAnalisis.limpiar(); router.push('/analisis'); }}
-            className="mt-4 flex items-center gap-1.5 text-sm text-gray-400 hover:text-navy transition-colors mx-auto"
+            className="mt-4 flex items-center gap-1.5 text-sm text-ink-500 hover:text-navy transition-colors mx-auto"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Volver a hacer el análisis

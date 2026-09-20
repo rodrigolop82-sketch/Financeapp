@@ -114,7 +114,7 @@ function LoginForm() {
 
           <div className="relative my-6">
             <Separator />
-            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-gray-500">
+            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-ink-500">
               o continúa con
             </span>
           </div>
@@ -129,7 +129,7 @@ function LoginForm() {
             Continuar con Google
           </Button>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
+          <p className="text-center text-sm text-ink-500 mt-6">
             ¿No tienes cuenta?{' '}
             <Link href={inviteCode ? `/registro?invite=${inviteCode}` : '/registro'} className="text-electric font-medium hover:underline">
               Regístrate gratis

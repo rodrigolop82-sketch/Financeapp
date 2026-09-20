@@ -519,7 +519,7 @@ function TransaccionesPageInner() {
           <>
             {/* Action bar */}
             <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-gray-500">Este mes: {fmt(totalThisMonth)}</p>
+              <p className="text-sm text-ink-500">Este mes: {fmt(totalThisMonth)}</p>
               <div className="flex gap-2 flex-wrap justify-end">
                 <VoiceButton
                   mode="expense"
@@ -723,7 +723,7 @@ function TransaccionesPageInner() {
               return (
                 <div key={date} className="mb-4">
                   <div className="flex items-center justify-between mb-2 px-1">
-                    <p className="text-sm font-medium text-gray-500 capitalize">{label}</p>
+                    <p className="text-sm font-medium text-ink-500 capitalize">{label}</p>
                     <p className="text-sm font-medium">{fmt(dayTotal)}</p>
                   </div>
                   <Card>
@@ -743,7 +743,7 @@ function TransaccionesPageInner() {
                                 </button>
                                 <button
                                   onClick={() => setEditingId(null)}
-                                  className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                                  className="p-1.5 rounded-md text-ink-500 hover:text-ink-700 hover:bg-gray-100"
                                 >
                                   <X className="w-4 h-4" />
                                 </button>
@@ -821,18 +821,18 @@ function TransaccionesPageInner() {
                         ) : (
                           <div key={tx.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group">
                             <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <Receipt className="w-5 h-5 text-gray-400" />
+                              <Receipt className="w-5 h-5 text-ink-500" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">
                                 {tx.description || tx.category_name}
                               </p>
                               <div className="flex items-center gap-2">
-                                <span className={`text-xs px-1.5 py-0.5 rounded ${bucketColors[tx.bucket || ''] || 'bg-gray-100 text-gray-600'}`}>
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${bucketColors[tx.bucket || ''] || 'bg-gray-100 text-ink-700'}`}>
                                   {tx.category_name}
                                 </span>
                                 {tx.payment_method && tx.payment_method !== 'efectivo' && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-ink-500">
                                     {tx.payment_method === 'tarjeta' ? 'Tarjeta' : tx.payment_method === 'cheque' ? 'Cheque' : 'Transferencia'}
                                   </span>
                                 )}
@@ -861,13 +861,13 @@ function TransaccionesPageInner() {
                               </div>
                               <button
                                 onClick={() => startEdit(tx)}
-                                className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-gray-300 hover:text-electric transition-all"
+                                className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-ink-400 hover:text-electric transition-all"
                               >
                                 <Pencil className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => deleteTransaction(tx.id)}
-                                className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
+                                className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-ink-400 hover:text-red-500 transition-all"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -884,9 +884,9 @@ function TransaccionesPageInner() {
             {transactions.length === 0 && !showForm && (
               <Card>
                 <CardContent className="p-8 text-center">
-                  <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="font-medium text-gray-700">Sin transacciones</p>
-                  <p className="text-sm text-gray-500 mt-1 mb-4">
+                  <Receipt className="w-12 h-12 text-ink-400 mx-auto mb-3" />
+                  <p className="font-medium text-ink-700">Sin transacciones</p>
+                  <p className="text-sm text-ink-500 mt-1 mb-4">
                     Empieza a registrar tus gastos para llevar el control.
                   </p>
                   <Button onClick={() => setShowForm(true)}>

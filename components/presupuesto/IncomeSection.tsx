@@ -67,8 +67,8 @@ export function IncomeSection({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: '#16A34A' }}>{fmt(income)}</span>
           {expanded
-            ? <ChevronUp style={{ width: 18, height: 18, color: '#94A3B8' }} />
-            : <ChevronDown style={{ width: 18, height: 18, color: '#94A3B8' }} />
+            ? <ChevronUp style={{ width: 18, height: 18, color: '#64748B' }} />
+            : <ChevronDown style={{ width: 18, height: 18, color: '#64748B' }} />
           }
         </div>
       </button>
@@ -111,7 +111,7 @@ export function IncomeSection({
                   onChange={(e) => onUpdateIncomeEntry(entry.id, 'source', e.target.value)}
                 />
                 <select
-                  className="text-xs border rounded-lg px-2 py-1.5 bg-white text-gray-600 flex-shrink-0"
+                  className="text-xs border rounded-lg px-2 py-1.5 bg-white text-ink-700 flex-shrink-0"
                   value={entry.member}
                   onChange={(e) => onUpdateIncomeEntry(entry.id, 'member', e.target.value)}
                 >
@@ -121,7 +121,7 @@ export function IncomeSection({
                   <option value="Hogar">Hogar</option>
                 </select>
                 <select
-                  className="text-xs border rounded-lg px-2 py-1.5 bg-white text-gray-600 flex-shrink-0"
+                  className="text-xs border rounded-lg px-2 py-1.5 bg-white text-ink-700 flex-shrink-0"
                   value={entry.frequency}
                   onChange={(e) => onUpdateIncomeEntry(entry.id, 'frequency', e.target.value)}
                 >
@@ -131,7 +131,7 @@ export function IncomeSection({
                   <option value="anual">Anual</option>
                 </select>
                 <div style={{ position: 'relative', width: 110, flexShrink: 0 }}>
-                  <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94A3B8' }}>Q</span>
+                  <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#64748B' }}>Q</span>
                   <Input
                     type="number"
                     className="pl-7 h-8 text-sm text-right"
@@ -141,13 +141,13 @@ export function IncomeSection({
                   />
                 </div>
                 {entry.frequency !== 'mensual' && entry.amount > 0 && (
-                  <span style={{ fontSize: 10, color: '#94A3B8', flexShrink: 0, width: 60, textAlign: 'right' }}>
+                  <span style={{ fontSize: 10, color: '#64748B', flexShrink: 0, width: 60, textAlign: 'right' }}>
                     {fmt(Math.round(entry.amount * (FREQUENCY_MULTIPLIER[entry.frequency] || 1) * 100) / 100)}/mes
                   </span>
                 )}
                 <button
                   onClick={() => onDeleteIncomeEntry(entry.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#CBD5E1' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#64748B' }}
                 >
                   <Trash2 style={{ width: 14, height: 14 }} />
                 </button>

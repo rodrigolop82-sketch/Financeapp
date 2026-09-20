@@ -301,7 +301,7 @@ export default function ImportarPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-ink-500">
                 Subí el estado de cuenta de tu banco en formato CSV. La mayoría de bancos
                 (BAC, Industrial, G&T, Banrural) permiten exportar tus movimientos como CSV
                 desde su banca en línea.
@@ -318,11 +318,11 @@ export default function ImportarPage() {
                 className="w-full border-2 border-dashed border-gray-300 rounded-xl p-8 hover:border-electric hover:bg-blue-50/50 transition-colors cursor-pointer flex flex-col items-center gap-3"
               >
                 <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center">
-                  <FileText className="w-7 h-7 text-gray-400" />
+                  <FileText className="w-7 h-7 text-ink-500" />
                 </div>
                 <div className="text-center">
-                  <p className="font-medium text-gray-700">Seleccionar archivo CSV</p>
-                  <p className="text-xs text-gray-400 mt-1">o arrastrá el archivo aquí</p>
+                  <p className="font-medium text-ink-700">Seleccionar archivo CSV</p>
+                  <p className="text-xs text-ink-500 mt-1">o arrastrá el archivo aquí</p>
                 </div>
               </button>
 
@@ -342,8 +342,8 @@ export default function ImportarPage() {
           <>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="font-medium text-gray-900">{fileName}</h2>
-                <p className="text-sm text-gray-500">
+                <h2 className="font-medium text-ink-900">{fileName}</h2>
+                <p className="text-sm text-ink-500">
                   {rows.length} transacciones encontradas,{' '}
                   {rows.filter(r => r.selected).length} seleccionadas
                 </p>
@@ -391,7 +391,7 @@ export default function ImportarPage() {
                               className="rounded"
                             />
                           </td>
-                          <td className="p-3 whitespace-nowrap text-gray-600">{row.date}</td>
+                          <td className="p-3 whitespace-nowrap text-ink-700">{row.date}</td>
                           <td className="p-3 max-w-[200px] truncate" title={row.description}>
                             {row.description}
                           </td>
@@ -422,7 +422,7 @@ export default function ImportarPage() {
                           <td className="p-3">
                             <button
                               onClick={() => removeRow(i)}
-                              className="text-gray-300 hover:text-red-500"
+                              className="text-ink-400 hover:text-red-500"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -435,8 +435,8 @@ export default function ImportarPage() {
 
                 {/* Total */}
                 <div className="p-4 border-t bg-gray-50 flex justify-between">
-                  <span className="font-medium text-gray-600">Total seleccionado</span>
-                  <span className="font-bold text-gray-900">
+                  <span className="font-medium text-ink-700">Total seleccionado</span>
+                  <span className="font-bold text-ink-900">
                     {fmt(rows.filter(r => r.selected).reduce((s, r) => s + r.amount, 0))}
                   </span>
                 </div>
@@ -452,10 +452,10 @@ export default function ImportarPage() {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="w-8 h-8 text-green-600" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
+              <h2 className="text-xl font-bold text-ink-900 mb-2">
                 {savedCount} transacciones importadas
               </h2>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-ink-500 mb-6">
                 Tus gastos fueron registrados correctamente desde el estado de cuenta.
               </p>
               <div className="flex gap-3 justify-center">

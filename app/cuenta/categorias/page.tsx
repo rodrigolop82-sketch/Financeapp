@@ -212,7 +212,7 @@ export default function CategoriasPage() {
               Tus categorías
             </h2>
             {showCounter && (
-              <p style={{ fontSize: 12, color: '#94A3B8', margin: '4px 0 0' }}>
+              <p style={{ fontSize: 12, color: '#64748B', margin: '4px 0 0' }}>
                 {custom.length} de {MAX_CUSTOM_CATEGORIES} activas
               </p>
             )}
@@ -243,7 +243,7 @@ export default function CategoriasPage() {
             <p style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F', margin: '0 0 6px' }}>
               Sin categorías personalizadas
             </p>
-            <p style={{ fontSize: 13, color: '#94A3B8', margin: '0 0 16px', lineHeight: 1.5 }}>
+            <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 16px', lineHeight: 1.5 }}>
               Crea categorías para organizar tus gastos a tu manera.
             </p>
             <button
@@ -287,7 +287,7 @@ export default function CategoriasPage() {
                   }}>
                     {cat.name}
                   </p>
-                  <p style={{ fontSize: 11, color: '#94A3B8', margin: 0 }}>
+                  <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>
                     {defaults.find(d => d.id === cat.parent_category_id)?.name || cat.bucket}
                     {cat.pace_mode === 'fixed' && cat.expected_day ? ` · Día ${cat.expected_day}` : ''}
                     {cat.budgeted_amount ? ` · Q${cat.budgeted_amount}` : ''}
@@ -321,7 +321,7 @@ export default function CategoriasPage() {
         {/* Archived categories */}
         {archived.length > 0 && (
           <div style={{ marginBottom: 24 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#94A3B8', marginBottom: 10 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#64748B', marginBottom: 10 }}>
               Archivadas ({archived.length})
             </h3>
             <div style={{
@@ -372,10 +372,10 @@ export default function CategoriasPage() {
 
         {/* Default categories visibility */}
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#94A3B8', marginBottom: 4 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#64748B', marginBottom: 4 }}>
             Categorías de Zafi
           </h3>
-          <p style={{ fontSize: 12, color: '#94A3B8', margin: '0 0 12px' }}>
+          <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 12px' }}>
             Oculta las que no uses. Mínimo {MIN_VISIBLE_DEFAULTS} visibles.
           </p>
           <div style={{
@@ -408,7 +408,7 @@ export default function CategoriasPage() {
                     }}>
                       {cat.name}
                     </p>
-                    <p style={{ fontSize: 11, color: '#94A3B8', margin: 0 }}>
+                    <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>
                       {cat.bucket === 'needs' ? 'Necesidades' : cat.bucket === 'wants' ? 'Gustos' : 'Ahorro/Deudas'}
                     </p>
                   </div>

@@ -356,7 +356,7 @@ export default function DashboardPage() {
             {getMonthLabel(selectedMonthStart)}
           </span>
           {!isCurrentMonth && (
-            <span style={{ fontSize: 12, color: '#94A3B8', marginLeft: 8 }}>histórico</span>
+            <span style={{ fontSize: 12, color: '#64748B', marginLeft: 8 }}>histórico</span>
           )}
         </div>
         <button

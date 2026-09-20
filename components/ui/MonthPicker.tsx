@@ -32,7 +32,7 @@ export function MonthPicker({ value, onChange, label, maxMonth }: MonthPickerPro
   return (
     <div className="flex items-center gap-1.5">
       {label && (
-        <span className="flex items-center gap-1 text-xs text-gray-500">
+        <span className="flex items-center gap-1 text-xs text-ink-500">
           <Calendar className="w-3.5 h-3.5" />
           {label}
         </span>
@@ -44,7 +44,7 @@ export function MonthPicker({ value, onChange, label, maxMonth }: MonthPickerPro
           className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           aria-label="Mes anterior"
         >
-          <ChevronLeft className="w-3.5 h-3.5 text-gray-600" />
+          <ChevronLeft className="w-3.5 h-3.5 text-ink-700" />
         </button>
         <span className="text-xs font-medium text-navy px-1.5 min-w-[110px] text-center">
           {MONTH_NAMES[month - 1]} {year}
@@ -55,7 +55,7 @@ export function MonthPicker({ value, onChange, label, maxMonth }: MonthPickerPro
           className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           aria-label="Mes siguiente"
         >
-          <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
+          <ChevronRight className="w-3.5 h-3.5 text-ink-700" />
         </button>
       </div>
     </div>

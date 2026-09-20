@@ -23,7 +23,7 @@ export function CategoryList({ categories }: CategoryListProps) {
 
   if (visible.length === 0) {
     return (
-      <div style={{ margin: '0 16px 16px', padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>
+      <div style={{ margin: '0 16px 16px', padding: '20px', textAlign: 'center', color: '#64748B', fontSize: 14 }}>
         No hay categorías con actividad este mes
       </div>
     )
@@ -70,7 +70,7 @@ export function CategoryList({ categories }: CategoryListProps) {
                   }} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-                  <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                  <span style={{ fontSize: 11, color: '#64748B' }}>
                     {formatMoney(cat.spentAmount)} / {formatMoney(cat.budgeted_amount)}
                   </span>
                 </div>

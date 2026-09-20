@@ -122,7 +122,7 @@ export default function MetasPage() {
           {pausedGoals.length > 0 && (
             <>
               <p style={{
-                fontSize: 11, fontWeight: 700, color: '#94A3B8',
+                fontSize: 11, fontWeight: 700, color: '#64748B',
                 textTransform: 'uppercase', letterSpacing: '0.08em',
                 marginTop: 24, marginBottom: 10,
               }}>

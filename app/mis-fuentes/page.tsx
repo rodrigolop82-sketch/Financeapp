@@ -235,7 +235,7 @@ export default function MisFuentesPage() {
                     </span>
                   )}
                 </div>
-                <span style={{ fontSize: 12, color: '#94A3B8' }}>
+                <span style={{ fontSize: 12, color: '#64748B' }}>
                   {TYPE_LABELS[source.type]}
                   {source.nickname ? ` · ${source.nickname}` : ''}
                 </span>
@@ -384,7 +384,7 @@ export default function MisFuentesPage() {
 
       {sources.length === 0 && addStep === 'idle' && (
         <div style={{
-          textAlign: 'center', padding: '32px 20px', color: '#94A3B8', fontSize: 14,
+          textAlign: 'center', padding: '32px 20px', color: '#64748B', fontSize: 14,
           lineHeight: 1.6,
         }}>
           <Wallet size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
@@ -419,10 +419,10 @@ function TypeSelector({ value, onChange }: { value: SourceType; onChange: (t: So
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
             }}
           >
-            <Icon size={18} color={active ? '#2563EB' : '#94A3B8'} />
+            <Icon size={18} color={active ? '#2563EB' : '#64748B'} />
             <span style={{
               fontSize: 11, fontWeight: 600,
-              color: active ? '#2563EB' : '#94A3B8',
+              color: active ? '#2563EB' : '#64748B',
             }}>
               {t === 'tarjeta_credito' ? 'Tarjeta' : t === 'cuenta_bancaria' ? 'Cuenta' : 'Efectivo'}
             </span>

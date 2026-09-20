@@ -526,7 +526,7 @@ export default function CategoriaDetallePage() {
                     <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(histAvg)}</span>
                   </div>
                   <div style={{ height: 12, background: '#F3F5F9', borderRadius: 6 }}>
-                    <div style={{ width: `${avgBarW}%`, height: '100%', borderRadius: 6, background: '#94A3B8' }} />
+                    <div style={{ width: `${avgBarW}%`, height: '100%', borderRadius: 6, background: '#64748B' }} />
                   </div>
                 </div>
 

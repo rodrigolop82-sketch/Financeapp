@@ -87,7 +87,7 @@ function InsightCard({ insight }: { insight: CategoryInsight & { message: string
         <span className="font-outfit font-bold" style={{ fontSize: 15, color: '#1E3A5F' }}>
           {formatMoney(insight.thisMonth)}
         </span>
-        <span style={{ fontSize: 11, color: '#94A3B8' }}>
+        <span style={{ fontSize: 11, color: '#64748B' }}>
           promedio: {formatMoney(insight.avgLast3)}
         </span>
         {insight.savingsPotential > 0 && (
@@ -170,7 +170,7 @@ export function InsightsTab({ data }: InsightsTabProps) {
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#1E3A5F' }}>{c.name}</span>
                   <DeltaBadge value={c.delta} pct={c.deltaPct} />
                 </div>
-                <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                <span style={{ fontSize: 11, color: '#64748B' }}>
                   {formatMoney(c.lastMonth)} → {formatMoney(c.thisMonth)}
                 </span>
               </div>
@@ -214,7 +214,7 @@ export function InsightsTab({ data }: InsightsTabProps) {
                 <span className="font-outfit font-bold" style={{ fontSize: 14, color: '#1E3A5F' }}>
                   {formatMoney(c.thisMonth)}
                 </span>
-                <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                <span style={{ fontSize: 11, color: '#64748B' }}>
                   ant: {formatMoney(c.lastMonth)}
                 </span>
               </div>
@@ -251,7 +251,7 @@ export function InsightsTab({ data }: InsightsTabProps) {
                     {d.day}
                   </span>
                   {d.amount > 0 && (
-                    <span style={{ fontSize: 9, color: '#94A3B8', display: 'block', marginTop: 1 }}>
+                    <span style={{ fontSize: 9, color: '#64748B', display: 'block', marginTop: 1 }}>
                       {formatMoney(d.amount)}
                     </span>
                   )}

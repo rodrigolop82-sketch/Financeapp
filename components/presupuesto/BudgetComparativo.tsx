@@ -29,7 +29,7 @@ function fmtNum(n: number) {
 }
 
 function varColor(diff: number, isSavings: boolean) {
-  if (diff === 0) return '#94A3B8'
+  if (diff === 0) return '#64748B'
   if (isSavings) return diff > 0 ? '#16A34A' : '#D97706'
   return diff > 0 ? '#EF4444' : '#16A34A'
 }
@@ -98,7 +98,7 @@ export function BudgetComparativo({
             </span>
           </>
         )}
-        <p style={{ fontSize: 11, color: '#CBD5E1', margin: '4px 0 0' }}>
+        <p style={{ fontSize: 11, color: '#64748B', margin: '4px 0 0' }}>
           Todas las cifras están en Quetzales (GTQ)
         </p>
       </div>
@@ -178,8 +178,8 @@ export function BudgetComparativo({
                       return (
                         <tr key={cat.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                           <td style={{ padding: '6px 4px', fontWeight: 500, color: '#334155' }}>{cat.name}</td>
-                          <td style={{ padding: '6px 4px', fontSize: 11, color: '#94A3B8' }}>—</td>
-                          <td style={{ padding: '6px 4px', fontSize: 11, color: '#94A3B8' }}>Mensual</td>
+                          <td style={{ padding: '6px 4px', fontSize: 11, color: '#64748B' }}>—</td>
+                          <td style={{ padding: '6px 4px', fontSize: 11, color: '#64748B' }}>Mensual</td>
                           <td style={{ padding: '6px 4px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtNum(budgeted)}</td>
                           <td style={{ padding: '6px 4px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtNum(actual)}</td>
                           <td style={{

@@ -32,7 +32,7 @@ export function CapsuleCard({
           ) : isRead ? (
             <Check className="w-4 h-4 text-electric" />
           ) : (
-            <BookOpen className="w-4 h-4 text-gray-500" />
+            <BookOpen className="w-4 h-4 text-ink-500" />
           )}
         </div>
         <div className="flex-1 min-w-0">

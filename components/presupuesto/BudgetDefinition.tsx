@@ -106,7 +106,7 @@ export function BudgetDefinition({
           }}>
             Definición del presupuesto
           </h2>
-          <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>
+          <p style={{ fontSize: 12, color: '#64748B', margin: 0 }}>
             Ingresos: {fmt(income)} &middot; {categories.length} categorías &middot; Total asignado: {fmt(totalBudgeted)}
           </p>
         </div>
@@ -191,7 +191,7 @@ export function BudgetDefinition({
                     onChange={(e) => onUpdateIncomeEntry(entry.id, 'source', e.target.value)}
                   />
                   <select
-                    className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                    className="text-xs border rounded px-1.5 py-1 bg-white text-ink-700 flex-shrink-0"
                     value={entry.member}
                     onChange={(e) => onUpdateIncomeEntry(entry.id, 'member', e.target.value)}
                   >
@@ -201,7 +201,7 @@ export function BudgetDefinition({
                     <option value="Hogar">Hogar</option>
                   </select>
                   <select
-                    className="text-xs border rounded px-1.5 py-1 bg-white text-gray-600 flex-shrink-0"
+                    className="text-xs border rounded px-1.5 py-1 bg-white text-ink-700 flex-shrink-0"
                     value={entry.frequency}
                     onChange={(e) => onUpdateIncomeEntry(entry.id, 'frequency', e.target.value)}
                   >
@@ -211,7 +211,7 @@ export function BudgetDefinition({
                     <option value="anual">Anual</option>
                   </select>
                   <div style={{ position: 'relative', width: 100, flexShrink: 0 }}>
-                    <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#94A3B8' }}>Q</span>
+                    <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#64748B' }}>Q</span>
                     <Input
                       type="number"
                       className="pl-6 h-7 text-xs text-right"
@@ -221,13 +221,13 @@ export function BudgetDefinition({
                     />
                   </div>
                   {entry.frequency !== 'mensual' && entry.amount > 0 && (
-                    <span style={{ fontSize: 10, color: '#94A3B8', flexShrink: 0, width: 60, textAlign: 'right' }}>
+                    <span style={{ fontSize: 10, color: '#64748B', flexShrink: 0, width: 60, textAlign: 'right' }}>
                       {fmt(Math.round(entry.amount * (FREQUENCY_MULTIPLIER[entry.frequency] || 1) * 100) / 100)}/mes
                     </span>
                   )}
                   <button
                     onClick={() => onDeleteIncomeEntry(entry.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#CBD5E1' }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#64748B' }}
                   >
                     <Trash2 style={{ width: 14, height: 14 }} />
                   </button>
@@ -296,14 +296,14 @@ export function BudgetDefinition({
                             background: catTipo === 'Gasto fijo' ? '#EFF6FF' : '#F8FAFC',
                             color: catTipo === 'Gasto fijo' ? '#2563EB' : '#64748B',
                           }}>{catTipo}</span>
-                          <span style={{ fontSize: 11, color: '#94A3B8' }}>Mensual</span>
+                          <span style={{ fontSize: 11, color: '#64748B' }}>Mensual</span>
                           {hasSubs ? (
                             <span style={{ fontSize: 13, fontWeight: 700, color: '#334155', width: 90, textAlign: 'right', flexShrink: 0 }}>
                               {fmt(catTotal)}
                             </span>
                           ) : (
                             <div style={{ position: 'relative', width: 90, flexShrink: 0 }}>
-                              <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#94A3B8' }}>Q</span>
+                              <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#64748B' }}>Q</span>
                               <Input
                                 type="number"
                                 className="pl-6 h-7 text-xs text-right"
@@ -314,14 +314,14 @@ export function BudgetDefinition({
                           )}
                           <button
                             onClick={() => onToggleCat(cat.id)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94A3B8' }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#64748B' }}
                           >
                             {isExpanded ? <ChevronUp style={{ width: 16, height: 16 }} /> : <ChevronDown style={{ width: 16, height: 16 }} />}
                           </button>
                           {cat.is_custom && (
                             <button
                               onClick={() => onDeleteCategory(cat.id)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#CBD5E1' }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#64748B' }}
                             >
                               <Trash2 style={{ width: 14, height: 14 }} />
                             </button>
@@ -344,7 +344,7 @@ export function BudgetDefinition({
                               </select>
                               {cat.pace_mode === 'fixed' && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ fontSize: 12, color: '#94A3B8' }}>Día de pago</span>
+                                  <span style={{ fontSize: 12, color: '#64748B' }}>Día de pago</span>
                                   <Input
                                     type="number"
                                     min={1}
@@ -370,7 +370,7 @@ export function BudgetDefinition({
                                 <span style={{
                                   fontSize: 10, padding: '1px 6px', borderRadius: 4,
                                   background: sub.is_fixed ? '#EFF6FF' : '#F8FAFC',
-                                  color: sub.is_fixed ? '#2563EB' : '#94A3B8',
+                                  color: sub.is_fixed ? '#2563EB' : '#64748B',
                                   cursor: 'pointer',
                                 }} onClick={() => onToggleSubFixed(sub.id)}>
                                   {sub.is_fixed ? 'fijo' : 'variable'}
@@ -395,7 +395,7 @@ export function BudgetDefinition({
                                   <option value="anual">Anual</option>
                                 </select>
                                 <div style={{ position: 'relative', width: 80, flexShrink: 0 }}>
-                                  <span style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#94A3B8' }}>Q</span>
+                                  <span style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#64748B' }}>Q</span>
                                   <Input
                                     type="number"
                                     className="pl-5 h-6 text-[11px] text-right"
@@ -404,13 +404,13 @@ export function BudgetDefinition({
                                   />
                                 </div>
                                 {(sub.recurrence || 'mensual') !== 'mensual' && sub.amount > 0 && (
-                                  <span style={{ fontSize: 10, color: '#94A3B8', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                  <span style={{ fontSize: 10, color: '#64748B', flexShrink: 0, whiteSpace: 'nowrap' }}>
                                     {fmt(Math.round(monthlyAmount(sub.amount, sub.recurrence || 'mensual')))}/m
                                   </span>
                                 )}
                                 <button
                                   onClick={() => onDeleteSubItem(sub.id)}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#CBD5E1' }}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#64748B' }}
                                 >
                                   <X style={{ width: 12, height: 12 }} />
                                 </button>
@@ -432,7 +432,7 @@ export function BudgetDefinition({
                                     autoFocus
                                   />
                                   <div style={{ position: 'relative', width: 80 }}>
-                                    <span style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#94A3B8' }}>Q</span>
+                                    <span style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#64748B' }}>Q</span>
                                     <Input
                                       type="number"
                                       className="pl-5 h-7 text-xs text-right"

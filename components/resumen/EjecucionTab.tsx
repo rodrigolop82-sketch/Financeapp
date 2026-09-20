@@ -43,7 +43,7 @@ export function EjecucionTab({ data }: EjecucionTabProps) {
               ({isUp ? '+' : ''}{formatMoney(delta)})
             </span>
           </div>
-          <span style={{ fontSize: 11, color: '#94A3B8' }}>
+          <span style={{ fontSize: 11, color: '#64748B' }}>
             Ant: {formatMoney(data.spentLastMonth)}
           </span>
         </div>

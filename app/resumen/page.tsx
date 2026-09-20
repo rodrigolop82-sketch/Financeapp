@@ -82,13 +82,13 @@ const STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string;
   sobregiro: { dot: '#EF4444', pill: '#991B1B', pillBg: '#FEE2E2', label: 'Sobregiro' },
   riesgo:    { dot: '#F59E0B', pill: '#92400E', pillBg: '#FEF3C7', label: 'En riesgo' },
   en_linea:  { dot: '#22C55E', pill: '#065F46', pillBg: '#D1FAE5', label: 'En línea' },
-  sin_gasto: { dot: '#94A3B8', pill: '#64748B', pillBg: '#F1F5F9', label: 'Sin gasto' },
+  sin_gasto: { dot: '#64748B', pill: '#64748B', pillBg: '#F1F5F9', label: 'Sin gasto' },
 }
 
 const CLOSED_STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: string; label: string }> = {
   sobregiro: { dot: '#EF4444', pill: '#991B1B', pillBg: '#FEE2E2', label: 'Sobregiro' },
   en_linea:  { dot: '#22C55E', pill: '#065F46', pillBg: '#D1FAE5', label: 'En línea' },
-  sin_gasto: { dot: '#94A3B8', pill: '#64748B', pillBg: '#F1F5F9', label: 'Sin gasto' },
+  sin_gasto: { dot: '#64748B', pill: '#64748B', pillBg: '#F1F5F9', label: 'Sin gasto' },
 }
 
 export default function ResumenPage() {
@@ -674,7 +674,7 @@ function ResumenContent() {
                     <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: '#1E3A5F', minWidth: 80, textAlign: 'right' }}>
                       {formatMoney(cat.spent)}
                     </span>
-                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                    <ChevronRight style={{ width: 16, height: 16, color: '#64748B', flexShrink: 0 }} />
                   </div>
 
                   {/* Bar (no expected marker for closed months) */}
@@ -727,7 +727,7 @@ function ResumenContent() {
                       padding: '12px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
                     }}
                   >
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94A3B8', flexShrink: 0 }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#64748B', flexShrink: 0 }} />
                     <span style={{ fontSize: 14, color: '#64748B', flex: 1 }}>{cat.name}</span>
                     <span style={{
                       fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
@@ -735,8 +735,8 @@ function ResumenContent() {
                     }}>
                       Sin gasto
                     </span>
-                    <span style={{ fontSize: 13, color: '#94A3B8' }}>{formatMoney(cat.budget)}</span>
-                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: '#64748B' }}>{formatMoney(cat.budget)}</span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#64748B', flexShrink: 0 }} />
                   </div>
                 ))}
               </>
@@ -912,7 +912,7 @@ function ResumenContent() {
                     <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: '#1E3A5F', minWidth: 80, textAlign: 'right' }}>
                       {formatMoney(cat.spent)}
                     </span>
-                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                    <ChevronRight style={{ width: 16, height: 16, color: '#64748B', flexShrink: 0 }} />
                   </div>
 
                   {/* Bar */}
@@ -971,7 +971,7 @@ function ResumenContent() {
                       padding: '12px 0', borderTop: '1px solid #EEF1F6', cursor: 'pointer',
                     }}
                   >
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94A3B8', flexShrink: 0 }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#64748B', flexShrink: 0 }} />
                     <span style={{ fontSize: 14, color: '#64748B', flex: 1 }}>{cat.name}</span>
                     <span style={{
                       fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
@@ -979,8 +979,8 @@ function ResumenContent() {
                     }}>
                       Sin gasto
                     </span>
-                    <span style={{ fontSize: 13, color: '#94A3B8' }}>{formatMoney(cat.budget)}</span>
-                    <ChevronRight style={{ width: 16, height: 16, color: '#94A3B8', flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: '#64748B' }}>{formatMoney(cat.budget)}</span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#64748B', flexShrink: 0 }} />
                   </div>
                 ))}
               </>
@@ -1168,7 +1168,7 @@ function ResumenContent() {
               </div>
               <div style={{
                 background: isNeutral ? 'rgba(148,163,184,0.2)' : insDiff <= 0 ? 'rgba(22,101,52,0.2)' : 'rgba(239,68,68,0.2)',
-                color: isNeutral ? '#94A3B8' : insDiff <= 0 ? '#4ADE80' : '#FCA5A5',
+                color: isNeutral ? '#64748B' : insDiff <= 0 ? '#4ADE80' : '#FCA5A5',
                 fontWeight: 700, fontSize: 14,
                 padding: '8px 16px', borderRadius: 20,
               }}>
@@ -1196,7 +1196,7 @@ function ResumenContent() {
                 <div style={{ fontSize: 13, color: '#9FB3CB' }}>Diferencia</div>
                 <div style={{
                   fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 19, marginTop: 4,
-                  color: isNeutral ? '#94A3B8' : insDiff <= 0 ? '#4ADE80' : '#FCA5A5',
+                  color: isNeutral ? '#64748B' : insDiff <= 0 ? '#4ADE80' : '#FCA5A5',
                 }}>
                   {insDiff <= 0 ? '-' : '+'}{formatMoney(Math.abs(insDiff))}
                 </div>
@@ -1240,7 +1240,7 @@ function ResumenContent() {
                       {!noBothMonths && prev > 0 && (
                         <div style={{
                           fontSize: '12px', fontWeight: 700,
-                          color: noBothMonths ? '#94A3B8' : isPositive ? '#16A34A' : '#DC2626',
+                          color: noBothMonths ? '#64748B' : isPositive ? '#16A34A' : '#DC2626',
                           background: noBothMonths ? '#F1F5F9' : isPositive ? '#EAFBF1' : '#FEE2E2',
                           padding: '3px 9px', borderRadius: 12,
                         }}>

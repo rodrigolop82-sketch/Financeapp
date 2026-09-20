@@ -78,7 +78,7 @@ export function DateFilter({ dateFrom, dateTo, onChange, variant = 'dark', showB
   }
 
   const isDark = variant === 'dark'
-  const textMuted = isDark ? 'text-white/50' : 'text-gray-400'
+  const textMuted = isDark ? 'text-white/50' : 'text-ink-500'
   const textMain = isDark ? 'text-white' : 'text-navy'
   const borderColor = isDark ? 'border-white/10' : 'border-gray-200'
   const hoverBg = isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'

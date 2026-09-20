@@ -203,7 +203,7 @@ export function CategorySheet({
               <p style={{ fontSize: 16, fontWeight: 700, color: '#1E3A5F', margin: 0 }}>
                 {name.trim() || 'Nombre de categoría'}
               </p>
-              <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>
+              <p style={{ fontSize: 12, color: '#64748B', margin: 0 }}>
                 {defaults.find(d => d.id === parentId)?.name || 'Grupo padre'}
               </p>
             </div>
@@ -213,7 +213,7 @@ export function CategorySheet({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Nombre</label>
-              <span style={{ fontSize: 11, color: name.trim().length > 30 ? '#EF4444' : '#94A3B8' }}>
+              <span style={{ fontSize: 11, color: name.trim().length > 30 ? '#EF4444' : '#64748B' }}>
                 {name.trim().length}/30
               </span>
             </div>
@@ -288,7 +288,7 @@ export function CategorySheet({
             <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 4 }}>
               Grupo
             </label>
-            <p style={{ fontSize: 11, color: '#94A3B8', margin: '0 0 8px' }}>
+            <p style={{ fontSize: 11, color: '#64748B', margin: '0 0 8px' }}>
               El grupo decide cómo cuenta en tu Health Score y en Aprende
             </p>
             <select

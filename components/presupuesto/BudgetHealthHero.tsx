@@ -72,7 +72,7 @@ export function BudgetHealthHero({
         {/* Labels */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B' }}>Recomendado</span>
-          <span style={{ fontSize: 11, color: '#94A3B8' }}>50 / 30 / 20</span>
+          <span style={{ fontSize: 11, color: '#64748B' }}>50 / 30 / 20</span>
         </div>
         {/* Recommended bar */}
         <div style={{ display: 'flex', height: 22, borderRadius: 6, overflow: 'hidden', marginBottom: 6 }}>
@@ -83,7 +83,7 @@ export function BudgetHealthHero({
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, marginTop: 12 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B' }}>Tu asignación</span>
-          <span style={{ fontSize: 11, color: '#94A3B8' }}>
+          <span style={{ fontSize: 11, color: '#64748B' }}>
             {Math.round(bucketPcts.needs)} / {Math.round(bucketPcts.wants)} / {Math.round(bucketPcts.savings)}
             {unassignedPct > 0.5 ? ` + ${Math.round(unassignedPct)} sin asignar` : ''}
           </span>
