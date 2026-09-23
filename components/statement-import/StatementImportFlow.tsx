@@ -125,6 +125,11 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
             error={imp.error}
             onFileSelect={imp.setFile}
             onAnalyze={imp.processFile}
+            photos={imp.photos}
+            photoNotice={imp.photoNotice}
+            onAddPhotos={imp.addPhotos}
+            onRemovePhoto={imp.removePhoto}
+            onAnalyzePhotos={imp.processPhotos}
             onBack={imp.closeImport}
             importUsage={imp.importUsage}
           />

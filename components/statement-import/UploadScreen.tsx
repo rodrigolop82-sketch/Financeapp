@@ -1,6 +1,8 @@
 'use client'
 import { useRef, useState } from 'react'
 import { Upload, Camera, FileText, Image, X, ChevronLeft } from 'lucide-react'
+import type { ImportPhoto } from '@/hooks/useStatementImport'
+import { MAX_IMPORT_IMAGES } from '@/lib/import/constants'
 
 interface UploadScreenProps {
   file: File | null
@@ -8,14 +10,22 @@ interface UploadScreenProps {
   error: string | null
   onFileSelect: (file: File) => void
   onAnalyze: () => void
+  photos: ImportPhoto[]
+  photoNotice: string | null
+  onAddPhotos: (files: File[]) => void
+  onRemovePhoto: (id: string) => void
+  onAnalyzePhotos: () => void
   onBack: () => void
   importUsage?: { used: number; limit: number } | null
 }
 
 const BANKS = ['Banrural', 'BAM', 'Industrial', 'G&T', 'Bantrab', 'BAC Credomatic']
 
-export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze, onBack, importUsage }: UploadScreenProps) {
-  const [mode, setMode] = useState<'photo' | 'pdf'>('photo')
+export function UploadScreen({
+  file, filePreview, error, onFileSelect, onAnalyze, onBack, importUsage,
+  photos, photoNotice, onAddPhotos, onRemovePhoto, onAnalyzePhotos,
+}: UploadScreenProps) {
+  const [mode, setMode] = useState<'photo' | 'pdf'>(file && photos.length === 0 ? 'pdf' : 'photo')
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
   const pdfRef = useRef<HTMLInputElement>(null)
@@ -24,6 +34,17 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
     const f = e.target.files?.[0]
     if (f) onFileSelect(f)
   }
+
+  function handlePhotosChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    // Reset so picking the same file again still fires onChange.
+    e.target.value = ''
+    if (files.length > 0) onAddPhotos(files)
+  }
+
+  const photoCount = photos.length
+  const atMax = photoCount >= MAX_IMPORT_IMAGES
+  const canAnalyze = mode === 'photo' ? photoCount > 0 : !!file
 
   return (
     <div style={{ padding: '0 20px 32px', animation: 'zafiFadeIn 0.3s ease' }}>
@@ -82,11 +103,20 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
       </div>
 
       {/* Hidden file inputs */}
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} style={{ display: 'none' }} />
-      <input ref={galleryRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+      {/* Camera: one photo at a time (capture blocks multi-select). Gallery: multi-select. */}
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhotosChange} style={{ display: 'none' }} />
+      <input ref={galleryRef} type="file" accept="image/*" multiple onChange={handlePhotosChange} style={{ display: 'none' }} />
       <input ref={pdfRef} type="file" accept="application/pdf,.pdf" onChange={handleFileChange} style={{ display: 'none' }} />
 
-      {!file ? (
+      {mode === 'photo' && photoCount > 0 ? (
+        <PhotoGrid
+          photos={photos}
+          atMax={atMax}
+          onRemove={onRemovePhoto}
+          onCamera={() => cameraRef.current?.click()}
+          onGallery={() => galleryRef.current?.click()}
+        />
+      ) : mode === 'photo' || !file ? (
         mode === 'photo' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
@@ -146,10 +176,10 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
               </div>
               <div style={{ textAlign: 'left' }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', display: 'block' }}>
-                  Seleccionar de galería
+                  Elegir de galería
                 </span>
                 <span style={{ fontSize: 12, color: '#64748B' }}>
-                  Elige una foto ya tomada · JPG, PNG, WebP · Máx 10MB
+                  Hasta {MAX_IMPORT_IMAGES} capturas o fotos en una sola importación
                 </span>
               </div>
             </button>
@@ -220,14 +250,22 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
             </p>
           </div>
           <button
-            onClick={() => {
-              const ref = mode === 'photo' ? galleryRef : pdfRef
-              ref.current?.click()
-            }}
+            onClick={() => pdfRef.current?.click()}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#64748B' }}
           >
             <X size={18} />
           </button>
+        </div>
+      )}
+
+      {/* Selection notice (e.g. photos over the limit) */}
+      {mode === 'photo' && photoNotice && (
+        <div style={{
+          marginTop: 12, padding: '10px 14px',
+          background: '#FFFBEB', border: '1px solid #FDE68A',
+          borderRadius: 10, fontSize: 13, color: '#92400E',
+        }}>
+          {photoNotice}
         </div>
       )}
 
@@ -271,9 +309,9 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
       </div>
 
       {/* Analyze button */}
-      {file && (
+      {canAnalyze && (
         <button
-          onClick={onAnalyze}
+          onClick={mode === 'photo' ? onAnalyzePhotos : onAnalyze}
           style={{
             width: '100%',
             marginTop: 20,
@@ -292,8 +330,93 @@ export function UploadScreen({ file, filePreview, error, onFileSelect, onAnalyze
             gap: 8,
           }}
         >
-          ✨ Analizar con IA
+          {mode === 'photo' && photoCount > 1 ? `✨ Analizar ${photoCount} fotos` : '✨ Analizar con IA'}
         </button>
+      )}
+      {canAnalyze && mode === 'photo' && photoCount > 1 && importUsage && (
+        <p style={{ fontSize: 11, color: '#8B9AAE', textAlign: 'center', marginTop: 8 }}>
+          Todas las fotos cuentan como una sola importación.
+        </p>
+      )}
+    </div>
+  )
+}
+
+interface PhotoGridProps {
+  photos: ImportPhoto[]
+  atMax: boolean
+  onRemove: (id: string) => void
+  onCamera: () => void
+  onGallery: () => void
+}
+
+function PhotoGrid({ photos, atMax, onRemove, onCamera, onGallery }: PhotoGridProps) {
+  const addButtonStyle = (disabled: boolean): React.CSSProperties => ({
+    flex: 1,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    padding: '10px 12px', borderRadius: 10,
+    border: '1.5px dashed #CBD5E1',
+    background: disabled ? '#F8FAFC' : '#fff',
+    color: disabled ? '#94A3B8' : '#1E3A5F',
+    fontSize: 13, fontWeight: 600,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  })
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#1E3A5F' }}>Fotos seleccionadas</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: atMax ? '#2563EB' : '#64748B', fontFamily: 'Outfit, sans-serif' }}>
+          {photos.length} de {MAX_IMPORT_IMAGES}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 8 }}>
+        {photos.map((p, i) => (
+          <div key={p.id} style={{
+            position: 'relative', aspectRatio: '3 / 4', borderRadius: 10, overflow: 'hidden',
+            border: '1.5px solid #E2E8F0', background: '#F1F5F9',
+          }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={p.previewUrl} alt={`Foto ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <span style={{
+              position: 'absolute', top: 4, left: 4,
+              minWidth: 20, height: 20, padding: '0 6px', borderRadius: 10,
+              background: '#1E3A5F', color: '#fff',
+              fontSize: 11, fontWeight: 700, fontFamily: 'Outfit, sans-serif',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {i + 1}
+            </span>
+            <button
+              onClick={() => onRemove(p.id)}
+              aria-label={`Quitar foto ${i + 1}`}
+              style={{
+                position: 'absolute', top: 4, right: 4,
+                width: 24, height: 24, borderRadius: '50%',
+                background: 'rgba(15,23,42,0.65)', border: 'none', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+              }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button onClick={onCamera} disabled={atMax} style={addButtonStyle(atMax)}>
+          <Camera size={16} /> Agregar otra
+        </button>
+        <button onClick={onGallery} disabled={atMax} style={addButtonStyle(atMax)}>
+          <Image size={16} /> Elegir de galería
+        </button>
+      </div>
+
+      {atMax && (
+        <p style={{ fontSize: 12, color: '#64748B', textAlign: 'center', marginTop: 8 }}>
+          Máximo {MAX_IMPORT_IMAGES} fotos por importación.
+        </p>
       )}
     </div>
   )
