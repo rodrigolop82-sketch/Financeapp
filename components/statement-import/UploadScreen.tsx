@@ -1,6 +1,6 @@
 'use client'
 import { useRef, useState } from 'react'
-import { Upload, Camera, FileText, Image, X, ChevronLeft } from 'lucide-react'
+import { Upload, Camera, FileText, Image as ImageIcon, X, ChevronLeft } from 'lucide-react'
 import type { ImportPhoto } from '@/hooks/useStatementImport'
 import { MAX_IMPORT_IMAGES } from '@/lib/import/constants'
 
@@ -172,7 +172,7 @@ export function UploadScreen({
                 alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
               }}>
-                <Image size={22} color="#059669" />
+                <ImageIcon size={22} color="#059669" />
               </div>
               <div style={{ textAlign: 'left' }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', display: 'block' }}>
@@ -409,7 +409,7 @@ function PhotoGrid({ photos, atMax, onRemove, onCamera, onGallery }: PhotoGridPr
           <Camera size={16} /> Agregar otra
         </button>
         <button onClick={onGallery} disabled={atMax} style={addButtonStyle(atMax)}>
-          <Image size={16} /> Elegir de galería
+          <ImageIcon size={16} /> Elegir de galería
         </button>
       </div>
 

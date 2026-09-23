@@ -172,3 +172,11 @@ export function mergeBatchResults(results: ExtractedTx[][]): MergedResult {
     possibleDuplicateCount: transactions.filter(t => t.possibleBatchDuplicate).length,
   }
 }
+
+/** "Foto 2", "Fotos 2 y 3", "Fotos 1, 2 y 3" (indexes are 0-based). */
+export function sourceLabel(indexes: number[]): string {
+  const n = indexes.map(i => i + 1)
+  if (n.length === 0) return ''
+  if (n.length === 1) return `Foto ${n[0]}`
+  return `Fotos ${n.slice(0, -1).join(', ')} y ${n[n.length - 1]}`
+}

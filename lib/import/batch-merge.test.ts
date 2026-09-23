@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergeBatchResults, normalizeDescription, type ExtractedTx } from './batch-merge'
+import { mergeBatchResults, normalizeDescription, sourceLabel, type ExtractedTx } from './batch-merge'
 import { computeTargetSize } from './image-compress'
 
 function tx(sourceImageIndex: number, date: string, description: string, amount: number, type: 'expense' | 'income' = 'expense'): ExtractedTx {
@@ -125,5 +125,13 @@ describe('computeTargetSize', () => {
   it('scales the longest side down to maxSide', () => {
     expect(computeTargetSize(3024, 4032, 1600)).toEqual({ width: 1200, height: 1600 })
     expect(computeTargetSize(4000, 1000, 1600)).toEqual({ width: 1600, height: 400 })
+  })
+})
+
+describe('sourceLabel', () => {
+  it('formats one, two and several photos in Spanish', () => {
+    expect(sourceLabel([1])).toBe('Foto 2')
+    expect(sourceLabel([1, 2])).toBe('Fotos 2 y 3')
+    expect(sourceLabel([0, 1, 2])).toBe('Fotos 1, 2 y 3')
   })
 })

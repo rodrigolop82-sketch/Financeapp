@@ -1,10 +1,11 @@
 'use client'
-import { useState } from 'react'
-import { ChevronLeft, AlertTriangle, Check } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ChevronLeft, AlertTriangle, Check, Copy } from 'lucide-react'
 import { formatMoney } from '@/lib/format'
-import type { ExtractedTransaction } from '@/hooks/useStatementImport'
+import { sourceLabel } from '@/lib/import/batch-merge'
+import type { BatchSummary, ExtractedTransaction } from '@/hooks/useStatementImport'
 
-type Filter = 'all' | 'duplicates' | 'expenses' | 'income'
+type Filter = 'all' | 'duplicates' | 'batchDuplicates' | 'expenses' | 'income'
 
 interface ReviewScreenProps {
   transactions: ExtractedTransaction[]
@@ -14,20 +15,41 @@ interface ReviewScreenProps {
   onToggle: (id: string) => void
   onConfirm: () => void
   onBack: () => void
+  /** Present for photo imports; labels and summary only show with 2+ photos. */
+  batch?: BatchSummary | null
+  onRemove?: (id: string) => void
 }
 
 export function ReviewScreen({
   transactions, bankDetected, isLoading, error,
-  onToggle, onConfirm, onBack,
+  onToggle, onConfirm, onBack, batch, onRemove,
 }: ReviewScreenProps) {
   const [filter, setFilter] = useState<Filter>('all')
+  const [photoFilter, setPhotoFilter] = useState<number | null>(null)
 
+  const isBatch = !!batch && batch.photoCount > 1
   const duplicateCount = transactions.filter(t => t.isDuplicate).length
+  const batchDuplicateCount = transactions.filter(t => t.possibleBatchDuplicate).length
+  const batchDuplicatePairs = transactions.reduce((n, t) => n + (t.possibleDuplicateOf?.length ?? 0), 0) / 2
   const selectedCount = transactions.filter(t => t.selected).length
   const totalAmount = transactions.filter(t => t.selected && t.type === 'expense').reduce((s, t) => s + t.amount, 0)
 
+  const byId = useMemo(() => new Map(transactions.map(t => [t.id, t])), [transactions])
+  const photoIndexes = useMemo(() => {
+    const set = new Set<number>()
+    transactions.forEach(t => t.sourceImages?.forEach(i => set.add(i)))
+    return Array.from(set).sort((a, b) => a - b)
+  }, [transactions])
+
+  // The badge stays only while both sides of the pair are still selected.
+  const showsBatchDuplicate = (tx: ExtractedTransaction) =>
+    !!tx.possibleBatchDuplicate && tx.selected &&
+    (tx.possibleDuplicateOf ?? []).some(id => byId.get(id)?.selected)
+
   const filtered = transactions.filter(t => {
+    if (photoFilter !== null && !t.sourceImages?.includes(photoFilter)) return false
     if (filter === 'duplicates') return t.isDuplicate
+    if (filter === 'batchDuplicates') return !!t.possibleBatchDuplicate
     if (filter === 'expenses') return t.type === 'expense'
     if (filter === 'income') return t.type === 'income'
     return true
@@ -41,14 +63,14 @@ export function ReviewScreen({
           No encontramos transacciones
         </h3>
         <p style={{ fontSize: 13, color: '#64748B', marginBottom: 24 }}>
-          ¿El archivo es un estado de cuenta bancario?
+          {batch ? '¿Las fotos son de tu estado de cuenta o banca en línea?' : '¿El archivo es un estado de cuenta bancario?'}
         </p>
         <button onClick={onBack} style={{
           padding: '12px 28px', borderRadius: 12,
           background: '#2563EB', color: '#fff',
           border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14,
         }}>
-          Subir otro archivo
+          {batch ? 'Elegir otras fotos' : 'Subir otro archivo'}
         </button>
       </div>
     )
@@ -134,9 +156,24 @@ export function ReviewScreen({
   const filters: { key: Filter; label: string }[] = [
     { key: 'all', label: `Todas (${transactions.length})` },
     { key: 'duplicates', label: `⚠️ Duplicados (${duplicateCount})` },
+    ...(isBatch && batchDuplicateCount > 0
+      ? [{ key: 'batchDuplicates' as const, label: `Posibles duplicados (${batchDuplicateCount})` }]
+      : []),
     { key: 'expenses', label: 'Gastos' },
     { key: 'income', label: 'Ingresos' },
   ]
+
+  const batchSummary = isBatch
+    ? [
+        `${transactions.length} transacci${transactions.length === 1 ? 'ón' : 'ones'} de ${batch!.photoCount} fotos`,
+        batch!.exactDuplicatesCollapsed > 0
+          ? `${batch!.exactDuplicatesCollapsed} duplicado${batch!.exactDuplicatesCollapsed === 1 ? '' : 's'} omitido${batch!.exactDuplicatesCollapsed === 1 ? '' : 's'}`
+          : null,
+        batchDuplicatePairs > 0
+          ? `${batchDuplicatePairs} posible${batchDuplicatePairs === 1 ? '' : 's'} duplicado${batchDuplicatePairs === 1 ? '' : 's'}`
+          : null,
+      ].filter(Boolean).join(' · ')
+    : null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -152,8 +189,14 @@ export function ReviewScreen({
         </div>
 
         {bankDetected && (
-          <p style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
+          <p style={{ fontSize: 12, color: '#64748B', marginBottom: batchSummary ? 4 : 12 }}>
             Banco: <strong>{bankDetected}</strong>
+          </p>
+        )}
+
+        {batchSummary && (
+          <p style={{ fontSize: 12, color: '#1E3A5F', fontWeight: 600, marginBottom: 12 }}>
+            {batchSummary}
           </p>
         )}
 
@@ -173,7 +216,7 @@ export function ReviewScreen({
         </div>
 
         {/* Filters */}
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: isBatch && photoIndexes.length > 1 ? 8 : 12 }}>
           {filters.map(f => (
             <button
               key={f.key}
@@ -191,14 +234,44 @@ export function ReviewScreen({
             </button>
           ))}
         </div>
+
+        {/* Filter by photo */}
+        {isBatch && photoIndexes.length > 1 && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12 }}>
+            {[null, ...photoIndexes].map(ix => {
+              const active = photoFilter === ix
+              return (
+                <button
+                  key={ix ?? 'all'}
+                  onClick={() => setPhotoFilter(ix)}
+                  style={{
+                    padding: '4px 10px', borderRadius: 20,
+                    border: active ? '1.5px solid #1E3A5F' : '1.5px solid #E2E8F0',
+                    background: active ? '#1E3A5F' : '#fff',
+                    color: active ? '#fff' : '#64748B',
+                    fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer',
+                  }}
+                >
+                  {ix === null ? 'Todas las fotos' : `Foto ${ix + 1}`}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Transaction list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}>
         {filtered.map(tx => (
-          <button
+          <div
             key={tx.id}
+            role="button"
+            tabIndex={0}
+            aria-pressed={tx.selected}
             onClick={() => onToggle(tx.id)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(tx.id) }
+            }}
             style={{
               width: '100%',
               display: 'flex',
@@ -248,7 +321,7 @@ export function ReviewScreen({
                   </span>
                 )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, color: '#64748B' }}>{tx.date}</span>
                 <span style={{
                   padding: '1px 6px', borderRadius: 4,
@@ -256,7 +329,36 @@ export function ReviewScreen({
                 }}>
                   {tx.suggested_category}
                 </span>
+                {isBatch && tx.sourceImages && tx.sourceImages.length > 0 && (
+                  <span style={{ fontSize: 10, color: '#94A3B8' }}>
+                    {sourceLabel(tx.sourceImages)}
+                  </span>
+                )}
               </div>
+              {isBatch && showsBatchDuplicate(tx) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <span style={{
+                    padding: '1px 6px', borderRadius: 4,
+                    background: '#EFF6FF', fontSize: 10, fontWeight: 700, color: '#1D4ED8',
+                    display: 'flex', alignItems: 'center', gap: 3,
+                  }}>
+                    <Copy size={10} />
+                    Posible duplicado
+                  </span>
+                  {onRemove && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onRemove(tx.id) }}
+                      style={{
+                        background: 'none', border: 'none', padding: 0,
+                        fontSize: 11, fontWeight: 600, color: '#2563EB',
+                        textDecoration: 'underline', cursor: 'pointer',
+                      }}
+                    >
+                      Quitar este
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Amount */}
@@ -272,7 +374,7 @@ export function ReviewScreen({
                 </span>
               )}
             </span>
-          </button>
+          </div>
         ))}
       </div>
 
