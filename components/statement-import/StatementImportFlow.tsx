@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useStatementImport } from '@/hooks/useStatementImport'
 import { UploadScreen } from './UploadScreen'
 import { ProcessingScreen } from './ProcessingScreen'
+import { PhotoProcessingScreen } from './PhotoProcessingScreen'
 import { ReviewScreen } from './ReviewScreen'
 import { ImportSuccessScreen } from './ImportSuccessScreen'
 
@@ -135,6 +136,20 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
           />
         )
       case 'processing':
+        // One photo keeps the original single-file experience.
+        if (imp.importMode === 'photos' && imp.photos.length > 1) {
+          return (
+            <PhotoProcessingScreen
+              photos={imp.photos}
+              isLoading={imp.isLoading}
+              error={imp.error}
+              onRetry={imp.retryPhoto}
+              onRemove={imp.removePhoto}
+              onCancel={imp.cancelProcessing}
+              onContinue={imp.finalizePhotos}
+            />
+          )
+        }
         return (
           <ProcessingScreen
             bankDetected={imp.bankDetected}
