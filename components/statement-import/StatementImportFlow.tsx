@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useStatementImport } from '@/hooks/useStatementImport'
 import { UploadScreen } from './UploadScreen'
 import { ProcessingScreen } from './ProcessingScreen'
+import { PhotoProcessingScreen } from './PhotoProcessingScreen'
 import { ReviewScreen } from './ReviewScreen'
 import { ImportSuccessScreen } from './ImportSuccessScreen'
 
@@ -125,11 +126,30 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
             error={imp.error}
             onFileSelect={imp.setFile}
             onAnalyze={imp.processFile}
+            photos={imp.photos}
+            photoNotice={imp.photoNotice}
+            onAddPhotos={imp.addPhotos}
+            onRemovePhoto={imp.removePhoto}
+            onAnalyzePhotos={imp.processPhotos}
             onBack={imp.closeImport}
             importUsage={imp.importUsage}
           />
         )
       case 'processing':
+        // One photo keeps the original single-file experience.
+        if (imp.importMode === 'photos' && imp.photos.length > 1) {
+          return (
+            <PhotoProcessingScreen
+              photos={imp.photos}
+              isLoading={imp.isLoading}
+              error={imp.error}
+              onRetry={imp.retryPhoto}
+              onRemove={imp.removePhoto}
+              onCancel={imp.cancelProcessing}
+              onContinue={imp.finalizePhotos}
+            />
+          )
+        }
         return (
           <ProcessingScreen
             bankDetected={imp.bankDetected}
@@ -144,6 +164,8 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
             isLoading={imp.isLoading}
             error={imp.error}
             onToggle={imp.toggleTransaction}
+            batch={imp.importMode === 'photos' ? imp.batch : null}
+            onRemove={imp.deselectTransaction}
             onConfirm={imp.confirmImport}
             onBack={() => imp.startImport()}
           />

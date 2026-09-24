@@ -3,6 +3,8 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { getUserHousehold } from '@/lib/household'
 import { toGTQ } from '@/lib/currency'
 import { checkAndIncrement, rollbackIncrement } from '@/lib/usage'
+import { claimBatchImage, isValidBatchId, releaseBatchImage } from '@/lib/import/batch-gating'
+import { ACCEPTED_IMAGE_MIME_TYPES, MAX_COMPRESSED_IMAGE_BYTES } from '@/lib/import/constants'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const maxDuration = 300
@@ -93,17 +95,62 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Formato no aceptado. Solo se permiten archivos JPG, PNG, WebP o PDF.' }, { status: 400 })
   }
 
-  const usage = await checkAndIncrement(user.id, 'statement_import')
-  if (!usage.allowed) {
-    return NextResponse.json(
-      { code: 'IMPORT_LIMIT_REACHED', used: usage.used, limit: usage.limit, resetsAt: usage.resetsAt },
-      { status: 402 },
-    )
+  const isPdf = isPdfByType || isPdfByExt
+
+  // Multi-photo batches: one request per photo, all sharing a client-generated batchId.
+  // Without batchId the endpoint behaves exactly as before (single image or PDF).
+  const rawBatchId = formData.get('batchId')
+  const batchId = typeof rawBatchId === 'string' && rawBatchId ? rawBatchId : null
+
+  if (batchId) {
+    if (!isValidBatchId(batchId)) {
+      return NextResponse.json({ error: 'Identificador de importación inválido.' }, { status: 400 })
+    }
+    if (isPdf) {
+      return NextResponse.json({ error: 'Los PDF se importan de uno en uno. No se pueden mezclar con fotos.' }, { status: 400 })
+    }
+    if (!(ACCEPTED_IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) {
+      return NextResponse.json({ error: 'Formato de imagen no aceptado. Usa JPG, PNG o WebP.' }, { status: 400 })
+    }
+    if (file.size > MAX_COMPRESSED_IMAGE_BYTES) {
+      return NextResponse.json(
+        { error: 'La foto es demasiado grande incluso después de comprimirla (máx. 3 MB). Intenta con una captura de pantalla.' },
+        { status: 400 },
+      )
+    }
+
+    let claim: Awaited<ReturnType<typeof claimBatchImage>>
+    try {
+      claim = await claimBatchImage(user.id, household.id, batchId)
+    } catch (err) {
+      console.error('Batch claim error:', { batchId, err })
+      return NextResponse.json({ error: 'No pudimos iniciar el análisis. Inténtalo de nuevo.' }, { status: 500 })
+    }
+    if (!claim.ok) {
+      if (claim.kind === 'limit') {
+        return NextResponse.json(
+          { code: 'IMPORT_LIMIT_REACHED', used: claim.used, limit: claim.limit, resetsAt: claim.resetsAt },
+          { status: 402 },
+        )
+      }
+      return NextResponse.json({ error: claim.message }, { status: 409 })
+    }
+  } else {
+    const usage = await checkAndIncrement(user.id, 'statement_import')
+    if (!usage.allowed) {
+      return NextResponse.json(
+        { code: 'IMPORT_LIMIT_REACHED', used: usage.used, limit: usage.limit, resetsAt: usage.resetsAt },
+        { status: 402 },
+      )
+    }
   }
+
+  // Undo the usage reservation when this request produces no result.
+  const rollbackUsage = () =>
+    batchId ? releaseBatchImage(user.id, batchId) : rollbackIncrement(user.id, 'statement_import')
 
   const bytes = await file.arrayBuffer()
   const base64 = Buffer.from(bytes).toString('base64')
-  const isPdf = isPdfByType || isPdfByExt
 
   // Build content blocks
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,6 +184,7 @@ export async function POST(req: NextRequest) {
     anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   } catch (err) {
     console.error('Anthropic client init error:', err)
+    if (batchId) await rollbackUsage()
     return NextResponse.json({ error: 'Error en el servicio de analisis. Intentalo de nuevo mas tarde.' }, { status: 500 })
   }
 
@@ -157,9 +205,9 @@ export async function POST(req: NextRequest) {
     const textBlock = finalMessage.content.find(b => b.type === 'text')
     text = textBlock && textBlock.type === 'text' ? textBlock.text : ''
   } catch (err: unknown) {
-    console.error('Anthropic API error:', err)
+    console.error('Anthropic API error:', { batchId }, err)
     const errMsg = err instanceof Error ? err.message : String(err)
-    await rollbackIncrement(user.id, 'statement_import')
+    await rollbackUsage()
     if (errMsg.includes('Could not process') || errMsg.includes('document') || errMsg.includes('invalid_request')) {
       return NextResponse.json(
         { error: 'No se pudo procesar este PDF. El archivo puede estar protegido, dañado o en un formato no compatible. Intenta con otro archivo o usa una captura de pantalla.' },
@@ -175,7 +223,7 @@ export async function POST(req: NextRequest) {
   const wasTruncated = stopReason === 'max_tokens'
 
   if (!text) {
-    await rollbackIncrement(user.id, 'statement_import')
+    await rollbackUsage()
     return NextResponse.json(
       { error: 'No se pudo leer el contenido del documento. Verifica que el archivo sea legible y vuelve a intentarlo.' },
       { status: 500 }
@@ -222,7 +270,8 @@ export async function POST(req: NextRequest) {
       result = repaired as typeof result
       result.truncated = true
     } else {
-      console.error('JSON parse failed. Truncated:', wasTruncated, 'Raw text:', text.substring(0, 300))
+      console.error('JSON parse failed. Truncated:', wasTruncated, 'Batch:', batchId, 'Raw text:', text.substring(0, 300))
+      if (batchId) await rollbackUsage()
       return NextResponse.json(
         { error: 'Error al procesar los datos del estado de cuenta. El documento puede tener un formato no compatible. Intenta con otro archivo.' },
         { status: 500 }
