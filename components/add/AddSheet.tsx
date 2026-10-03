@@ -1,49 +1,109 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { ArrowRight, Mic } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { getUserHousehold } from '@/lib/household'
-import { localToday } from '@/lib/dates'
+import { localToday, localDaysAgo } from '@/lib/dates'
+import { formatMoney } from '@/lib/format'
 import { deriveTransactionType } from '@/lib/transactions/transaction-type'
-import { AddExpenseSheet } from '@/components/dashboard/AddExpenseSheet'
-import { ExpenseDrawer } from '@/components/expenses/ExpenseDrawer'
+import { categoryQuestion, getEmoji, paymentLabel, PAYMENT_OPTIONS, type PaymentMethod } from '@/lib/categories-ui'
+import { cleanAmountInput, dayLabel, topCategories } from '@/lib/movimientos'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
-import { TransactionPreview } from '@/components/voice/TransactionPreview'
 import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow'
 import { BottomSheet } from '@/components/transactions/BottomSheet'
+import { CategoryGrid, CATEGORY_TILE_CLASS } from '@/components/transactions/CategoryGrid'
+import { CategorySheet } from '@/components/movimientos/CategorySheet'
+import { DateSheet, OptionSheet } from '@/components/movimientos/OptionSheet'
+import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
+import {
+  BORDER, PRIMARY_BUTTON, SHEET_TITLE, SOFT_BG, TEXT_BODY, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG,
+} from '@/components/movimientos/ui'
 import type { BudgetCategory, ExtractedTransaction, VoiceExtractionResult } from '@/types'
 
 /** Se emite cuando se guardan movimientos desde la hoja de agregar. */
-export const TRANSACTIONS_CHANGED_EVENT = 'zafi:transactions-changed'
+export const TRANSACTIONS_CHANGED_EVENT = 'zafi:tx-changed'
 
-type AddAction = 'voice' | 'manual' | 'scan'
+export interface TxChangedDetail {
+  /** Movimiento recién guardado (para resaltarlo en la lista). */
+  id?: string
+  date?: string
+}
+
+type TxType = 'expense' | 'income'
+
+interface Draft {
+  type: TxType
+  amount: string
+  name: string
+  categoryId: string | null
+  date: string
+  pay: PaymentMethod
+  originalAmount: number | null
+  originalCurrency: string | null
+}
 
 interface AddContext {
   householdId: string
   userId: string
   categories: BudgetCategory[]
+  /** Cuántas veces se usó cada categoría en los últimos 90 días. */
+  usage: Record<string, number>
 }
 
-function notifyTransactionsChanged() {
-  window.dispatchEvent(new CustomEvent(TRANSACTIONS_CHANGED_EVENT))
+type SubView = 'category' | 'date' | 'payment'
+/** Qué borrador edita la sub-hoja: el formulario manual o una tarjeta de "entendí esto". */
+type Target = 'manual' | number
+
+function blankDraft(): Draft {
+  return { type: 'expense', amount: '', name: '', categoryId: null, date: localToday(), pay: 'efectivo', originalAmount: null, originalCurrency: null }
+}
+
+function draftFromExtracted(t: ExtractedTransaction): Draft {
+  return {
+    type: t.type === 'income' ? 'income' : 'expense',
+    amount: t.amount > 0 ? String(Math.round(t.amount * 100) / 100) : '',
+    name: t.description ?? '',
+    categoryId: t.category_id ?? null,
+    date: t.date || localToday(),
+    pay: t.payment_method ?? 'efectivo',
+    originalAmount: t.original_amount ?? null,
+    originalCurrency: t.original_currency ?? null,
+  }
+}
+
+function notifyTransactionsChanged(detail?: TxChangedDetail) {
+  window.dispatchEvent(new CustomEvent<TxChangedDetail | undefined>(TRANSACTIONS_CHANGED_EVENT, { detail }))
 }
 
 /**
  * Hoja global de agregar. Se monta una vez en AppShell y se abre con el
- * evento `zafi:open-add` (el botón + de la barra inferior) o con los deep
- * links `?action=voice|manual|scan` en cualquier ruta.
+ * evento `zafi:open-add` (el botón +), con `?action=voice|manual|scan` o
+ * con `?shared_text=` (Web Share Target), en cualquier ruta.
  */
 export function AddSheet() {
-  const [chooserOpen, setChooserOpen] = useState(false)
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [subView, setSubView] = useState<{ view: SubView; target: Target } | null>(null)
   const [ctx, setCtx] = useState<AddContext | null>(null)
   const loadRef = useRef<Promise<AddContext | null> | null>(null)
-  const [pendingManual, setPendingManual] = useState(false)
+
+  const [quick, setQuick] = useState('')
+  const [parsing, setParsing] = useState(false)
+  const [manual, setManual] = useState<Draft>(blankDraft)
+  const [parsed, setParsed] = useState<Draft[] | null>(null)
+  const [parsedSource, setParsedSource] = useState<'text' | 'voice'>('text')
+  const [rawText, setRawText] = useState('')
+  const [saving, setSaving] = useState(false)
+
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [importActive, setImportActive] = useState(false)
-  const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
-  const [message, setMessage] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null)
+  const [message, setMessage] = useState<StatusMessage | null>(null)
 
-  // El hogar y las categorías se cargan solo cuando hacen falta, para no
-  // sumar consultas a cada página que usa AppShell.
+  const quickRef = useRef<HTMLInputElement>(null)
+  const amountRef = useRef<HTMLInputElement>(null)
+
+  // El hogar, las categorías y su uso se cargan solo cuando hacen falta.
   const ensureContext = useCallback(() => {
     if (!loadRef.current) {
       loadRef.current = (async () => {
@@ -52,11 +112,25 @@ export function AddSheet() {
         if (!user) return null
         const household = await getUserHousehold(supabase, user.id)
         if (!household) return null
-        const { data: cats } = await supabase
-          .from('budget_categories')
-          .select('*')
-          .eq('household_id', household.id)
-        const loaded = { householdId: household.id as string, userId: user.id, categories: (cats ?? []) as BudgetCategory[] }
+        const [{ data: cats }, { data: recent }] = await Promise.all([
+          supabase.from('budget_categories').select('*').eq('household_id', household.id),
+          supabase
+            .from('transactions')
+            .select('category_id')
+            .eq('household_id', household.id)
+            .gte('date', localDaysAgo(90))
+            .limit(1000),
+        ])
+        const usage: Record<string, number> = {}
+        for (const r of (recent ?? []) as { category_id: string | null }[]) {
+          if (r.category_id) usage[r.category_id] = (usage[r.category_id] ?? 0) + 1
+        }
+        const loaded: AddContext = {
+          householdId: household.id as string,
+          userId: user.id,
+          categories: ((cats ?? []) as BudgetCategory[]).filter((c) => !c.archived_at),
+          usage,
+        }
         setCtx(loaded)
         return loaded
       })().then((loaded) => {
@@ -67,105 +141,466 @@ export function AddSheet() {
     return loadRef.current
   }, [])
 
-  const showMessage = useCallback((text: string, tone: 'ok' | 'error') => {
-    setMessage({ text, tone })
+  const toast = useCallback((text: string, tone: StatusMessage['tone'] = 'error') => setMessage({ text, tone }), [])
+
+  const resetAll = useCallback(() => {
+    setQuick('')
+    setManual(blankDraft())
+    setParsed(null)
+    setRawText('')
+    setSubView(null)
   }, [])
 
-  useEffect(() => {
-    if (!message) return
-    const t = setTimeout(() => setMessage(null), message.tone === 'error' ? 5000 : 3000)
-    return () => clearTimeout(t)
-  }, [message])
-
-  const runAction = useCallback((action: AddAction) => {
+  const openSheet = useCallback(() => {
     void ensureContext()
-    if (action === 'voice') setVoiceOpen(true)
-    if (action === 'manual') setPendingManual(true)
-    if (action === 'scan') setImportActive(true)
+    setOpen(true)
   }, [ensureContext])
 
-  // ExpenseDrawer se monta cuando hay contexto; recién ahí se le puede abrir.
-  useEffect(() => {
-    if (!pendingManual || !ctx) return
-    setPendingManual(false)
-    window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
-  }, [pendingManual, ctx])
+  const closeSheet = useCallback(() => {
+    setOpen(false)
+    setSubView(null)
+  }, [])
 
-  useEffect(() => {
-    function onOpen() {
-      setChooserOpen(true)
-      void ensureContext()
+  // ── Interpretar texto o voz ─────────────────────
+
+  const applyExtraction = useCallback((transactions: ExtractedTransaction[], source: 'text' | 'voice', raw: string) => {
+    const drafts = transactions.map(draftFromExtracted)
+    const withAmount = drafts.filter((d) => Number(d.amount) > 0)
+    setRawText(raw)
+    if (withAmount.length > 0) {
+      setParsed(withAmount)
+      setParsedSource(source)
+      return
     }
-    window.addEventListener('zafi:open-add', onOpen)
-    return () => window.removeEventListener('zafi:open-add', onOpen)
-  }, [ensureContext])
+    // Se entendió algo pero sin monto: se precarga el formulario manual.
+    if (drafts[0]) setManual({ ...drafts[0], amount: '' })
+    setParsed(null)
+    toast('Falta el monto.')
+    setTimeout(() => amountRef.current?.focus(), 50)
+  }, [toast])
 
-  // Deep links ?action=voice|manual|scan. Se quita el parámetro para que
-  // recargar la página no vuelva a abrir el flujo.
+  const interpret = useCallback(async (text: string) => {
+    const t = text.trim()
+    if (!t || parsing) return
+    setParsing(true)
+    try {
+      const res = await fetch('/api/parse-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: t }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast(data.error || 'No pude entenderlo. Intenta de nuevo.')
+      } else if (!data.transactions?.length) {
+        toast(data.clarification || 'No entendí un movimiento en ese texto.')
+      } else {
+        applyExtraction(data.transactions, 'text', t)
+      }
+    } catch {
+      toast('Error de conexión. Intenta de nuevo.')
+    }
+    setParsing(false)
+  }, [parsing, applyExtraction, toast])
+
+  // ── Entradas: botón +, deep links y Web Share Target ──
+
+  useEffect(() => {
+    window.addEventListener('zafi:open-add', openSheet)
+    return () => window.removeEventListener('zafi:open-add', openSheet)
+  }, [openSheet])
+
   useEffect(() => {
     const url = new URL(window.location.href)
     const action = url.searchParams.get('action')
-    if (action !== 'voice' && action !== 'manual' && action !== 'scan') return
+    const shared = url.searchParams.get('shared_text')
+    if (!action && !shared) return
     url.searchParams.delete('action')
+    url.searchParams.delete('shared_text')
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
-    runAction(action)
-  }, [runAction])
-
-  async function saveVoiceTransactions(transactions: ExtractedTransaction[]) {
-    const context = await ensureContext()
-    if (!context || transactions.length === 0) return
-    const supabase = createClient()
-    const rows = transactions.map((t) => {
-      const type = t.type === 'income' ? 'income' : 'expense'
-      const cat = context.categories.find((c) => c.id === t.category_id)
-      return {
-        household_id: context.householdId,
-        amount: t.amount,
-        description: t.description,
-        category_id: t.category_id ?? null,
-        date: t.date || localToday(),
-        source: 'voice' as const,
-        type,
-        transaction_type: deriveTransactionType(type, cat?.bucket),
-        payment_method: 'efectivo' as const,
-        voice_raw_text: voiceResult?.raw_text ?? null,
-        created_by: context.userId,
-        original_amount: t.original_amount ?? null,
-        original_currency: t.original_currency ?? null,
-      }
-    })
-    const { error } = await supabase.from('transactions').insert(rows)
-    if (error) {
-      showMessage(`No se pudo guardar: ${error.message}`, 'error')
-      return
+    void ensureContext()
+    if (shared) {
+      setOpen(true)
+      setQuick(shared)
+      void interpret(shared)
+    } else if (action === 'voice') {
+      setVoiceOpen(true)
+    } else if (action === 'scan') {
+      setImportActive(true)
+    } else if (action === 'manual') {
+      setOpen(true)
     }
-    setVoiceResult(null)
-    const n = transactions.length
-    showMessage(`${n} movimiento${n > 1 ? 's' : ''} guardado${n > 1 ? 's' : ''}`, 'ok')
-    notifyTransactionsChanged()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // El monto recibe el foco al abrir la hoja.
+  useEffect(() => {
+    if (!open || parsed || subView) return
+    const t = setTimeout(() => amountRef.current?.focus({ preventScroll: true }), 320)
+    return () => clearTimeout(t)
+  }, [open, parsed, subView])
+
+  // ── Guardar ─────────────────────────────────────
+
+  function validate(d: Draft): string | null {
+    if (!(Number(d.amount) > 0)) return 'Falta el monto.'
+    if (!d.categoryId) return d.type === 'income' ? 'Elige de dónde vino.' : 'Elige en qué fue.'
+    return null
   }
 
-  const closeChooser = useCallback(() => setChooserOpen(false), [])
-  const closeVoicePreview = useCallback(() => setVoiceResult(null), [])
+  async function save(drafts: Draft[], source: 'manual' | 'text' | 'voice') {
+    const problem = drafts.map(validate).find(Boolean)
+    if (problem) { toast(problem); return }
+    const context = await ensureContext()
+    if (!context) { toast('No pudimos encontrar tu hogar. Recarga la página.'); return }
+    setSaving(true)
+    const rows = drafts.map((d) => {
+      const cat = context.categories.find((c) => c.id === d.categoryId)
+      return {
+        household_id: context.householdId,
+        category_id: d.categoryId,
+        amount: Number(d.amount),
+        description: d.name.trim() || cat?.name || null,
+        date: d.date,
+        source,
+        type: d.type,
+        transaction_type: deriveTransactionType(d.type, cat?.bucket),
+        payment_method: d.pay,
+        voice_raw_text: source === 'voice' ? rawText || null : null,
+        created_by: context.userId,
+        original_amount: d.originalAmount,
+        original_currency: d.originalCurrency,
+      }
+    })
+    const { data, error } = await createClient().from('transactions').insert(rows).select('id, date')
+    setSaving(false)
+    if (error) {
+      toast(`No se pudo guardar: ${error.message}`)
+      return
+    }
+    const first = rows[0]
+    toast(
+      rows.length > 1
+        ? `Guardados ${rows.length} movimientos`
+        : `Guardado: ${first.description ?? ''} · ${formatMoney(first.amount, { showDecimals: true })}`,
+      'ok',
+    )
+    closeSheet()
+    resetAll()
+    notifyTransactionsChanged({ id: data?.[0]?.id, date: data?.[0]?.date ?? first.date })
+  }
+
+  // ── Edición de borradores ────────────────────────
+
+  function draftFor(target: Target): Draft | undefined {
+    return target === 'manual' ? manual : parsed?.[target]
+  }
+
+  function patchDraft(target: Target, patch: Partial<Draft>) {
+    if (target === 'manual') setManual((d) => ({ ...d, ...patch }))
+    else setParsed((ps) => ps?.map((d, i) => (i === target ? { ...d, ...patch } : d)) ?? null)
+  }
+
+  function setType(target: Target, type: TxType) {
+    const d = draftFor(target)
+    if (!d) return
+    const cat = ctx?.categories.find((c) => c.id === d.categoryId)
+    const fits = cat && (type === 'income') === (cat.bucket === 'income')
+    patchDraft(target, { type, categoryId: fits ? d.categoryId : null })
+  }
+
+  async function pasteFromClipboard() {
+    quickRef.current?.focus()
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text) setQuick(text)
+    } catch {
+      // Sin permiso: el usuario puede pegarlo a mano en el campo.
+    }
+  }
+
+  // ── Vista ───────────────────────────────────────
+
+  const categories = ctx?.categories ?? []
+  const catOf = (id: string | null) => categories.find((c) => c.id === id)
+  const today = localToday()
+  const fmtAmount = (d: Draft) => formatMoney(Number(d.amount) || 0, { showDecimals: true })
+
+  const manualPool = categories.filter((c) => (manual.type === 'income') === (c.bucket === 'income'))
+  let quickCats = topCategories(manualPool, ctx?.usage ?? {}, 7)
+  const manualCat = catOf(manual.categoryId)
+  if (manualCat && !quickCats.some((c) => c.id === manualCat.id)) quickCats = [manualCat, ...quickCats.slice(0, 6)]
+  const canSaveManual = Number(manual.amount) > 0 && !!manual.categoryId
+
+  const chip = `h-9 px-3.5 rounded-full border text-[13.5px] font-semibold ${BORDER} ${TEXT_BODY} bg-[var(--zafi-card)]`
+  const softChip = `h-[38px] px-3.5 rounded-full text-[13.5px] font-semibold ${TILE_BG} text-navy dark:text-ink-100`
+
+  const sub = subView ? draftFor(subView.target) : undefined
+
+  function closeSubOrSheet() {
+    if (subView) setSubView(null)
+    else closeSheet()
+  }
 
   return (
     <>
-      <AddExpenseSheet
-        open={chooserOpen}
-        onClose={closeChooser}
-        onScan={() => runAction('scan')}
-        onVoice={() => runAction('voice')}
-        onManual={() => runAction('manual')}
-      />
+      <BottomSheet themed open={open} onClose={closeSubOrSheet} label="Agregar movimiento">
+        {/* Sub-hojas: categoría, fecha, forma de pago */}
+        {subView?.view === 'category' && sub && (
+          <CategorySheet
+            key={`${String(subView.target)}-${sub.type}`}
+            categories={categories}
+            type={sub.type}
+            subtitle={sub.name || (Number(sub.amount) > 0 ? fmtAmount(sub) : '')}
+            initialCategoryId={sub.categoryId}
+            onSave={(categoryId, type) => {
+              patchDraft(subView.target, { categoryId, type })
+              setSubView(null)
+            }}
+          />
+        )}
+        {subView?.view === 'date' && sub && (
+          <DateSheet
+            today={today}
+            selected={sub.date}
+            onSelect={(date) => { patchDraft(subView.target, { date }); setSubView(null) }}
+          />
+        )}
+        {subView?.view === 'payment' && sub && (
+          <OptionSheet<PaymentMethod>
+            title={sub.type === 'income' ? '¿Cómo lo recibiste?' : '¿Con qué pagaste?'}
+            options={PAYMENT_OPTIONS}
+            selected={sub.pay}
+            onSelect={(pay) => { patchDraft(subView.target, { pay }); setSubView(null) }}
+          />
+        )}
 
-      {ctx && (
-        <ExpenseDrawer
-          householdId={ctx.householdId}
-          categories={ctx.categories}
-          onSuccess={notifyTransactionsChanged}
-          onVoiceOverlay={() => setVoiceOpen(true)}
-        />
-      )}
+        {/* Estado "entendí esto" */}
+        {!subView && parsed && (
+          <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto">
+            <div className="flex flex-col gap-1">
+              <h2 tabIndex={-1} className="eyebrow outline-none">Entendí esto</h2>
+              {rawText && <p className={`text-sm italic ${TEXT_MUTED}`}>“{rawText}”</p>}
+            </div>
+
+            {parsed.map((d, i) => {
+              const cat = catOf(d.categoryId)
+              const isIncome = d.type === 'income'
+              return (
+                <div key={i} className={`flex flex-col gap-3 ${parsed.length > 1 ? `p-3.5 rounded-2xl border ${BORDER}` : ''}`}>
+                  <div className="flex items-center gap-3">
+                    <span aria-hidden className={`flex-none w-[52px] h-[52px] rounded-[15px] flex items-center justify-center text-[26px] ${TILE_BG}`}>
+                      {cat ? getEmoji(cat) : '❔'}
+                    </span>
+                    <div className="flex flex-col min-w-0">
+                      <span className={`truncate font-semibold text-base ${TEXT_STRONG}`}>{d.name || cat?.name || 'Sin nombre'}</span>
+                      <span className={`font-outfit font-extrabold text-[32px] leading-tight ${isIncome ? 'text-success-dark' : TEXT_STRONG}`}>
+                        {isIncome ? '+' : ''}{fmtAmount(d)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setType(i, isIncome ? 'expense' : 'income')}
+                      aria-label={`Tipo: ${isIncome ? 'ingreso' : 'gasto'}. Cambiar`}
+                      className={`h-[38px] px-3.5 rounded-full text-[13.5px] font-semibold ${
+                        isIncome ? 'bg-success-light text-success-text' : 'bg-electric-ghost text-electric-dark'
+                      }`}
+                    >
+                      {isIncome ? 'Ingreso' : 'Gasto'}
+                    </button>
+                    <button type="button" onClick={() => setSubView({ view: 'category', target: i })} className={softChip}>
+                      {cat ? `${getEmoji(cat)} ${cat.name}` : categoryQuestion(d.type)} ▾
+                    </button>
+                    <button type="button" onClick={() => setSubView({ view: 'date', target: i })} className={softChip}>
+                      {dayLabel(d.date, today)} ▾
+                    </button>
+                    <button type="button" onClick={() => setSubView({ view: 'payment', target: i })} className={softChip}>
+                      {paymentLabel(d.pay)} ▾
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+
+            <p className={`text-[13.5px] ${TEXT_MUTED}`}>Toca cualquier dato para corregirlo.</p>
+            <button type="button" disabled={saving} onClick={() => void save(parsed, parsedSource)} className={PRIMARY_BUTTON}>
+              {saving ? 'Guardando…' : parsed.length > 1 ? `Guardar ${parsed.length}` : 'Guardar'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setManual(parsed[0]); setParsed(null); setTimeout(() => amountRef.current?.focus(), 50) }}
+              className="h-10 text-electric font-semibold text-[14.5px]"
+            >
+              Corregir a mano
+            </button>
+          </div>
+        )}
+
+        {/* Estado "escribir" */}
+        {!subView && !parsed && (
+          <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto">
+            <div className="flex flex-col gap-0.5">
+              <h2 tabIndex={-1} className={SHEET_TITLE}>Agregar</h2>
+              <p className={`text-sm ${TEXT_MUTED}`}>Escríbelo como se lo dirías a alguien.</p>
+            </div>
+
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => { e.preventDefault(); void interpret(quick) }}
+            >
+              <input
+                ref={quickRef}
+                value={quick}
+                onChange={(e) => setQuick(e.target.value)}
+                placeholder="Ej. “uber 38” o “me pagaron 8500”"
+                aria-label="Escribe el movimiento"
+                enterKeyHint="go"
+                className={`flex-1 min-w-0 h-[50px] rounded-[14px] border-[1.5px] border-electric-soft px-3.5 text-[15.5px] outline-none focus:border-electric bg-[var(--zafi-card)] placeholder:text-ink-400 ${TEXT_STRONG}`}
+              />
+              {quick.trim() ? (
+                <button
+                  type="submit"
+                  disabled={parsing}
+                  aria-label="Interpretar"
+                  className="flex-none w-[50px] h-[50px] rounded-[14px] bg-electric text-white flex items-center justify-center disabled:opacity-60"
+                >
+                  {parsing
+                    ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" aria-hidden />
+                    : <ArrowRight size={20} aria-hidden />}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setVoiceOpen(true)}
+                  aria-label="Dictar por voz"
+                  className="flex-none w-[50px] h-[50px] rounded-[14px] bg-electric text-white flex items-center justify-center"
+                >
+                  <Mic size={20} aria-hidden />
+                </button>
+              )}
+            </form>
+
+            <div className={`flex items-center gap-2.5 text-[13px] ${TEXT_FAINT}`}>
+              <span className="flex-1 h-px bg-ink-100 dark:bg-white/10" />
+              o llénalo tú
+              <span className="flex-1 h-px bg-ink-100 dark:bg-white/10" />
+            </div>
+
+            <div role="radiogroup" aria-label="Gasté o recibí" className="grid grid-cols-2 rounded-xl p-1 bg-[var(--zafi-tab-bg)]">
+              {(['expense', 'income'] as const).map((t) => {
+                const active = manual.type === t
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setType('manual', t)}
+                    className={`h-[38px] rounded-[9px] font-semibold text-sm ${
+                      active
+                        ? `bg-[var(--zafi-tab-active)] shadow-[0_1px_3px_rgba(30,58,95,0.15)] ${t === 'income' ? 'text-success-dark' : 'text-[var(--zafi-tab-active-text)]'}`
+                        : 'text-[var(--zafi-tab-inactive-text)]'
+                    }`}
+                  >
+                    {t === 'income' ? 'Recibí' : 'Gasté'}
+                  </button>
+                )
+              })}
+            </div>
+
+            <label className="flex items-center justify-center gap-1">
+              <span aria-hidden className="font-outfit font-extrabold text-[44px] text-ink-400">Q</span>
+              <input
+                ref={amountRef}
+                value={manual.amount}
+                onChange={(e) => setManual((d) => ({ ...d, amount: cleanAmountInput(e.target.value) }))}
+                inputMode="decimal"
+                placeholder="0"
+                aria-label="Monto"
+                className={`w-[200px] bg-transparent outline-none font-outfit font-extrabold text-[48px] tracking-[-0.03em] placeholder:text-ink-200 ${TEXT_STRONG}`}
+              />
+            </label>
+
+            <input
+              value={manual.name}
+              onChange={(e) => setManual((d) => ({ ...d, name: e.target.value }))}
+              placeholder="¿Qué fue? (opcional)"
+              aria-label="Nombre"
+              maxLength={80}
+              className={`h-[46px] rounded-xl border px-3.5 text-[15px] outline-none focus:border-electric placeholder:text-ink-400 ${BORDER} ${SOFT_BG} ${TEXT_STRONG}`}
+            />
+
+            <div className="flex flex-col gap-2">
+              <span className={`text-[13px] font-semibold ${TEXT_MUTED}`}>{categoryQuestion(manual.type)}</span>
+              {ctx ? (
+                <CategoryGrid
+                  themed
+                  name="add-category"
+                  categories={quickCats}
+                  selectedId={manual.categoryId ?? ''}
+                  onSelect={(id) => setManual((d) => ({ ...d, categoryId: id }))}
+                  trailing={
+                    <button
+                      type="button"
+                      onClick={() => setSubView({ view: 'category', target: 'manual' })}
+                      className={`${CATEGORY_TILE_CLASS} border-ink-100 dark:border-white/10 bg-[var(--zafi-card)] hover:border-ink-400`}
+                    >
+                      <span aria-hidden className={`text-[21px] leading-none ${TEXT_MUTED}`}>···</span>
+                      <span className={`text-[11.5px] font-semibold ${TEXT_BODY}`}>Más</span>
+                    </button>
+                  }
+                />
+              ) : (
+                <div className="grid grid-cols-4 gap-2" aria-hidden>
+                  {Array.from({ length: 8 }, (_, i) => (
+                    <span key={i} className={`h-[72px] rounded-[14px] animate-pulse ${TILE_BG}`} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setSubView({ view: 'date', target: 'manual' })} className={chip}>
+                {dayLabel(manual.date, today)} ▾
+              </button>
+              <button type="button" onClick={() => setSubView({ view: 'payment', target: 'manual' })} className={chip}>
+                {paymentLabel(manual.pay)} ▾
+              </button>
+            </div>
+
+            <button
+              type="button"
+              aria-disabled={!canSaveManual}
+              onClick={() => void save([manual], 'manual')}
+              className={`h-[54px] w-full rounded-[14px] font-semibold text-base transition-colors ${
+                canSaveManual ? 'bg-electric text-white hover:bg-electric-dark' : 'bg-ink-100 text-ink-400 dark:bg-white/10'
+              }`}
+            >
+              {saving ? 'Guardando…' : manual.type === 'income' ? 'Guardar ingreso' : 'Guardar gasto'}
+            </button>
+
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: 'Foto', hint: 'de un recibo', emoji: '📷', onClick: () => { closeSheet(); router.push('/capture') } },
+                { label: 'Estado', hint: 'de cuenta', emoji: '📄', onClick: () => { closeSheet(); void ensureContext(); setImportActive(true) } },
+                { label: 'Mensaje', hint: 'del banco', emoji: '💬', onClick: () => { void pasteFromClipboard() } },
+              ].map((o) => (
+                <button
+                  key={o.label}
+                  type="button"
+                  onClick={o.onClick}
+                  className={`h-[72px] rounded-[14px] flex flex-col items-center justify-center gap-0.5 ${SOFT_BG}`}
+                >
+                  <span aria-hidden className="text-lg leading-none">{o.emoji}</span>
+                  <span className={`text-[13px] font-semibold ${TEXT_STRONG}`}>{o.label}</span>
+                  <span className={`text-[11.5px] ${TEXT_MUTED}`}>{o.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </BottomSheet>
 
       {ctx && importActive && (
         <StatementImportFlow
@@ -177,39 +612,20 @@ export function AddSheet() {
       <VoiceOverlay
         open={voiceOpen}
         onClose={() => setVoiceOpen(false)}
-        onResult={(result) => { setVoiceResult(result); setVoiceOpen(false) }}
-        onError={(err) => showMessage(err, 'error')}
+        onResult={(result: VoiceExtractionResult) => {
+          setVoiceOpen(false)
+          setOpen(true)
+          void ensureContext()
+          if (!result.transactions?.length) {
+            toast(result.clarification || 'No entendí un movimiento. Intenta de nuevo.')
+            return
+          }
+          applyExtraction(result.transactions, 'voice', result.raw_text)
+        }}
+        onError={(err) => toast(err)}
       />
 
-      <BottomSheet open={!!voiceResult} onClose={closeVoicePreview}>
-        <div className="px-5 pt-3 pb-[calc(24px+env(safe-area-inset-bottom))] overflow-y-auto">
-          <h2 tabIndex={-1} className="font-serif text-2xl text-ink-900 mb-3 outline-none">Revisa antes de guardar</h2>
-          {voiceResult && (
-            <TransactionPreview
-              key={voiceResult.raw_text}
-              result={voiceResult}
-              onConfirm={saveVoiceTransactions}
-              onCancel={closeVoicePreview}
-            />
-          )}
-        </div>
-      </BottomSheet>
-
-      {message && (
-        <div
-          role={message.tone === 'error' ? 'alert' : 'status'}
-          className="fixed bottom-[calc(80px+env(safe-area-inset-bottom))] lg:bottom-6 left-4 right-4 z-[60] mx-auto max-w-md animate-in slide-in-from-bottom-4 fade-in duration-300"
-        >
-          <div
-            className={`px-4 py-3 rounded-2xl text-sm font-semibold ${
-              message.tone === 'error' ? 'bg-danger-light text-danger-text' : 'bg-navy-darker text-white'
-            }`}
-            style={{ boxShadow: '0 10px 30px rgba(13,31,54,0.3)' }}
-          >
-            {message.text}
-          </div>
-        </div>
-      )}
+      <StatusToast message={message} onDone={() => setMessage(null)} />
     </>
   )
 }
