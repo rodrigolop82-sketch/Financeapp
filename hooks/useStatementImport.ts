@@ -505,7 +505,7 @@ export function useStatementImport(householdId: string) {
           isLoading: false,
           error: isAbort
             ? 'El analisis tardo demasiado. Intenta con una foto mas clara o un PDF mas corto.'
-            : 'Error de conexion. Revisa tu internet e intentalo de nuevo.',
+            : 'Error de conexión. Revisa tu internet e inténtalo de nuevo.',
           step: 'upload',
         }))
         return
@@ -576,7 +576,7 @@ export function useStatementImport(householdId: string) {
       setState(s => ({
         ...s,
         isLoading: false,
-        error: 'Error de conexion. Revisa tu internet e intentalo de nuevo.',
+        error: 'Error de conexión. Revisa tu internet e inténtalo de nuevo.',
         step: 'upload',
       }))
     }

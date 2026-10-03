@@ -377,9 +377,9 @@ export default function ImportarPage() {
                       <tr className="border-b bg-gray-50">
                         <th className="p-3 text-left w-8"></th>
                         <th className="p-3 text-left">Fecha</th>
-                        <th className="p-3 text-left">Descripcion</th>
+                        <th className="p-3 text-left">Descripción</th>
                         <th className="p-3 text-right">Monto</th>
-                        <th className="p-3 text-left">Categoria</th>
+                        <th className="p-3 text-left">Categoría</th>
                         <th className="p-3 w-8"></th>
                       </tr>
                     </thead>
@@ -407,7 +407,7 @@ export default function ImportarPage() {
                               onChange={(e) => updateRowCategory(i, e.target.value)}
                               className="text-xs border rounded px-2 py-1 max-w-[150px] bg-white"
                             >
-                              <option value="">Sin categoria</option>
+                              <option value="">Sin categoría</option>
                               {['needs', 'wants', 'savings'].map(bucket => {
                                 const bucketCats = categories.filter(c => c.bucket === bucket)
                                 if (bucketCats.length === 0) return null

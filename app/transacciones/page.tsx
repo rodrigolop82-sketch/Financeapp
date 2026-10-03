@@ -160,7 +160,7 @@ function TransaccionesPageInner() {
 
       const mapped = (txs || []).map((tx: Record<string, unknown>) => ({
         ...tx,
-        category_name: (tx.budget_categories as { name: string } | null)?.name || 'Sin categoria',
+        category_name: (tx.budget_categories as { name: string } | null)?.name || 'Sin categoría',
         bucket: (tx.budget_categories as { bucket: string } | null)?.bucket || '',
       })) as (Transaction & { category_name?: string; bucket?: string })[];
 
@@ -188,7 +188,7 @@ function TransaccionesPageInner() {
       .then(({ data: txs }) => {
         const mapped = (txs || []).map((tx: Record<string, unknown>) => ({
           ...tx,
-          category_name: (tx.budget_categories as { name: string } | null)?.name || 'Sin categoria',
+          category_name: (tx.budget_categories as { name: string } | null)?.name || 'Sin categoría',
           bucket: (tx.budget_categories as { bucket: string } | null)?.bucket || '',
         })) as (Transaction & { category_name?: string; bucket?: string })[];
         setTransactions(mapped);
@@ -343,7 +343,7 @@ function TransaccionesPageInner() {
         setShowForm(false);
       }
     } catch {
-      setSmsError('Error de conexion. Intenta de nuevo.');
+      setSmsError('Error de conexión. Intenta de nuevo.');
     }
     setSmsParsing(false);
   }
@@ -378,7 +378,7 @@ function TransaccionesPageInner() {
     if (data) {
       const mapped = {
         ...data,
-        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoria',
+        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoría',
         bucket: (data.budget_categories as { bucket: string } | null)?.bucket || '',
       } as Transaction & { category_name?: string; bucket?: string };
       setTransactions([mapped, ...transactions]);
@@ -423,7 +423,7 @@ function TransaccionesPageInner() {
     if (data) {
       const mapped = data.map((d: Record<string, unknown>) => ({
         ...d,
-        category_name: (d.budget_categories as { name: string } | null)?.name || 'Sin categoria',
+        category_name: (d.budget_categories as { name: string } | null)?.name || 'Sin categoría',
         bucket: (d.budget_categories as { bucket: string } | null)?.bucket || '',
       })) as (Transaction & { category_name?: string; bucket?: string })[];
       setTransactions([...mapped, ...transactions]);
@@ -468,7 +468,7 @@ function TransaccionesPageInner() {
     if (data) {
       const mapped = {
         ...data,
-        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoria',
+        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoría',
         bucket: (data.budget_categories as { bucket: string } | null)?.bucket || '',
       } as Transaction & { category_name?: string; bucket?: string };
 
@@ -557,7 +557,7 @@ function TransaccionesPageInner() {
                   variant="outline"
                   size="sm"
                   onClick={() => { setShowSmsForm(v => !v); setShowForm(false); setVoiceResult(null); }}
-                  title="Pegar SMS o notificacion de banco"
+                  title="Pegar SMS o notificación de banco"
                 >
                   <MessageSquare className="w-4 h-4" />
                 </Button>
@@ -582,7 +582,7 @@ function TransaccionesPageInner() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-electric" />
-                    Pegar notificacion de banco / Apple Pay / Google Pay
+                    Pegar notificación de banco / Apple Pay / Google Pay
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -681,7 +681,7 @@ function TransaccionesPageInner() {
                     </button>
                   </div>
                   <div>
-                    <Label>Categoria</Label>
+                    <Label>Categoría</Label>
                     <select
                       className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
                       value={newTx.category_id}
@@ -731,7 +731,7 @@ function TransaccionesPageInner() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Descripcion (opcional)</Label>
+                      <Label>Descripción (opcional)</Label>
                       <Input
                         className="mt-1"
                         placeholder="Ej: Supermercado, Gasolina"
@@ -782,7 +782,7 @@ function TransaccionesPageInner() {
                         editingId === tx.id ? (
                           <div key={tx.id} className="px-4 py-3 bg-blue-50/50 space-y-3">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-medium text-electric">Editando transaccion</span>
+                              <span className="text-xs font-medium text-electric">Editando movimiento</span>
                               <div className="flex gap-1">
                                 <button
                                   onClick={saveEdit}
@@ -800,7 +800,7 @@ function TransaccionesPageInner() {
                               </div>
                             </div>
                             <div>
-                              <Label className="text-xs">Categoria</Label>
+                              <Label className="text-xs">Categoría</Label>
                               <select
                                 className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
                                 value={editData.category_id}
@@ -845,12 +845,12 @@ function TransaccionesPageInner() {
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <Label className="text-xs">Descripcion</Label>
+                                <Label className="text-xs">Descripción</Label>
                                 <Input
                                   className="mt-1"
                                   value={editData.description}
                                   onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                                  placeholder="Descripcion del gasto"
+                                  placeholder="Descripción del gasto"
                                 />
                               </div>
                               <div>

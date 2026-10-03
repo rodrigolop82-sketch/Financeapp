@@ -108,7 +108,7 @@ export default function CategoriaDetallePage() {
       const bc = t.budget_categories as { name: string; bucket: string; icon: string | null } | null
       byId[t.id as string] = {
         ...(t as unknown as SearchTransaction),
-        category_name: bc?.name || 'Sin categoria',
+        category_name: bc?.name || 'Sin categoría',
         category_bucket: (bc?.bucket as 'needs' | 'wants' | 'savings') || 'needs',
         category_icon: bc?.icon ?? null,
       }
