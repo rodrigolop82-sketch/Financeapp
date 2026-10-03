@@ -236,6 +236,7 @@ export interface ExtractedTransaction {
   confidence: number;
   original_amount?: number | null;
   original_currency?: string | null;
+  type?: 'expense' | 'income';
 }
 
 export interface VoiceExtractionResult {

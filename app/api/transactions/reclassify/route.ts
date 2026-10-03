@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getMerchantKey } from '@/lib/transactions/merchant-key';
+import { deriveTransactionType } from '@/lib/transactions/transaction-type';
 
 export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient();
@@ -65,10 +66,7 @@ export async function POST(req: NextRequest) {
   const prevTransactionType = tx.transaction_type;
 
   const newType: 'expense' | 'income' = type ?? tx.type;
-  // Keep the legacy transaction_type (gasto/ingreso/ahorro, used by search
-  // and the merchant-learning RPCs) in sync with type + the category's bucket
-  // instead of leaving it stuck on its insert-time default.
-  const newTransactionType = newType === 'income' ? 'ingreso' : cat.bucket === 'savings' ? 'ahorro' : 'gasto';
+  const newTransactionType = deriveTransactionType(newType, cat.bucket);
   const categoryChanged = categoryId !== prevCategoryId;
 
   const { error: updateError } = await supabase

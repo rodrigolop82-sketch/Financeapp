@@ -20,6 +20,7 @@ import { EditSheet } from '@/components/transactions/EditSheet';
 import { ReclassifySheet } from '@/components/transactions/ReclassifySheet';
 import { UndoToast } from '@/components/transactions/UndoToast';
 import { useReclassifyFlow } from '@/lib/transactions/useReclassifyFlow';
+import { deriveTransactionType } from '@/lib/transactions/transaction-type';
 import { AppShell } from '@/components/layout/AppShell';
 import { getUserHousehold } from '@/lib/household';
 import {
@@ -334,11 +335,7 @@ function TransaccionesPageInner() {
   async function addTransaction() {
     setSaving(true);
     const selectedCat = categories.find((c) => c.id === newTx.category_id);
-    // transaction_type (gasto/ingreso/ahorro) is a separate legacy column
-    // read by search/totals — keep it in sync with the type toggle instead
-    // of leaving it on its insert-time default ('gasto'), which is what
-    // made income added here invisible to the "Ingresos" search filter.
-    const transactionType = newTx.type === 'income' ? 'ingreso' : selectedCat?.bucket === 'savings' ? 'ahorro' : 'gasto';
+    const transactionType = deriveTransactionType(newTx.type, selectedCat?.bucket);
     const { data, error } = await supabase
       .from('transactions')
       .insert({
@@ -380,20 +377,25 @@ function TransaccionesPageInner() {
     const { data, error } = await supabase
       .from('transactions')
       .insert(
-        txs.map(tx => ({
-          household_id: householdId,
-          category_id: tx.category_id ?? null,
-          amount: tx.amount,
-          description: tx.description,
-          date: tx.date,
-          source: 'voice',
-          type: 'expense' as const,
-          payment_method: 'efectivo' as const,
-          voice_raw_text: voiceResult?.raw_text ?? null,
-          created_by: userId || null,
-          original_amount: tx.original_amount ?? null,
-          original_currency: tx.original_currency ?? null,
-        }))
+        txs.map(tx => {
+          const txType = tx.type === 'income' ? 'income' : 'expense';
+          const cat = categories.find(c => c.id === tx.category_id);
+          return {
+            household_id: householdId,
+            category_id: tx.category_id ?? null,
+            amount: tx.amount,
+            description: tx.description,
+            date: tx.date,
+            source: 'voice',
+            type: txType,
+            transaction_type: deriveTransactionType(txType, cat?.bucket),
+            payment_method: 'efectivo' as const,
+            voice_raw_text: voiceResult?.raw_text ?? null,
+            created_by: userId || null,
+            original_amount: tx.original_amount ?? null,
+            original_currency: tx.original_currency ?? null,
+          };
+        })
       )
       .select('*, budget_categories(name, bucket)');
 

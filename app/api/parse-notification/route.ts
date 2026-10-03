@@ -79,15 +79,16 @@ export async function POST(req: NextRequest) {
 Respondé SOLO con JSON válido. Fecha hoy: ${today}. Moneda principal: GTQ (Q).
 Categorías disponibles: ${ZAFI_CATEGORIES.join(', ')}.
 
-Extraé de la notificación: monto, comercio/descripción, banco, categoría sugerida, nivel de confianza, y currency (código ISO: GTQ, USD, EUR, MXN).
+Extraé de la notificación: monto, comercio/descripción, banco, categoría sugerida, nivel de confianza, currency (código ISO: GTQ, USD, EUR, MXN), y type ("expense" o "income").
 
 Formato de respuesta:
-{"amount":150.00,"merchant":"Walmart","bank":"BAM","category":"Alimentación","confidence":0.9,"currency":"GTQ"}
+{"amount":150.00,"merchant":"Walmart","bank":"BAM","category":"Alimentación","confidence":0.9,"currency":"GTQ","type":"expense"}
 
-Si no podés extraer datos, respondé: {"amount":0,"merchant":"","bank":"","category":"","confidence":0,"currency":"GTQ"}
+Si no podés extraer datos, respondé: {"amount":0,"merchant":"","bank":"","category":"","confidence":0,"currency":"GTQ","type":"expense"}
 Reglas:
 - Si el texto menciona Apple Pay, Wallet o tarjeta Apple, el banco es "Apple Pay"
-- Si menciona compra/pago/cargo, es un gasto
+- Si menciona compra/pago/cargo/débito, es type:"expense"
+- Si menciona depósito, abono, transferencia recibida o acreditado (dinero que ENTRA a la cuenta), es type:"income". Ante la duda, usá "expense".
 - Detectá el nombre del comercio cuando aparezca
 - Asigná la categoría más probable
 - Si el monto está en $ o USD, currency es "USD". Si está en Q o GTQ, currency es "GTQ".`,
@@ -173,6 +174,7 @@ Reglas:
       rawText,
       original_amount: isForex ? result.amount : null,
       original_currency: isForex ? currency : null,
+      type: result.type === 'income' ? 'income' : 'expense',
     })
   } catch {
     // Fallback to regex

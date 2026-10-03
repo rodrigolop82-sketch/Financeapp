@@ -16,23 +16,30 @@ Eres un extractor de transacciones financieras para Guatemala. Analizás mensaje
 
 Fecha hoy: ${today}. Moneda principal: GTQ (Q).
 
-Patrones comunes que debes reconocer:
+Patrones comunes que debes reconocer como GASTO (type: "expense"):
 - Bancos Guatemala: "Compra aprobada por Q250.00 en WALMART", "VISA: Compra por Q125.00 en AMAZON", "Alerta: Q350.00 en PRICEMART el 19/04/2026"
 - Apple Pay: "Apple Pay: Q89.50 at Starbucks", "Apple Pay charged $25.00 at Amazon"
 - Google Pay: "Pagaste Q200.00 a Uber con Google Pay", "Google Pay: paid Q150.00"
 - Débito/Crédito: "Su tarjeta fue utilizada por Q450.00 en TIKAL FUTURA"
 - También acepta montos en USD ($), EUR (€) o MXN. Devolvé el monto original y la moneda detectada.
 
+Patrones comunes que debes reconocer como INGRESO (type: "income") — dinero que ENTRA a la cuenta, no que sale:
+- "Depósito recibido por Q3,500.00", "Se ha abonado Q500.00 a su cuenta", "Abono a su cuenta por Q2,000.00"
+- "Transferencia recibida de Q1,200.00", "Ha recibido una transferencia por Q800.00"
+- "Su salario ha sido depositado", "Depósito de nómina por Q8,000.00"
+- Cualquier mensaje de "depósito", "abono", "transferencia recibida", "acreditado" donde el dinero entra a la cuenta del usuario (no una compra/pago/cargo)
+
 Categorías disponibles: ${categories}
 
 Reglas:
-- Extraé siempre: monto (número), comercio/descripción, fecha (si no hay, usá hoy), categoría, currency (código ISO: GTQ, USD, EUR, MXN — default GTQ)
+- Extraé siempre: monto (número), comercio/descripción, fecha (si no hay, usá hoy), categoría (si es un ingreso, usá la categoría que mejor aplique o dejala vacía), currency (código ISO: GTQ, USD, EUR, MXN — default GTQ), y type ("expense" o "income")
+- Un cargo, compra, pago o débito es SIEMPRE type:"expense". Un depósito, abono o transferencia recibida es SIEMPRE type:"income". Ante la duda, usá "expense".
 - Si hay múltiples transacciones en un solo texto, extraé todas
-- Ignorá saldos disponibles, números de tarjeta y datos que no sean el gasto en sí
-- Si el texto NO es una notificación de gasto (ej: SMS de código de verificación), retorná transactions:[]
+- Ignorá saldos disponibles, números de tarjeta y datos que no sean el movimiento en sí
+- Si el texto NO es una notificación de movimiento financiero (ej: SMS de código de verificación), retorná transactions:[]
 
 Respondé SOLO con JSON válido, sin texto adicional:
-{"transactions":[{"amount":250,"description":"Walmart","category":"Alimentación","date":"${today}","confidence":0.95,"currency":"GTQ"}],"raw_text":"...","ambiguous":false,"clarification":null}
+{"transactions":[{"amount":250,"description":"Walmart","category":"Alimentación","date":"${today}","confidence":0.95,"currency":"GTQ","type":"expense"}],"raw_text":"...","ambiguous":false,"clarification":null}
 `.trim()
 
 export async function POST(req: NextRequest) {
@@ -109,6 +116,7 @@ export async function POST(req: NextRequest) {
           original_amount: isForex ? tx.amount : null,
           original_currency: isForex ? currency : null,
           amount: isForex ? toGTQ(tx.amount, currency) : tx.amount,
+          type: tx.type === 'income' ? 'income' : 'expense',
         }
       })
     }

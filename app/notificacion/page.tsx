@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { getUserHousehold } from '@/lib/household'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { localToday } from '@/lib/dates'
+import { deriveTransactionType } from '@/lib/transactions/transaction-type'
 
 interface ParsedNotification {
   amount: number
@@ -17,6 +18,7 @@ interface ParsedNotification {
   rawText: string
   original_amount: number | null
   original_currency: string | null
+  type?: 'expense' | 'income'
 }
 
 function NotificacionContent() {
@@ -29,6 +31,7 @@ function NotificacionContent() {
   const [amount, setAmount] = useState(0)
   const [description, setDescription] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [type, setType] = useState<'expense' | 'income'>('expense')
   const [categories, setCategories] = useState<{ id: string; name: string; bucket: string }[]>([])
   const [householdId, setHouseholdId] = useState('')
   const [userId, setUserId] = useState('')
@@ -95,6 +98,7 @@ function NotificacionContent() {
       setAmount(data.amount)
       setDescription(data.merchant || '')
       setCategoryId(data.categoryId || '')
+      setType(data.type === 'income' ? 'income' : 'expense')
       setStep('confirm')
     } catch {
       setErrorMsg('Error de conexión. Intentá de nuevo.')
@@ -107,6 +111,7 @@ function NotificacionContent() {
     setStep('saving')
 
     const supabase = createClient()
+    const cat = categories.find((c) => c.id === categoryId)
     await supabase.from('transactions').insert({
       household_id: householdId,
       category_id: categoryId || null,
@@ -114,7 +119,8 @@ function NotificacionContent() {
       description,
       date: localToday(),
       source: 'ocr' as const,
-      type: 'expense',
+      type,
+      transaction_type: deriveTransactionType(type, cat?.bucket),
       original_amount: parsed?.original_amount ?? null,
       original_currency: parsed?.original_currency ?? null,
       created_by: userId,
@@ -140,7 +146,9 @@ function NotificacionContent() {
             <path d="M5 13l6 6L21 7" stroke="#10B981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
-        <p style={{ fontSize: 16, fontWeight: 700, color: '#1E3A5F' }}>Gasto registrado</p>
+        <p style={{ fontSize: 16, fontWeight: 700, color: '#1E3A5F' }}>
+          {type === 'income' ? 'Ingreso registrado' : 'Gasto registrado'}
+        </p>
         <p style={{ fontSize: 12, color: '#64748B' }}>Volviendo al dashboard...</p>
       </div>
     )
@@ -302,6 +310,36 @@ function NotificacionContent() {
             </div>
 
             {/* Editable fields */}
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '.06em', display: 'block', marginBottom: 6 }}>
+                TIPO
+              </label>
+              <div style={{ display: 'flex', borderRadius: 11, overflow: 'hidden', border: '1px solid #E2E8F0', height: 40 }}>
+                <button
+                  type="button"
+                  onClick={() => setType('expense')}
+                  style={{
+                    flex: 1, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer',
+                    background: type === 'expense' ? '#1E3A5F' : 'white',
+                    color: type === 'expense' ? 'white' : '#64748B',
+                  }}
+                >
+                  Gasto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setType('income')}
+                  style={{
+                    flex: 1, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer',
+                    background: type === 'income' ? '#16A34A' : 'white',
+                    color: type === 'income' ? 'white' : '#64748B',
+                  }}
+                >
+                  Ingreso
+                </button>
+              </div>
+            </div>
+
             <div>
               <label style={{ fontSize: 10, fontWeight: 700, color: '#64748B', letterSpacing: '.06em', display: 'block', marginBottom: 6 }}>
                 CATEGORÍA

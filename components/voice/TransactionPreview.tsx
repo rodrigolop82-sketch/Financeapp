@@ -102,6 +102,32 @@ export function TransactionPreview({ result, onConfirm, onCancel }: TransactionP
                 )}
               </div>
               <div className="flex items-center gap-2 ml-3">
+                <div className="flex rounded-md overflow-hidden border" style={{ height: 26 }}>
+                  <button
+                    type="button"
+                    onClick={() => updateTransaction(i, 'type', 'expense')}
+                    className="px-2 text-[11px] font-semibold transition-colors"
+                    style={{
+                      background: (tx.type ?? 'expense') === 'expense' ? '#1E3A5F' : 'white',
+                      color: (tx.type ?? 'expense') === 'expense' ? 'white' : '#64748B',
+                      border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    Gasto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateTransaction(i, 'type', 'income')}
+                    className="px-2 text-[11px] font-semibold transition-colors"
+                    style={{
+                      background: tx.type === 'income' ? '#16A34A' : 'white',
+                      color: tx.type === 'income' ? 'white' : '#64748B',
+                      border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    Ingreso
+                  </button>
+                </div>
                 <span className="text-sm font-semibold">{fmt(tx.amount)}</span>
                 {tx.confidence < 0.8 && (
                   <span className="text-xs text-amber-600">~</span>
@@ -130,7 +156,7 @@ export function TransactionPreview({ result, onConfirm, onCancel }: TransactionP
             className="flex-1 bg-electric hover:bg-navy"
           >
             <Check className="w-4 h-4 mr-2" />
-            Guardar {transactions.length > 1 ? `${transactions.length} gastos` : 'gasto'}
+            Guardar {transactions.length > 1 ? `${transactions.length} movimientos` : 'movimiento'}
           </Button>
           <Button variant="outline" onClick={onCancel}>
             Cancelar
