@@ -46,6 +46,7 @@ function PresupuestoContent() {
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [incomeError, setIncomeError] = useState<string | null>(null);
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({});
   const [comparativoMonth, setComparativoMonth] = useState<string>(() => localMonth());
@@ -133,41 +134,58 @@ function PresupuestoContent() {
     loadComparativo();
   }, [householdId, comparativoMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function recalcAndSyncIncome(entries: IncomeEntry[]) {
+  async function recalcAndSyncIncome(entries: IncomeEntry[]) {
     const total = entries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
     const rounded = Math.round(total * 100) / 100;
     setIncome(rounded);
     if (householdId) {
-      void supabase.from('financial_profiles').update({ total_income: rounded }).eq('household_id', householdId);
+      const { error } = await supabase.from('financial_profiles').update({ total_income: rounded }).eq('household_id', householdId);
+      if (error) setIncomeError(`No se pudo actualizar el ingreso total: ${error.message}`);
     }
   }
 
   async function addIncomeEntry(source?: string) {
     if (!householdId) return;
-    const { data } = await supabase
+    setIncomeError(null);
+    const { data, error } = await supabase
       .from('income_entries')
       .insert({ household_id: householdId, source: source || '', member: 'Persona 1', amount: 0, frequency: 'mensual' })
       .select()
       .single();
+    if (error) {
+      setIncomeError(`No se pudo agregar el ingreso: ${error.message}`);
+      return;
+    }
     if (data) {
       const updated = [...incomeEntries, data as IncomeEntry];
       setIncomeEntries(updated);
-      recalcAndSyncIncome(updated);
+      await recalcAndSyncIncome(updated);
     }
   }
 
-  function updateIncomeEntry(id: string, field: string, value: string | number) {
+  async function updateIncomeEntry(id: string, field: string, value: string | number) {
+    setIncomeError(null);
     const updated = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
     setIncomeEntries(updated);
-    recalcAndSyncIncome(updated);
-    void supabase.from('income_entries').update({ [field]: value }).eq('id', id);
+    await recalcAndSyncIncome(updated);
+    const { error } = await supabase.from('income_entries').update({ [field]: value }).eq('id', id);
+    if (error) {
+      setIncomeError(`No se pudo guardar el cambio: ${error.message}`);
+      setIncomeEntries(incomeEntries);
+      await recalcAndSyncIncome(incomeEntries);
+    }
   }
 
   async function deleteIncomeEntry(id: string) {
-    await supabase.from('income_entries').delete().eq('id', id);
+    setIncomeError(null);
+    const { error } = await supabase.from('income_entries').delete().eq('id', id);
+    if (error) {
+      setIncomeError(`No se pudo eliminar el ingreso: ${error.message}`);
+      return;
+    }
     const updated = incomeEntries.filter(e => e.id !== id);
     setIncomeEntries(updated);
-    recalcAndSyncIncome(updated);
+    await recalcAndSyncIncome(updated);
   }
 
   function monthlyAmount(amount: number, freq: string): number {
@@ -454,6 +472,17 @@ function PresupuestoContent() {
               )}
               Ya revisé, confirmar
             </Button>
+          </div>
+        )}
+
+        {/* Income entry error */}
+        {incomeError && (
+          <div style={{
+            marginBottom: 16, padding: 12, borderRadius: 12,
+            background: '#FEF2F2', border: '1px solid #FECACA',
+            fontSize: 13, color: '#DC2626',
+          }}>
+            {incomeError}
           </div>
         )}
 
