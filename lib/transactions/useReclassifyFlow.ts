@@ -15,7 +15,7 @@ interface MatchItem {
 }
 
 interface UndoPayload {
-  items: { id: string; categoryId: string; categorySource: string; type?: string; transactionType?: string }[];
+  items: { id: string; categoryId: string; categorySource: string; type?: string; transactionType?: string; subItemId?: string | null }[];
   overrideCreated: boolean;
   merchantKey: string | null;
   householdId: string;
@@ -282,6 +282,8 @@ export function useReclassifyFlow(
       categoryId: string,
       type: 'expense' | 'income',
       applyToOthers: boolean,
+      /** Parte del Plan del mes; undefined no la toca, null la quita. */
+      subItemId?: string | null,
     ): Promise<boolean> => {
       setSaving(true);
       setError(null);
@@ -304,6 +306,7 @@ export function useReclassifyFlow(
             transactionId: tx.id,
             categoryId,
             type: type !== tx.type ? type : undefined,
+            subItemId,
           }),
         });
         if (!res.ok) {
@@ -324,6 +327,7 @@ export function useReclassifyFlow(
               categoryId,
               ids: (data.matches as MatchItem[]).map((m) => m.id),
               remember: true,
+              subItemId,
             }),
           });
           if (bulk.ok) {

@@ -15,6 +15,7 @@ import { TxDetailSheet } from './TxDetailSheet';
 import { CategorySheet } from './CategorySheet';
 import { DateSheet, OptionSheet } from './OptionSheet';
 import { StatusToast, type StatusMessage } from './StatusToast';
+import type { SubItemOption } from './SubItemPicker';
 
 type SheetView = 'detail' | 'category' | 'date' | 'payment';
 
@@ -63,6 +64,21 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
   const [flashId, setFlashId] = useState<string | null>(null);
 
   const flow = useReclassifyFlow(categories, onChanged);
+
+  // Partes del Plan del mes de estas categorías (para "¿De qué parte?" y el detalle).
+  const [subItems, setSubItems] = useState<SubItemOption[]>([]);
+  const catIds = categories.map((c) => c.id).sort().join(',');
+  useEffect(() => {
+    if (!catIds) return;
+    let cancelled = false;
+    supabase
+      .from('budget_sub_items')
+      .select('id, category_id, name')
+      .in('category_id', catIds.split(','))
+      .order('created_at', { ascending: true })
+      .then(({ data }: { data: SubItemOption[] | null }) => { if (!cancelled) setSubItems(data ?? []); });
+    return () => { cancelled = true; };
+  }, [supabase, catIds]);
   const deletion = useUndoableDelete(setRows, onChanged);
 
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,13 +130,18 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
     if (patch.date) onChanged();
   }
 
-  async function saveCategory(tx: SearchTransaction, categoryId: string, type: 'expense' | 'income', applyToOthers: boolean) {
-    if (categoryId === tx.category_id && type === tx.type) {
+  async function saveCategory(
+    tx: SearchTransaction, categoryId: string, type: 'expense' | 'income', applyToOthers: boolean, subItemId: string | null,
+  ) {
+    const subChanged = subItemId !== (tx.budget_sub_item_id ?? null);
+    if (categoryId === tx.category_id && type === tx.type && !subChanged) {
       setSheet({ view: 'detail', txId: tx.id, back: null });
       return;
     }
     if (flow.undoVisible) flow.dismissUndo();
-    const ok = await flow.reclassifyDirect(tx, categoryId, type, applyToOthers);
+    // Sin partes en juego no se toca la columna (funciona aunque falte la migración).
+    const sub = subItemId !== null || tx.budget_sub_item_id ? subItemId : undefined;
+    const ok = await flow.reclassifyDirect(tx, categoryId, type, applyToOthers, sub);
     if (!ok) return;
     const cat = categories.find((c) => c.id === categoryId);
     setRows((rs) => rs.map((r) => (r.id === tx.id ? {
@@ -131,6 +152,7 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
       category_icon: cat?.icon ?? null,
       type,
       transaction_type: deriveTransactionType(type, cat?.bucket),
+      budget_sub_item_id: subItemId,
     } : r)));
     flash(tx.id);
     setSheet({ view: 'detail', txId: tx.id, back: null });
@@ -150,6 +172,7 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
             onSaveText={(id, patch) => { void updateTx(id, patch); }}
             onDelete={() => deleteTx(selected)}
             onDone={() => setSheet(null)}
+            subItemName={subItems.find((p) => p.id === selected.budget_sub_item_id)?.name}
           />
         )}
         {sheet?.view === 'category' && selected && (
@@ -163,7 +186,10 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
             merchantName={selected.description ?? ''}
             saving={flow.saving}
             error={flow.error}
-            onSave={(catId, type, applyAll) => { void saveCategory(selected, catId, type, applyAll); }}
+            subItems={subItems}
+            initialSubItemId={selected.budget_sub_item_id ?? null}
+            onMissingSubItem={() => setMessage({ text: 'Elige de qué parte.', tone: 'error' })}
+            onSave={(catId, type, applyAll, subId) => { void saveCategory(selected, catId, type, applyAll, subId); }}
           />
         )}
         {sheet?.view === 'date' && selected && (

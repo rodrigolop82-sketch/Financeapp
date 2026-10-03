@@ -72,5 +72,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ rows: rows ?? [], totals: totals ?? [] });
+  // search_transactions no devuelve la parte del Plan del mes: se agrega aquí.
+  // Si la columna no existe todavía (migración sin aplicar), las filas van sin ella.
+  let enriched = (rows ?? []) as { id: string }[];
+  if (enriched.length > 0) {
+    const { data: subs, error: subsError } = await supabase
+      .from('transactions')
+      .select('id, budget_sub_item_id')
+      .in('id', enriched.map((r) => r.id));
+    if (!subsError && subs) {
+      const byId = new Map((subs as { id: string; budget_sub_item_id: string | null }[]).map((t) => [t.id, t.budget_sub_item_id]));
+      enriched = enriched.map((r) => ({ ...r, budget_sub_item_id: byId.get(r.id) ?? null }));
+    }
+  }
+
+  return NextResponse.json({ rows: enriched, totals: totals ?? [] });
 }

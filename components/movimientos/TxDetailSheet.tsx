@@ -17,12 +17,14 @@ interface TxDetailSheetProps {
   onSaveText: (id: string, patch: { description?: string | null; note?: string | null }) => void;
   onDelete: () => void;
   onDone: () => void;
+  /** Nombre de la parte del Plan del mes, si tiene. */
+  subItemName?: string | null;
 }
 
 const NOTE_DEBOUNCE_MS = 600;
 
 /** Contenido de hoja: detalle de un movimiento; cada dato se toca para cambiarlo. */
-export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOpenPayment, onSaveText, onDelete, onDone }: TxDetailSheetProps) {
+export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOpenPayment, onSaveText, onDelete, onDone, subItemName }: TxDetailSheetProps) {
   const isIncome = tx.type === 'income';
   const [name, setName] = useState(tx.description ?? '');
   const [note, setNote] = useState(tx.note ?? '');
@@ -94,7 +96,9 @@ export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOp
       <div className={`rounded-2xl border overflow-hidden ${BORDER}`}>
         <button type="button" onClick={onOpenCategory} className={rowClass}>
           <span className={label}>Categoría</span>
-          <span className={value}>{getEmoji(cat)} {tx.category_name || 'Sin categoría'}</span>
+          <span className={value}>
+            {getEmoji(cat)} {tx.category_name || 'Sin categoría'}{subItemName ? ` · ${subItemName}` : ''}
+          </span>
           {chevron}
         </button>
         <button type="button" onClick={onOpenDate} className={rowClass}>

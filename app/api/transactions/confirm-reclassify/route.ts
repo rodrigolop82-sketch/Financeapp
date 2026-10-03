@@ -11,6 +11,9 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { sourceTransactionId, categoryId, ids, remember } = body;
+  // Parte del Plan del mes que se aplica a todos: undefined no la toca.
+  const subItemId: string | null | undefined = body.subItemId;
+  const withSub = subItemId !== undefined;
 
   if (!sourceTransactionId || !categoryId) {
     return NextResponse.json({ error: 'Faltan datos requeridos.' }, { status: 400 });
@@ -38,32 +41,39 @@ export async function POST(req: NextRequest) {
 
   const merchantKey = getMerchantKey(sourceTx.description);
   const selectedIds: string[] = Array.isArray(ids) ? ids : [];
-  const snapshot: { id: string; categoryId: string; categorySource: string }[] = [];
+  const snapshot: { id: string; categoryId: string; categorySource: string; subItemId?: string | null }[] = [];
   let appliedCount = 0;
 
   if (selectedIds.length > 0) {
     const { data: txToUpdate } = await supabase
       .from('transactions')
-      .select('id, category_id, category_source, description, transaction_type, household_id')
-      .in('id', selectedIds);
+      .select(`id, category_id, category_source, description, transaction_type, household_id${withSub ? ', budget_sub_item_id' : ''}`)
+      .in('id', selectedIds)
+      .returns<{
+        id: string; category_id: string; category_source: string; description: string | null;
+        transaction_type: string; household_id: string; budget_sub_item_id?: string | null;
+      }[]>();
 
     const valid = (txToUpdate ?? []).filter((t) => {
       if (!householdIds.includes(t.household_id)) return false;
       if (t.transaction_type !== 'gasto') return false;
-      if (t.category_id === categoryId) return false;
+      if (t.category_id === categoryId && (!withSub || (t.budget_sub_item_id ?? null) === subItemId)) return false;
       if (merchantKey && getMerchantKey(t.description) !== merchantKey) return false;
       return true;
     });
 
     for (const t of valid) {
-      snapshot.push({ id: t.id, categoryId: t.category_id, categorySource: t.category_source });
+      snapshot.push({
+        id: t.id, categoryId: t.category_id, categorySource: t.category_source,
+        ...(withSub ? { subItemId: t.budget_sub_item_id ?? null } : {}),
+      });
     }
 
     if (valid.length > 0) {
       const validIds = valid.map((t) => t.id);
       const { error: bulkError } = await supabase
         .from('transactions')
-        .update({ category_id: categoryId, category_source: 'bulk' })
+        .update({ category_id: categoryId, category_source: 'bulk', ...(withSub ? { budget_sub_item_id: subItemId } : {}) })
         .in('id', validIds);
 
       if (bulkError) {

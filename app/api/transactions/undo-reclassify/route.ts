@@ -39,15 +39,16 @@ export async function POST(req: NextRequest) {
 
   let restoredCount = 0;
 
-  for (const item of items as { id: string; categoryId: string; categorySource: string; type?: string; transactionType?: string }[]) {
+  for (const item of items as { id: string; categoryId: string; categorySource: string; type?: string; transactionType?: string; subItemId?: string | null }[]) {
     if (!validIds.has(item.id)) continue;
 
-    const update: Record<string, string> = {
+    const update: Record<string, string | null> = {
       category_id: item.categoryId,
       category_source: item.categorySource,
     };
     if (item.type) update.type = item.type;
     if (item.transactionType) update.transaction_type = item.transactionType;
+    if (item.subItemId !== undefined) update.budget_sub_item_id = item.subItemId;
 
     const { error } = await supabase
       .from('transactions')

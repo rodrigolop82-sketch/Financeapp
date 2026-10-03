@@ -16,6 +16,8 @@ import { CategoryGrid, CATEGORY_TILE_CLASS } from '@/components/transactions/Cat
 import { CategorySheet } from '@/components/movimientos/CategorySheet'
 import { DateSheet, OptionSheet } from '@/components/movimientos/OptionSheet'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
+import { SubItemPicker, type SubItemOption } from '@/components/movimientos/SubItemPicker'
+import { suggestSubItem } from '@/lib/plan-del-mes'
 import {
   BORDER, PRIMARY_BUTTON, SHEET_TITLE, SOFT_BG, TEXT_BODY, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG,
 } from '@/components/movimientos/ui'
@@ -37,6 +39,8 @@ interface Draft {
   amount: string
   name: string
   categoryId: string | null
+  /** Parte del Plan del mes (obligatoria si la categoría tiene partes). */
+  subItemId: string | null
   date: string
   pay: PaymentMethod
   originalAmount: number | null
@@ -49,6 +53,8 @@ interface AddContext {
   categories: BudgetCategory[]
   /** Cuántas veces se usó cada categoría en los últimos 90 días. */
   usage: Record<string, number>
+  /** Partes del Plan del mes. */
+  subItems: SubItemOption[]
 }
 
 type SubView = 'category' | 'date' | 'payment'
@@ -56,7 +62,7 @@ type SubView = 'category' | 'date' | 'payment'
 type Target = 'manual' | number
 
 function blankDraft(): Draft {
-  return { type: 'expense', amount: '', name: '', categoryId: null, date: localToday(), pay: 'efectivo', originalAmount: null, originalCurrency: null }
+  return { type: 'expense', amount: '', name: '', categoryId: null, subItemId: null, date: localToday(), pay: 'efectivo', originalAmount: null, originalCurrency: null }
 }
 
 function draftFromExtracted(t: ExtractedTransaction): Draft {
@@ -65,11 +71,22 @@ function draftFromExtracted(t: ExtractedTransaction): Draft {
     amount: t.amount > 0 ? String(Math.round(t.amount * 100) / 100) : '',
     name: t.description ?? '',
     categoryId: t.category_id ?? null,
+    subItemId: null,
     date: t.date || localToday(),
     pay: t.payment_method ?? 'efectivo',
     originalAmount: t.original_amount ?? null,
     originalCurrency: t.original_currency ?? null,
   }
+}
+
+/**
+ * Parte sugerida por palabras clave del texto libre ("cuota mantenimiento"
+ * → Vivienda · Cuota de mantenimiento). Si ninguna coincide, se pregunta.
+ */
+function withSuggestedPart(d: Draft, raw: string, context: AddContext | null): Draft {
+  if (!context || d.type !== 'expense') return d
+  const hit = suggestSubItem(`${raw} ${d.name}`, context.subItems)
+  return hit ? { ...d, categoryId: hit.category_id, subItemId: hit.id } : d
 }
 
 function notifyTransactionsChanged(detail?: TxChangedDetail) {
@@ -112,7 +129,7 @@ export function AddSheet() {
         if (!user) return null
         const household = await getUserHousehold(supabase, user.id)
         if (!household) return null
-        const [{ data: cats }, { data: recent }] = await Promise.all([
+        const [{ data: cats }, { data: recent }, { data: subs }] = await Promise.all([
           supabase.from('budget_categories').select('*').eq('household_id', household.id),
           supabase
             .from('transactions')
@@ -120,6 +137,11 @@ export function AddSheet() {
             .eq('household_id', household.id)
             .gte('date', localDaysAgo(90))
             .limit(1000),
+          supabase
+            .from('budget_sub_items')
+            .select('id, category_id, name')
+            .eq('household_id', household.id)
+            .order('created_at', { ascending: true }),
         ])
         const usage: Record<string, number> = {}
         for (const r of (recent ?? []) as { category_id: string | null }[]) {
@@ -130,6 +152,7 @@ export function AddSheet() {
           userId: user.id,
           categories: ((cats ?? []) as BudgetCategory[]).filter((c) => !c.archived_at),
           usage,
+          subItems: (subs ?? []) as SubItemOption[],
         }
         setCtx(loaded)
         return loaded
@@ -163,8 +186,9 @@ export function AddSheet() {
 
   // ── Interpretar texto o voz ─────────────────────
 
-  const applyExtraction = useCallback((transactions: ExtractedTransaction[], source: 'text' | 'voice', raw: string) => {
-    const drafts = transactions.map(draftFromExtracted)
+  const applyExtraction = useCallback(async (transactions: ExtractedTransaction[], source: 'text' | 'voice', raw: string) => {
+    const context = await ensureContext()
+    const drafts = transactions.map(draftFromExtracted).map((d) => withSuggestedPart(d, raw, context))
     const withAmount = drafts.filter((d) => Number(d.amount) > 0)
     setRawText(raw)
     if (withAmount.length > 0) {
@@ -177,7 +201,7 @@ export function AddSheet() {
     setParsed(null)
     toast('Falta el monto.')
     setTimeout(() => amountRef.current?.focus(), 50)
-  }, [toast])
+  }, [toast, ensureContext])
 
   const interpret = useCallback(async (text: string) => {
     const t = text.trim()
@@ -195,7 +219,7 @@ export function AddSheet() {
       } else if (!data.transactions?.length) {
         toast(data.clarification || 'No entendí un movimiento en ese texto.')
       } else {
-        applyExtraction(data.transactions, 'text', t)
+        await applyExtraction(data.transactions, 'text', t)
       }
     } catch {
       toast('Error de conexión. Intenta de nuevo.')
@@ -241,9 +265,16 @@ export function AddSheet() {
 
   // ── Guardar ─────────────────────────────────────
 
+  /** Si la categoría tiene partes, hay que elegir una. */
+  function needsPart(d: Draft): boolean {
+    return d.type === 'expense' && !!d.categoryId && !d.subItemId
+      && (ctx?.subItems ?? []).some((p) => p.category_id === d.categoryId)
+  }
+
   function validate(d: Draft): string | null {
     if (!(Number(d.amount) > 0)) return 'Falta el monto.'
     if (!d.categoryId) return d.type === 'income' ? 'Elige de dónde vino.' : 'Elige en qué fue.'
+    if (needsPart(d)) return 'Elige de qué parte.'
     return null
   }
 
@@ -269,6 +300,8 @@ export function AddSheet() {
         created_by: context.userId,
         original_amount: d.originalAmount,
         original_currency: d.originalCurrency,
+        // Solo se manda con parte: así funciona aunque falte la migración del Plan del mes.
+        ...(d.subItemId ? { budget_sub_item_id: d.subItemId } : {}),
       }
     })
     const { data, error } = await createClient().from('transactions').insert(rows).select('id, date')
@@ -305,7 +338,7 @@ export function AddSheet() {
     if (!d) return
     const cat = ctx?.categories.find((c) => c.id === d.categoryId)
     const fits = cat && (type === 'income') === (cat.bucket === 'income')
-    patchDraft(target, { type, categoryId: fits ? d.categoryId : null })
+    patchDraft(target, { type, categoryId: fits ? d.categoryId : null, subItemId: fits ? d.subItemId : null })
   }
 
   async function pasteFromClipboard() {
@@ -322,14 +355,21 @@ export function AddSheet() {
 
   const categories = ctx?.categories ?? []
   const catOf = (id: string | null) => categories.find((c) => c.id === id)
+  const partsOf = (catId: string | null) => (ctx?.subItems ?? []).filter((p) => p.category_id === catId)
   const today = localToday()
   const fmtAmount = (d: Draft) => formatMoney(Number(d.amount) || 0, { showDecimals: true })
 
   const manualPool = categories.filter((c) => (manual.type === 'income') === (c.bucket === 'income'))
+  // Las categorías con partes (p. ej. Vivienda) siempre están en la cuadrícula rápida.
+  const withParts = new Set((ctx?.subItems ?? []).map((p) => p.category_id))
   let quickCats = topCategories(manualPool, ctx?.usage ?? {}, 7)
+  for (const c of manualPool.filter((x) => withParts.has(x.id) && !quickCats.some((q) => q.id === x.id))) {
+    const drop = [...quickCats].reverse().find((q) => !withParts.has(q.id))
+    if (drop) quickCats = quickCats.map((q) => (q.id === drop.id ? c : q))
+  }
   const manualCat = catOf(manual.categoryId)
   if (manualCat && !quickCats.some((c) => c.id === manualCat.id)) quickCats = [manualCat, ...quickCats.slice(0, 6)]
-  const canSaveManual = Number(manual.amount) > 0 && !!manual.categoryId
+  const canSaveManual = Number(manual.amount) > 0 && !!manual.categoryId && !needsPart(manual)
 
   const chip = `h-9 px-3.5 rounded-full border text-[13.5px] font-semibold ${BORDER} ${TEXT_BODY} bg-[var(--zafi-card)]`
   const softChip = `h-[38px] px-3.5 rounded-full text-[13.5px] font-semibold ${TILE_BG} text-navy dark:text-ink-100`
@@ -352,8 +392,11 @@ export function AddSheet() {
             type={sub.type}
             subtitle={sub.name || (Number(sub.amount) > 0 ? fmtAmount(sub) : '')}
             initialCategoryId={sub.categoryId}
-            onSave={(categoryId, type) => {
-              patchDraft(subView.target, { categoryId, type })
+            subItems={ctx?.subItems}
+            initialSubItemId={sub.subItemId}
+            onMissingSubItem={() => toast('Elige de qué parte.')}
+            onSave={(categoryId, type, _applyAll, subItemId) => {
+              patchDraft(subView.target, { categoryId, type, subItemId })
               setSubView(null)
             }}
           />
@@ -419,12 +462,25 @@ export function AddSheet() {
                       {paymentLabel(d.pay)} ▾
                     </button>
                   </div>
+                  <SubItemPicker
+                    options={partsOf(d.categoryId)}
+                    selectedId={d.subItemId}
+                    onSelect={(id) => patchDraft(i, { subItemId: id })}
+                  />
                 </div>
               )
             })}
 
             <p className={`text-[13.5px] ${TEXT_MUTED}`}>Toca cualquier dato para corregirlo.</p>
-            <button type="button" disabled={saving} onClick={() => void save(parsed, parsedSource)} className={PRIMARY_BUTTON}>
+            <button
+              type="button"
+              disabled={saving}
+              aria-disabled={parsed.some(needsPart)}
+              onClick={() => void save(parsed, parsedSource)}
+              className={parsed.some(needsPart)
+                ? 'h-[54px] w-full rounded-[14px] font-semibold text-base bg-ink-100 text-ink-400 dark:bg-white/10'
+                : PRIMARY_BUTTON}
+            >
               {saving ? 'Guardando…' : parsed.length > 1 ? `Guardar ${parsed.length}` : 'Guardar'}
             </button>
             <button
@@ -539,7 +595,7 @@ export function AddSheet() {
                   name="add-category"
                   categories={quickCats}
                   selectedId={manual.categoryId ?? ''}
-                  onSelect={(id) => setManual((d) => ({ ...d, categoryId: id }))}
+                  onSelect={(id) => setManual((d) => ({ ...d, categoryId: id, subItemId: id === d.categoryId ? d.subItemId : null }))}
                   trailing={
                     <button
                       type="button"
@@ -559,6 +615,12 @@ export function AddSheet() {
                 </div>
               )}
             </div>
+
+            <SubItemPicker
+              options={partsOf(manual.categoryId)}
+              selectedId={manual.subItemId}
+              onSelect={(id) => setManual((d) => ({ ...d, subItemId: id }))}
+            />
 
             <div className="flex gap-2">
               <button type="button" onClick={() => setSubView({ view: 'date', target: 'manual' })} className={chip}>
@@ -620,7 +682,7 @@ export function AddSheet() {
             toast(result.clarification || 'No entendí un movimiento. Intenta de nuevo.')
             return
           }
-          applyExtraction(result.transactions, 'voice', result.raw_text)
+          void applyExtraction(result.transactions, 'voice', result.raw_text)
         }}
         onError={(err) => toast(err)}
       />

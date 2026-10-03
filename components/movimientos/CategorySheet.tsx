@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { BudgetCategory } from '@/types';
 import { CategoryGrid } from '@/components/transactions/CategoryGrid';
 import { BUCKET_GROUPS, categoryQuestion } from '@/lib/categories-ui';
+import { SubItemPicker, type SubItemOption } from './SubItemPicker';
 import { BORDER, PRIMARY_BUTTON, SHEET_TITLE, SOFT_BG, TEXT_BODY, TEXT_MUTED, TEXT_STRONG } from './ui';
 
 interface CategorySheetProps {
@@ -18,8 +19,13 @@ interface CategorySheetProps {
   merchantName?: string;
   saving?: boolean;
   error?: string | null;
-  /** Se llama con la categoría elegida, el tipo que implica y si aplica a los otros. */
-  onSave: (categoryId: string, type: 'expense' | 'income', applyToOthers: boolean) => void;
+  /** Partes del Plan del mes: si la categoría elegida tiene, hay que elegir una. */
+  subItems?: SubItemOption[];
+  initialSubItemId?: string | null;
+  /** Se intentó guardar sin elegir la parte. */
+  onMissingSubItem?: () => void;
+  /** Se llama con la categoría elegida, el tipo que implica, si aplica a los otros y la parte. */
+  onSave: (categoryId: string, type: 'expense' | 'income', applyToOthers: boolean, subItemId: string | null) => void;
 }
 
 /** Contenido de hoja: cuadrícula de categorías agrupadas por bucket. */
@@ -32,9 +38,13 @@ export function CategorySheet({
   merchantName,
   saving,
   error,
+  subItems = [],
+  initialSubItemId = null,
+  onMissingSubItem,
   onSave,
 }: CategorySheetProps) {
   const [draft, setDraft] = useState<string | null>(initialCategoryId);
+  const [subDraft, setSubDraft] = useState<string | null>(initialSubItemId);
   const [showType, setShowType] = useState<'expense' | 'income'>(type);
   const [applyAll, setApplyAll] = useState(true);
 
@@ -44,6 +54,20 @@ export function CategorySheet({
     .map((g) => ({ ...g, items: categories.filter((c) => c.bucket === g.bucket && !c.archived_at) }))
     .filter((g) => g.items.length > 0);
   const n = draft && othersCount ? othersCount(draft) : 0;
+  const parts = draft ? subItems.filter((p) => p.category_id === draft) : [];
+  const sub = parts.some((p) => p.id === subDraft) ? subDraft : null;
+  const missingSub = parts.length > 0 && !sub;
+
+  function pickCategory(id: string) {
+    setDraft(id);
+    if (id !== draft) setSubDraft(null);
+  }
+
+  function save() {
+    if (!draft) return;
+    if (missingSub) { onMissingSubItem?.(); return; }
+    onSave(draft, draftType, n > 0 && applyAll, sub);
+  }
 
   return (
     <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto">
@@ -58,9 +82,11 @@ export function CategorySheet({
             <h3 className={`font-bold text-sm ${TEXT_STRONG}`}>{g.title}</h3>
             <span className={`text-[12.5px] ${TEXT_MUTED}`}>{g.hint}</span>
           </div>
-          <CategoryGrid themed name="category-sheet" categories={g.items} selectedId={draft ?? ''} onSelect={setDraft} />
+          <CategoryGrid themed name="category-sheet" categories={g.items} selectedId={draft ?? ''} onSelect={pickCategory} />
         </section>
       ))}
+
+      <SubItemPicker variant="section" options={parts} selectedId={sub} onSelect={setSubDraft} />
 
       <button
         type="button"
@@ -98,8 +124,11 @@ export function CategorySheet({
       <button
         type="button"
         disabled={!draft || saving}
-        onClick={() => draft && onSave(draft, draftType, n > 0 && applyAll)}
-        className={PRIMARY_BUTTON}
+        aria-disabled={missingSub}
+        onClick={save}
+        className={missingSub
+          ? 'h-[54px] w-full rounded-[14px] font-semibold text-base bg-ink-100 text-ink-400 dark:bg-white/10'
+          : PRIMARY_BUTTON}
       >
         {saving ? 'Guardando…' : 'Guardar'}
       </button>
