@@ -56,7 +56,9 @@ export function CategorySheet({
         setName('')
         setIcon('')
         setColor(CATEGORY_COLORS[0])
-        setParentId(defaults[0]?.id || '')
+        // Default to a non-income group — custom categories are almost
+        // always expenses, and 'income' can sort first in `defaults`.
+        setParentId(defaults.find(d => d.bucket !== 'income')?.id || defaults[0]?.id || '')
         setPaceMode('linear')
         setExpectedDay(null)
         setBudget(0)

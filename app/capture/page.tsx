@@ -58,7 +58,10 @@ function CaptureContent() {
       const catList = (catResult.data || []) as typeof categories
       setCategories(catList)
       setHiddenIds(new Set((hiddenResult.data || []).map(h => h.category_id)))
-      if (catList.length > 0) setCategoryId(catList[0].id)
+      // Default to a non-income category — capture is for expense receipts,
+      // and 'income' now sorts first alphabetically.
+      const defaultCat = catList.find(c => c.bucket !== 'income') ?? catList[0]
+      if (defaultCat) setCategoryId(defaultCat.id)
 
       // Check for URL params (legacy OCR flow)
       const rawAmount = parseFloat(params.get('amount') || '0')

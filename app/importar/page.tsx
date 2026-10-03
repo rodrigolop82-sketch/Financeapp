@@ -174,7 +174,10 @@ export default function ImportarPage() {
       }
     }
 
-    return categories.length > 0 ? categories[0].id : ''
+    // Fall back to the first non-income category — statement imports are
+    // almost always expenses, and 'income' now sorts first alphabetically.
+    const fallback = categories.find(c => c.bucket !== 'income') ?? categories[0]
+    return fallback ? fallback.id : ''
   }
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {

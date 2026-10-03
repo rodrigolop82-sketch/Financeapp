@@ -166,7 +166,11 @@ function TransaccionesPageInner() {
 
       setTransactions(mapped);
       setCategories((cats || []) as BudgetCategory[]);
-      if (cats && cats.length > 0) setNewTx(prev => ({ ...prev, category_id: cats[0].id }));
+      // Default the new-transaction form to an expense category — 'income'
+      // now sorts first alphabetically (from .order('bucket')), which would
+      // otherwise default a new "Gasto" entry to an income category.
+      const defaultCat = (cats || []).find((c) => c.bucket !== 'income') ?? cats?.[0];
+      if (defaultCat) setNewTx(prev => ({ ...prev, category_id: defaultCat.id }));
       setLoading(false);
     }
     load();
