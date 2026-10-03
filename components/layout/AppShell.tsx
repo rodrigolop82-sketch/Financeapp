@@ -76,9 +76,11 @@ interface AppShellProps {
   titleRight?: React.ReactNode
   /** En las pestañas raíz, en móvil: reemplaza el bloque del título. */
   mobileHeader?: React.ReactNode
+  /** Fuera de las pestañas raíz, en móvil: la página pinta su propio encabezado. */
+  hideMobileBar?: boolean
 }
 
-export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight, titleRight, mobileHeader }: AppShellProps) {
+export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight, titleRight, mobileHeader, hideMobileBar = false }: AppShellProps) {
   const [isMaster, setIsMaster] = useState(false)
   const router = useRouter()
   const pathname = usePathname() ?? currentPath
@@ -120,7 +122,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
   return (
     <div className="min-h-screen" style={{ background: 'var(--zafi-bg)' }}>
       {/* Mobile header — solo fuera de las pestañas raíz */}
-      {!isRoot && (
+      {!isRoot && !hideMobileBar && (
         <header
           className="lg:hidden sticky top-0 z-30 backdrop-blur-md grid items-center px-2"
           style={{

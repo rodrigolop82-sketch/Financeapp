@@ -15,7 +15,8 @@ interface Props {
   spentByCategory: Record<string, number>
   expandedGroups: Set<string>
   onToggleGroup: (bucket: string) => void
-  onDistribute: () => void
+  /** Sin esta función no se muestra "Distribuir según 50/30/20". */
+  onDistribute?: () => void
   getCategoryTotal: (catId: string) => number
   fmt: (amount: number) => string
 }
@@ -247,7 +248,7 @@ export function BudgetHealthHero({
               ({Math.round(unassignedPct)}% de tu ingreso)
             </span>
           </div>
-          <button
+          {onDistribute && <button
             onClick={onDistribute}
             style={{
               background: '#2563EB', color: '#fff', border: 'none',
@@ -256,7 +257,7 @@ export function BudgetHealthHero({
             }}
           >
             Distribuir según 50/30/20
-          </button>
+          </button>}
         </div>
       ) : remaining === 0 && totalBudgeted > 0 ? (
         <div style={{

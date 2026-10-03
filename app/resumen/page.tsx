@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { formatMoney } from '@/lib/format'
 import { isEffectivelyPremium } from '@/lib/plans'
 import { AppShell } from '@/components/layout/AppShell'
+import { PlanVsRealSection } from '@/components/resumen/PlanVsRealSection'
 import { NavCard, NavRow } from '@/components/layout/NavRow'
 import { Loader2, ChevronRight, ChevronDown } from 'lucide-react'
 import {
@@ -1015,6 +1016,9 @@ function ResumenContent() {
           </div>
         </>
       )}
+
+      {/* Plan contra lo real (antes en /presupuesto) */}
+      {tab === 'mes' && <PlanVsRealSection initialMonth={selectedMonth.month} />}
 
       {/* === INSIGHTS === */}
       {tab === 'insights' && userPlan === 'free' && (

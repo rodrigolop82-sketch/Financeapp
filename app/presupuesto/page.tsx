@@ -1,71 +1,486 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, Suspense } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Loader2, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { getUserHousehold } from '@/lib/household';
 import { localMonth } from '@/lib/dates';
-import { Button } from '@/components/ui/button';
-import { BudgetCategory, BudgetSubItem } from '@/types';
-import type { IncomeEntry } from '@/types';
+import { monthRange } from '@/lib/movimientos';
+import { getEmoji } from '@/lib/categories-ui';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
-import { Save, Loader2, CheckCircle2 } from 'lucide-react';
+import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete';
+import {
+  allocateReceived, categoryPlan, expenseStatus, incomeAmountFromMonthly, incomeMonthly, incomeStatus,
+  inferIncomeCategory, monthName, planSummary, previousMonth, subAmountFromMonthly, subMonthly,
+  type RowStatus,
+} from '@/lib/plan-del-mes';
 import { AppShell } from '@/components/layout/AppShell';
-import { NavCard, NavRow } from '@/components/layout/NavRow';
-import { VoiceButton } from '@/components/voice/VoiceButton';
-import { TransactionPreview } from '@/components/voice/TransactionPreview';
-import type { VoiceExtractionResult } from '@/types';
-import { IncomeSection } from '@/components/presupuesto/IncomeSection';
-import { BudgetHealthHero } from '@/components/presupuesto/BudgetHealthHero';
-import { BudgetDefinition } from '@/components/presupuesto/BudgetDefinition';
-import { BudgetComparativo } from '@/components/presupuesto/BudgetComparativo';
-
-const FREQUENCY_MULTIPLIER: Record<string, number> = {
-  mensual: 1,
-  quincenal: 2,
-  semanal: 4.33,
-  anual: 1 / 12,
-};
+import { BottomSheet } from '@/components/transactions/BottomSheet';
+import { UndoToast } from '@/components/transactions/UndoToast';
+import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast';
+import { TEXT_MUTED } from '@/components/movimientos/ui';
+import { PlanSummaryCard } from '@/components/presupuesto/PlanSummaryCard';
+import { PlanGroups, type PlanGroupVM, type PlanRowVM } from '@/components/presupuesto/PlanGroups';
+import { EditPlanSheet, type EditPlanTarget, type PlanDraft } from '@/components/presupuesto/EditPlanSheet';
+import type { BudgetCategory, BudgetSubItem, IncomeEntry } from '@/types';
 
 export default function PresupuestoPage() {
   return (
     <Suspense>
-      <PresupuestoContent />
+      <PlanDelMes />
     </Suspense>
   );
 }
 
-function PresupuestoContent() {
-  const [categories, setCategories] = useState<BudgetCategory[]>([]);
-  const [subItems, setSubItems] = useState<BudgetSubItem[]>([]);
-  const [income, setIncome] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [householdId, setHouseholdId] = useState('');
-  const [userId, setUserId] = useState('');
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
-  const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [incomeError, setIncomeError] = useState<string | null>(null);
-  const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
-  const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({});
-  const [comparativoMonth, setComparativoMonth] = useState<string>(() => localMonth());
-  const [loadingComparativo, setLoadingComparativo] = useState(false);
+interface MonthTx {
+  category_id: string | null;
+  budget_sub_item_id?: string | null;
+  amount: number | string;
+  type: 'expense' | 'income';
+  date: string;
+}
 
-  const [definitionLevel, setDefinitionLevel] = useState<0 | 1 | 2>(0);
-  const [comparativoLevel, setComparativoLevel] = useState<0 | 1 | 2>(0);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+/** Lo que se está editando en la hoja. `id: null` es uno nuevo. */
+type ItemRef =
+  | { kind: 'category' | 'goal'; id: string }
+  | { kind: 'part'; id: string | null; categoryId: string }
+  | { kind: 'income'; id: string | null };
 
+interface Undo {
+  title: string;
+  run: () => PromiseLike<unknown>;
+}
+
+const EXPENSE_GROUPS = [
+  { bucket: 'needs', title: 'Lo básico', hint: 'no puedes dejar de pagarlo' },
+  { bucket: 'wants', title: 'Gustos', hint: 'podrías recortarlo' },
+  { bucket: 'savings', title: 'Para tus metas', hint: 'lo apartas cada mes' },
+] as const;
+
+const FLASH_MS = 1600;
+
+function norm(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+/** Totales por clave de una lista de movimientos. */
+function sumBy(rows: MonthTx[], type: MonthTx['type'], key: (t: MonthTx) => string | null | undefined) {
+  const out: Record<string, number> = {};
+  for (const t of rows) {
+    if (t.type !== type) continue;
+    const k = key(t);
+    if (k) out[k] = (out[k] ?? 0) + Number(t.amount);
+  }
+  return out;
+}
+
+function PlanDelMes() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const fmt = useFormatMoney();
 
-  // Present only when the user arrived here from "Cierre de mes" to review
-  // and confirm income for that specific month (see income_month_confirmations).
+  const fromHome = searchParams.get('from') === 'home';
+  // Presente cuando se llega desde "Cerrar el mes" para confirmar los ingresos de ese mes.
   const confirmMonth = searchParams.get('confirmMonth');
+  const month = localMonth();
+  const prevMonth = previousMonth(month);
+
+  const [loading, setLoading] = useState(true);
+  const [householdId, setHouseholdId] = useState('');
+  const [categories, setCategories] = useState<BudgetCategory[]>([]);
+  const [subItems, setSubItems] = useState<BudgetSubItem[]>([]);
+  const [incomes, setIncomes] = useState<IncomeEntry[]>([]);
+  const [txs, setTxs] = useState<MonthTx[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [sheet, setSheet] = useState<{ ref: ItemRef; target: EditPlanTarget; key: number } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [undo, setUndo] = useState<Undo | null>(null);
+  const [message, setMessage] = useState<StatusMessage | null>(null);
+  const [flashKey, setFlashKey] = useState<string | null>(null);
   const [confirmingIncome, setConfirmingIncome] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const load = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { router.push('/login'); return; }
+    const hh = await getUserHousehold(supabase, user.id);
+    if (!hh) { router.push('/onboarding'); return; }
+    const hid = hh.id as string;
+    const from = monthRange(prevMonth).from;
+    const to = monthRange(month).to;
+    const [{ data: cats }, { data: subs }, { data: entries }, txRes] = await Promise.all([
+      supabase.from('budget_categories').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
+      supabase.from('budget_sub_items').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
+      supabase.from('income_entries').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
+      supabase
+        .from('transactions')
+        .select('category_id, budget_sub_item_id, amount, type, date')
+        .eq('household_id', hid)
+        .gte('date', from)
+        .lte('date', to),
+    ]);
+    let monthTx = txRes.data as MonthTx[] | null;
+    // Sin la migración del Plan del mes no existe budget_sub_item_id: se carga sin partes.
+    if (txRes.error) {
+      const { data } = await supabase
+        .from('transactions')
+        .select('category_id, amount, type, date')
+        .eq('household_id', hid)
+        .gte('date', from)
+        .lte('date', to);
+      monthTx = data as MonthTx[] | null;
+    }
+    setHouseholdId(hid);
+    setCategories(((cats ?? []) as BudgetCategory[]).filter((c) => !c.archived_at));
+    setSubItems((subs ?? []) as BudgetSubItem[]);
+    setIncomes((entries ?? []) as IncomeEntry[]);
+    setTxs(monthTx ?? []);
+    setLoading(false);
+  }, [supabase, router, month, prevMonth]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // ── Datos derivados ─────────────────────────────
+
+  const planCats = useMemo(() => categories.filter((c) => c.bucket !== 'income'), [categories]);
+  const incomeCats = useMemo(() => categories.filter((c) => c.bucket === 'income'), [categories]);
+  const summary = planSummary(planCats, subItems, incomes);
+  const monthName0 = monthName(month);
+  const prevName = monthName(prevMonth);
+
+  const derived = useMemo(() => {
+    const inMonth = (m: string) => txs.filter((t) => t.date.startsWith(m));
+    const cur = inMonth(month);
+    const prev = inMonth(prevMonth);
+    const incomeCat = (e: IncomeEntry) =>
+      e.category_id ?? inferIncomeCategory(e.source, e.is_fixed ?? true, incomeCats)?.id ?? null;
+    const incomeRows = incomes.map((e) => ({ ...e, categoryId: incomeCat(e) }));
+    return {
+      spentCat: sumBy(cur, 'expense', (t) => t.category_id),
+      spentSub: sumBy(cur, 'expense', (t) => t.budget_sub_item_id),
+      prevCat: sumBy(prev, 'expense', (t) => t.category_id),
+      prevSub: sumBy(prev, 'expense', (t) => t.budget_sub_item_id),
+      received: allocateReceived(incomeRows, sumBy(cur, 'income', (t) => t.category_id)),
+      prevReceived: allocateReceived(incomeRows, sumBy(prev, 'income', (t) => t.category_id)),
+      incomeCatOf: Object.fromEntries(incomeRows.map((e) => [e.id, e.categoryId])) as Record<string, string | null>,
+    };
+  }, [txs, incomes, incomeCats, month, prevMonth]);
+
+  const subsOf = (catId: string) => subItems.filter((s) => s.category_id === catId);
+
+  function flash(key: string) {
+    setFlashKey(key);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlashKey(null), FLASH_MS);
+  }
+
+  function lastOf(map: Record<string, number>, key: string) {
+    return key in map ? { label: prevName, amount: Math.round(map[key]) } : null;
+  }
+
+  // ── Abrir la hoja ───────────────────────────────
+
+  function openSheet(ref: ItemRef) {
+    let target: EditPlanTarget;
+    if (ref.kind === 'income') {
+      const e = ref.id ? incomes.find((x) => x.id === ref.id) : undefined;
+      const cat = e ? categories.find((c) => c.id === derived.incomeCatOf[e.id]) : undefined;
+      const rec = e ? derived.received[e.id] ?? 0 : 0;
+      target = {
+        kind: 'income', isNew: !e, emoji: cat ? getEmoji(cat) : '💰',
+        title: e ? 'Ingreso' : 'Nuevo ingreso',
+        subtitle: rec ? `Te ha entrado ${fmt(rec)} este mes` : 'Nada recibido este mes',
+        initial: e
+          ? { name: e.source, amount: incomeMonthly(e), fixed: e.is_fixed ?? true, day: e.expected_day ?? null }
+          : { name: '', amount: 0, fixed: true, day: null },
+        spent: 0,
+        last: e && derived.prevReceived[e.id] ? { label: prevName, amount: Math.round(derived.prevReceived[e.id]) } : null,
+        canSplit: false,
+        canRemove: !!e,
+      };
+    } else if (ref.kind === 'part') {
+      const cat = categories.find((c) => c.id === ref.categoryId)!;
+      const s = ref.id ? subItems.find((x) => x.id === ref.id) : undefined;
+      const spent = s ? derived.spentSub[s.id] ?? 0 : 0;
+      target = {
+        kind: 'part', isNew: !s, emoji: getEmoji(cat), title: cat.name,
+        subtitle: `${s ? 'Una parte' : 'Nueva parte'}${spent ? ` · llevas ${fmt(spent)}` : ''}`,
+        initial: s
+          ? { name: s.name, amount: subMonthly(s), fixed: s.is_fixed, day: s.expected_day ?? null }
+          : { name: '', amount: 0, fixed: false, day: null },
+        spent,
+        last: s ? lastOf(derived.prevSub, s.id) : null,
+        canSplit: false,
+        canRemove: !!s,
+      };
+    } else {
+      const cat = categories.find((c) => c.id === ref.id)!;
+      const isGoal = ref.kind === 'goal';
+      const spent = derived.spentCat[cat.id] ?? 0;
+      target = {
+        kind: ref.kind, isNew: false, emoji: getEmoji(cat), title: cat.name,
+        subtitle: isGoal ? 'Para tu meta' : spent ? `Llevas ${fmt(spent)} este mes` : 'Nada gastado este mes',
+        initial: {
+          name: cat.name, amount: Number(cat.budgeted_amount) || 0,
+          fixed: cat.pace_mode === 'fixed', day: cat.expected_day ?? null,
+        },
+        spent,
+        last: lastOf(derived.prevCat, cat.id),
+        canSplit: !isGoal,
+        canRemove: false,
+      };
+    }
+    setSheet({ ref, target, key: Date.now() });
+  }
+
+  const closeSheet = useCallback(() => setSheet(null), []);
+  const dismissUndo = useCallback(() => setUndo(null), []);
+
+  // ── Guardado inmediato con "Deshacer" ──────────
+
+  async function syncIncomeTotal(entries: IncomeEntry[]) {
+    const total = Math.round(entries.reduce((a, e) => a + incomeMonthly(e), 0) * 100) / 100;
+    await supabase.from('financial_profiles').update({ total_income: total }).eq('household_id', householdId);
+  }
+
+  /** Recalcula `budgeted_amount` de la categoría con sus partes (Inicio lo usa). */
+  async function syncCategoryAmount(catId: string, subs: BudgetSubItem[]) {
+    const cat = categories.find((c) => c.id === catId);
+    if (!cat) return;
+    const amount = Math.round(categoryPlan(cat, subs) * 100) / 100;
+    await supabase.from('budget_categories').update({ budgeted_amount: amount }).eq('id', catId);
+  }
+
+  async function finish(title: string, run: Undo['run'] | null, flashOn?: string) {
+    await load();
+    setSheet(null);
+    if (flashOn) flash(flashOn);
+    if (run) setUndo({ title, run });
+    else setMessage({ text: title, tone: 'ok' });
+  }
+
+  function fail() {
+    setMessage({ text: 'No se pudo guardar el cambio. Intenta de nuevo.', tone: 'error' });
+  }
+
+  async function guarded(fn: () => Promise<void>) {
+    if (saving) return;
+    setUndo(null);
+    setSaving(true);
+    try { await fn(); } catch { fail(); }
+    setSaving(false);
+  }
+
+  async function saveCategory(catId: string, isGoal: boolean, d: PlanDraft) {
+    const cat = categories.find((c) => c.id === catId);
+    if (!cat) return;
+    const prev = { budgeted_amount: cat.budgeted_amount, pace_mode: cat.pace_mode, expected_day: cat.expected_day };
+    const patch = isGoal
+      ? { budgeted_amount: d.amount }
+      : { budgeted_amount: d.amount, pace_mode: d.fixed ? 'fixed' : 'linear', expected_day: d.fixed ? d.day : null };
+    const { error } = await supabase.from('budget_categories').update(patch).eq('id', catId);
+    if (error) { fail(); return; }
+    await finish(`${cat.name}: ahora planeas ${fmt(d.amount)}`, () =>
+      supabase.from('budget_categories').update(prev).eq('id', catId), catId);
+  }
+
+  async function savePart(categoryId: string, partId: string | null, d: PlanDraft) {
+    const name = d.name.trim() || 'Otra parte';
+    const fields = { name, is_fixed: d.fixed, expected_day: d.fixed ? d.day : null };
+    const cat = categories.find((c) => c.id === categoryId);
+    const prevCatAmount = cat?.budgeted_amount ?? 0;
+    const restoreCat = () => supabase.from('budget_categories').update({ budgeted_amount: prevCatAmount }).eq('id', categoryId);
+
+    if (!partId) {
+      const { data, error } = await supabase
+        .from('budget_sub_items')
+        .insert({ ...fields, category_id: categoryId, household_id: householdId, amount: d.amount })
+        .select()
+        .single();
+      if (error || !data) { fail(); return; }
+      await syncCategoryAmount(categoryId, [...subItems, data as BudgetSubItem]);
+      setExpanded((s) => new Set(s).add(categoryId));
+      await finish(`${name}: ahora planeas ${fmt(d.amount)}`, async () => {
+        await supabase.from('budget_sub_items').delete().eq('id', (data as BudgetSubItem).id);
+        await restoreCat();
+      }, (data as BudgetSubItem).id);
+      return;
+    }
+
+    const s = subItems.find((x) => x.id === partId);
+    if (!s) return;
+    const prev = { name: s.name, amount: s.amount, is_fixed: s.is_fixed, expected_day: s.expected_day ?? null };
+    const updated = { ...fields, amount: subAmountFromMonthly(d.amount, s.recurrence) };
+    const { error } = await supabase.from('budget_sub_items').update(updated).eq('id', partId);
+    if (error) { fail(); return; }
+    await syncCategoryAmount(categoryId, subItems.map((x) => (x.id === partId ? { ...x, ...updated } : x)));
+    await finish(`${name}: ahora planeas ${fmt(d.amount)}`, async () => {
+      await supabase.from('budget_sub_items').update(prev).eq('id', partId);
+      await restoreCat();
+    }, partId);
+  }
+
+  async function saveIncome(id: string | null, d: PlanDraft) {
+    if (!(d.amount > 0)) { setMessage({ text: 'Falta el monto.', tone: 'error' }); return; }
+    const name = d.name.trim() || 'Otro ingreso';
+    const existing = id ? incomes.find((e) => e.id === id) : undefined;
+    const categoryId = existing?.category_id ?? inferIncomeCategory(name, d.fixed, incomeCats)?.id ?? null;
+    const fields = { source: name, is_fixed: d.fixed, expected_day: d.fixed ? d.day : null, category_id: categoryId };
+    const title = `${name}: esperas ${fmt(d.amount)} al mes`;
+
+    if (!existing) {
+      const { data, error } = await supabase
+        .from('income_entries')
+        .insert({ ...fields, household_id: householdId, member: 'Persona 1', amount: d.amount, frequency: 'mensual' })
+        .select()
+        .single();
+      if (error || !data) { fail(); return; }
+      const next = [...incomes, data as IncomeEntry];
+      await syncIncomeTotal(next);
+      await finish(title, async () => {
+        await supabase.from('income_entries').delete().eq('id', (data as IncomeEntry).id);
+        await syncIncomeTotal(incomes);
+      }, (data as IncomeEntry).id);
+      return;
+    }
+
+    const prev = {
+      source: existing.source, amount: existing.amount, is_fixed: existing.is_fixed ?? true,
+      expected_day: existing.expected_day ?? null, category_id: existing.category_id ?? null,
+    };
+    const updated = { ...fields, amount: incomeAmountFromMonthly(d.amount, existing.frequency) };
+    const { error } = await supabase.from('income_entries').update(updated).eq('id', existing.id);
+    if (error) { fail(); return; }
+    await syncIncomeTotal(incomes.map((e) => (e.id === existing.id ? { ...e, ...updated } : e)));
+    await finish(title, async () => {
+      await supabase.from('income_entries').update(prev).eq('id', existing.id);
+      await syncIncomeTotal(incomes);
+    }, existing.id);
+  }
+
+  async function splitCategory(catId: string, d: PlanDraft) {
+    const cat = categories.find((c) => c.id === catId);
+    if (!cat) return;
+    const { data, error } = await supabase
+      .from('budget_sub_items')
+      .insert({
+        category_id: catId, household_id: householdId, name: `${cat.name} en general`,
+        amount: d.amount, is_fixed: d.fixed, expected_day: d.fixed ? d.day : null,
+      })
+      .select()
+      .single();
+    if (error || !data) { fail(); return; }
+    // El gasto del mes de la categoría pasa a la parte nueva.
+    const { from, to } = monthRange(month);
+    await supabase
+      .from('transactions')
+      .update({ budget_sub_item_id: (data as BudgetSubItem).id })
+      .eq('household_id', householdId)
+      .eq('category_id', catId)
+      .is('budget_sub_item_id', null)
+      .gte('date', from)
+      .lte('date', to);
+    await supabase.from('budget_categories').update({ budgeted_amount: d.amount }).eq('id', catId);
+    setExpanded((s) => new Set(s).add(catId));
+    await load();
+    flash((data as BudgetSubItem).id);
+    // Abre la hoja de una parte nueva.
+    setSheet({
+      ref: { kind: 'part', id: null, categoryId: catId },
+      key: Date.now(),
+      target: {
+        kind: 'part', isNew: true, emoji: getEmoji(cat), title: cat.name, subtitle: 'Nueva parte',
+        initial: { name: '', amount: 0, fixed: false, day: null }, spent: 0, last: null,
+        canSplit: false, canRemove: false,
+      },
+    });
+  }
+
+  async function removePart(partId: string) {
+    const s = subItems.find((x) => x.id === partId);
+    if (!s) return;
+    const catId = s.category_id;
+    const cat = categories.find((c) => c.id === catId);
+    const prevCatAmount = cat?.budgeted_amount ?? 0;
+    const { data: linked } = await supabase.from('transactions').select('id').eq('budget_sub_item_id', partId);
+    const linkedIds = ((linked ?? []) as { id: string }[]).map((t) => t.id);
+    // ON DELETE SET NULL deja sus movimientos sin parte.
+    const { error } = await supabase.from('budget_sub_items').delete().eq('id', partId);
+    if (error) { fail(); return; }
+    const rest = subItems.filter((x) => x.id !== partId && x.category_id === catId);
+    // Si era la última parte, su monto vuelve a la categoría.
+    const catAmount = rest.length > 0 ? rest.reduce((a, x) => a + subMonthly(x), 0) : subMonthly(s);
+    await supabase.from('budget_categories').update({ budgeted_amount: Math.round(catAmount * 100) / 100 }).eq('id', catId);
+    await finish('Quitaste esa parte', async () => {
+      const row: Record<string, unknown> = {
+        id: s.id, category_id: s.category_id, household_id: s.household_id, name: s.name,
+        amount: s.amount, is_fixed: s.is_fixed, expected_day: s.expected_day ?? null,
+      };
+      if (s.recurrence) row.recurrence = s.recurrence;
+      if (s.payment_method) row.payment_method = s.payment_method;
+      await supabase.from('budget_sub_items').insert(row);
+      if (linkedIds.length) await supabase.from('transactions').update({ budget_sub_item_id: s.id }).in('id', linkedIds);
+      await supabase.from('budget_categories').update({ budgeted_amount: prevCatAmount }).eq('id', catId);
+    });
+  }
+
+  async function removeIncome(id: string) {
+    const e = incomes.find((x) => x.id === id);
+    if (!e) return;
+    const { error } = await supabase.from('income_entries').delete().eq('id', id);
+    if (error) { fail(); return; }
+    await syncIncomeTotal(incomes.filter((x) => x.id !== id));
+    await finish(`Quitaste ${e.source || 'ese ingreso'}`, async () => {
+      const row: Record<string, unknown> = {
+        id: e.id, household_id: householdId, source: e.source, member: e.member, amount: e.amount,
+        frequency: e.frequency, is_fixed: e.is_fixed ?? true, expected_day: e.expected_day ?? null,
+        category_id: e.category_id ?? null,
+      };
+      await supabase.from('income_entries').insert(row);
+      await syncIncomeTotal(incomes);
+    });
+  }
+
+  // "Mandar Q x al Colchón": suma lo sin asignar al Fondo de emergencia.
+  const cushion = planCats.find((c) => c.bucket === 'savings' && norm(c.name) === 'fondo de emergencia')
+    ?? planCats.find((c) => c.bucket === 'savings' && /emergencia|colchon/.test(norm(c.name)));
+
+  async function sendToCushion() {
+    if (!cushion) return;
+    const un = summary.unassigned;
+    const parts = subsOf(cushion.id);
+    if (parts.length > 0) {
+      const first = parts[0];
+      const prevAmount = first.amount;
+      const { error } = await supabase.from('budget_sub_items')
+        .update({ amount: subAmountFromMonthly(subMonthly(first) + un, first.recurrence) }).eq('id', first.id);
+      if (error) { fail(); return; }
+      await syncCategoryAmount(cushion.id, subItems.map((x) => (x.id === first.id
+        ? { ...x, amount: subAmountFromMonthly(subMonthly(first) + un, first.recurrence) } : x)));
+      await finish(`Mandaste ${fmt(un)} al Colchón`, async () => {
+        await supabase.from('budget_sub_items').update({ amount: prevAmount }).eq('id', first.id);
+        await syncCategoryAmount(cushion.id, subItems);
+      }, cushion.id);
+      return;
+    }
+    const prev = Number(cushion.budgeted_amount) || 0;
+    const next = Math.round((prev + un) * 100) / 100;
+    const { error } = await supabase.from('budget_categories').update({ budgeted_amount: next }).eq('id', cushion.id);
+    if (error) { fail(); return; }
+    await finish(`Mandaste ${fmt(un)} al Colchón`, () =>
+      supabase.from('budget_categories').update({ budgeted_amount: prev }).eq('id', cushion.id), cushion.id);
+  }
+
+  async function runUndo() {
+    const u = undo;
+    setUndo(null);
+    if (!u) return;
+    try { await u.run(); } catch { fail(); }
+    await load();
+  }
 
   async function confirmIncomeForMonth() {
     if (!confirmMonth || !householdId) return;
@@ -78,509 +493,199 @@ function PresupuestoContent() {
     router.push(`/cierre-mes?month=${confirmMonth}`);
   }
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push('/login'); return; }
+  // ── Vista ───────────────────────────────────────
 
-      const hh = await getUserHousehold(supabase, user.id);
-      if (!hh) { router.push('/onboarding'); return; }
-      setHouseholdId(hh.id);
-      setUserId(user.id);
+  const goalStatus: RowStatus = { text: 'Se aparta cuando te pagan', tone: 'muted', pct: 0, bar: 'normal' };
 
-      const [{ data: cats }, { data: fp }, { data: subs }, { data: entries }] = await Promise.all([
-        supabase.from('budget_categories').select('*').eq('household_id', hh.id),
-        supabase.from('financial_profiles').select('total_income').eq('household_id', hh.id).limit(1).single(),
-        supabase.from('budget_sub_items').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
-        supabase.from('income_entries').select('*').eq('household_id', hh.id).order('created_at', { ascending: true }),
-      ]);
-
-      setCategories((cats || []) as BudgetCategory[]);
-      setSubItems((subs || []) as BudgetSubItem[]);
-
-      const loadedEntries = (entries || []) as IncomeEntry[];
-      setIncomeEntries(loadedEntries);
-      if (loadedEntries.length > 0) {
-        const total = loadedEntries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
-        setIncome(Math.round(total * 100) / 100);
-      } else {
-        setIncome(fp ? Number(fp.total_income) : 0);
-      }
-      setLoading(false);
-    }
-    load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!householdId) return;
-    async function loadComparativo() {
-      setLoadingComparativo(true);
-      const [y, m] = comparativoMonth.split('-').map(Number);
-      const from = `${comparativoMonth}-01`;
-      const to = `${comparativoMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
-      const { data: txs } = await supabase
-        .from('transactions')
-        .select('category_id, amount')
-        .eq('household_id', householdId)
-        .eq('type', 'expense')
-        .gte('date', from)
-        .lte('date', to);
-      const spent: Record<string, number> = {};
-      (txs || []).forEach((tx: { category_id: string; amount: number }) => {
-        spent[tx.category_id] = (spent[tx.category_id] || 0) + Number(tx.amount);
-      });
-      setSpentByCategory(spent);
-      setLoadingComparativo(false);
-    }
-    loadComparativo();
-  }, [householdId, comparativoMonth]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function recalcAndSyncIncome(entries: IncomeEntry[]) {
-    const total = entries.reduce((s, e) => s + Number(e.amount) * (FREQUENCY_MULTIPLIER[e.frequency] || 1), 0);
-    const rounded = Math.round(total * 100) / 100;
-    setIncome(rounded);
-    if (householdId) {
-      const { error } = await supabase.from('financial_profiles').update({ total_income: rounded }).eq('household_id', householdId);
-      if (error) setIncomeError(`No se pudo actualizar el ingreso total: ${error.message}`);
-    }
-  }
-
-  async function addIncomeEntry(source?: string) {
-    if (!householdId) return;
-    setIncomeError(null);
-    const { data, error } = await supabase
-      .from('income_entries')
-      .insert({ household_id: householdId, source: source || '', member: 'Persona 1', amount: 0, frequency: 'mensual' })
-      .select()
-      .single();
-    if (error) {
-      setIncomeError(`No se pudo agregar el ingreso: ${error.message}`);
-      return;
-    }
-    if (data) {
-      const updated = [...incomeEntries, data as IncomeEntry];
-      setIncomeEntries(updated);
-      await recalcAndSyncIncome(updated);
-    }
-  }
-
-  async function updateIncomeEntry(id: string, field: string, value: string | number) {
-    setIncomeError(null);
-    const updated = incomeEntries.map(e => e.id === id ? { ...e, [field]: value } : e);
-    setIncomeEntries(updated);
-    await recalcAndSyncIncome(updated);
-    const { error } = await supabase.from('income_entries').update({ [field]: value }).eq('id', id);
-    if (error) {
-      setIncomeError(`No se pudo guardar el cambio: ${error.message}`);
-      setIncomeEntries(incomeEntries);
-      await recalcAndSyncIncome(incomeEntries);
-    }
-  }
-
-  async function deleteIncomeEntry(id: string) {
-    setIncomeError(null);
-    const { error } = await supabase.from('income_entries').delete().eq('id', id);
-    if (error) {
-      setIncomeError(`No se pudo eliminar el ingreso: ${error.message}`);
-      return;
-    }
-    const updated = incomeEntries.filter(e => e.id !== id);
-    setIncomeEntries(updated);
-    await recalcAndSyncIncome(updated);
-  }
-
-  function monthlyAmount(amount: number, freq: string): number {
-    if (freq === 'trimestral') return amount / 3;
-    if (freq === 'anual') return amount / 12;
-    return amount;
-  }
-
-  const getCategoryTotal = useCallback((catId: string): number => {
-    const catSubs = subItems.filter(s => s.category_id === catId);
-    if (catSubs.length > 0) {
-      return catSubs.reduce((s, sub) => s + monthlyAmount(Number(sub.amount), sub.recurrence || 'mensual'), 0);
-    }
-    const cat = categories.find(c => c.id === catId);
-    return cat ? Number(cat.budgeted_amount) : 0;
-  }, [subItems, categories]);
-
-  const bucketTotals = {
-    needs: categories.filter(c => c.bucket === 'needs').reduce((s, c) => s + getCategoryTotal(c.id), 0),
-    wants: categories.filter(c => c.bucket === 'wants').reduce((s, c) => s + getCategoryTotal(c.id), 0),
-    savings: categories.filter(c => c.bucket === 'savings').reduce((s, c) => s + getCategoryTotal(c.id), 0),
+  const incomeGroup: PlanGroupVM = {
+    key: 'income',
+    title: 'Ingresos',
+    hint: 'lo que te entra',
+    total: fmt(summary.income),
+    onAdd: () => openSheet({ kind: 'income', id: null }),
+    addLabel: '+ Agregar ingreso',
+    rows: incomes.map((e) => {
+      const cat = categories.find((c) => c.id === derived.incomeCatOf[e.id]);
+      const monthly = incomeMonthly(e);
+      const fixed = e.is_fixed ?? true;
+      return {
+        key: e.id,
+        emoji: cat ? getEmoji(cat) : '💰',
+        name: e.source || 'Ingreso',
+        fixed,
+        amount: fmt(monthly),
+        status: incomeStatus(monthly, derived.received[e.id] ?? 0, fixed, e.expected_day ?? null, fmt),
+        hasBar: true,
+        onClick: () => openSheet({ kind: 'income', id: e.id }),
+        flash: flashKey === e.id,
+      };
+    }),
   };
-  const totalBudgeted = bucketTotals.needs + bucketTotals.wants + bucketTotals.savings;
-  const remaining = income - totalBudgeted;
 
-  function toggleCat(id: string) {
-    setExpandedCats(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
-
-  function toggleGroup(bucket: string) {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(bucket)) next.delete(bucket); else next.add(bucket);
-      return next;
-    });
-  }
-
-  function updateAmount(id: string, amount: number) {
-    setCategories(cats => cats.map(c => c.id === id ? { ...c, budgeted_amount: amount } : c));
-    setSaved(false);
-  }
-
-  function updateSubAmount(id: string, amount: number) {
-    setSubItems(items => items.map(s => s.id === id ? { ...s, amount } : s));
-    setSaved(false);
-  }
-
-  async function saveAll() {
-    setSaving(true);
-    const promises = categories.map(cat =>
-      supabase.from('budget_categories')
-        .update({
-          budgeted_amount: getCategoryTotal(cat.id),
-          pace_mode: cat.pace_mode || 'linear',
-          expected_day: cat.pace_mode === 'fixed' ? cat.expected_day : null,
-        })
-        .eq('id', cat.id)
-    );
-    for (const sub of subItems) {
-      const updateData: Record<string, unknown> = { amount: sub.amount };
-      if (sub.recurrence && sub.recurrence !== 'mensual') {
-        updateData.recurrence = sub.recurrence;
+  const expenseGroups: PlanGroupVM[] = EXPENSE_GROUPS.map((g) => {
+    const isGoal = g.bucket === 'savings';
+    const cats = planCats.filter((c) => c.bucket === g.bucket);
+    const rows: PlanRowVM[] = cats.map((c) => {
+      const parts = subsOf(c.id);
+      const plan = categoryPlan(c, subItems);
+      const spent = derived.spentCat[c.id] ?? 0;
+      if (parts.length === 0) {
+        const fixed = !isGoal && c.pace_mode === 'fixed';
+        return {
+          key: c.id, emoji: getEmoji(c), name: c.name, fixed, amount: fmt(plan),
+          status: isGoal ? goalStatus : expenseStatus(plan, spent, fixed, fmt),
+          hasBar: !isGoal,
+          onClick: () => openSheet({ kind: isGoal ? 'goal' : 'category', id: c.id }),
+          flash: flashKey === c.id,
+        };
       }
-      promises.push(
-        supabase.from('budget_sub_items')
-          .update(updateData)
-          .eq('id', sub.id)
-      );
-    }
-    await Promise.all(promises);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-  }
-
-  async function deleteCategory(id: string) {
-    await supabase.from('budget_categories').delete().eq('id', id);
-    setCategories(cats => cats.filter(c => c.id !== id));
-    setSubItems(items => items.filter(s => s.category_id !== id));
-  }
-
-  async function addSubItem(categoryId: string, name: string, amount: number, isFixed: boolean, payment: BudgetSubItem['payment_method'], recurrence: BudgetSubItem['recurrence']) {
-    const baseData = {
-      category_id: categoryId,
-      household_id: householdId,
-      name,
-      amount,
-      is_fixed: isFixed,
+      const st = isGoal ? goalStatus : expenseStatus(plan, spent, false, fmt);
+      const open = expanded.has(c.id);
+      return {
+        key: c.id, emoji: getEmoji(c), name: c.name,
+        fixed: !isGoal && parts.every((p) => p.is_fixed),
+        amount: fmt(plan),
+        status: { ...st, text: `${parts.length} partes · ${st.text}` },
+        hasBar: !isGoal,
+        open,
+        onClick: () => setExpanded((s) => {
+          const next = new Set(s);
+          if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
+          return next;
+        }),
+        onAddPart: () => openSheet({ kind: 'part', id: null, categoryId: c.id }),
+        flash: flashKey === c.id,
+        parts: parts.map((p) => {
+          const pp = subMonthly(p);
+          return {
+            key: p.id, name: p.name, fixed: !isGoal && p.is_fixed, amount: fmt(pp),
+            status: isGoal ? goalStatus : expenseStatus(pp, derived.spentSub[p.id] ?? 0, p.is_fixed, fmt),
+            onClick: () => openSheet({ kind: 'part', id: p.id, categoryId: c.id }),
+          };
+        }),
+      };
+    });
+    return {
+      key: g.bucket, title: g.title, hint: g.hint,
+      total: fmt(g.bucket === 'needs' ? summary.needs : g.bucket === 'wants' ? summary.wants : summary.savings),
+      rows,
     };
+  });
 
-    let result = await supabase
-      .from('budget_sub_items')
-      .insert({ ...baseData, payment_method: payment, recurrence })
-      .select()
-      .single();
-
-    if (result.error) {
-      result = await supabase
-        .from('budget_sub_items')
-        .insert({ ...baseData, payment_method: payment })
-        .select()
-        .single();
-    }
-    if (result.error) {
-      result = await supabase
-        .from('budget_sub_items')
-        .insert(baseData)
-        .select()
-        .single();
-    }
-
-    if (result.data) {
-      setSubItems(prev => [...prev, result.data as BudgetSubItem]);
-      setSaved(false);
-    }
+  function onSave(d: PlanDraft) {
+    if (!sheet) return;
+    const ref = sheet.ref;
+    void guarded(async () => {
+      if (ref.kind === 'income') await saveIncome(ref.id, d);
+      else if (ref.kind === 'part') await savePart(ref.categoryId, ref.id, d);
+      else await saveCategory(ref.id, ref.kind === 'goal', d);
+    });
   }
 
-  async function updateSubPayment(id: string, method: BudgetSubItem['payment_method']) {
-    await supabase.from('budget_sub_items').update({ payment_method: method }).eq('id', id);
-    setSubItems(items => items.map(s => s.id === id ? { ...s, payment_method: method } : s));
+  function onSplit(d: PlanDraft) {
+    if (sheet?.ref.kind !== 'category') return;
+    const id = sheet.ref.id;
+    void guarded(() => splitCategory(id, d));
   }
 
-  async function updateSubRecurrence(id: string, recurrence: BudgetSubItem['recurrence']) {
-    await supabase.from('budget_sub_items').update({ recurrence }).eq('id', id);
-    setSubItems(items => items.map(s => s.id === id ? { ...s, recurrence } : s));
-    setSaved(false);
+  function onRemove() {
+    if (!sheet) return;
+    const ref = sheet.ref;
+    if (ref.kind === 'part' && ref.id) void guarded(() => removePart(ref.id!));
+    if (ref.kind === 'income' && ref.id) void guarded(() => removeIncome(ref.id!));
   }
 
-  async function addCategoryToBucket(bucket: 'needs' | 'wants' | 'savings', name: string) {
-    const { data } = await supabase
-      .from('budget_categories')
-      .insert({ household_id: householdId, name, bucket, budgeted_amount: 0, is_custom: true })
-      .select()
-      .single();
-    if (data) {
-      setCategories(prev => [...prev, data as BudgetCategory]);
-    }
-  }
-
-  async function deleteSubItem(id: string) {
-    await supabase.from('budget_sub_items').delete().eq('id', id);
-    setSubItems(items => items.filter(s => s.id !== id));
-    setSaved(false);
-  }
-
-  async function toggleSubFixed(id: string) {
-    const sub = subItems.find(s => s.id === id);
-    if (!sub) return;
-    const newFixed = !sub.is_fixed;
-    await supabase.from('budget_sub_items').update({ is_fixed: newFixed }).eq('id', id);
-    setSubItems(items => items.map(s => s.id === id ? { ...s, is_fixed: newFixed } : s));
-  }
-
-  async function updatePaceMode(catId: string, mode: 'linear' | 'fixed') {
-    setCategories(cats => cats.map(c => c.id === catId ? { ...c, pace_mode: mode, expected_day: mode === 'linear' ? null : c.expected_day } : c));
-    await supabase.from('budget_categories').update({ pace_mode: mode, ...(mode === 'linear' ? { expected_day: null } : {}) }).eq('id', catId);
-  }
-
-  async function updateExpectedDay(catId: string, day: number | null) {
-    setCategories(cats => cats.map(c => c.id === catId ? { ...c, expected_day: day } : c));
-    await supabase.from('budget_categories').update({ expected_day: day }).eq('id', catId);
-  }
-
-  function distributeByRule() {
-    if (remaining <= 0 || income <= 0) return;
-    const targets = { needs: 0.5, wants: 0.3, savings: 0.2 };
-    const gaps: Record<string, number> = {};
-    let sumGaps = 0;
-    for (const bucket of ['needs', 'wants', 'savings'] as const) {
-      const target = income * targets[bucket];
-      const assigned = bucketTotals[bucket];
-      const gap = Math.max(0, target - assigned);
-      gaps[bucket] = gap;
-      sumGaps += gap;
-    }
-    if (sumGaps <= 0) return;
-    const ratio = Math.min(1, remaining / sumGaps);
-
-    const updatedCategories = [...categories];
-    for (const bucket of ['needs', 'wants', 'savings'] as const) {
-      const bucketGap = gaps[bucket] * ratio;
-      if (bucketGap <= 0) continue;
-      const bucketCats = updatedCategories.filter(c => c.bucket === bucket);
-      if (bucketCats.length === 0) continue;
-      const totalWeight = bucketCats.reduce((s, c) => s + getCategoryTotal(c.id), 0);
-      for (const cat of bucketCats) {
-        const catSubs = subItems.filter(s => s.category_id === cat.id);
-        if (catSubs.length > 0) continue;
-        const weight = totalWeight > 0 ? getCategoryTotal(cat.id) / totalWeight : 1 / bucketCats.length;
-        const addition = bucketGap * weight;
-        cat.budgeted_amount = Math.round((Number(cat.budgeted_amount) + addition) * 100) / 100;
-      }
-    }
-    setCategories(updatedCategories);
-    setSaved(false);
-  }
-
-  async function saveVoiceTransactions(transactions: VoiceExtractionResult['transactions']) {
-    if (!householdId) return;
-    await supabase.from('transactions').insert(
-      transactions.map(tx => ({
-        household_id: householdId,
-        category_id: tx.category_id ?? null,
-        amount: tx.amount,
-        description: tx.description,
-        date: tx.date,
-        source: 'voice',
-        type: 'expense' as const,
-        voice_raw_text: voiceResult?.raw_text ?? null,
-        created_by: userId,
-      }))
-    );
-    setVoiceResult(null);
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    );
-  }
+  const title = `Plan de ${monthName0}`;
 
   return (
-    <AppShell
-      title="Presupuesto"
-      currentPath="/presupuesto"
-      headerRight={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <VoiceButton
-            mode="expense"
-            onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); }}
-            onError={(err) => setVoiceError(err)}
-          />
-          <Button onClick={saveAll} disabled={saving} style={{
-            background: '#2563EB', color: '#fff', borderRadius: 10,
-            padding: '8px 18px', fontSize: 13, fontWeight: 600,
-          }}>
-            {saving ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : saved ? (
-              <CheckCircle2 className="w-4 h-4 mr-2" style={{ color: '#10B981' }} />
-            ) : (
-              <Save className="w-4 h-4 mr-2" />
-            )}
-            {saved ? 'Guardado' : 'Guardar'}
-          </Button>
+    <AppShell title={title} currentPath="/presupuesto" hideMobileBar>
+      <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
+        {/* Encabezado móvil */}
+        <div className="-mx-4 flex flex-col items-start gap-0.5 px-5 pt-[env(safe-area-inset-top)] lg:hidden">
+          <Link
+            href={fromHome ? '/dashboard' : '/mas'}
+            className="flex h-11 items-center text-[15px] font-semibold text-electric"
+          >
+            ‹ {fromHome ? 'Inicio' : 'Más'}
+          </Link>
+          <h1 className="font-serif text-[30px] leading-[1.15] text-ink-900 dark:text-ink-100">{title}</h1>
         </div>
-      }
-    >
-      <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        {/* Subtitle */}
-        <p style={{ fontSize: 14, color: '#64748B', margin: '0 0 20px' }}>
-          Ingreso mensual: {fmt(income)}
-        </p>
 
-        {/* Banner: arrived here from Cierre de mes to confirm income for a specific month */}
-        {confirmMonth && (
-          <div style={{
-            marginBottom: 20, padding: '14px 16px', borderRadius: 14,
-            background: '#F0FDF4', border: '1px solid #BBF7D0',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            gap: 12, flexWrap: 'wrap',
-          }}>
-            <span style={{ fontSize: 13, color: '#065F46', lineHeight: 1.5 }}>
-              Revisa que tus ingresos estén correctos y actualizados para este cierre de mes.
-            </span>
-            <Button
-              onClick={confirmIncomeForMonth}
-              disabled={confirmingIncome}
-              style={{
-                background: '#059669', color: '#fff', borderRadius: 10,
-                padding: '8px 16px', fontSize: 13, fontWeight: 600, flexShrink: 0,
-              }}
-            >
-              {confirmingIncome ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-              )}
-              Ya revisé, confirmar
-            </Button>
+        {loading ? (
+          <div className="flex justify-center py-24">
+            <Loader2 className="h-8 w-8 animate-spin text-electric-light" aria-label="Cargando" />
           </div>
-        )}
+        ) : (
+          <>
+            {/* Llegaste desde "Cerrar el mes" a confirmar ingresos */}
+            {confirmMonth && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--zafi-success-border)] bg-[var(--zafi-success-bg)] px-4 py-3.5">
+                <span className="text-[13px] leading-normal text-[var(--zafi-success-text)]">
+                  Revisa que tus ingresos estén correctos y actualizados para este cierre de mes.
+                </span>
+                <button
+                  type="button"
+                  onClick={confirmIncomeForMonth}
+                  disabled={confirmingIncome}
+                  className="flex h-11 flex-none items-center gap-2 rounded-xl bg-success-dark px-4 text-[13px] font-semibold text-white"
+                >
+                  {confirmingIncome ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Ya revisé, confirmar
+                </button>
+              </div>
+            )}
 
-        {/* Income entry error */}
-        {incomeError && (
-          <div style={{
-            marginBottom: 16, padding: 12, borderRadius: 12,
-            background: '#FEF2F2', border: '1px solid #FECACA',
-            fontSize: 13, color: '#DC2626',
-          }}>
-            {incomeError}
-          </div>
-        )}
-
-        {/* Voice error/preview */}
-        {voiceError && (
-          <div style={{
-            marginBottom: 16, padding: 12, borderRadius: 12,
-            background: '#FEF2F2', border: '1px solid #FECACA',
-            fontSize: 13, color: '#DC2626',
-          }}>
-            {voiceError}
-          </div>
-        )}
-        {voiceResult && (
-          <div style={{ marginBottom: 20 }}>
-            <TransactionPreview
-              result={voiceResult}
-              onConfirm={saveVoiceTransactions}
-              onCancel={() => setVoiceResult(null)}
+            <PlanSummaryCard
+              summary={summary}
+              fmt={fmt}
+              onSendToCushion={cushion ? () => void guarded(sendToCushion) : undefined}
             />
-          </div>
+
+            {/* Fase 6: tarjeta de inicio de mes. */}
+
+            <PlanGroups groups={[incomeGroup, ...expenseGroups]} />
+
+            <p className={`mx-1 mt-3.5 text-center text-[13px] leading-normal [text-wrap:pretty] ${TEXT_MUTED}`}>
+              Toca cualquier categoría para cambiar cuánto planeas.
+            </p>
+
+            <div className="mt-5">
+              <Link
+                href="/plan"
+                className={`flex min-h-[44px] items-center justify-center text-sm font-semibold text-electric`}
+              >
+                Retos del mes ›
+              </Link>
+            </div>
+          </>
         )}
-
-        {/* Ingresos */}
-        <IncomeSection
-          income={income}
-          incomeEntries={incomeEntries}
-          onAddIncomeEntry={addIncomeEntry}
-          onUpdateIncomeEntry={updateIncomeEntry}
-          onDeleteIncomeEntry={deleteIncomeEntry}
-          fmt={fmt}
-        />
-
-        {/* Hero: Salud de tu presupuesto */}
-        <BudgetHealthHero
-          income={income}
-          bucketTotals={bucketTotals}
-          categories={categories}
-          spentByCategory={spentByCategory}
-          expandedGroups={expandedGroups}
-          onToggleGroup={toggleGroup}
-          onDistribute={distributeByRule}
-          getCategoryTotal={getCategoryTotal}
-          fmt={fmt}
-        />
-
-        {/* Definición del presupuesto */}
-        <BudgetDefinition
-          level={definitionLevel}
-          onSetLevel={setDefinitionLevel}
-          income={income}
-          incomeEntries={incomeEntries}
-          categories={categories}
-          subItems={subItems}
-          bucketTotals={bucketTotals}
-          totalBudgeted={totalBudgeted}
-          expandedCats={expandedCats}
-          onToggleCat={toggleCat}
-          onUpdateAmount={updateAmount}
-          onUpdateSubAmount={updateSubAmount}
-          onDeleteCategory={deleteCategory}
-          onDeleteSubItem={deleteSubItem}
-          onToggleSubFixed={toggleSubFixed}
-          onUpdateSubPayment={updateSubPayment}
-          onUpdateSubRecurrence={updateSubRecurrence}
-          onAddSubItem={addSubItem}
-          onAddCategory={addCategoryToBucket}
-          onUpdatePaceMode={updatePaceMode}
-          onUpdateExpectedDay={updateExpectedDay}
-          onAddIncomeEntry={addIncomeEntry}
-          onUpdateIncomeEntry={updateIncomeEntry}
-          onDeleteIncomeEntry={deleteIncomeEntry}
-          getCategoryTotal={getCategoryTotal}
-          monthlyAmount={monthlyAmount}
-          fmt={fmt}
-        />
-
-        {/* Comparativo */}
-        <BudgetComparativo
-          level={comparativoLevel}
-          onSetLevel={setComparativoLevel}
-          month={comparativoMonth}
-          onMonthChange={setComparativoMonth}
-          categories={categories}
-          spentByCategory={spentByCategory}
-          totalBudgeted={totalBudgeted}
-          loading={loadingComparativo}
-          getCategoryTotal={getCategoryTotal}
-          fmt={fmt}
-        />
       </div>
 
-      <div style={{ marginTop: 20 }}>
-        <NavCard>
-          <NavRow href="/plan" emoji="🎯" name="Retos del mes" description="Metas cortas según cómo vas gastando" last />
-        </NavCard>
-      </div>
+      <BottomSheet themed open={!!sheet} onClose={closeSheet} label="Editar plan">
+        {sheet && (
+          <EditPlanSheet
+            key={sheet.key}
+            target={sheet.target}
+            month={monthName0}
+            unassigned={summary.unassigned}
+            fmt={fmt}
+            saving={saving}
+            onSave={onSave}
+            onSplit={onSplit}
+            onRemove={onRemove}
+          />
+        )}
+      </BottomSheet>
+
+      <UndoToast
+        key={undo?.title}
+        visible={!!undo}
+        title={undo?.title ?? ''}
+        onUndo={() => void runUndo()}
+        onDismiss={dismissUndo}
+        duration={DELETE_UNDO_MS}
+      />
+      <StatusToast message={message} onDone={() => setMessage(null)} />
     </AppShell>
   );
 }

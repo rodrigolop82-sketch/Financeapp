@@ -236,7 +236,7 @@ export default function InicioPage() {
                 Dinos cuánto quieres gastar en cada cosa y Zafi te dirá cuánto puedes gastar cada día.
               </p>
               <Link
-                href="/presupuesto"
+                href="/presupuesto?from=home"
                 className="mt-2.5 self-start flex items-center h-[46px] px-6 rounded-full bg-white text-navy font-semibold"
               >
                 Hacer mi plan
@@ -250,7 +250,12 @@ export default function InicioPage() {
 
         {/* ¿En qué se va? */}
         <section className="mt-[18px] flex flex-col gap-2">
-          <h2 className={`text-[15px] font-bold ${TEXT_STRONG}`}>¿En qué se va?</h2>
+          <div className="flex items-center justify-between px-1">
+            <h2 className={`text-[15px] font-bold ${TEXT_STRONG}`}>¿En qué se va?</h2>
+            <Link href="/presupuesto?from=home" className="flex items-center min-h-[44px] text-sm font-semibold text-electric">
+              Ver plan
+            </Link>
+          </div>
           {hasPlan ? (
             s.catBars.length > 0 ? (
               <div className={`rounded-2xl px-4 py-0.5 ${CARD_BG}`}>
@@ -357,7 +362,7 @@ function HomeAlertCard({ alert, fmt }: { alert: HomeAlert; fmt: (n: number) => s
     )
   }
   return (
-    <Link href="/presupuesto" className={`${base} bg-success-light`}>
+    <Link href="/presupuesto?from=home" className={`${base} bg-success-light`}>
       <span aria-hidden className="text-[22px] leading-none">🐷</span>
       <span className="flex-1 text-sm text-success-text">
         <b>{alert.title}</b>
