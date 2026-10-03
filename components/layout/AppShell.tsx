@@ -72,9 +72,11 @@ interface AppShellProps {
   userEmail?: string
   householdName?: string
   headerRight?: React.ReactNode
+  /** En las pestañas raíz, en móvil: elemento a la derecha del título. */
+  titleRight?: React.ReactNode
 }
 
-export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight }: AppShellProps) {
+export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight, titleRight }: AppShellProps) {
   const [isMaster, setIsMaster] = useState(false)
   const router = useRouter()
   const pathname = usePathname() ?? currentPath
@@ -262,21 +264,20 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
             </h1>
             {headerRight}
           </div>
-          <div className="lg:hidden" style={isRoot ? { paddingTop: 'calc(12px + env(safe-area-inset-top))' } : undefined}>
-            {/* En las pestañas raíz el título va dentro del contenido, sin barra */}
-            {isRoot && (
-              <h1
-                className="font-serif text-ink-900 dark:text-ink-100"
-                style={{ fontSize: 30, lineHeight: 1.15, margin: 0, padding: '4px 20px 0' }}
-              >
+          {/* En las pestañas raíz (móvil) el título va dentro del contenido, sin barra */}
+          {isRoot && (
+            <div
+              className="lg:hidden flex items-center justify-between gap-3"
+              style={{ padding: 'calc(16px + env(safe-area-inset-top)) 20px 0' }}
+            >
+              <h1 className="font-serif text-ink-900 dark:text-ink-100" style={{ fontSize: 30, lineHeight: 1.15, margin: 0 }}>
                 {title}
               </h1>
-            )}
-            <div className={isRoot ? 'px-4 pt-3 pb-28' : 'px-4 pt-2 pb-28'}>
-              {children}
+              {titleRight}
             </div>
-          </div>
-          <div className="hidden lg:block" style={{ padding: '8px 52px 60px' }}>
+          )}
+          {/* Los hijos se pintan una sola vez: sus hojas y toasts no se duplican */}
+          <div className={`px-4 pb-28 lg:px-[52px] lg:pt-2 lg:pb-[60px] ${isRoot ? 'pt-3' : 'pt-2'}`}>
             {children}
           </div>
         </main>

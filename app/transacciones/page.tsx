@@ -1,1009 +1,484 @@
 'use client';
 
-import { Suspense, useEffect, useState, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { localToday } from '@/lib/dates';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { BudgetCategory, Transaction } from '@/types';
-import type { VoiceExtractionResult, SearchTransaction, SearchMonthTotal } from '@/types';
+import type { BudgetCategory, SearchTransaction } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
-import { VoiceButton } from '@/components/voice/VoiceButton';
-import { TransactionPreview } from '@/components/voice/TransactionPreview';
-import { SearchBar } from '@/components/transactions/SearchBar';
-import { SearchFilters } from '@/components/transactions/SearchFilters';
-import { SearchResults } from '@/components/transactions/SearchResults';
-import { EditSheet } from '@/components/transactions/EditSheet';
-import { ReclassifySheet } from '@/components/transactions/ReclassifySheet';
-import { UndoToast } from '@/components/transactions/UndoToast';
+import { getUserHousehold } from '@/lib/household';
 import { useReclassifyFlow } from '@/lib/transactions/useReclassifyFlow';
 import { useUndoableDelete } from '@/lib/transactions/useUndoableDelete';
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete';
 import { deriveTransactionType } from '@/lib/transactions/transaction-type';
+import { getEmoji, PAYMENT_OPTIONS, type PaymentMethod } from '@/lib/categories-ui';
+import { groupByDay, monthLabel, monthRange, recentMonths, sameMerchantOthers } from '@/lib/movimientos';
 import { AppShell } from '@/components/layout/AppShell';
-import { getUserHousehold } from '@/lib/household';
-import { TRANSACTIONS_CHANGED_EVENT } from '@/components/add/AddSheet';
-import {
-  Plus,
-  Loader2,
-  Trash2,
-  Receipt,
-  ArrowUpCircle,
-  Pencil,
-  Check,
-  X,
-  MessageSquare,
-  Camera,
-  Upload,
-} from 'lucide-react';
+import { openAddSheet } from '@/components/dashboard/BottomNav';
+import { TRANSACTIONS_CHANGED_EVENT, type TxChangedDetail } from '@/components/add/AddSheet';
+import { UndoToast } from '@/components/transactions/UndoToast';
+import { BottomSheet } from '@/components/transactions/BottomSheet';
+import { MonthSummary } from '@/components/movimientos/MonthSummary';
+import { MovimientosSearch, type TypeFilter } from '@/components/movimientos/MovimientosSearch';
+import { TxDayGroup } from '@/components/movimientos/TxDayGroup';
+import { SwipeRow } from '@/components/movimientos/SwipeRow';
+import { TxDetailSheet } from '@/components/movimientos/TxDetailSheet';
+import { CategorySheet } from '@/components/movimientos/CategorySheet';
+import { DateSheet, OptionSheet } from '@/components/movimientos/OptionSheet';
+import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast';
+import { BORDER, CARD_BG, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
+import { Loader2, Receipt, ChevronDown } from 'lucide-react';
 
-function periodToDateRange(period: string, specificMonth?: string): { from: string | null; to: string | null } {
-  const today = new Date();
-  switch (period) {
-    case 'month': {
-      const y = today.getFullYear();
-      const m = String(today.getMonth() + 1).padStart(2, '0');
-      return { from: `${y}-${m}-01`, to: null };
-    }
-    case '3m': {
-      const d = new Date(today.getFullYear(), today.getMonth() - 2, 1);
-      return {
-        from: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`,
-        to: null,
-      };
-    }
-    case '6m': {
-      const d = new Date(today.getFullYear(), today.getMonth() - 5, 1);
-      return {
-        from: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`,
-        to: null,
-      };
-    }
-    case 'specific': {
-      const ym = specificMonth || `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-      const [y, m] = ym.split('-').map(Number);
-      const lastDay = new Date(y, m, 0).getDate();
-      return { from: `${ym}-01`, to: `${ym}-${String(lastDay).padStart(2, '0')}` };
-    }
-    default:
-      return { from: null, to: null };
-  }
+const PAGE_SIZE = 50;
+const SWIPE_HINT_KEY = 'zafi:swipe-hint';
+const FLASH_MS = 1600;
+
+type SheetView = 'detail' | 'category' | 'date' | 'payment' | 'month';
+
+interface SheetState {
+  view: SheetView;
+  txId: string | null;
+  /** Vista a la que vuelven "Escape" o tocar fuera (null cierra la hoja). */
+  back: SheetView | null;
 }
 
-function amountToRange(amt: string): { min: number | null; max: number | null } {
-  switch (amt) {
-    case 'lt100':
-      return { min: null, max: 99.99 };
-    case 'mid':
-      return { min: 100, max: 500 };
-    case 'gt500':
-      return { min: 500.01, max: null };
-    default:
-      return { min: null, max: null };
-  }
+const SHEET_LABEL: Record<SheetView, string> = {
+  detail: 'Detalle del movimiento',
+  category: 'Elegir categoría',
+  date: 'Elegir fecha',
+  payment: 'Forma de pago',
+  month: 'Elegir mes',
+};
+
+function readSwipeCount(): number {
+  try { return Number(localStorage.getItem(SWIPE_HINT_KEY)) || 0; } catch { return 0; }
 }
 
-function TransaccionesPageInner() {
-  const [loading, setLoading] = useState(true);
-  const [transactions, setTransactions] = useState<(Transaction & { category_name?: string; bucket?: string })[]>([]);
-  const [categories, setCategories] = useState<BudgetCategory[]>([]);
-  const [householdId, setHouseholdId] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [userId, setUserId] = useState('');
-  const [newTx, setNewTx] = useState({
-    category_id: '',
-    amount: 0,
-    description: '',
-    date: localToday(),
-    payment_method: 'efectivo' as 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia',
-    type: 'expense' as 'expense' | 'income',
-  });
-  const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editData, setEditData] = useState({ category_id: '', amount: 0, description: '', date: '', payment_method: 'efectivo' as string });
-  const [editSaving, setEditSaving] = useState(false);
-  const [showSmsForm, setShowSmsForm] = useState(false);
-  const [smsText, setSmsText] = useState('');
-  const [smsParsing, setSmsParsing] = useState(false);
-  const [smsError, setSmsError] = useState<string | null>(null);
+function byDateDesc(a: SearchTransaction, b: SearchTransaction): number {
+  if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+  return a.id < b.id ? 1 : -1;
+}
 
-  // Search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [explicitPeriod, setExplicitPeriod] = useState<string | null>(null);
-  const [specificMonth, setSpecificMonth] = useState(() => localToday().slice(0, 7));
-  const [searchCategory, setSearchCategory] = useState('all');
-  const [searchAmount, setSearchAmount] = useState('any');
-  const [searchResults, setSearchResults] = useState<SearchTransaction[]>([]);
-  const [searchTotals, setSearchTotals] = useState<SearchMonthTotal[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchHasMore, setSearchHasMore] = useState(false);
-  const [searchGen, setSearchGen] = useState(0);
-  const searchCursor = useRef<{ date: string | null; id: string | null }>({ date: null, id: null });
-
+export default function MovimientosPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const supabase = createClient();
   const fmt = useFormatMoney();
+  const supabase = useMemo(() => createClient(), []);
+  const today = localToday();
 
-  const flow = useReclassifyFlow(categories, () => setSearchGen((g) => g + 1));
-  const deletion = useUndoableDelete(setTransactions);
+  const [categories, setCategories] = useState<BudgetCategory[]>([]);
+  const [ready, setReady] = useState(false);
 
-  const trimmedQuery = searchQuery.trim();
-  const effectivePeriod = explicitPeriod ?? (trimmedQuery.length >= 2 ? 'all' : 'month');
-  const isSearchMode = trimmedQuery.length >= 2 || explicitPeriod !== null || searchCategory !== 'all' || searchAmount !== 'any';
-  const hasActiveFilters = explicitPeriod !== null || searchCategory !== 'all' || searchAmount !== 'any';
+  const [month, setMonth] = useState(() => today.slice(0, 7));
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
 
+  const [rows, setRows] = useState<SearchTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [reloadGen, setReloadGen] = useState(0);
+  const cursor = useRef<{ date: string; id: string } | null>(null);
+  const [summary, setSummary] = useState<{ spent: number; received: number } | null>(null);
+
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const [swipeCount, setSwipeCount] = useState(3);
+  const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [message, setMessage] = useState<StatusMessage | null>(null);
+
+  const reload = useCallback(() => setReloadGen((g) => g + 1), []);
+  const flow = useReclassifyFlow(categories, reload);
+  const deletion = useUndoableDelete(setRows);
+
+  useEffect(() => { setSwipeCount(readSwipeCount()); }, []);
+
+  // Hogar y categorías
   useEffect(() => {
-    async function load() {
+    (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
-      setUserId(user.id);
-
       const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
-      setHouseholdId(hh.id);
+      const { data: cats } = await supabase.from('budget_categories').select('*').eq('household_id', hh.id);
+      setCategories((cats ?? []) as BudgetCategory[]);
+      setReady(true);
+    })();
+  }, [supabase, router]);
 
-      const [{ data: txs }, { data: cats }] = await Promise.all([
-        supabase
-          .from('transactions')
-          .select('*, budget_categories(name, bucket)')
-          .eq('household_id', hh.id)
-          .order('date', { ascending: false })
-          .limit(50),
-        supabase
-          .from('budget_categories')
-          .select('*')
-          .eq('household_id', hh.id)
-          .order('bucket'),
-      ]);
-
-      const mapped = (txs || []).map((tx: Record<string, unknown>) => ({
-        ...tx,
-        category_name: (tx.budget_categories as { name: string } | null)?.name || 'Sin categoría',
-        bucket: (tx.budget_categories as { bucket: string } | null)?.bucket || '',
-      })) as (Transaction & { category_name?: string; bucket?: string })[];
-
-      setTransactions(mapped);
-      setCategories((cats || []) as BudgetCategory[]);
-      // Default the new-transaction form to an expense category — 'income'
-      // now sorts first alphabetically (from .order('bucket')), which would
-      // otherwise default a new "Gasto" entry to an income category.
-      const defaultCat = (cats || []).find((c) => c.bucket !== 'income') ?? cats?.[0];
-      if (defaultCat) setNewTx(prev => ({ ...prev, category_id: defaultCat.id }));
-      setLoading(false);
-    }
-    load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Re-fetch normal list after reclassify mutations
+  // La búsqueda espera a que se deje de escribir.
   useEffect(() => {
-    if (searchGen === 0 || !householdId) return;
-    supabase
-      .from('transactions')
-      .select('*, budget_categories(name, bucket)')
-      .eq('household_id', householdId)
-      .order('date', { ascending: false })
-      .limit(50)
-      .then(({ data: txs }) => {
-        const mapped = (txs || []).map((tx: Record<string, unknown>) => ({
-          ...tx,
-          category_name: (tx.budget_categories as { name: string } | null)?.name || 'Sin categoría',
-          bucket: (tx.budget_categories as { bucket: string } | null)?.bucket || '',
-        })) as (Transaction & { category_name?: string; bucket?: string })[];
-        // Una fila con borrado pendiente sigue en la base hasta que vence el toast.
-        const pendingId = deletion.getPendingId();
-        setTransactions(pendingId ? mapped.filter((t) => t.id !== pendingId) : mapped);
-      });
-  }, [searchGen, householdId]); // eslint-disable-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
-  // Recarga la lista cuando se agregan movimientos desde el botón +.
-  useEffect(() => {
-    const reload = () => setSearchGen((g) => g + 1);
-    window.addEventListener(TRANSACTIONS_CHANGED_EVENT, reload);
-    return () => window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, reload);
-  }, []);
+  const { from, to } = monthRange(month);
+  const searchQuery = debouncedQuery.length >= 2 ? debouncedQuery : '';
 
-  // Auto-populate SMS form from PWA Web Share Target (?shared_text=...)
-  useEffect(() => {
-    const shared = searchParams.get('shared_text');
-    if (shared) {
-      setSmsText(shared);
-      setShowSmsForm(true);
-    }
-  }, [searchParams]);
-
-  // Search effect
-  useEffect(() => {
-    const q = searchQuery.trim();
-    const active = q.length >= 2 || explicitPeriod !== null || searchCategory !== 'all' || searchAmount !== 'any';
-
-    if (!active) {
-      setSearchResults([]);
-      setSearchTotals([]);
-      setSearchHasMore(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    const period = explicitPeriod ?? (q.length >= 2 ? 'all' : 'month');
-    const { from, to } = periodToDateRange(period, specificMonth);
-    const { min, max } = amountToRange(searchAmount);
-
-    searchCursor.current = { date: null, id: null };
-    setSearchLoading(true);
-
-    fetch('/api/transactions/search', {
+  const fetchPage = useCallback(async (after: { date: string; id: string } | null, signal?: AbortSignal) => {
+    const res = await fetch('/api/transactions/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        query: q.length >= 2 ? q : undefined,
+        query: searchQuery || undefined,
         from,
         to,
-        categoryId: searchCategory !== 'all' ? searchCategory : undefined,
-        minAmount: min,
-        maxAmount: max,
-        limit: 30,
+        type: typeFilter === 'all' ? undefined : typeFilter,
+        limit: PAGE_SIZE,
+        cursorDate: after?.date,
+        cursorId: after?.id,
       }),
-      signal: controller.signal,
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        const rows: SearchTransaction[] = data.rows ?? [];
-        setSearchResults(rows);
-        setSearchTotals(data.totals ?? []);
-        setSearchHasMore(rows.length === 30);
-        if (rows.length > 0) {
-          const last = rows[rows.length - 1];
-          searchCursor.current = { date: last.date, id: last.id };
-        }
+      signal,
+    });
+    if (!res.ok) throw new Error('search');
+    const data = await res.json();
+    return (data.rows ?? []) as SearchTransaction[];
+  }, [searchQuery, from, to, typeFilter]);
+
+  // Primera página: al entrar, al cambiar un filtro y después de cada cambio.
+  useEffect(() => {
+    if (!ready) return;
+    const controller = new AbortController();
+    setLoading((was) => was || rows.length === 0);
+    fetchPage(null, controller.signal)
+      .then((page) => {
+        const pendingId = deletion.getPendingId();
+        setRows(pendingId ? page.filter((r) => r.id !== pendingId) : page);
+        setHasMore(page.length === PAGE_SIZE);
+        const last = page[page.length - 1];
+        cursor.current = last ? { date: last.date, id: last.id } : null;
+        setLoading(false);
       })
       .catch((err) => {
-        if (err.name !== 'AbortError') console.error(err);
-      })
-      .finally(() => setSearchLoading(false));
-
-    return () => controller.abort();
-  }, [searchQuery, explicitPeriod, searchCategory, searchAmount, searchGen, specificMonth]);
-
-  function loadMoreResults() {
-    if (!searchHasMore || searchLoading) return;
-
-    const q = searchQuery.trim();
-    const period = explicitPeriod ?? (q.length >= 2 ? 'all' : 'month');
-    const { from, to } = periodToDateRange(period, specificMonth);
-    const { min, max } = amountToRange(searchAmount);
-
-    setSearchLoading(true);
-
-    fetch('/api/transactions/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: q.length >= 2 ? q : undefined,
-        from,
-        to,
-        categoryId: searchCategory !== 'all' ? searchCategory : undefined,
-        minAmount: min,
-        maxAmount: max,
-        limit: 30,
-        cursorDate: searchCursor.current.date,
-        cursorId: searchCursor.current.id,
-      }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        const rows: SearchTransaction[] = data.rows ?? [];
-        setSearchResults((prev) => [...prev, ...rows]);
-        setSearchHasMore(rows.length === 30);
-        if (rows.length > 0) {
-          const last = rows[rows.length - 1];
-          searchCursor.current = { date: last.date, id: last.id };
-        }
-      })
-      .catch(console.error)
-      .finally(() => setSearchLoading(false));
-  }
-
-  function handleSearchChange(v: string) {
-    setSearchQuery(v);
-    if (!v.trim()) {
-      setExplicitPeriod(null);
-    }
-    setEditingId(null);
-  }
-
-  function handlePeriodChange(v: string) {
-    setExplicitPeriod(v);
-  }
-
-  function handleSpecificMonthChange(v: string) {
-    setSpecificMonth(v);
-    setExplicitPeriod('specific');
-  }
-
-  function clearSearchFilters() {
-    setExplicitPeriod(null);
-    setSearchCategory('all');
-    setSearchAmount('any');
-  }
-
-  function handleSearchSelect(tx: SearchTransaction) {
-    flow.openEdit(tx);
-  }
-
-  async function parseSms() {
-    if (!smsText.trim()) return;
-    setSmsParsing(true);
-    setSmsError(null);
-    try {
-      const res = await fetch('/api/parse-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: smsText }),
+        if (err?.name === 'AbortError') return;
+        setRows([]);
+        setHasMore(false);
+        setLoading(false);
+        setMessage({ text: 'No pudimos cargar tus movimientos. Intenta de nuevo.', tone: 'error' });
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setSmsError(data.error || 'Error al interpretar el mensaje.');
-      } else {
-        setVoiceResult(data);
-        setShowSmsForm(false);
-        setSmsText('');
-        setShowForm(false);
-      }
+    return () => controller.abort();
+  }, [ready, fetchPage, reloadGen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Totales del mes: no dependen de la búsqueda ni de las filas cargadas.
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    supabase.rpc('transactions_month_summary', { p_from: from, p_to: to }).then(({ data }) => {
+      if (cancelled) return;
+      const r = Array.isArray(data) ? data[0] : data;
+      setSummary({ spent: Number(r?.sum_expense ?? 0), received: Number(r?.sum_income ?? 0) });
+    });
+    return () => { cancelled = true; };
+  }, [ready, supabase, from, to, reloadGen]);
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore || loading || !cursor.current) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchPage(cursor.current);
+      const pendingId = deletion.getPendingId();
+      setRows((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        return [...prev, ...page.filter((r) => !seen.has(r.id) && r.id !== pendingId)];
+      });
+      setHasMore(page.length === PAGE_SIZE);
+      const last = page[page.length - 1];
+      if (last) cursor.current = { date: last.date, id: last.id };
     } catch {
-      setSmsError('Error de conexión. Intenta de nuevo.');
+      setMessage({ text: 'No pudimos cargar más movimientos.', tone: 'error' });
     }
-    setSmsParsing(false);
+    setLoadingMore(false);
+  }, [hasMore, loadingMore, loading, fetchPage, deletion]);
+
+  // Scroll infinito
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !hasMore) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) void loadMore();
+    }, { rootMargin: '400px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, loadMore]);
+
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flash = useCallback((id: string) => {
+    setFlashId(id);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlashId(null), FLASH_MS);
+  }, []);
+
+  // Movimientos agregados desde el botón +: recarga y resalta el nuevo.
+  useEffect(() => {
+    function onChanged(e: Event) {
+      const detail = (e as CustomEvent<TxChangedDetail | undefined>).detail;
+      if (detail?.date) setMonth(detail.date.slice(0, 7));
+      if (detail?.id) flash(detail.id);
+      reload();
+    }
+    window.addEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged);
+  }, [reload, flash]);
+
+  const selected = sheet?.txId ? rows.find((r) => r.id === sheet.txId) ?? null : null;
+
+  // Si el movimiento abierto desaparece (se borró o cambió de filtro), se cierra la hoja.
+  useEffect(() => {
+    if (sheet?.txId && !loading && !selected) setSheet(null);
+  }, [sheet, selected, loading]);
+
+  // ── Acciones ───────────────────────────────────
+
+  function closeSheet() {
+    setSheet((s) => (s?.back ? { ...s, view: s.back, back: null } : null));
+    flow.clearError();
   }
 
-  async function addTransaction() {
-    setSaving(true);
-    const selectedCat = categories.find((c) => c.id === newTx.category_id);
-    const transactionType = deriveTransactionType(newTx.type, selectedCat?.bucket);
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert({
-        household_id: householdId,
-        category_id: newTx.category_id,
-        amount: newTx.amount,
-        description: newTx.description,
-        date: newTx.date,
-        source: 'manual',
-        type: newTx.type,
-        transaction_type: transactionType,
-        payment_method: newTx.payment_method,
-        created_by: userId || null,
-      })
-      .select('*, budget_categories(name, bucket)')
-      .single();
-
-    if (error) {
-      alert(`Error al guardar: ${error.message}`);
-      setSaving(false);
-      return;
-    }
-
-    if (data) {
-      const mapped = {
-        ...data,
-        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoría',
-        bucket: (data.budget_categories as { bucket: string } | null)?.bucket || '',
-      } as Transaction & { category_name?: string; bucket?: string };
-      setTransactions([mapped, ...transactions]);
-      setNewTx({ ...newTx, amount: 0, description: '', payment_method: 'efectivo', type: 'expense' });
-      setShowForm(false);
-    }
-    setSaving(false);
+  function openDetail(id: string) {
+    setOpenRowId(null);
+    setSheet({ view: 'detail', txId: id, back: null });
   }
 
-  async function saveVoiceTransactions(txs: VoiceExtractionResult['transactions']) {
-    if (!householdId) return;
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert(
-        txs.map(tx => {
-          const txType = tx.type === 'income' ? 'income' : 'expense';
-          const cat = categories.find(c => c.id === tx.category_id);
-          return {
-            household_id: householdId,
-            category_id: tx.category_id ?? null,
-            amount: tx.amount,
-            description: tx.description,
-            date: tx.date,
-            source: 'voice',
-            type: txType,
-            transaction_type: deriveTransactionType(txType, cat?.bucket),
-            payment_method: 'efectivo' as const,
-            voice_raw_text: voiceResult?.raw_text ?? null,
-            created_by: userId || null,
-            original_amount: tx.original_amount ?? null,
-            original_currency: tx.original_currency ?? null,
-          };
-        })
-      )
-      .select('*, budget_categories(name, bucket)');
-
-    if (error) {
-      alert(`Error al guardar: ${error.message}`);
-      return;
-    }
-
-    if (data) {
-      const mapped = data.map((d: Record<string, unknown>) => ({
-        ...d,
-        category_name: (d.budget_categories as { name: string } | null)?.name || 'Sin categoría',
-        bucket: (d.budget_categories as { bucket: string } | null)?.bucket || '',
-      })) as (Transaction & { category_name?: string; bucket?: string })[];
-      setTransactions([...mapped, ...transactions]);
-    }
-    setVoiceResult(null);
-    setVoiceError(null);
+  function openCategory(id: string, fromDetail: boolean) {
+    setOpenRowId(null);
+    flow.clearError();
+    setSheet({ view: 'category', txId: id, back: fromDetail ? 'detail' : null });
   }
 
-  function deleteTransaction(tx: Transaction & { category_name?: string }) {
-    const index = transactions.findIndex((t) => t.id === tx.id);
+  function deleteTx(tx: SearchTransaction) {
+    const index = rows.findIndex((r) => r.id === tx.id);
     if (index === -1) return;
+    setSheet(null);
+    setOpenRowId(null);
     if (flow.undoVisible) flow.dismissUndo();
     deletion.remove(tx, index);
   }
 
-  function startEdit(tx: Transaction & { category_name?: string; bucket?: string }) {
-    const cat = categories.find((c) => c.id === tx.category_id);
-    const asST: SearchTransaction = {
-      ...tx,
-      category_name: cat?.name ?? tx.category_name ?? 'Sin categoría',
-      category_bucket: (cat?.bucket ?? tx.bucket ?? 'wants') as 'needs' | 'wants' | 'savings',
-      category_icon: cat?.icon ?? null,
-    };
-    flow.openEdit(asST);
-  }
-
-  async function saveEdit() {
-    if (!editingId || editData.amount <= 0) return;
-    setEditSaving(true);
-
-    const { data } = await supabase
-      .from('transactions')
-      .update({
-        category_id: editData.category_id,
-        amount: editData.amount,
-        description: editData.description,
-        date: editData.date,
-        payment_method: editData.payment_method,
-      })
-      .eq('id', editingId)
-      .select('*, budget_categories(name, bucket)')
-      .single();
-
-    if (data) {
-      const mapped = {
-        ...data,
-        category_name: (data.budget_categories as { name: string } | null)?.name || 'Sin categoría',
-        bucket: (data.budget_categories as { bucket: string } | null)?.bucket || '',
-      } as Transaction & { category_name?: string; bucket?: string };
-
-      setTransactions(transactions.map(t => t.id === editingId ? mapped : t));
+  /** Cambio optimista de un campo; si Supabase falla, se revierte. */
+  async function updateTx(id: string, patch: Partial<Pick<SearchTransaction, 'date' | 'payment_method' | 'description' | 'note'>>) {
+    const prev = rows.find((r) => r.id === id);
+    if (!prev) return;
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)).sort(byDateDesc));
+    const { error } = await supabase.from('transactions').update(patch).eq('id', id);
+    if (error) {
+      setRows((rs) => rs.map((r) => (r.id === id ? prev : r)).sort(byDateDesc));
+      setMessage({ text: 'No se pudo guardar el cambio. Intenta de nuevo.', tone: 'error' });
+      return;
     }
-
-    setEditingId(null);
-    setEditSaving(false);
+    flash(id);
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    );
+  async function saveCategory(tx: SearchTransaction, categoryId: string, type: 'expense' | 'income', applyToOthers: boolean) {
+    if (categoryId === tx.category_id && type === tx.type) {
+      setSheet({ view: 'detail', txId: tx.id, back: null });
+      return;
+    }
+    if (flow.undoVisible) flow.dismissUndo();
+    const ok = await flow.reclassifyDirect(tx, categoryId, type, applyToOthers);
+    if (!ok) return;
+    const cat = categories.find((c) => c.id === categoryId);
+    setRows((rs) => rs.map((r) => (r.id === tx.id ? {
+      ...r,
+      category_id: categoryId,
+      category_name: cat?.name ?? r.category_name,
+      category_bucket: (cat?.bucket ?? r.category_bucket) as SearchTransaction['category_bucket'],
+      category_icon: cat?.icon ?? null,
+      type,
+      transaction_type: deriveTransactionType(type, cat?.bucket),
+    } : r)));
+    flash(tx.id);
+    setSheet({ view: 'detail', txId: tx.id, back: null });
   }
 
-  // Group by date (normal mode)
-  const grouped: Record<string, typeof transactions> = {};
-  for (const tx of transactions) {
-    const key = tx.date;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(tx);
+  function markSwiped() {
+    const next = swipeCount + 1;
+    setSwipeCount(next);
+    try { localStorage.setItem(SWIPE_HINT_KEY, String(next)); } catch { /* sin almacenamiento */ }
   }
 
-  const totalThisMonth = transactions
-    .filter(t => {
-      const d = new Date(t.date);
-      const now = new Date();
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && t.type !== 'income';
-    })
-    .reduce((s, t) => s + Number(t.amount), 0);
+  // ── Vista ─────────────────────────────────────
 
-  const bucketColors: Record<string, string> = {
-    needs: 'bg-ink-100 text-ink-700',
-    wants: 'bg-electric-ghost text-electric-dark',
-    savings: 'bg-success-light text-success-text',
-  };
+  const groups = groupByDay(rows, today);
+  const filtered = !!searchQuery || typeFilter !== 'all';
+
+  const monthPill = (
+    <button
+      type="button"
+      onClick={() => setSheet({ view: 'month', txId: null, back: null })}
+      aria-label={`Mes: ${monthLabel(month, today)}. Cambiar mes`}
+      className={`flex-none flex items-center gap-1 h-9 px-3.5 rounded-full border text-sm font-semibold text-navy dark:text-ink-100 ${BORDER} ${CARD_BG}`}
+    >
+      {monthLabel(month, today)}
+      <ChevronDown size={14} aria-hidden />
+    </button>
+  );
 
   return (
-    <AppShell title="Movimientos" currentPath="/transacciones">
-      <div className="max-w-3xl mx-auto">
-        {/* Search bar */}
-        <SearchBar value={searchQuery} onChange={handleSearchChange} />
-
-        {/* Filters */}
-        <SearchFilters
-          period={effectivePeriod}
-          onPeriodChange={handlePeriodChange}
-          specificMonth={specificMonth}
-          onSpecificMonthChange={handleSpecificMonthChange}
-          category={searchCategory}
-          onCategoryChange={setSearchCategory}
-          amount={searchAmount}
-          onAmountChange={setSearchAmount}
-          categories={categories}
-          periodHighlighted={explicitPeriod !== null}
-        />
-
-        {isSearchMode ? (
-          <SearchResults
-            results={searchResults}
-            totals={searchTotals}
-            query={searchQuery}
-            loading={searchLoading}
-            hasMore={searchHasMore}
-            onLoadMore={loadMoreResults}
-            onSelect={handleSearchSelect}
-            onClearFilters={clearSearchFilters}
-            hasActiveFilters={hasActiveFilters}
-            fmt={fmt}
+    <AppShell title="Movimientos" currentPath="/transacciones" titleRight={monthPill} headerRight={monthPill}>
+      <div className="max-w-3xl flex flex-col">
+        <div className="mt-3.5">
+          <MonthSummary
+            spent={summary ? fmt(summary.spent) : null}
+            received={summary ? fmt(summary.received) : null}
           />
-        ) : (
-          <>
-            {/* Action bar */}
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-ink-500">Este mes: {fmt(totalThisMonth)}</p>
-              <div className="flex gap-2 flex-wrap justify-end">
-                <VoiceButton
-                  mode="expense"
-                  onExtraction={(result) => { setVoiceResult(result); setVoiceError(null); setShowForm(false); setShowSmsForm(false); }}
-                  onError={(err) => setVoiceError(err)}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => { setShowSmsForm(v => !v); setShowForm(false); setVoiceResult(null); }}
-                  title="Pegar SMS o notificación de banco"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => router.push('/capture')}>
-                  <Camera className="w-4 h-4 mr-1" />
-                  Foto
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => router.push('/importar')}>
-                  <Upload className="w-4 h-4 mr-1" />
-                  CSV
-                </Button>
-                <Button onClick={() => { setShowForm(true); setVoiceResult(null); setShowSmsForm(false); }}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Gasto
-                </Button>
-              </div>
-            </div>
+        </div>
 
-            {/* SMS paste form */}
-            {showSmsForm && (
-              <Card className="mb-4 border-electric-ghost bg-electric-ghost/40">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-electric" />
-                    Pegar notificación de banco / Apple Pay / Google Pay
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <textarea
-                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-electric/30"
-                    rows={4}
-                    placeholder={'Ej: "Compra aprobada por Q250.00 en WALMART"\n"Apple Pay: Q89.50 at Starbucks"\n"VISA: Compra por Q125.00 en AMAZON"'}
-                    value={smsText}
-                    onChange={(e) => setSmsText(e.target.value)}
-                  />
-                  {smsError && (
-                    <p className="text-xs text-danger-text">{smsError}</p>
-                  )}
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={parseSms}
-                      disabled={smsParsing || !smsText.trim()}
-                    >
-                      {smsParsing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-1" />}
-                      Identificar gasto
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => { setShowSmsForm(false); setSmsText(''); setSmsError(null); }}>
-                      Cancelar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+        <div className="mt-3">
+          <MovimientosSearch
+            query={query}
+            onQueryChange={(q) => { setQuery(q); setOpenRowId(null); }}
+            type={typeFilter}
+            onTypeChange={(t) => { setTypeFilter(t); setOpenRowId(null); }}
+          />
+        </div>
 
-            {deletion.error && (
-              <div role="alert" className="mb-4 p-3 bg-danger-light rounded-xl text-sm text-danger-text">
-                {deletion.error}
-              </div>
-            )}
-
-            {/* Voice/SMS transaction preview */}
-            {voiceError && (
-              <div className="mb-4 p-3 bg-danger-light border border-danger/20 rounded-xl text-sm text-danger-text">
-                {voiceError}
-              </div>
-            )}
-            {voiceResult && (
-              <div className="mb-6">
-                <TransactionPreview
-                  result={voiceResult}
-                  onConfirm={saveVoiceTransactions}
-                  onCancel={() => setVoiceResult(null)}
-                />
-              </div>
-            )}
-
-            {/* New transaction form */}
-            {showForm && (
-              <Card className="mb-6">
-                <CardHeader>
-                  <CardTitle className="text-base">Registrar movimiento</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex rounded-lg overflow-hidden border" style={{ height: 40 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const currentCat = categories.find(c => c.id === newTx.category_id);
-                        const needsNewCat = !currentCat || currentCat.bucket === 'income';
-                        const fallback = categories.find(c => c.bucket !== 'income');
-                        setNewTx({
-                          ...newTx,
-                          type: 'expense',
-                          category_id: needsNewCat && fallback ? fallback.id : newTx.category_id,
-                        });
-                      }}
-                      className="flex-1 text-sm font-semibold transition-colors"
-                      style={{
-                        background: newTx.type === 'expense' ? '#1E3A5F' : 'white',
-                        color: newTx.type === 'expense' ? 'white' : '#64748B',
-                        border: 'none', cursor: 'pointer',
-                      }}
-                    >
-                      Gasto
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const currentCat = categories.find(c => c.id === newTx.category_id);
-                        const needsNewCat = !currentCat || currentCat.bucket !== 'income';
-                        const fallback = categories.find(c => c.bucket === 'income');
-                        setNewTx({
-                          ...newTx,
-                          type: 'income',
-                          category_id: needsNewCat && fallback ? fallback.id : newTx.category_id,
-                        });
-                      }}
-                      className="flex-1 text-sm font-semibold transition-colors"
-                      style={{
-                        background: newTx.type === 'income' ? '#16A34A' : 'white',
-                        color: newTx.type === 'income' ? 'white' : '#64748B',
-                        border: 'none', cursor: 'pointer',
-                      }}
-                    >
-                      Ingreso
-                    </button>
-                  </div>
-                  <div>
-                    <Label>Categoría</Label>
-                    <select
-                      className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
-                      value={newTx.category_id}
-                      onChange={(e) => setNewTx({ ...newTx, category_id: e.target.value })}
-                    >
-                      <optgroup label="Necesidades">
-                        {categories.filter(c => c.bucket === 'needs').map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Gustos">
-                        {categories.filter(c => c.bucket === 'wants').map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Ahorro/Deudas">
-                        {categories.filter(c => c.bucket === 'savings').map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Ingresos">
-                        {categories.filter(c => c.bucket === 'income').map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </optgroup>
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Monto (Q)</Label>
-                      <Input
-                        type="number"
-                        className="mt-1"
-                        value={newTx.amount || ''}
-                        onChange={(e) => setNewTx({ ...newTx, amount: parseFloat(e.target.value) || 0 })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Fecha</Label>
-                      <Input
-                        type="date"
-                        className="mt-1"
-                        value={newTx.date}
-                        onChange={(e) => setNewTx({ ...newTx, date: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Descripción (opcional)</Label>
-                      <Input
-                        className="mt-1"
-                        placeholder="Ej: Supermercado, Gasolina"
-                        value={newTx.description}
-                        onChange={(e) => setNewTx({ ...newTx, description: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Forma de pago</Label>
-                      <select
-                        className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
-                        value={newTx.payment_method}
-                        onChange={(e) => setNewTx({ ...newTx, payment_method: e.target.value as 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia' })}
-                      >
-                        <option value="efectivo">Efectivo</option>
-                        <option value="tarjeta">Tarjeta</option>
-                        <option value="cheque">Cheque</option>
-                        <option value="transferencia">Transferencia</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <Button onClick={addTransaction} disabled={saving || newTx.amount <= 0}>
-                      {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ArrowUpCircle className="w-4 h-4 mr-2" />}
-                      {newTx.type === 'income' ? 'Registrar ingreso' : 'Registrar gasto'}
-                    </Button>
-                    <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Transaction list */}
-            {Object.entries(grouped).map(([date, txs]) => {
-              const d = new Date(date + 'T12:00:00');
-              const label = d.toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long' });
-              const dayTotal = txs.reduce((s, t) => s + Number(t.amount), 0);
-
-              return (
-                <div key={date} className="mb-4">
-                  <div className="flex items-center justify-between mb-2 px-1">
-                    <p className="text-sm font-medium text-ink-500 capitalize">{label}</p>
-                    <p className="text-sm font-medium">{fmt(dayTotal)}</p>
-                  </div>
-                  <Card>
-                    <CardContent className="p-0 divide-y">
-                      {txs.map((tx) => (
-                        editingId === tx.id ? (
-                          <div key={tx.id} className="px-4 py-3 bg-electric-ghost/40 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-medium text-electric">Editando movimiento</span>
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={saveEdit}
-                                  disabled={editSaving || editData.amount <= 0}
-                                  className="p-1.5 rounded-md bg-electric text-white hover:bg-electric-dark disabled:opacity-50"
-                                >
-                                  {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                                </button>
-                                <button
-                                  onClick={() => setEditingId(null)}
-                                  className="p-1.5 rounded-md text-ink-500 hover:text-ink-700 hover:bg-ink-100"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                            <div>
-                              <Label className="text-xs">Categoría</Label>
-                              <select
-                                className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
-                                value={editData.category_id}
-                                onChange={(e) => setEditData({ ...editData, category_id: e.target.value })}
-                              >
-                                <optgroup label="Necesidades">
-                                  {categories.filter(c => c.bucket === 'needs').map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                  ))}
-                                </optgroup>
-                                <optgroup label="Gustos">
-                                  {categories.filter(c => c.bucket === 'wants').map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                  ))}
-                                </optgroup>
-                                <optgroup label="Ahorro/Deudas">
-                                  {categories.filter(c => c.bucket === 'savings').map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                  ))}
-                                </optgroup>
-                              </select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <Label className="text-xs">Monto (Q)</Label>
-                                <Input
-                                  type="number"
-                                  className="mt-1"
-                                  value={editData.amount || ''}
-                                  onChange={(e) => setEditData({ ...editData, amount: parseFloat(e.target.value) || 0 })}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Fecha</Label>
-                                <Input
-                                  type="date"
-                                  className="mt-1"
-                                  value={editData.date}
-                                  onChange={(e) => setEditData({ ...editData, date: e.target.value })}
-                                />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <Label className="text-xs">Descripción</Label>
-                                <Input
-                                  className="mt-1"
-                                  value={editData.description}
-                                  onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                                  placeholder="Descripción del gasto"
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Forma de pago</Label>
-                                <select
-                                  className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
-                                  value={editData.payment_method}
-                                  onChange={(e) => setEditData({ ...editData, payment_method: e.target.value })}
-                                >
-                                  <option value="efectivo">Efectivo</option>
-                                  <option value="tarjeta">Tarjeta</option>
-                                  <option value="cheque">Cheque</option>
-                                  <option value="transferencia">Transferencia</option>
-                                </select>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div key={tx.id} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-tint group">
-                            <div className="w-10 h-10 bg-ink-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <Receipt className="w-5 h-5 text-ink-500" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">
-                                {tx.description || tx.category_name}
-                              </p>
-                              <div className="flex items-center gap-2">
-                                <span className={`text-xs px-1.5 py-0.5 rounded ${bucketColors[tx.bucket || ''] || 'bg-ink-100 text-ink-700'}`}>
-                                  {tx.category_name}
-                                </span>
-                                {tx.payment_method && tx.payment_method !== 'efectivo' && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-ink-100 text-ink-500">
-                                    {tx.payment_method === 'tarjeta' ? 'Tarjeta' : tx.payment_method === 'cheque' ? 'Cheque' : 'Transferencia'}
-                                  </span>
-                                )}
-                                {tx.source === 'csv' && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-electric-ghost text-electric">
-                                    Importado
-                                  </span>
-                                )}
-                                {tx.type === 'income' && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-success-light text-success-text">
-                                    Ingreso
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="text-right flex items-center gap-2">
-                              <div>
-                                <span className="font-medium text-sm" style={{ color: tx.type === 'income' ? '#16A34A' : undefined }}>
-                                  {tx.type === 'income' ? '+' : ''}{fmt(Number(tx.amount))}
-                                </span>
-                                {tx.original_currency && (
-                                  <div className="text-[11px] text-muted-foreground">
-                                    {tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : tx.original_currency} {Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </div>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => startEdit(tx)}
-                                className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-ink-400 hover:text-electric transition-all"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => deleteTransaction(tx)}
-                                aria-label="Borrar movimiento"
-                                className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-ink-400 hover:text-danger transition-all"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      ))}
-                    </CardContent>
-                  </Card>
-                </div>
-              );
-            })}
-
-            {transactions.length === 0 && !showForm && (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <Receipt className="w-12 h-12 text-ink-400 mx-auto mb-3" />
-                  <p className="font-medium text-ink-700">Aún no hay movimientos</p>
-                  <p className="text-sm text-ink-500 mt-1 mb-4">
-                    Empieza a registrar tus gastos para llevar el control.
-                  </p>
-                  <Button onClick={() => setShowForm(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Registrar primer gasto
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </>
+        {deletion.error && (
+          <div role="alert" className="mt-3 p-3 bg-danger-light rounded-xl text-sm text-danger-text">
+            {deletion.error}
+          </div>
         )}
+
+        <div className="pt-3.5 flex flex-col gap-3.5">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-7 h-7 text-electric animate-spin" aria-label="Cargando" />
+            </div>
+          ) : rows.length === 0 ? (
+            <div className={`rounded-2xl px-6 py-10 text-center ${CARD_BG}`}>
+              {filtered ? (
+                <>
+                  <p className={`font-semibold ${TEXT_STRONG}`}>
+                    {searchQuery ? `Nada con “${searchQuery}”` : 'Nada por aquí'}
+                  </p>
+                  <p className={`text-sm mt-1 ${TEXT_MUTED}`}>Prueba con otra palabra o quita el filtro.</p>
+                </>
+              ) : (
+                <>
+                  <Receipt className="w-10 h-10 text-ink-400 mx-auto mb-3" aria-hidden />
+                  <p className={`font-semibold ${TEXT_STRONG}`}>Aún no hay movimientos</p>
+                  <p className={`text-sm mt-1 mb-4 ${TEXT_MUTED}`}>Empieza a registrar tus gastos para llevar el control.</p>
+                  <button type="button" onClick={openAddSheet} className="btn-primary" style={{ borderRadius: 14 }}>
+                    Agregar el primero
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              {groups.map((g) => (
+                <TxDayGroup key={g.date} label={g.label} total={fmt(g.expenseTotal)}>
+                  {g.rows.map((tx) => {
+                    const isIncome = tx.type === 'income';
+                    const forex = tx.original_currency
+                      ? ` · ${tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : `${tx.original_currency} `}${Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : '';
+                    return (
+                      <SwipeRow
+                        key={tx.id}
+                        row={{
+                          id: tx.id,
+                          emoji: getEmoji({ name: tx.category_name, bucket: tx.category_bucket, icon: tx.category_icon }),
+                          name: tx.description || tx.category_name || 'Sin nombre',
+                          sub: (tx.category_name || 'Sin categoría') + forex,
+                          amountLabel: `${isIncome ? '+' : ''}${fmt(Number(tx.amount))}`,
+                          isIncome,
+                        }}
+                        isOpen={openRowId === tx.id}
+                        anyOpen={openRowId !== null}
+                        flash={flashId === tx.id}
+                        onOpenChange={(open) => setOpenRowId(open ? tx.id : null)}
+                        onSelect={() => openDetail(tx.id)}
+                        onChange={() => openCategory(tx.id, false)}
+                        onDelete={() => deleteTx(tx)}
+                        onSwiped={markSwiped}
+                      />
+                    );
+                  })}
+                </TxDayGroup>
+              ))}
+              <div ref={sentinel} />
+              {loadingMore && (
+                <div className="flex justify-center py-3">
+                  <Loader2 className="w-5 h-5 text-electric animate-spin" aria-label="Cargando más" />
+                </div>
+              )}
+              {swipeCount < 3 && (
+                <p className="lg:hidden text-center text-[13px] px-4 text-ink-400">
+                  Toca un movimiento para verlo · desliza a la izquierda para cambiar o borrar
+                </p>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Edit & reclassify sheets (search mode) */}
-      <EditSheet
-        open={flow.step === 'editing'}
-        transaction={flow.editingTx}
-        categories={categories}
-        onSave={flow.saveCategory}
-        onClose={flow.closeEdit}
-        saving={flow.saving}
-        error={flow.error}
-        fmt={fmt}
-      />
-
-      <ReclassifySheet
-        open={flow.step === 'reclassifying'}
-        merchantName={flow.merchantName}
-        newCategoryName={flow.newCategoryName}
-        matches={flow.matches}
-        defaultSelectedIds={flow.defaultSelectedIds}
-        truncated={flow.truncated}
-        saving={flow.saving}
-        onConfirm={flow.confirmBulk}
-        onSingleOnly={flow.singleOnly}
-        onClose={flow.closeEdit}
-        fmt={fmt}
-      />
+      <BottomSheet themed open={!!sheet} onClose={closeSheet} label={sheet ? SHEET_LABEL[sheet.view] : undefined}>
+        {sheet?.view === 'month' && (
+          <OptionSheet
+            title="¿Qué mes quieres ver?"
+            options={recentMonths(today, 12).map((m) => ({ value: m, label: monthLabel(m, today) }))}
+            selected={month}
+            onSelect={(m) => { setMonth(m); setSheet(null); }}
+          />
+        )}
+        {sheet?.view === 'detail' && selected && (
+          <TxDetailSheet
+            tx={selected}
+            today={today}
+            fmt={fmt}
+            onOpenCategory={() => openCategory(selected.id, true)}
+            onOpenDate={() => setSheet({ view: 'date', txId: selected.id, back: 'detail' })}
+            onOpenPayment={() => setSheet({ view: 'payment', txId: selected.id, back: 'detail' })}
+            onSaveText={(id, patch) => { void updateTx(id, patch); }}
+            onDelete={() => deleteTx(selected)}
+            onDone={() => setSheet(null)}
+          />
+        )}
+        {sheet?.view === 'category' && selected && (
+          <CategorySheet
+            key={selected.id}
+            categories={categories}
+            type={selected.type}
+            subtitle={`${selected.description || selected.category_name} · ${fmt(Number(selected.amount))}`}
+            initialCategoryId={selected.category_id}
+            othersCount={(catId) => sameMerchantOthers(rows, selected, catId).length}
+            merchantName={selected.description ?? ''}
+            saving={flow.saving}
+            error={flow.error}
+            onSave={(catId, type, applyAll) => { void saveCategory(selected, catId, type, applyAll); }}
+          />
+        )}
+        {sheet?.view === 'date' && selected && (
+          <DateSheet
+            today={today}
+            selected={selected.date}
+            onSelect={(date) => {
+              void updateTx(selected.id, { date });
+              setSheet({ view: 'detail', txId: selected.id, back: null });
+            }}
+          />
+        )}
+        {sheet?.view === 'payment' && selected && (
+          <OptionSheet<PaymentMethod>
+            title={selected.type === 'income' ? '¿Cómo lo recibiste?' : '¿Con qué pagaste?'}
+            options={PAYMENT_OPTIONS}
+            selected={selected.payment_method}
+            onSelect={(pm) => {
+              void updateTx(selected.id, { payment_method: pm });
+              setSheet({ view: 'detail', txId: selected.id, back: null });
+            }}
+          />
+        )}
+      </BottomSheet>
 
       <UndoToast
         visible={flow.undoVisible}
         title={flow.undoTitle}
-        subtitle={flow.undoSubtitle}
+        subtitle={flow.undoSubtitle || undefined}
         onUndo={flow.doUndo}
         onDismiss={flow.dismissUndo}
+        duration={DELETE_UNDO_MS}
       />
 
       <UndoToast
@@ -1016,14 +491,8 @@ function TransaccionesPageInner() {
         onDismiss={deletion.commit}
         duration={DELETE_UNDO_MS}
       />
-    </AppShell>
-  );
-}
 
-export default function TransaccionesPage() {
-  return (
-    <Suspense>
-      <TransaccionesPageInner />
-    </Suspense>
+      <StatusToast message={message} onDone={() => setMessage(null)} />
+    </AppShell>
   );
 }
