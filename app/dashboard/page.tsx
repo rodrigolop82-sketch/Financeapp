@@ -25,7 +25,7 @@ interface EnrichedTransaction {
   category: string
   amount: number
   date: string
-  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement' | 'text'
   type?: 'expense' | 'income'
   categoryIcon?: string | null
   categoryColor?: string | null

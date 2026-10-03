@@ -93,10 +93,11 @@ export interface Transaction {
   amount: number;
   description: string | null;
   date: string;
-  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement';
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement' | 'text';
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
   type: 'expense' | 'income';
   voice_raw_text: string | null;
+  note?: string | null;
   original_amount: number | null;
   original_currency: string | null;
   category_source: 'auto' | 'manual' | 'bulk';
@@ -237,6 +238,7 @@ export interface ExtractedTransaction {
   original_amount?: number | null;
   original_currency?: string | null;
   type?: 'expense' | 'income';
+  payment_method?: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
 }
 
 export interface VoiceExtractionResult {

@@ -8,7 +8,7 @@ interface Transaction {
   category: string
   amount: number
   date: string
-  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement' | 'text'
   type?: 'expense' | 'income'
   original_amount?: number | null
   original_currency?: string | null

@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
     minAmount,
     maxAmount,
     transactionType,
+    type,
     limit = 30,
     cursorDate,
     cursorId,
@@ -24,6 +25,10 @@ export async function POST(req: NextRequest) {
 
   if (query && typeof query === 'string' && query.trim().length > 0 && query.trim().length < 2) {
     return NextResponse.json({ error: 'La búsqueda necesita al menos 2 caracteres.' }, { status: 400 });
+  }
+
+  if (type !== undefined && type !== null && type !== 'expense' && type !== 'income') {
+    return NextResponse.json({ error: 'Tipo inválido.' }, { status: 400 });
   }
 
   const safeLimit = Math.min(Math.max(1, Number(limit) || 30), 100);
@@ -39,6 +44,7 @@ export async function POST(req: NextRequest) {
     p_limit: safeLimit,
     p_cursor_date: cursorDate || null,
     p_cursor_id: cursorId || null,
+    p_type: type || null,
   });
 
   if (searchError) {
@@ -56,6 +62,7 @@ export async function POST(req: NextRequest) {
     p_min_amount: minAmount != null ? Number(minAmount) : null,
     p_max_amount: maxAmount != null ? Number(maxAmount) : null,
     p_transaction_type: transactionType || null,
+    p_type: type || null,
   });
 
   if (totalsError) {
