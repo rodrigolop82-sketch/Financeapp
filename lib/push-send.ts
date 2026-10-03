@@ -26,7 +26,7 @@ interface PushPayload {
 export async function sendPushToUser(
   userId: string,
   payload: PushPayload,
-  notificationType: 'inactivity' | 'month_close',
+  notificationType: 'inactivity' | 'month_close' | 'month_start',
 ): Promise<number> {
   const supabase = getServiceSupabase()
 
@@ -70,7 +70,7 @@ export async function sendPushToUser(
 
 export async function wasNotifiedRecently(
   userId: string,
-  type: 'inactivity' | 'month_close',
+  type: 'inactivity' | 'month_close' | 'month_start',
   withinMs: number,
 ): Promise<boolean> {
   const supabase = getServiceSupabase()

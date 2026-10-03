@@ -22,7 +22,7 @@ export interface HomeTx {
 export type HomeStatus = 'bien' | 'cuidado' | 'pasaste';
 
 export const STATUS_META: Record<HomeStatus, { label: string; dot: string; bar: string }> = {
-  bien: { label: 'Vas bien', dot: '#22C55E', bar: '#3B82F6' },
+  bien: { label: 'Vas bien', dot: '#22C55E', bar: '#22C55E' },
   cuidado: { label: 'Con cuidado', dot: '#F59E0B', bar: '#F59E0B' },
   pasaste: { label: 'Te pasaste', dot: '#EF4444', bar: '#EF4444' },
 };
@@ -49,8 +49,10 @@ export interface CategorySpend {
 }
 
 export interface HomeSummary {
-  /** Suma de lo planeado en categorías de gasto activas (0 = sin plan). */
+  /** Lo planeado en básico + gustos (0 = sin plan). */
   budget: number;
+  /** Apartado para fijos que faltan (inicio de mes). */
+  reserved: number;
   spent: number;
   left: number;
   daysLeft: number;
@@ -71,13 +73,17 @@ export function barKind(ratio: number): BarKind {
 
 /**
  * Resumen del mes en curso. `today` es la fecha local; `monthTx` son los
- * movimientos del mes (gastos e ingresos).
+ * movimientos del mes (gastos e ingresos). `reserved` es lo apartado en el
+ * inicio de mes para los fijos que faltan: no cuenta como disponible.
  */
-export function computeHome(categories: HomeCategory[], monthTx: HomeTx[], today: Date): HomeSummary {
+export function computeHome(categories: HomeCategory[], monthTx: HomeTx[], today: Date, reserved = 0): HomeSummary {
   const active = categories.filter((c) => c.bucket !== 'income' && !c.archived_at);
-  const budget = active.reduce((s, c) => s + Math.max(0, Number(c.budgeted_amount) || 0), 0);
+  // "Hoy puedes gastar" sale de básico + gustos; lo que apartas para metas no se gasta.
+  const spendable = active.filter((c) => c.bucket !== 'savings');
+  const budget = spendable.reduce((s, c) => s + Math.max(0, Number(c.budgeted_amount) || 0), 0);
+  const savingsIds = new Set(active.filter((c) => c.bucket === 'savings').map((c) => c.id));
 
-  const expenses = monthTx.filter((t) => t.type !== 'income');
+  const expenses = monthTx.filter((t) => t.type !== 'income' && !(t.category_id && savingsIds.has(t.category_id)));
   const spent = expenses.reduce((s, t) => s + Number(t.amount), 0);
   const spentBy: Record<string, number> = {};
   for (const t of expenses) {
@@ -88,12 +94,12 @@ export function computeHome(categories: HomeCategory[], monthTx: HomeTx[], today
   const dayOfMonth = today.getDate();
   const daysLeft = daysInMonth - dayOfMonth + 1;
   const left = budget - spent;
-  const perDay = budget > 0 ? Math.max(0, Math.round(left / daysLeft)) : 0;
+  const perDay = budget > 0 ? Math.max(0, Math.round((left - reserved) / daysLeft)) : 0;
   const pct = budget > 0 ? spent / budget : 0;
 
   // Ritmo esperado a la fecha según cada categoría (lineal o pago fijo).
   const ctx = { today, daysInMonth, dayOfMonth };
-  const expected = active.reduce((s, c) => s + computeCategoryPace({
+  const expected = spendable.reduce((s, c) => s + computeCategoryPace({
     categoryId: c.id,
     name: c.name,
     budget: Number(c.budgeted_amount) || 0,
@@ -130,7 +136,7 @@ export function computeHome(categories: HomeCategory[], monthTx: HomeTx[], today
     .map((c) => ({ id: c.id, name: c.name, icon: c.icon, bucket: c.bucket, spent: spentBy[c.id] }))
     .sort((a, b) => b.spent - a.spent);
 
-  return { budget, spent, left, daysLeft, perDay, pct, status, overCategory, catBars, spendByCategory };
+  return { budget, reserved, spent, left, daysLeft, perDay, pct, status, overCategory, catBars, spendByCategory };
 }
 
 export type HomeAlert =

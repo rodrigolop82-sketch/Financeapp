@@ -23,6 +23,22 @@ describe('computeHome', () => {
     expect(Math.round(h.left)).toBe(2283);
   });
 
+  it('Fase 6: Q 89 sin apartar y Q 72 con Q 481 apartados; las metas no cuentan', () => {
+    const cats: HomeCategory[] = [
+      { id: 'a', name: 'Básico', bucket: 'needs', budgeted_amount: 6000 },
+      { id: 'b', name: 'Gustos', bucket: 'wants', budgeted_amount: 1125 },
+      { id: 'm', name: 'Colchón', bucket: 'savings', budgeted_amount: 800 },
+    ];
+    const txs: HomeTx[] = [
+      { category_id: 'a', amount: 4000, type: 'expense' },
+      { category_id: 'b', amount: 542.5, type: 'expense' },
+      { category_id: 'm', amount: 500, type: 'expense' },
+    ];
+    expect(computeHome(cats, txs, OCT_3).perDay).toBe(89);
+    expect(computeHome(cats, txs, OCT_3, 481).perDay).toBe(72);
+    expect(computeHome(cats, txs, OCT_3).budget).toBe(7125);
+  });
+
   it('sin plan no inventa presupuesto', () => {
     const h = computeHome([{ id: 'b', name: 'Alimentación', bucket: 'needs', budgeted_amount: 0 }], [{ category_id: 'b', amount: 100, type: 'expense' }], OCT_3);
     expect(h.budget).toBe(0);

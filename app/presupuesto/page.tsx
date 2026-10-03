@@ -24,6 +24,9 @@ import { TEXT_MUTED } from '@/components/movimientos/ui';
 import { PlanSummaryCard } from '@/components/presupuesto/PlanSummaryCard';
 import { PlanGroups, type PlanGroupVM, type PlanRowVM } from '@/components/presupuesto/PlanGroups';
 import { EditPlanSheet, type EditPlanTarget, type PlanDraft } from '@/components/presupuesto/EditPlanSheet';
+import { daysLeftInMonth, isCounted, totalCountedIncome } from '@/lib/inicio-de-mes';
+import { MonthStartNotice } from '@/components/inicio-de-mes/MonthStartNotice';
+import { useMonthStart } from '@/components/inicio-de-mes/useMonthStart';
 import type { BudgetCategory, BudgetSubItem, IncomeEntry } from '@/types';
 
 export default function PresupuestoPage() {
@@ -147,7 +150,6 @@ function PlanDelMes() {
 
   const planCats = useMemo(() => categories.filter((c) => c.bucket !== 'income'), [categories]);
   const incomeCats = useMemo(() => categories.filter((c) => c.bucket === 'income'), [categories]);
-  const summary = planSummary(planCats, subItems, incomes);
   const monthName0 = monthName(month);
   const prevName = monthName(prevMonth);
 
@@ -170,6 +172,33 @@ function PlanDelMes() {
   }, [txs, incomes, incomeCats, month, prevMonth]);
 
   const subsOf = (catId: string) => subItems.filter((s) => s.category_id === catId);
+
+  // ── Inicio de mes (Fase 6) ──────────────────────
+
+  const baseSummary = planSummary(planCats, subItems, incomes);
+  const spentPlan = planCats
+    .filter((c) => c.bucket === 'needs' || c.bucket === 'wants')
+    .reduce((a, c) => a + (derived.spentCat[c.id] ?? 0), 0);
+  const monthStart = useMonthStart({
+    supabase, householdId, month, categories, subItems, incomes,
+    spentByCategory: derived.spentCat, spentBySub: derived.spentSub,
+    received: derived.received, incomeCategoryOf: derived.incomeCatOf,
+    planSpend: baseSummary.needs + baseSummary.wants,
+    spent: spentPlan,
+    daysLeft: daysLeftInMonth(new Date()),
+    fmt,
+    onSaved: (text) => { void load(); setMessage({ text, tone: 'ok' }); },
+    onError: (text) => setMessage({ text, tone: 'error' }),
+  });
+  // "Te entra al mes" cuenta solo los ingresos con los que cuentas este mes.
+  const countedIncomeTotal = totalCountedIncome(incomes, derived.received, monthStart.choices);
+  const summary = {
+    ...baseSummary,
+    income: countedIncomeTotal,
+    unassigned: Math.round((countedIncomeTotal - baseSummary.assigned) * 100) / 100,
+  };
+  const reservedLeaf = (id: string, day: number | null) =>
+    monthStart.done && isCounted(monthStart.choices, 'expense', id) ? { day } : undefined;
 
   function flash(key: string) {
     setFlashKey(key);
@@ -497,6 +526,16 @@ function PlanDelMes() {
 
   const goalStatus: RowStatus = { text: 'Se aparta cuando te pagan', tone: 'muted', pct: 0, bar: 'normal' };
 
+  function incomeRowStatus(e: IncomeEntry, monthly: number, fixed: boolean): RowStatus {
+    const rec = derived.received[e.id] ?? 0;
+    const st = incomeStatus(monthly, rec, fixed, e.expected_day ?? null, fmt);
+    // Fijo que apagaste en el inicio de mes y todavía no llega.
+    if (fixed && rec === 0 && monthStart.choices?.income[e.id] === false) {
+      return { ...st, text: 'No cuenta hasta que llegue', tone: 'warning' };
+    }
+    return st;
+  }
+
   const incomeGroup: PlanGroupVM = {
     key: 'income',
     title: 'Ingresos',
@@ -514,7 +553,7 @@ function PlanDelMes() {
         name: e.source || 'Ingreso',
         fixed,
         amount: fmt(monthly),
-        status: incomeStatus(monthly, derived.received[e.id] ?? 0, fixed, e.expected_day ?? null, fmt),
+        status: incomeRowStatus(e, monthly, fixed),
         hasBar: true,
         onClick: () => openSheet({ kind: 'income', id: e.id }),
         flash: flashKey === e.id,
@@ -533,7 +572,7 @@ function PlanDelMes() {
         const fixed = !isGoal && c.pace_mode === 'fixed';
         return {
           key: c.id, emoji: getEmoji(c), name: c.name, fixed, amount: fmt(plan),
-          status: isGoal ? goalStatus : expenseStatus(plan, spent, fixed, fmt),
+          status: isGoal ? goalStatus : expenseStatus(plan, spent, fixed, fmt, fixed ? reservedLeaf(c.id, c.expected_day ?? null) : undefined),
           hasBar: !isGoal,
           onClick: () => openSheet({ kind: isGoal ? 'goal' : 'category', id: c.id }),
           flash: flashKey === c.id,
@@ -559,7 +598,10 @@ function PlanDelMes() {
           const pp = subMonthly(p);
           return {
             key: p.id, name: p.name, fixed: !isGoal && p.is_fixed, amount: fmt(pp),
-            status: isGoal ? goalStatus : expenseStatus(pp, derived.spentSub[p.id] ?? 0, p.is_fixed, fmt),
+            status: isGoal ? goalStatus : expenseStatus(
+              pp, derived.spentSub[p.id] ?? 0, p.is_fixed, fmt,
+              p.is_fixed ? reservedLeaf(p.id, p.expected_day ?? null) : undefined,
+            ),
             onClick: () => openSheet({ kind: 'part', id: p.id, categoryId: c.id }),
           };
         }),
@@ -641,7 +683,15 @@ function PlanDelMes() {
               onSendToCushion={cushion ? () => void guarded(sendToCushion) : undefined}
             />
 
-            {/* Fase 6: tarjeta de inicio de mes. */}
+            {monthStart.loaded && (
+              <MonthStartNotice
+                variant="plan"
+                monthName={monthName0}
+                done={monthStart.done}
+                summary={monthStart.summary}
+                onOpen={monthStart.open}
+              />
+            )}
 
             <PlanGroups groups={[incomeGroup, ...expenseGroups]} />
 
@@ -676,6 +726,8 @@ function PlanDelMes() {
           />
         )}
       </BottomSheet>
+
+      {monthStart.element}
 
       <UndoToast
         key={undo?.title}

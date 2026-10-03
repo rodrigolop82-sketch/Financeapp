@@ -179,6 +179,8 @@ export function expenseStatus(
   spent: number,
   fixed: boolean,
   fmt: (n: number) => string,
+  /** Hoja fija apartada en el inicio de mes, con su día de vencimiento. */
+  reserve?: { day: number | null },
 ): RowStatus {
   const r = plan > 0 ? spent / plan : spent > 0 ? 2 : 0;
   const pct = Math.min(100, Math.round(r * 100));
@@ -187,7 +189,9 @@ export function expenseStatus(
   let tone: Tone = 'muted';
   if (spent > plan) { text = `${fmt(spent - plan)} de más`; tone = 'danger'; }
   else if (fixed && spent > 0 && spent >= plan) text = 'Pagado ✓';
-  // "Apartado Q x · vence el {día}" llega con el inicio de mes (Fase 6).
+  else if (fixed && reserve) {
+    text = `${spent > 0 ? `Pagado ${fmt(spent)} · ` : ''}Apartado ${fmt(plan - spent)}${reserve.day ? ` · vence el ${reserve.day}` : ''}`;
+  }
   else if (fixed && spent > 0) text = `Pagado ${fmt(spent)} · faltan ${fmt(plan - spent)}`;
   else if (fixed) text = 'Falta pagar';
   else if (!spent) text = 'Nada gastado todavía';
@@ -304,4 +308,24 @@ export function impactText(newUnassigned: number, isIncome: boolean, fmt: (n: nu
   return isIncome
     ? `Tu plan pediría ${fmt(-newUnassigned)} más de lo que te entra`
     : `Te pasarías ${fmt(-newUnassigned)} de lo que te entra`;
+}
+
+/** Categoría de ingreso de cada ingreso del plan (la suya o la inferida). */
+export function incomeCategoryIds<T extends { id: string; name: string }>(
+  incomes: PlanIncome[],
+  incomeCategories: T[],
+): Record<string, string | null> {
+  return Object.fromEntries(incomes.map((e) => [
+    e.id,
+    e.category_id ?? inferIncomeCategory(e.source, e.is_fixed ?? true, incomeCategories)?.id ?? null,
+  ]));
+}
+
+/** Lo recibido este mes por cada ingreso, repartido con allocateReceived. */
+export function receivedByIncome(
+  incomes: PlanIncome[],
+  categoryOf: Record<string, string | null>,
+  receivedByCategory: Record<string, number>,
+): Record<string, number> {
+  return allocateReceived(incomes.map((e) => ({ ...e, categoryId: categoryOf[e.id] ?? null })), receivedByCategory);
 }

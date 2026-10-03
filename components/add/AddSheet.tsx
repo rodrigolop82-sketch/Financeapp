@@ -18,6 +18,7 @@ import { DateSheet, OptionSheet } from '@/components/movimientos/OptionSheet'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
 import { SubItemPicker, type SubItemOption } from '@/components/movimientos/SubItemPicker'
 import { suggestSubItem } from '@/lib/plan-del-mes'
+import { isReservedLeaf } from '@/lib/month-start-data'
 import {
   BORDER, PRIMARY_BUTTON, SHEET_TITLE, SOFT_BG, TEXT_BODY, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG,
 } from '@/components/movimientos/ui'
@@ -290,7 +291,7 @@ export function AddSheet() {
         household_id: context.householdId,
         category_id: d.categoryId,
         amount: Number(d.amount),
-        description: d.name.trim() || cat?.name || null,
+        description: d.name.trim() || ctx?.subItems.find((p) => p.id === d.subItemId)?.name || cat?.name || null,
         date: d.date,
         source,
         type: d.type,
@@ -311,10 +312,18 @@ export function AddSheet() {
       return
     }
     const first = rows[0]
+    // Gasto en una hoja fija apartada: "pendiente" baja solo, no se cuenta dos veces.
+    const joined = rows.length === 1 && first.type === 'expense' && !!first.category_id && first.date.slice(0, 7) === localToday().slice(0, 7)
+      && await isReservedLeaf(createClient(), context.householdId, first.date.slice(0, 7), {
+        categoryId: first.category_id,
+        subItemId: drafts[0].subItemId,
+      }).catch(() => false)
     toast(
       rows.length > 1
         ? `Guardados ${rows.length} movimientos`
-        : `Guardado: ${first.description ?? ''} · ${formatMoney(first.amount, { showDecimals: true })}`,
+        : joined
+          ? `Guardado: ${first.description ?? ''}. Lo juntamos con lo que ya habías apartado.`
+          : `Guardado: ${first.description ?? ''} · ${formatMoney(first.amount, { showDecimals: true })}`,
       'ok',
     )
     closeSheet()

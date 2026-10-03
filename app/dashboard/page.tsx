@@ -20,15 +20,30 @@ import { TRANSACTIONS_CHANGED_EVENT, type TxChangedDetail } from '@/components/a
 import { TxRow, txRowData } from '@/components/movimientos/SwipeRow'
 import { useTxSheets } from '@/components/movimientos/useTxSheets'
 import { CARD_BG, DIVIDER, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
-import type { BudgetCategory, SearchTransaction } from '@/types'
+import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
+import { MonthStartNotice } from '@/components/inicio-de-mes/MonthStartNotice'
+import { useMonthStart } from '@/components/inicio-de-mes/useMonthStart'
+import { incomeCategoryIds, monthName, receivedByIncome } from '@/lib/plan-del-mes'
+import type { BudgetCategory, BudgetSubItem, IncomeEntry, SearchTransaction } from '@/types'
+
+interface HomeMonthTx {
+  id: string
+  amount: number
+  type: 'expense' | 'income'
+  category_id: string | null
+  budget_sub_item_id?: string | null
+}
 
 interface HomeData {
   householdId: string
   fullName: string
   firstName: string
   categories: BudgetCategory[]
-  summary: HomeSummary
-  alert: HomeAlert | null
+  subItems: BudgetSubItem[]
+  incomes: IncomeEntry[]
+  monthTx: HomeMonthTx[]
+  daysSinceLast: number | null
+  savings: { title: string; subtitle: string } | null
 }
 
 const BAR_STYLE: Record<BarKind, { bar: string; text: string }> = {
@@ -71,10 +86,12 @@ export default function InicioPage() {
       const hid = household.id as string
       const { from, to } = monthRange(month)
 
-      const [profileRes, catsRes, monthRes, latestRes] = await Promise.all([
+      const monthQuery = (cols: string) =>
+        supabase.from('transactions').select(cols).eq('household_id', hid).gte('date', from).lte('date', to)
+      const [profileRes, catsRes, monthRes0, latestRes, subsRes, incomesRes] = await Promise.all([
         supabase.from('users').select('full_name').eq('id', user.id).single(),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
-        supabase.from('transactions').select('id, amount, type, category_id').eq('household_id', hid).gte('date', from).lte('date', to),
+        monthQuery('id, amount, type, category_id, budget_sub_item_id'),
         supabase
           .from('transactions')
           .select('*, budget_categories(name, bucket, icon)')
@@ -82,13 +99,16 @@ export default function InicioPage() {
           .order('date', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(4),
+        supabase.from('budget_sub_items').select('*').eq('household_id', hid),
+        supabase.from('income_entries').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
       ])
+      // Sin la migración del Plan del mes no existe budget_sub_item_id.
+      const monthRes = monthRes0.error ? await monthQuery('id, amount, type, category_id') : monthRes0
       if (cancelled) return
 
       const pendingId = getPendingDeleteId()
       const categories = (catsRes.data ?? []) as BudgetCategory[]
-      const monthTx = ((monthRes.data ?? []) as { id: string; amount: number; type: 'expense' | 'income'; category_id: string | null }[])
-        .filter((t) => t.id !== pendingId)
+      const monthTx = ((monthRes.data ?? []) as unknown as HomeMonthTx[]).filter((t) => t.id !== pendingId)
       const summary = computeHome(categories, monthTx, new Date())
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,12 +149,11 @@ export default function InicioPage() {
         fullName,
         firstName: fullName.split(/\s+/)[0],
         categories,
-        summary,
-        alert: pickHomeAlert({
-          overCategory: summary.overCategory,
-          daysSinceLastTransaction: daysSinceLast,
-          savings: savingsAlert ? { title: savingsAlert.title, subtitle: savingsAlert.subtitle } : null,
-        }),
+        subItems: (subsRes.data ?? []) as BudgetSubItem[],
+        incomes: (incomesRes.data ?? []) as IncomeEntry[],
+        monthTx,
+        daysSinceLast,
+        savings: savingsAlert ? { title: savingsAlert.title, subtitle: savingsAlert.subtitle } : null,
       })
       setLatest(latestRows)
     })()
@@ -152,7 +171,61 @@ export default function InicioPage() {
     return () => window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged)
   }, [reload, flash])
 
-  if (!data) {
+  // ── Inicio de mes (Fase 6) ──────────────────────
+  const plan = useMemo(() => {
+    const categories = data?.categories ?? []
+    const monthTx = data?.monthTx ?? []
+    const sum = (type: 'expense' | 'income', key: (t: HomeMonthTx) => string | null | undefined) => {
+      const out: Record<string, number> = {}
+      for (const t of monthTx) {
+        const k = key(t)
+        if (t.type === type && k) out[k] = (out[k] ?? 0) + Number(t.amount)
+      }
+      return out
+    }
+    const incomeCats = categories.filter((c) => c.bucket === 'income')
+    const incomeCategoryOf = incomeCategoryIds(data?.incomes ?? [], incomeCats)
+    return {
+      spentByCategory: sum('expense', (t) => t.category_id),
+      spentBySub: sum('expense', (t) => t.budget_sub_item_id),
+      incomeCategoryOf,
+      received: receivedByIncome(data?.incomes ?? [], incomeCategoryOf, sum('income', (t) => t.category_id)),
+    }
+  }, [data])
+  const baseSummary = useMemo(() => (data ? computeHome(data.categories, data.monthTx, new Date()) : null), [data])
+
+  const [toast, setToast] = useState<StatusMessage | null>(null)
+  const monthStart = useMonthStart({
+    supabase,
+    householdId: data?.householdId ?? '',
+    month,
+    categories: data?.categories ?? [],
+    subItems: data?.subItems ?? [],
+    incomes: data?.incomes ?? [],
+    spentByCategory: plan.spentByCategory,
+    spentBySub: plan.spentBySub,
+    received: plan.received,
+    incomeCategoryOf: plan.incomeCategoryOf,
+    planSpend: baseSummary?.budget ?? 0,
+    spent: baseSummary?.spent ?? 0,
+    daysLeft: baseSummary?.daysLeft ?? 1,
+    fmt,
+    onSaved: (text) => { reload(); setToast({ text, tone: 'ok' }) },
+    onError: (text) => setToast({ text, tone: 'error' }),
+  })
+
+  // ?inicio_mes=1 (recordatorio del día 1) abre la hoja.
+  const openMonthStart = monthStart.open
+  useEffect(() => {
+    if (!monthStart.loaded) return
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('inicio_mes') !== '1') return
+    url.searchParams.delete('inicio_mes')
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+    openMonthStart()
+  }, [monthStart.loaded, openMonthStart])
+
+  if (!data || !baseSummary) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zafi-bg)' }}>
         <Loader2 className="w-8 h-8 text-electric animate-spin" aria-label="Cargando" />
@@ -160,7 +233,12 @@ export default function InicioPage() {
     )
   }
 
-  const { summary: s, alert } = data
+  const s: HomeSummary = computeHome(data.categories, data.monthTx, new Date(), monthStart.reserve.reserved)
+  const alert: HomeAlert | null = pickHomeAlert({
+    overCategory: s.overCategory,
+    daysSinceLastTransaction: data.daysSinceLast,
+    savings: data.savings,
+  })
   const hasPlan = s.budget > 0
   const status = STATUS_META[s.status]
 
@@ -209,9 +287,11 @@ export default function InicioPage() {
                 {fmt(s.perDay)}
               </p>
               <p className="text-sm text-[#9FB3CB] [text-wrap:pretty]">
-                {s.perDay > 0
-                  ? 'Si te mantienes en eso cada día, llegas a fin de mes con lo que planeaste.'
-                  : 'Ya usaste todo lo planeado para este mes.'}
+                {s.left <= 0
+                  ? 'Ya usaste todo lo planeado para este mes.'
+                  : !monthStart.done
+                    ? 'Ojo: tus gastos fijos sin pagar todavía cuentan aquí, así que este número puede estar inflado.'
+                    : `Ya apartamos ${fmt(monthStart.reserve.reserved)} para pagos fijos que faltan. Si gastas eso cada día, llegas a fin de mes.`}
               </p>
               <div className="h-px bg-white/[0.08] mt-3 mb-2" />
               <div className="flex items-center justify-between text-[13.5px] text-[#9FB3CB]">
@@ -244,6 +324,11 @@ export default function InicioPage() {
             </>
           )}
         </section>
+
+        {/* Inicio de mes pendiente */}
+        {hasPlan && monthStart.loaded && !monthStart.done && (
+          <MonthStartNotice variant="home" monthName={monthName(month)} done={false} onOpen={monthStart.open} />
+        )}
 
         {/* Alerta única */}
         {alert && <HomeAlertCard alert={alert} fmt={fmt} />}
@@ -333,6 +418,8 @@ export default function InicioPage() {
       </div>
 
       {sheets.element}
+      {monthStart.element}
+      <StatusToast message={toast} onDone={() => setToast(null)} />
     </AppShell>
   )
 }

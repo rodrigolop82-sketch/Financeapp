@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = getServiceSupabase()
-  const results = { inactivity: 0, monthClose: 0 }
+  const results = { inactivity: 0, monthClose: 0, monthStart: 0 }
 
   const { data: prefs } = await supabase
     .from('notification_preferences')
@@ -33,6 +33,11 @@ export async function GET(req: NextRequest) {
   const dayOfMonth = today.getDate()
 
   for (const pref of prefs) {
+    // --- Inicio de mes: el día 1 (el cron corre a las 8:00 de Guatemala) ---
+    if (dayOfMonth === 1 && await sendMonthStartReminder(supabase, pref.user_id, today)) {
+      results.monthStart++
+    }
+
     // --- Inactivity check ---
     if (pref.inactivity_enabled) {
       const alreadyNotified = await wasNotifiedRecently(
@@ -122,4 +127,48 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ message: 'Notifications processed', results })
+}
+
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+/**
+ * "Empieza {mes}: confirma tu salario y aparta tus fijos." Solo a quien ya
+ * hizo un inicio de mes con "Recordarme cada día 1" encendido y todavía no
+ * hizo el de este mes. La hoja abre con lo del mes anterior ya marcado.
+ */
+async function sendMonthStartReminder(
+  supabase: ReturnType<typeof getServiceSupabase>,
+  userId: string,
+  today: Date,
+): Promise<boolean> {
+  const { data: members } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', userId)
+    .limit(1)
+  const householdId = members?.[0]?.household_id
+  if (!householdId) return false
+
+  const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  const { data: starts, error } = await supabase
+    .from('month_starts')
+    .select('year_month, remind_monthly')
+    .eq('household_id', householdId)
+    .order('year_month', { ascending: false })
+    .limit(1)
+  const last = starts?.[0]
+  if (error || !last || !last.remind_monthly || last.year_month === yearMonth) return false
+  if (await wasNotifiedRecently(userId, 'month_start', 20 * 24 * 60 * 60 * 1000)) return false
+
+  const sent = await sendPushToUser(
+    userId,
+    {
+      title: `Empieza ${MONTHS[today.getMonth()]} 🗓️`,
+      body: `Empieza ${MONTHS[today.getMonth()]}: confirma tu salario y aparta tus fijos.`,
+      url: '/dashboard?inicio_mes=1',
+      tag: 'month-start',
+    },
+    'month_start',
+  )
+  return sent > 0
 }

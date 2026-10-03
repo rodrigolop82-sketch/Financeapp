@@ -112,6 +112,11 @@ describe('expenseStatus', () => {
     expect(expenseStatus(700, 555, true, fmt).text).toBe('Pagado Q 555 · faltan Q 145');
     expect(expenseStatus(700, 0, true, fmt).text).toBe('Falta pagar');
   });
+  it('fijo apartado en el inicio de mes', () => {
+    expect(expenseStatus(200, 0, true, fmt, { day: 31 }).text).toBe('Apartado Q 200 · vence el 31');
+    expect(expenseStatus(700, 555, true, fmt, { day: null }).text).toBe('Pagado Q 555 · Apartado Q 145');
+    expect(expenseStatus(200, 200, true, fmt, { day: 31 }).text).toBe('Pagado ✓');
+  });
   it('un fijo al 85% sigue en azul', () => {
     expect(expenseStatus(700, 650, true, fmt).bar).toBe('normal');
   });
