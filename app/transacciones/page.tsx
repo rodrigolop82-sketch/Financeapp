@@ -635,7 +635,16 @@ function TransaccionesPageInner() {
                   <div className="flex rounded-lg overflow-hidden border" style={{ height: 40 }}>
                     <button
                       type="button"
-                      onClick={() => setNewTx({ ...newTx, type: 'expense' })}
+                      onClick={() => {
+                        const currentCat = categories.find(c => c.id === newTx.category_id);
+                        const needsNewCat = !currentCat || currentCat.bucket === 'income';
+                        const fallback = categories.find(c => c.bucket !== 'income');
+                        setNewTx({
+                          ...newTx,
+                          type: 'expense',
+                          category_id: needsNewCat && fallback ? fallback.id : newTx.category_id,
+                        });
+                      }}
                       className="flex-1 text-sm font-semibold transition-colors"
                       style={{
                         background: newTx.type === 'expense' ? '#1E3A5F' : 'white',
@@ -647,7 +656,16 @@ function TransaccionesPageInner() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setNewTx({ ...newTx, type: 'income' })}
+                      onClick={() => {
+                        const currentCat = categories.find(c => c.id === newTx.category_id);
+                        const needsNewCat = !currentCat || currentCat.bucket !== 'income';
+                        const fallback = categories.find(c => c.bucket === 'income');
+                        setNewTx({
+                          ...newTx,
+                          type: 'income',
+                          category_id: needsNewCat && fallback ? fallback.id : newTx.category_id,
+                        });
+                      }}
                       className="flex-1 text-sm font-semibold transition-colors"
                       style={{
                         background: newTx.type === 'income' ? '#16A34A' : 'white',
@@ -677,6 +695,11 @@ function TransaccionesPageInner() {
                       </optgroup>
                       <optgroup label="Ahorro/Deudas">
                         {categories.filter(c => c.bucket === 'savings').map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Ingresos">
+                        {categories.filter(c => c.bucket === 'income').map(c => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </optgroup>

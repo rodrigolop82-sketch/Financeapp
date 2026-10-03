@@ -409,7 +409,7 @@ export default function CategoriasPage() {
                       {cat.name}
                     </p>
                     <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>
-                      {cat.bucket === 'needs' ? 'Necesidades' : cat.bucket === 'wants' ? 'Gustos' : 'Ahorro/Deudas'}
+                      {cat.bucket === 'needs' ? 'Necesidades' : cat.bucket === 'wants' ? 'Gustos' : cat.bucket === 'income' ? 'Ingresos' : 'Ahorro/Deudas'}
                     </p>
                   </div>
                   <button

@@ -21,10 +21,11 @@ const CATEGORY_EMOJI: Record<string, string> = {
 
 function getEmoji(cat: BudgetCategory): string {
   if (cat.icon) return cat.icon;
-  return (
-    CATEGORY_EMOJI[cat.name] ||
-    (cat.bucket === 'needs' ? '📦' : cat.bucket === 'wants' ? '✨' : '💰')
-  );
+  if (CATEGORY_EMOJI[cat.name]) return CATEGORY_EMOJI[cat.name];
+  if (cat.bucket === 'needs') return '📦';
+  if (cat.bucket === 'wants') return '✨';
+  if (cat.bucket === 'income') return '💵';
+  return '💰';
 }
 
 interface CategoryGridProps {

@@ -108,6 +108,16 @@ export function SearchFilters({
               </option>
             ))}
         </optgroup>
+        <optgroup label="Ingresos">
+          {categories
+            .filter((c) => c.bucket === 'income')
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.icon ? `${c.icon} ` : ''}
+                {c.name}
+              </option>
+            ))}
+        </optgroup>
       </select>
       <select
         aria-label="Monto"

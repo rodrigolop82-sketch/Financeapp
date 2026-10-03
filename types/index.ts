@@ -54,7 +54,7 @@ export interface BudgetCategory {
   id: string;
   household_id: string | null;
   name: string;
-  bucket: 'needs' | 'wants' | 'savings';
+  bucket: 'needs' | 'wants' | 'savings' | 'income';
   budgeted_amount: number;
   is_custom: boolean;
   icon: string | null;
@@ -115,7 +115,7 @@ export interface MerchantCategoryOverride {
 
 export interface SearchTransaction extends Transaction {
   category_name: string;
-  category_bucket: 'needs' | 'wants' | 'savings';
+  category_bucket: 'needs' | 'wants' | 'savings' | 'income';
   category_icon: string | null;
 }
 
@@ -355,4 +355,7 @@ export const DEFAULT_CATEGORIES: Omit<BudgetCategory, 'id' | 'household_id'>[] =
   { name: 'Fondo de emergencia', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
   { name: 'Ahorro para metas', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
   { name: 'Pago extra de deudas', bucket: 'savings', budgeted_amount: 0, is_custom: false, icon: null, is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  // Ingresos
+  { name: 'Salario', bucket: 'income', budgeted_amount: 0, is_custom: false, icon: '💵', is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
+  { name: 'Otros ingresos', bucket: 'income', budgeted_amount: 0, is_custom: false, icon: '💰', is_default: true, created_at: null, pace_mode: 'linear', expected_day: null, parent_category_id: null, color: null, archived_at: null },
 ];
