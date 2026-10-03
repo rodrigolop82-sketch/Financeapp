@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { formatMoney } from '@/lib/format'
 import { isEffectivelyPremium } from '@/lib/plans'
 import { AppShell } from '@/components/layout/AppShell'
+import { NavCard, NavRow } from '@/components/layout/NavRow'
 import { Loader2, ChevronRight, ChevronDown } from 'lucide-react'
 import {
   computeCategoryPace,
@@ -1718,6 +1719,12 @@ function ResumenContent() {
         </>
         )
       })()}
+
+      <div style={{ marginTop: 20 }}>
+        <NavCard>
+          <NavRow href="/health-score" emoji="💚" name="Tu salud financiera" description="Tu puntaje Zafi y cómo mejorarlo" last />
+        </NavCard>
+      </div>
 
       <div className="h-6" />
     </AppShell>

@@ -11,6 +11,7 @@ import type { IncomeEntry } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { Save, Loader2, CheckCircle2 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
+import { NavCard, NavRow } from '@/components/layout/NavRow';
 import { VoiceButton } from '@/components/voice/VoiceButton';
 import { TransactionPreview } from '@/components/voice/TransactionPreview';
 import type { VoiceExtractionResult } from '@/types';
@@ -573,6 +574,12 @@ function PresupuestoContent() {
           getCategoryTotal={getCategoryTotal}
           fmt={fmt}
         />
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <NavCard>
+          <NavRow href="/plan" emoji="🎯" name="Retos del mes" description="Metas cortas según cómo vas gastando" last />
+        </NavCard>
       </div>
     </AppShell>
   );

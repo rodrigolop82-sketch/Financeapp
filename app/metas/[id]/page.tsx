@@ -380,6 +380,17 @@ export default function GoalDetailPage() {
         </div>
       )}
 
+      {goal.status === 'active' && (
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          className="btn-primary w-full"
+          style={{ marginBottom: 20, borderRadius: 14, fontSize: 15, fontWeight: 700, minHeight: 48 }}
+        >
+          💰 Abonar
+        </button>
+      )}
+
       {/* Contribution history */}
       <p style={{
         fontSize: 11, fontWeight: 700, color: '#2563EB',
@@ -390,32 +401,7 @@ export default function GoalDetailPage() {
       </p>
       <ContributionHistory contributions={contributions} isLoading={contribLoading} />
 
-      <div className="h-24" />
-
-      {/* Floating Abonar FAB */}
-      {goal.status === 'active' && (
-        <button
-          onClick={() => setSheetOpen(true)}
-          style={{
-            position: 'fixed',
-            bottom: 'calc(80px + env(safe-area-inset-bottom))',
-            right: 20,
-            zIndex: 30,
-            padding: '14px 28px',
-            background: '#2563EB',
-            border: 'none',
-            borderRadius: 50,
-            color: 'white',
-            fontSize: 15,
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(37,99,235,0.4)',
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}
-        >
-          💰 Abonar
-        </button>
-      )}
+      <div className="h-6" />
 
       <AddContributionSheet
         open={sheetOpen}
