@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { getUserHousehold } from '@/lib/household'
 import { AppShell } from '@/components/layout/AppShell'
 import { MonthSeal } from '@/components/cierre/MonthSeal'
 import {
@@ -45,13 +46,14 @@ function CierreMesContent() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
-    const { data: members } = await supabase
-      .from('household_members')
-      .select('household_id')
-      .eq('user_id', user.id)
-      .limit(1)
-
-    const householdId = members?.[0]?.household_id
+    // Use the same household-resolution logic as the rest of the app
+    // (Presupuesto, etc.) instead of an unordered, unfiltered query —
+    // a plain `.limit(1)` on household_members can pick a different
+    // row than getUserHousehold() when the user has more than one
+    // membership row (e.g. both an owner and an invited-member row),
+    // which made this page silently look at the wrong household.
+    const household = await getUserHousehold(supabase, user.id)
+    const householdId = household?.id
     if (!householdId) { setLoading(false); return }
 
     const result = await getMonthCloseChecklist(user.id, householdId, yearMonth)
