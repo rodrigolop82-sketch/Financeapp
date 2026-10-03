@@ -1451,8 +1451,10 @@ function ResumenContent() {
         const chartPadY = 34
         const usableH = chartH - 2 * chartPadY
         const toY = (v: number) => chartPadY + usableH - (v / chartMax) * usableH
-        const spacing = chartMonths.length > 1 ? 360 / (chartMonths.length - 1) : 180
-        const toX = (i: number) => 10 + i * spacing
+        const chartW = 400
+        const chartPadX = 30 // room for the point-value labels at the first/last month so they don't clip
+        const spacing = chartMonths.length > 1 ? (chartW - 2 * chartPadX) / (chartMonths.length - 1) : (chartW - 2 * chartPadX) / 2
+        const toX = (i: number) => chartPadX + i * spacing
 
         const totalPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.total)}`).join(' ')
 
@@ -1584,10 +1586,10 @@ function ResumenContent() {
                   <span style={{ width: 14, height: 2, background: '#F59E0B', display: 'inline-block' }} />Deseos
                 </div>
               </div>
-              <svg width="100%" height={chartH} viewBox={`0 0 ${toX(lastIdx) + 10} ${chartH}`} preserveAspectRatio="none">
-                <line x1="0" y1={toY(chartMax * 0.25)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.25)} stroke="#EEF1F6" strokeWidth="1" />
-                <line x1="0" y1={toY(chartMax * 0.5)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.5)} stroke="#EEF1F6" strokeWidth="1" />
-                <line x1="0" y1={toY(chartMax * 0.75)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.75)} stroke="#EEF1F6" strokeWidth="1" />
+              <svg width="100%" height={chartH} viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none">
+                <line x1="0" y1={toY(chartMax * 0.25)} x2={chartW} y2={toY(chartMax * 0.25)} stroke="#EEF1F6" strokeWidth="1" />
+                <line x1="0" y1={toY(chartMax * 0.5)} x2={chartW} y2={toY(chartMax * 0.5)} stroke="#EEF1F6" strokeWidth="1" />
+                <line x1="0" y1={toY(chartMax * 0.75)} x2={chartW} y2={toY(chartMax * 0.75)} stroke="#EEF1F6" strokeWidth="1" />
                 {/* Total */}
                 <path d={totalSplit.solid} fill="none" stroke="#2563EB" strokeWidth="2.5" />
                 {totalSplit.dashed && <path d={totalSplit.dashed} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.5" />}
