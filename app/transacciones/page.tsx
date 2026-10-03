@@ -8,6 +8,7 @@ import type { BudgetCategory, SearchTransaction } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
 import { groupByDay, monthLabel, monthRange, recentMonths } from '@/lib/movimientos';
+import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow';
 import { AppShell } from '@/components/layout/AppShell';
 import { openAddSheet } from '@/components/dashboard/BottomNav';
 import { TRANSACTIONS_CHANGED_EVENT, type TxChangedDetail } from '@/components/add/AddSheet';
@@ -28,6 +29,12 @@ function readSwipeCount(): number {
   try { return Number(localStorage.getItem(SWIPE_HINT_KEY)) || 0; } catch { return 0; }
 }
 
+/** "Oct" u "Oct 25" (si es de otro año). */
+function shortMonth(label: string): string {
+  const [name, year] = label.split(' ');
+  return year ? `${name.slice(0, 3)} ${year.slice(2)}` : name.slice(0, 3);
+}
+
 export default function MovimientosPage() {
   const router = useRouter();
   const fmt = useFormatMoney();
@@ -36,6 +43,8 @@ export default function MovimientosPage() {
 
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [ready, setReady] = useState(false);
+  const [householdId, setHouseholdId] = useState('');
+  const [importing, setImporting] = useState(false);
 
   const [month, setMonth] = useState(() => today.slice(0, 7));
   const [query, setQuery] = useState('');
@@ -74,6 +83,7 @@ export default function MovimientosPage() {
       if (!hh) { router.push('/onboarding'); return; }
       const { data: cats } = await supabase.from('budget_categories').select('*').eq('household_id', hh.id);
       setCategories((cats ?? []) as BudgetCategory[]);
+      setHouseholdId(hh.id as string);
       setReady(true);
     })();
   }, [supabase, router]);
@@ -203,13 +213,29 @@ export default function MovimientosPage() {
       aria-label={`Mes: ${monthLabel(month, today)}. Cambiar mes`}
       className={`flex-none flex items-center gap-1 h-9 px-3.5 rounded-full border text-sm font-semibold text-navy dark:text-ink-100 ${BORDER} ${CARD_BG}`}
     >
-      {monthLabel(month, today)}
+      {/* En pantallas angostas, "Oct": deja lugar para "Importar" junto al título. */}
+      <span className="min-[430px]:hidden">{shortMonth(monthLabel(month, today))}</span>
+      <span className="hidden min-[430px]:inline">{monthLabel(month, today)}</span>
       <ChevronDown size={14} aria-hidden />
     </button>
   );
 
+  const headerActions = (
+    <div className="flex flex-none items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => setImporting(true)}
+        disabled={!householdId}
+        className="flex-none flex items-center h-9 px-3.5 rounded-full bg-navy text-white text-sm font-semibold dark:bg-electric"
+      >
+        Importar
+      </button>
+      {monthPill}
+    </div>
+  );
+
   return (
-    <AppShell title="Movimientos" currentPath="/transacciones" titleRight={monthPill} headerRight={monthPill}>
+    <AppShell title="Movimientos" currentPath="/transacciones" titleRight={headerActions} headerRight={headerActions}>
       <div className="max-w-3xl flex flex-col">
         <div className="mt-3.5">
           <MonthSummary
@@ -293,6 +319,14 @@ export default function MovimientosPage() {
           )}
         </div>
       </div>
+
+      {importing && householdId && (
+        <StatementImportFlow
+          householdId={householdId}
+          onDone={() => setImporting(false)}
+          onChanged={reload}
+        />
+      )}
 
       <BottomSheet themed open={monthSheetOpen} onClose={() => setMonthSheetOpen(false)} label="Elegir mes">
         {monthSheetOpen && (

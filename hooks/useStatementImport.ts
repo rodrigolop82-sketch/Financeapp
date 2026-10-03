@@ -5,10 +5,11 @@ import { localToday } from '@/lib/dates'
 import { upsertDetectedSource } from '@/lib/sources'
 import { compressImage, ImageDecodeError, IMAGE_DECODE_ERROR_MESSAGE } from '@/lib/import/image-compress'
 import { mergeBatchResults, type ApiExtractedTx, type ExtractedTx } from '@/lib/import/batch-merge'
-import { findDbDuplicates } from '@/lib/import/db-duplicates'
+import { classifyStatement, confirmStatement, importToast, undoStatement, type ClassifyResult, type ImportUndo, type MatchedTx } from '@/lib/import/import-data'
+import type { BudgetCategory, BudgetSubItem } from '@/types'
 import { IMPORT_CONCURRENCY, MAX_IMPORT_IMAGES } from '@/lib/import/constants'
 
-export type ImportStep = 'idle' | 'upload' | 'processing' | 'review' | 'success'
+export type ImportStep = 'idle' | 'upload' | 'processing' | 'review' | 'success' | 'done'
 
 export interface ExtractedTransaction {
   id: string
@@ -28,6 +29,25 @@ export interface ExtractedTransaction {
   possibleBatchDuplicate?: boolean
   /** Ids of the transactions this one may duplicate. */
   possibleDuplicateOf?: string[]
+  /** Clasificación contra lo registrado (lib/import/classify.ts). */
+  kind: 'duplicate' | 'fixed' | 'new'
+  /** Duplicado: la transacción que ya registraste. */
+  matchId: string | null
+  /** Parte del Plan del mes. */
+  subItemId: string | null
+  /** Duplicado: true = "Es el mismo", false = "Son distintos", null = sin revisar. */
+  same: boolean | null
+}
+
+export interface ImportReviewContext {
+  categories: BudgetCategory[]
+  subItems: BudgetSubItem[]
+  matches: Record<string, MatchedTx>
+}
+
+export interface ImportOutcomeState {
+  text: string
+  undo: ImportUndo
 }
 
 export interface ImportStats {
@@ -71,9 +91,25 @@ interface ImportState {
   limitReached: boolean
   limitData: { used: number; limit: number; resetsAt: string } | null
   importUsage: { used: number; limit: number } | null
+  /** "TARJETA •••• 4821" (o el banco) para el encabezado de la revisión. */
+  accountLabel: string | null
+  /** Cargos que ya se habían importado antes (no se muestran). */
+  alreadyImported: number
+  review: ImportReviewContext | null
+  /** Después de confirmar: toast con "Deshacer". */
+  outcome: ImportOutcomeState | null
 }
 
-type PhotoResult = { bank: string | null; transactions: ApiExtractedTx[] }
+type PhotoResult = { bank: string | null; account: AccountInfo | null; transactions: ApiExtractedTx[] }
+
+interface AccountInfo { type?: string | null; last4?: string | null }
+
+/** "TARJETA •••• 4821", "CUENTA •••• 1234" o el nombre del banco. */
+export function accountLabel(account: AccountInfo | null | undefined, bank: string | null): string | null {
+  const last4 = account?.last4?.replace(/\D/g, '').slice(-4)
+  if (last4) return `${account?.type === 'cuenta' ? 'Cuenta' : 'Tarjeta'} •••• ${last4}`
+  return bank && bank !== 'Desconocido' ? bank : null
+}
 
 const REQUEST_TIMEOUT_MS = 120000
 
@@ -91,6 +127,10 @@ function genBatchId(): string {
   bytes[8] = (bytes[8] & 0x3f) | 0x80
   const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+function reviewContext(r: ClassifyResult): ImportReviewContext {
+  return { categories: r.categories, subItems: r.subItems, matches: r.matches }
 }
 
 function mostCommon(values: (string | null)[]): string | null {
@@ -119,10 +159,29 @@ const EMPTY_STATE: ImportState = {
   limitReached: false,
   limitData: null,
   importUsage: null,
+  accountLabel: null,
+  alreadyImported: 0,
+  review: null,
+  outcome: null,
 }
 
 export function useStatementImport(householdId: string) {
   const [state, setState] = useState<ImportState>(EMPTY_STATE)
+
+  /** Clasifica contra lo registrado; si falla, todo queda como nuevo con la categoría sugerida. */
+  const classify = useCallback(async (rawTx: ApiExtractedTx[]): Promise<ClassifyResult> => {
+    try {
+      return await classifyStatement(createClient(), householdId, rawTx.map(t => ({
+        date: t.date, description: t.description, amount: t.amount, type: t.type, category_id: t.category_id,
+      })), localToday())
+    } catch (err) {
+      console.warn('Import classification failed:', err)
+      return {
+        classified: rawTx.map(t => ({ kind: 'new' as const, matchId: null, categoryId: t.category_id ?? null, subItemId: null })),
+        matches: {}, categories: [], subItems: [], overrideKeys: [],
+      }
+    }
+  }, [householdId])
 
   // Use refs to avoid stale closures
   const fileRef = useRef<File | null>(null)
@@ -322,7 +381,7 @@ export function useStatementImport(householdId: string) {
       const data = await res.json()
       if (stale()) return
       const transactions = (data.transactions || []) as ApiExtractedTx[]
-      resultsRef.current.set(id, { bank: data.bank || null, transactions })
+      resultsRef.current.set(id, { bank: data.bank || null, account: data.account ?? null, transactions })
       updatePhoto(id, { status: 'done', txCount: transactions.length, error: null })
     } catch {
       if (stale()) return
@@ -398,10 +457,12 @@ export function useStatementImport(householdId: string) {
     const photos = photosRef.current
     const perPhoto: ExtractedTx[][] = []
     const banks: (string | null)[] = []
+    let account: AccountInfo | null = null
     photos.forEach((p, index) => {
       const result = p.status === 'done' ? resultsRef.current.get(p.id) : undefined
       if (!result) return
       banks.push(result.bank)
+      account ??= result.account?.last4 ? result.account : null
       perPhoto.push(result.transactions.map(tx => ({ ...tx, sourceImageIndex: index })))
     })
 
@@ -409,35 +470,47 @@ export function useStatementImport(householdId: string) {
 
     try {
       const merged = mergeBatchResults(perPhoto)
-      const supabase = createClient()
-      const dupFlags = await findDbDuplicates(supabase, householdId, merged.transactions)
+      const classifiedRes = await classify(merged.transactions)
       if (batchIdRef.current !== batchId) return
 
       const idByKey = new Map(merged.transactions.map(t => [t.key, genId()]))
-      const transactions: ExtractedTransaction[] = merged.transactions.map((tx, i) => ({
-        id: idByKey.get(tx.key)!,
-        date: tx.date,
-        description: tx.description,
-        amount: tx.amount,
-        type: tx.type,
-        suggested_category: tx.suggested_category,
-        category_id: tx.category_id ?? null,
-        selected: !dupFlags[i],
-        isDuplicate: dupFlags[i],
-        original_amount: tx.original_amount ?? null,
-        original_currency: tx.original_currency ?? null,
-        sourceImages: tx.sourceImageIndexes,
-        possibleBatchDuplicate: tx.possibleBatchDuplicate,
-        possibleDuplicateOf: tx.possibleDuplicateOf.map(k => idByKey.get(k)!),
-      }))
+      const transactions: ExtractedTransaction[] = []
+      merged.transactions.forEach((tx, i) => {
+        const c = classifiedRes.classified[i]
+        if (c.kind === 'imported') return
+        transactions.push({
+          id: idByKey.get(tx.key)!,
+          date: tx.date,
+          description: tx.description,
+          amount: tx.amount,
+          type: tx.type,
+          suggested_category: tx.suggested_category,
+          category_id: c.categoryId,
+          selected: true,
+          isDuplicate: c.kind === 'duplicate',
+          original_amount: tx.original_amount ?? null,
+          original_currency: tx.original_currency ?? null,
+          sourceImages: tx.sourceImageIndexes,
+          possibleBatchDuplicate: tx.possibleBatchDuplicate,
+          possibleDuplicateOf: tx.possibleDuplicateOf.map(k => idByKey.get(k)!),
+          kind: c.kind,
+          matchId: c.matchId,
+          subItemId: c.subItemId,
+          same: null,
+        })
+      })
 
+      const bank = mostCommon(banks)
       setState(s => ({
         ...s,
         step: 'review',
         isLoading: false,
-        bankDetected: mostCommon(banks),
+        bankDetected: bank,
+        accountLabel: accountLabel(account, bank),
         period: null,
         transactions,
+        alreadyImported: merged.transactions.length - transactions.length,
+        review: reviewContext(classifiedRes),
         batch: { photoCount: perPhoto.length, exactDuplicatesCollapsed: merged.exactDuplicatesCollapsed },
       }))
     } catch (err) {
@@ -446,7 +519,7 @@ export function useStatementImport(householdId: string) {
       if (batchIdRef.current !== batchId) return
       setState(s => ({ ...s, isLoading: false, error: 'Error al preparar la revisión. Inténtalo de nuevo.' }))
     }
-  }, [householdId])
+  }, [classify])
 
   // Advance automatically once every photo has settled without errors.
   useEffect(() => {
@@ -545,31 +618,41 @@ export function useStatementImport(householdId: string) {
 
       const rawTx = (data.transactions || []) as ApiExtractedTx[]
 
-      // Detect duplicates
-      const supabase = createClient()
-      const dupFlags = await findDbDuplicates(supabase, householdId, rawTx)
-
-      const transactions: ExtractedTransaction[] = rawTx.map((tx, i) => ({
-        id: genId(),
-        date: tx.date,
-        description: tx.description,
-        amount: tx.amount,
-        type: tx.type,
-        suggested_category: tx.suggested_category,
-        category_id: tx.category_id ?? null,
-        selected: !dupFlags[i],
-        isDuplicate: dupFlags[i],
-        original_amount: tx.original_amount ?? null,
-        original_currency: tx.original_currency ?? null,
-      }))
+      // Clasifica contra lo registrado: ya importado, duplicado, fijo o nuevo.
+      const classifiedRes = await classify(rawTx)
+      const transactions: ExtractedTransaction[] = []
+      rawTx.forEach((tx, i) => {
+        const c = classifiedRes.classified[i]
+        if (c.kind === 'imported') return
+        transactions.push({
+          id: genId(),
+          date: tx.date,
+          description: tx.description,
+          amount: tx.amount,
+          type: tx.type,
+          suggested_category: tx.suggested_category,
+          category_id: c.categoryId,
+          selected: true,
+          isDuplicate: c.kind === 'duplicate',
+          original_amount: tx.original_amount ?? null,
+          original_currency: tx.original_currency ?? null,
+          kind: c.kind,
+          matchId: c.matchId,
+          subItemId: c.subItemId,
+          same: null,
+        })
+      })
 
       setState(s => ({
         ...s,
         step: 'review',
         isLoading: false,
         bankDetected: data.bank || null,
+        accountLabel: accountLabel(data.account, data.bank || null),
         period: data.period || null,
         transactions,
+        alreadyImported: rawTx.length - transactions.length,
+        review: reviewContext(classifiedRes),
       }))
     } catch (err) {
       console.error('Statement import error:', err)
@@ -580,9 +663,21 @@ export function useStatementImport(householdId: string) {
         step: 'upload',
       }))
     }
-  }, [householdId])
+  }, [classify])
 
   // ─── Review ────────────────────────────────────────────────────────
+
+  /** "Es el mismo" / "Son distintos" en un posible duplicado. */
+  const setSame = useCallback((id: string, same: boolean) => {
+    setState(s => ({ ...s, transactions: s.transactions.map(t => (t.id === id ? { ...t, same } : t)) }))
+  }, [])
+
+  const setCategory = useCallback((id: string, categoryId: string, subItemId: string | null, type: 'expense' | 'income') => {
+    setState(s => ({
+      ...s,
+      transactions: s.transactions.map(t => (t.id === id ? { ...t, category_id: categoryId, subItemId, type } : t)),
+    }))
+  }, [])
 
   const toggleTransaction = useCallback((id: string) => {
     setState(s => ({
@@ -602,95 +697,95 @@ export function useStatementImport(householdId: string) {
 
   const confirmImport = useCallback(async () => {
     const current = stateRef.current
-    const selected = current.transactions.filter(t => t.selected)
-    if (selected.length === 0) return
+    const review = current.review
+    if (!review) return
+    const chosen = current.transactions.filter(t => t.selected)
+    if (chosen.some(t => t.kind === 'duplicate' && t.same === null)) return
+    if (chosen.length === 0) { closeImport(); return }
 
     setState(s => ({ ...s, isLoading: true, error: null }))
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-
     if (!user) {
       setState(s => ({ ...s, isLoading: false, error: 'Sesión expirada. Inicia sesión de nuevo.' }))
       return
     }
 
-    const bankLabel = current.bankDetected ? ` [${current.bankDetected}]` : ''
-
-    const rows = selected.map(t => ({
-      household_id: householdId,
-      amount: t.amount,
-      description: t.description + bankLabel,
-      category_id: t.category_id || null,
-      date: t.date || localToday(),
-      source: 'csv' as const,
-      type: 'expense' as const,
-      payment_method: 'tarjeta' as const,
-      created_by: user.id,
-    }))
-
-    const { data: inserted, error } = await supabase
-      .from('transactions')
-      .insert(rows)
-      .select('id')
-
-    if (error) {
-      console.error('Transaction insert error:', error)
-      setState(s => ({ ...s, isLoading: false, error: 'Error al guardar las transacciones. Intentalo de nuevo.' }))
-      return
-    }
-
-    if (!inserted || inserted.length === 0) {
-      console.error('Insert returned no rows — RLS may be blocking')
-      setState(s => ({ ...s, isLoading: false, error: 'No se pudieron guardar las transacciones. Verifica permisos.' }))
-      return
-    }
-
-    // Log import audit (best-effort, don't block on failure)
+    // La fila de statement_imports: la del lote de fotos (creada en el servidor) o una nueva.
     const summary = {
       bank_detected: current.bankDetected,
-      transactions_found: current.transactions.length,
-      transactions_imported: selected.length,
-      duplicates_detected: current.transactions.filter(t => t.isDuplicate).length,
-      status: 'completed',
+      transactions_found: current.transactions.length + current.alreadyImported,
+      status: 'processing',
     }
+    let importId: string | null = null
+    const batchId = current.importMode === 'photos' ? batchIdRef.current : null
+    if (batchId) {
+      const { data } = await supabase.from('statement_imports').update(summary).eq('batch_id', batchId).select('id')
+      importId = (data as { id: string }[] | null)?.[0]?.id ?? null
+    }
+    if (!importId) {
+      const { data } = await supabase.from('statement_imports').insert({
+        user_id: user.id,
+        household_id: householdId,
+        file_type: fileRef.current?.type === 'application/pdf' || current.importMode === 'pdf' ? 'pdf' : 'image',
+        ...summary,
+      }).select('id').single()
+      importId = (data as { id: string } | null)?.id ?? null
+    }
+    if (!importId) {
+      setState(s => ({ ...s, isLoading: false, error: 'No se pudo registrar la importación. Inténtalo de nuevo.' }))
+      return
+    }
+
     try {
-      const batchId = current.importMode === 'photos' ? batchIdRef.current : null
-      if (batchId) {
-        // The batch row was created server-side when the first photo was analyzed.
-        await supabase.from('statement_imports').update(summary).eq('batch_id', batchId)
-      } else {
-        await supabase.from('statement_imports').insert({
-          user_id: user.id,
-          household_id: householdId,
-          file_type: fileRef.current?.type === 'application/pdf' ? 'pdf' : 'image',
-          ...summary,
-        })
-      }
-    } catch (auditErr) {
-      console.warn('Failed to log import audit:', auditErr)
+      const { data: overrides } = await supabase
+        .from('merchant_category_overrides').select('merchant_key').eq('household_id', householdId)
+      const outcome = await confirmStatement(supabase, {
+        householdId,
+        userId: user.id,
+        importId,
+        charges: chosen.map(t => ({
+          date: t.date || localToday(),
+          description: t.description,
+          amount: t.amount,
+          type: t.type,
+          kind: t.kind,
+          same: t.same,
+          matchId: t.matchId,
+          categoryId: t.category_id,
+          subItemId: t.subItemId,
+          original_amount: t.original_amount,
+          original_currency: t.original_currency,
+        })),
+        matches: review.matches,
+        categories: review.categories,
+        overrideKeys: ((overrides ?? []) as { merchant_key: string }[]).map(o => o.merchant_key),
+        paymentMethod: current.accountLabel?.startsWith('Cuenta') ? 'transferencia' : 'tarjeta',
+      })
+
+      // Auto-detect source (best-effort, never blocks)
+      if (current.bankDetected) upsertDetectedSource(user.id, current.bankDetected).catch(() => {})
+
+      const totalAmount = chosen.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+      setState(s => ({
+        ...s,
+        step: 'done',
+        isLoading: false,
+        outcome: { text: importToast(outcome.inserted, outcome.avoided), undo: outcome.undo },
+        stats: { total: chosen.length, imported: outcome.inserted, duplicatesSkipped: outcome.avoided, totalAmount },
+      }))
+    } catch (err) {
+      console.error('Statement import confirm error:', err)
+      setState(s => ({ ...s, isLoading: false, error: 'Error al guardar los movimientos. Inténtalo de nuevo.' }))
     }
+  }, [householdId, closeImport])
 
-    // Auto-detect source (best-effort, never blocks)
-    if (current.bankDetected) {
-      upsertDetectedSource(user.id, current.bankDetected).catch(() => {})
-    }
-
-    const totalAmount = selected
-      .filter(t => t.type === 'expense')
-      .reduce((s, t) => s + t.amount, 0)
-
-    setState(s => ({
-      ...s,
-      step: 'success',
-      isLoading: false,
-      stats: {
-        total: current.transactions.length,
-        imported: inserted.length,
-        duplicatesSkipped: current.transactions.filter(t => t.isDuplicate && !t.selected).length,
-        totalAmount,
-      },
-    }))
-  }, [householdId])
+  /** Revierte la importación confirmada (inserciones, actualizaciones y reglas). */
+  const undoImport = useCallback(async () => {
+    const undo = stateRef.current.outcome?.undo
+    if (!undo) return
+    await undoStatement(createClient(), undo)
+  }, [])
 
   return {
     ...state,
@@ -707,5 +802,8 @@ export function useStatementImport(householdId: string) {
     toggleTransaction,
     deselectTransaction,
     confirmImport,
+    undoImport,
+    setSame,
+    setCategory,
   }
 }

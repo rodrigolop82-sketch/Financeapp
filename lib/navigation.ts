@@ -36,7 +36,7 @@ export const MORE_GROUPS: MoreGroup[] = [
   {
     title: 'Tu cuenta',
     items: [
-      { emoji: '🏦', name: 'Mis bancos', description: 'Conecta mensajes y estados de cuenta', href: '/mis-fuentes' },
+      { emoji: '🏦', name: 'Mis bancos', description: 'Importa tu estado de cuenta', href: '/mis-fuentes' },
       { emoji: '👪', name: 'Familia', description: 'Comparte con tu pareja o familia', href: '/familia' },
       { emoji: '⚙️', name: 'Cuenta y privacidad', description: 'Perfil, apariencia, datos', href: '/cuenta' },
     ],

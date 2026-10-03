@@ -1,7 +1,7 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, Mic } from 'lucide-react'
+import { ArrowRight, FileUp, Mic } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { getUserHousehold } from '@/lib/household'
 import { localToday, localDaysAgo } from '@/lib/dates'
@@ -546,6 +546,29 @@ export function AddSheet() {
               )}
             </form>
 
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setVoiceOpen(true)}
+                className={`h-[46px] rounded-xl border flex items-center justify-center gap-2 text-sm font-semibold ${
+                  voiceOpen
+                    ? 'bg-[#FEF2F2] border-[#FCA5A5] text-danger-text'
+                    : `${BORDER} bg-[var(--zafi-card)] text-navy dark:text-ink-100`
+                }`}
+              >
+                <Mic size={18} aria-hidden />
+                {voiceOpen ? 'Escuchando…' : 'Dictar'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { closeSheet(); void ensureContext(); setImportActive(true) }}
+                className={`h-[46px] rounded-xl border flex items-center justify-center gap-2 text-sm font-semibold ${BORDER} bg-[var(--zafi-card)] text-navy dark:text-ink-100`}
+              >
+                <FileUp size={18} aria-hidden />
+                Estado de cuenta
+              </button>
+            </div>
+
             <div className={`flex items-center gap-2.5 text-[13px] ${TEXT_FAINT}`}>
               <span className="flex-1 h-px bg-ink-100 dark:bg-white/10" />
               o llénalo tú
@@ -651,10 +674,9 @@ export function AddSheet() {
               {saving ? 'Guardando…' : manual.type === 'income' ? 'Guardar ingreso' : 'Guardar gasto'}
             </button>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {[
                 { label: 'Foto', hint: 'de un recibo', emoji: '📷', onClick: () => { closeSheet(); router.push('/capture') } },
-                { label: 'Estado', hint: 'de cuenta', emoji: '📄', onClick: () => { closeSheet(); void ensureContext(); setImportActive(true) } },
                 { label: 'Mensaje', hint: 'del banco', emoji: '💬', onClick: () => { void pasteFromClipboard() } },
               ].map((o) => (
                 <button
@@ -676,7 +698,8 @@ export function AddSheet() {
       {ctx && importActive && (
         <StatementImportFlow
           householdId={ctx.householdId}
-          onDone={() => { setImportActive(false); notifyTransactionsChanged() }}
+          onDone={() => setImportActive(false)}
+          onChanged={() => notifyTransactionsChanged()}
         />
       )}
 

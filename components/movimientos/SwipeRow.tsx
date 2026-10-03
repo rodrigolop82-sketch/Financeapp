@@ -29,7 +29,7 @@ export function txRowData(tx: SearchTransaction, fmt: (n: number) => string): Sw
     id: tx.id,
     emoji: getEmoji({ name: tx.category_name, bucket: tx.category_bucket, icon: tx.category_icon }),
     name: tx.description || tx.category_name || 'Sin nombre',
-    sub: (tx.category_name || 'Sin categoría') + forex,
+    sub: (tx.category_name || 'Sin categoría') + (tx.source === 'statement' ? ' · del banco' : '') + forex,
     amountLabel: `${isIncome ? '+' : ''}${fmt(Number(tx.amount))}`,
     isIncome,
   };

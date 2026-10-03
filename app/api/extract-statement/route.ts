@@ -44,7 +44,7 @@ const EXTRACTION_PROMPT = `Analiza este estado de cuenta y extrae TODAS las tran
 
 Responde con este JSON exacto (sin backticks, sin texto adicional):
 
-{"bank":"nombre del banco o Desconocido","period":"Mayo 2026","currency":"GTQ","transactions":[{"date":"2026-05-15","description":"descripción","amount":450.00,"type":"expense","currency":"GTQ","suggested_category":"Alimentación"}]}
+{"bank":"nombre del banco o Desconocido","account":{"type":"tarjeta","last4":"4821"},"period":"Mayo 2026","currency":"GTQ","transactions":[{"date":"2026-05-15","description":"descripción","amount":450.00,"type":"expense","currency":"GTQ","suggested_category":"Alimentación"}]}
 
 IMPORTANTE sobre monedas:
 - El campo "currency" a nivel raíz es la moneda principal del estado de cuenta
@@ -54,6 +54,10 @@ IMPORTANTE sobre monedas:
 - amount siempre en la moneda original de la transacción (NO convertir)
 
 suggested_category debe ser una de: Vivienda/alquiler, Alimentación, Transporte, Salud/medicinas, Servicios, Educación, Restaurantes y salidas, Ropa, Entretenimiento, Suscripciones, Varios personales, Fondo de emergencia, Ahorro para metas, Pago extra de deudas, Ingreso, Transferencia, Otro
+
+Sobre "account":
+- type: "tarjeta" si es una tarjeta de crédito o débito, "cuenta" si es una cuenta bancaria
+- last4: los últimos 4 dígitos del número de tarjeta o cuenta, si aparecen; si no, null
 
 Reglas:
 - amount siempre positivo
@@ -256,6 +260,7 @@ export async function POST(req: NextRequest) {
 
   let result: {
     bank?: string
+    account?: { type?: string | null; last4?: string | null } | null
     period?: string
     currency?: string
     transactions?: ParsedTransaction[]

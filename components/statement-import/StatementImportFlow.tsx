@@ -6,24 +6,51 @@ import { ProcessingScreen } from './ProcessingScreen'
 import { PhotoProcessingScreen } from './PhotoProcessingScreen'
 import { ReviewScreen } from './ReviewScreen'
 import { ImportSuccessScreen } from './ImportSuccessScreen'
+import { UndoToast } from '@/components/transactions/UndoToast'
+import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
 
 interface StatementImportFlowProps {
   householdId: string
+  /** El flujo terminó (se cerró, o venció o se usó el "Deshacer"). */
   onDone: () => void
+  /** Se agregaron o revirtieron movimientos: recargar las listas. */
+  onChanged?: () => void
 }
 
-export function StatementImportFlow({ householdId, onDone }: StatementImportFlowProps) {
+export function StatementImportFlow({ householdId, onDone, onChanged }: StatementImportFlowProps) {
   const imp = useStatementImport(householdId)
 
   useEffect(() => {
     if (imp.step === 'idle') imp.startImport()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Al confirmar, las listas se recargan ya; el toast queda con "Deshacer".
+  const confirmed = imp.step === 'done'
+  useEffect(() => {
+    if (confirmed) onChanged?.()
+  }, [confirmed]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (imp.step === 'idle') return null
 
   const handleDone = () => {
     imp.closeImport()
     onDone()
+  }
+
+  if (imp.step === 'done' && imp.outcome) {
+    return (
+      <UndoToast
+        visible
+        title={imp.outcome.text}
+        duration={DELETE_UNDO_MS}
+        onDismiss={handleDone}
+        onUndo={async () => {
+          await imp.undoImport()
+          onChanged?.()
+          handleDone()
+        }}
+      />
+    )
   }
 
   return (
@@ -160,14 +187,18 @@ export function StatementImportFlow({ householdId, onDone }: StatementImportFlow
         return (
           <ReviewScreen
             transactions={imp.transactions}
-            bankDetected={imp.bankDetected}
+            accountLabel={imp.accountLabel}
+            alreadyImported={imp.alreadyImported}
+            review={imp.review}
             isLoading={imp.isLoading}
             error={imp.error}
-            onToggle={imp.toggleTransaction}
+            onSame={imp.setSame}
+            onSetCategory={imp.setCategory}
             batch={imp.importMode === 'photos' ? imp.batch : null}
             onRemove={imp.deselectTransaction}
             onConfirm={imp.confirmImport}
             onBack={() => imp.startImport()}
+            onDone={handleDone}
           />
         )
       case 'success':

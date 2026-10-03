@@ -17,22 +17,44 @@ function cents(amount: number | string): number {
 
 type DatedAmount = { date: string; amount: number | string }
 
+export type DbMatchKind = 'duplicate' | 'new'
+
+export interface DbMatch {
+  kind: DbMatchKind
+  /** Id de la transacción existente con la que coincide (si la trae). */
+  matchId: string | null
+}
+
 /**
  * Same criteria as the original per-transaction query: an existing household
- * transaction with the exact same amount dated within ±1 day.
+ * transaction with the exact same amount dated within ±1 day. Devuelve con
+ * qué transacción coincide. La clasificación completa (tolerancias, fijos y
+ * emparejamiento uno a uno) está en lib/import/classify.ts.
  */
-export function flagDbDuplicates(candidates: DatedAmount[], existing: DatedAmount[]): boolean[] {
-  const index = new Map<string, true>()
-  for (const e of existing) index.set(`${e.date}|${cents(e.amount)}`, true)
+export function matchDbDuplicates(
+  candidates: DatedAmount[],
+  existing: (DatedAmount & { id?: string })[],
+): DbMatch[] {
+  const index = new Map<string, string | null>()
+  for (const e of existing) {
+    const k = `${e.date}|${cents(e.amount)}`
+    if (!index.has(k)) index.set(k, e.id ?? null)
+  }
 
   return candidates.map(tx => {
     const amount = cents(tx.amount)
     for (const offset of [-1, 0, 1]) {
       const day = shiftDate(tx.date, offset)
-      if (day && index.has(`${day}|${amount}`)) return true
+      const k = `${day}|${amount}`
+      if (day && index.has(k)) return { kind: 'duplicate', matchId: index.get(k) ?? null }
     }
-    return false
+    return { kind: 'new', matchId: null }
   })
+}
+
+/** Envoltorio de matchDbDuplicates para lo que solo necesita sí/no. */
+export function flagDbDuplicates(candidates: DatedAmount[], existing: DatedAmount[]): boolean[] {
+  return matchDbDuplicates(candidates, existing).map(m => m.kind === 'duplicate')
 }
 
 const PAGE_SIZE = 1000
