@@ -25,6 +25,7 @@ import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete';
 import { deriveTransactionType } from '@/lib/transactions/transaction-type';
 import { AppShell } from '@/components/layout/AppShell';
 import { getUserHousehold } from '@/lib/household';
+import { TRANSACTIONS_CHANGED_EVENT } from '@/components/add/AddSheet';
 import {
   Plus,
   Loader2,
@@ -199,6 +200,13 @@ function TransaccionesPageInner() {
         setTransactions(pendingId ? mapped.filter((t) => t.id !== pendingId) : mapped);
       });
   }, [searchGen, householdId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Recarga la lista cuando se agregan movimientos desde el botón +.
+  useEffect(() => {
+    const reload = () => setSearchGen((g) => g + 1);
+    window.addEventListener(TRANSACTIONS_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, reload);
+  }, []);
 
   // Auto-populate SMS form from PWA Web Share Target (?shared_text=...)
   useEffect(() => {

@@ -1,23 +1,19 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusHero } from '@/components/dashboard/StatusHero'
-import { ExpenseDrawer } from '@/components/expenses/ExpenseDrawer'
-import { AddExpenseSheet } from '@/components/dashboard/AddExpenseSheet'
 import { SummaryRow } from '@/components/dashboard/SummaryRow'
 import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
 import { TransactionsList } from '@/components/dashboard/TransactionsList'
 import { StreakCard } from '@/components/dashboard/StreakCard'
-import { TransactionPreview } from '@/components/voice/TransactionPreview'
-import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
-import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household, CapsuleRecommendation } from '@/types'
-import { Loader2, ChevronLeft, ChevronRight, Plus, MessageCircle } from 'lucide-react'
+import type { Transaction, BudgetCategory, FinancialProfile, Household, CapsuleRecommendation } from '@/types'
+import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getUserHousehold } from '@/lib/household'
 import { useHealthScore } from '@/hooks/useHealthScore'
-import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow'
+import { TRANSACTIONS_CHANGED_EVENT } from '@/components/add/AddSheet'
 import { getRecommendedCapsules } from '@/lib/capsule-recommendations'
 import { CapsuleRecommendations } from '@/components/education/CapsuleRecommendations'
 
@@ -62,26 +58,21 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
-  const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
-  const [importFlowActive, setImportFlowActive] = useState(false)
-  const [expenseSheetOpen, setExpenseSheetOpen] = useState(false)
   const [recommendations, setRecommendations] = useState<CapsuleRecommendation[]>([])
   const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
   const router = useRouter()
   const { score: healthScoreResult } = useHealthScore(data?.householdId ?? null)
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const action = params.get('action')
-    if (action === 'voice') setVoiceOverlayOpen(true)
-    if (action === 'manual') window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
-    if (action === 'scan') setImportFlowActive(true)
-  }, [])
-
   useEffect(() => { loadDashboardData(selectedMonthStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Recarga cuando se agregan movimientos desde la hoja global (botón +).
+  const selectedMonthRef = useRef(selectedMonthStart)
+  selectedMonthRef.current = selectedMonthStart
+  useEffect(() => {
+    const reload = () => { loadDashboardData(selectedMonthRef.current) }
+    window.addEventListener(TRANSACTIONS_CHANGED_EVENT, reload)
+    return () => window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, reload)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!data?.userId || !healthScoreResult || healthScoreResult.components.length === 0) return
@@ -89,10 +80,6 @@ export default function DashboardPage() {
       .then(setRecommendations)
       .catch(() => {})
   }, [data?.userId, healthScoreResult])
-
-  function handleOpenManual() {
-    window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
-  }
 
   async function loadDashboardData(ms?: string) {
     const supabase = createClient()
@@ -298,37 +285,6 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
-    if (!data || transactions.length === 0) return
-    const supabase = createClient()
-
-    const rows = transactions.map((t) => ({
-      household_id: data.householdId,
-      amount: t.amount,
-      description: t.description,
-      category_id: t.category_id ?? null,
-      date: t.date || localToday(),
-      source: 'voice' as const,
-      type: 'expense' as const,
-      payment_method: 'efectivo' as const,
-      voice_raw_text: voiceResult?.raw_text ?? null,
-      created_by: data.userId,
-    }))
-    const { error } = await supabase.from('transactions').insert(rows)
-
-    if (error) {
-      setErrorMsg(`No se pudo guardar: ${error.message}`)
-      setTimeout(() => setErrorMsg(null), 5000)
-      return
-    }
-
-    setVoiceResult(null)
-    const count = transactions.length
-    setSuccessMsg(`${count} gasto${count > 1 ? 's' : ''} guardado${count > 1 ? 's' : ''}`)
-    setTimeout(() => setSuccessMsg(null), 3000)
-    loadDashboardData()
-  }
-
   if (!data) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zafi-bg)' }}>
@@ -340,7 +296,7 @@ export default function DashboardPage() {
   const isCurrentMonth = data.isCurrentMonth
 
   return (
-    <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
+    <AppShell title="Inicio" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
 
       {/* Month navigator */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -377,46 +333,6 @@ export default function DashboardPage() {
         userName={data.userName}
         score={data.healthScore}
         userInitials={data.userInitials}
-      />
-
-      {/* Success/error messages */}
-      {successMsg && (
-        <div style={{
-          marginTop: 12, padding: '8px 12px',
-          background: 'var(--zafi-success-bg)', border: '0.5px solid var(--zafi-success-border)',
-          borderRadius: 10, fontSize: 14, color: 'var(--zafi-success-text)'
-        }}>
-          {successMsg}
-        </div>
-      )}
-      {errorMsg && (
-        <div style={{
-          marginTop: 12, padding: '8px 12px',
-          background: 'var(--zafi-error-bg)', border: '0.5px solid var(--zafi-error-border)',
-          borderRadius: 10, fontSize: 14, color: 'var(--zafi-error-text)'
-        }}>
-          {errorMsg}
-        </div>
-      )}
-
-      {/* Voice preview */}
-      {voiceResult && isCurrentMonth && (
-        <div style={{ marginTop: 12, padding: 14, background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14 }}>
-          <p style={{ fontSize: 14, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisa antes de guardar</p>
-          <TransactionPreview
-            result={voiceResult}
-            onConfirm={handleVoiceConfirm}
-            onCancel={() => setVoiceResult(null)}
-          />
-        </div>
-      )}
-
-      {/* Expense drawer */}
-      <ExpenseDrawer
-        householdId={data.householdId}
-        categories={data.categories}
-        onSuccess={() => loadDashboardData()}
-        onVoiceOverlay={() => setVoiceOverlayOpen(true)}
       />
 
       {/* Stats row */}
@@ -460,65 +376,6 @@ export default function DashboardPage() {
 
       <div className="h-6" />
 
-      {/* Zafi AI Chat FAB */}
-      <div
-        onClick={() => router.push('/chat')}
-        style={{
-          position: 'fixed', right: 20, zIndex: 30,
-          bottom: 'calc(148px + env(safe-area-inset-bottom, 0px))',
-          width: 56, height: 56, borderRadius: '50%',
-          background: '#1D4ED8', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 10px 24px rgba(29,78,216,0.35)', cursor: 'pointer',
-        }}
-      >
-        <MessageCircle style={{ width: 24, height: 24, color: '#fff' }} />
-        <span style={{
-          position: 'absolute', top: 10, right: 10,
-          width: 10, height: 10, borderRadius: '50%',
-          background: '#22C55E', border: '2px solid #1D4ED8',
-        }} />
-      </div>
-
-      {/* FAB — visible on all screens */}
-      <div
-        onClick={() => setExpenseSheetOpen(true)}
-        style={{
-          position: 'fixed', right: 20, zIndex: 30,
-          bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
-          width: 56, height: 56, borderRadius: '50%',
-          background: '#2563EB', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 10px 24px rgba(37,99,235,0.35)', cursor: 'pointer',
-        }}
-      >
-        <Plus style={{ width: 24, height: 24, color: '#fff' }} />
-      </div>
-
-      {/* Add expense bottom sheet */}
-      <AddExpenseSheet
-        open={expenseSheetOpen}
-        onClose={() => setExpenseSheetOpen(false)}
-        onScan={() => setImportFlowActive(true)}
-        onVoice={() => setVoiceOverlayOpen(true)}
-        onManual={() => handleOpenManual()}
-      />
-
-      {/* Statement import flow */}
-      {importFlowActive && (
-        <StatementImportFlow
-          householdId={data.householdId}
-          onDone={() => { setImportFlowActive(false); loadDashboardData() }}
-        />
-      )}
-
-      {/* Voice overlay */}
-      <VoiceOverlay
-        open={voiceOverlayOpen}
-        onClose={() => setVoiceOverlayOpen(false)}
-        onResult={(result) => { setVoiceResult(result); setVoiceOverlayOpen(false) }}
-        onError={(err) => setSuccessMsg(err)}
-      />
     </AppShell>
   )
 }
