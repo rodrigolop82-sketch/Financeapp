@@ -1,87 +1,69 @@
 'use client'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { Home, List, Plus, Target, MoreHorizontal } from 'lucide-react'
+import { activeTabFor, type TabKey } from '@/lib/navigation'
 
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Inicio', icon: 'grid' },
-  { href: '/metas', label: 'Metas', icon: 'target' },
-  { href: '/resumen', label: 'Resumen', icon: 'chart' },
-  { href: '/cuenta', label: 'Cuenta', icon: 'user' },
+const TABS: { key: TabKey; href: string; label: string; icon: typeof Home }[] = [
+  { key: 'inicio', href: '/dashboard', label: 'Inicio', icon: Home },
+  { key: 'movimientos', href: '/transacciones', label: 'Movimientos', icon: List },
+  { key: 'metas', href: '/metas', label: 'Metas', icon: Target },
+  { key: 'mas', href: '/mas', label: 'Más', icon: MoreHorizontal },
 ]
 
-function NavIcon({ icon, active }: { icon: string; active: boolean }) {
+/** Abre la hoja global de agregar (components/add/AddSheet). */
+export function openAddSheet() {
+  window.dispatchEvent(new CustomEvent('zafi:open-add'))
+}
+
+function Tab({ href, label, icon: Icon, active }: { href: string; label: string; icon: typeof Home; active: boolean }) {
   const color = active ? 'var(--zafi-nav-active)' : 'var(--zafi-nav-inactive)'
-
-  const icons: Record<string, React.ReactNode> = {
-    grid: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <rect x="3" y="3" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.5"/>
-        <rect x="11" y="3" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.5"/>
-        <rect x="3" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.5"/>
-        <rect x="11" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.5"/>
-      </svg>
-    ),
-    target: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="10" r="7" stroke={color} strokeWidth="1.5"/>
-        <circle cx="10" cy="10" r="4" stroke={color} strokeWidth="1.5"/>
-        <circle cx="10" cy="10" r="1.5" fill={color}/>
-      </svg>
-    ),
-    chart: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <rect x="3" y="11" width="3" height="6" rx="1" stroke={color} strokeWidth="1.5"/>
-        <rect x="8.5" y="7" width="3" height="10" rx="1" stroke={color} strokeWidth="1.5"/>
-        <rect x="14" y="3" width="3" height="14" rx="1" stroke={color} strokeWidth="1.5"/>
-      </svg>
-    ),
-    user: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="7" r="3" stroke={color} strokeWidth="1.5"/>
-        <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    ),
-  }
-
-  return icons[icon] ?? null
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className="flex flex-col items-center justify-center min-w-[60px] min-h-[44px]"
+      style={{ gap: 3, textDecoration: 'none' }}
+    >
+      <Icon size={22} strokeWidth={1.7} color={color} aria-hidden />
+      <span style={{ fontSize: 11, fontWeight: 600, color }}>{label}</span>
+    </Link>
+  )
 }
 
 export function BottomNav() {
   const pathname = usePathname()
+  const activeTab = activeTabFor(pathname ?? '')
+  const [inicio, movimientos, metas, mas] = TABS
 
   return (
-    <div className="lg:hidden" style={{
-      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
-      background: 'var(--zafi-bottomnav)', backdropFilter: 'blur(12px)',
-      borderTop: '1px solid rgba(255,255,255,0.08)',
-      paddingBottom: 'env(safe-area-inset-bottom)',
-    }}>
-      <div style={{
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around',
-        padding: '6px 8px 8px',
-      }}>
-        {NAV_ITEMS.map((item) => {
-          const active = pathname === item.href
-          return (
-            <Link key={item.href} href={item.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, textDecoration: 'none', minWidth: 48 }}>
-              <NavIcon icon={item.icon} active={active} />
-              <span style={{
-                fontSize: 9, fontWeight: 600,
-                color: active ? 'var(--zafi-nav-active)' : 'var(--zafi-nav-inactive)',
-                letterSpacing: '0.02em',
-              }}>
-                {item.label}
-              </span>
-              {active && (
-                <div style={{
-                  width: 20, height: 2, borderRadius: 9999,
-                  background: 'var(--zafi-nav-active)', marginTop: -1,
-                }} />
-              )}
-            </Link>
-          )
-        })}
-      </div>
-    </div>
+    <nav
+      aria-label="Navegación principal"
+      className="fixed bottom-0 inset-x-0 z-40 lg:hidden flex justify-around items-center"
+      style={{
+        background: 'var(--zafi-bottomnav)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        padding: '8px 10px calc(16px + env(safe-area-inset-bottom))',
+      }}
+    >
+      <Tab {...inicio} active={activeTab === 'inicio'} />
+      <Tab {...movimientos} active={activeTab === 'movimientos'} />
+      <button
+        type="button"
+        aria-label="Agregar"
+        onClick={openAddSheet}
+        className="flex items-center justify-center w-14 h-14 rounded-full bg-electric border-4 -mt-[26px] p-0 cursor-pointer"
+        style={{
+          borderColor: 'var(--zafi-bg)',
+          boxShadow: '0 8px 20px rgba(37,99,235,0.45)',
+        }}
+      >
+        <Plus size={24} strokeWidth={2.4} color="#FFFFFF" aria-hidden />
+      </button>
+      <Tab {...metas} active={activeTab === 'metas'} />
+      <Tab {...mas} active={activeTab === 'mas'} />
+    </nav>
   )
 }
