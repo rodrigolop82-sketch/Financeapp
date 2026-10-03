@@ -29,9 +29,9 @@ function getStatus(bucket: string, assignedPct: number, targetPct: number): Buck
 }
 
 function statusStyle(status: BucketStatus, bucket: string) {
-  if (status === 'en_meta') return { bg: '#DCFCE7', text: '#166534', label: 'En meta' }
+  if (status === 'en_meta') return { bg: '#D1FAE5', text: '#065F46', label: 'En meta' }
   if (status === 'por_encima') {
-    if (bucket === 'savings') return { bg: '#DCFCE7', text: '#166534', label: 'Por encima de la meta' }
+    if (bucket === 'savings') return { bg: '#D1FAE5', text: '#065F46', label: 'Por encima de la meta' }
     return { bg: '#FEF3C7', text: '#92400E', label: 'Por encima de la meta' }
   }
   if (bucket === 'savings') return { bg: '#FEF3C7', text: '#92400E', label: 'Por debajo de la meta' }
@@ -175,7 +175,7 @@ export function BudgetHealthHero({
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   fontSize: 12, marginBottom: 8,
-                  color: bucket === 'savings' && status === 'por_encima' ? '#166534' : '#92400E',
+                  color: bucket === 'savings' && status === 'por_encima' ? 'var(--zafi-success-text)' : '#92400E',
                 }}>
                   <div style={{
                     width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
@@ -261,8 +261,8 @@ export function BudgetHealthHero({
       ) : remaining === 0 && totalBudgeted > 0 ? (
         <div style={{
           marginTop: 16, padding: '14px 18px', borderRadius: 12,
-          background: '#F0FDF4', border: '1px solid #22C55E',
-          fontSize: 14, fontWeight: 600, color: '#166534',
+          background: 'var(--zafi-success-bg)', border: '1px solid #22C55E',
+          fontSize: 14, fontWeight: 600, color: 'var(--zafi-success-text)',
         }}>
           Presupuesto totalmente asignado y alineado con la regla 50/30/20.
         </div>

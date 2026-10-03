@@ -15,7 +15,7 @@ const OPTIONS = [
     label: 'Escanear',
     badge: 'Con IA',
     badgeColor: '#2563EB',
-    badgeBg: '#E9F0FF',
+    badgeBg: '#DBEAFE',
     description: 'Foto de un recibo o tu estado de cuenta — Zafi detecta los movimientos',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -32,7 +32,7 @@ const OPTIONS = [
     label: 'Dictar por voz',
     badge: 'Rápido',
     badgeColor: '#16A34A',
-    badgeBg: '#DCFCE7',
+    badgeBg: '#D1FAE5',
     description: 'Dile a Zafi qué gastaste, él lo registra por ti',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -103,20 +103,20 @@ export function AddExpenseSheet({ open, onClose, onScan, onVoice, onManual }: Ad
       >
         {/* Drag handle */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#D1D5DB' }} />
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#CBD5E1' }} />
         </div>
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 24px 16px' }}>
           <div>
             <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1E3A5F', margin: 0 }}>Agregar gasto</h2>
-            <p style={{ fontSize: 14, color: '#8B9AAE', margin: '4px 0 0' }}>¿Cómo quieres registrarlo?</p>
+            <p style={{ fontSize: 14, color: '#64748B', margin: '4px 0 0' }}>¿Cómo quieres registrarlo?</p>
           </div>
           <button
             onClick={onClose}
             style={{
               width: 32, height: 32, borderRadius: '50%',
-              background: '#F1F5F9', border: 'none', cursor: 'pointer',
+              background: '#F3F5F9', border: 'none', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
@@ -135,16 +135,16 @@ export function AddExpenseSheet({ open, onClose, onScan, onVoice, onManual }: Ad
               style={{
                 display: 'flex', alignItems: 'center', gap: 16,
                 background: '#F8F9FC', borderRadius: 16,
-                padding: '18px 20px', border: '1.5px solid #E9F0FF',
+                padding: '18px 20px', border: '1.5px solid #DBEAFE',
                 cursor: 'pointer', textAlign: 'left', width: '100%',
                 transition: 'border-color 150ms',
               }}
               onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#2563EB')}
-              onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#E9F0FF')}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#DBEAFE')}
             >
               <div style={{
                 width: 44, height: 44, borderRadius: 12,
-                background: '#E9F0FF', display: 'flex',
+                background: '#DBEAFE', display: 'flex',
                 alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               }}>
                 {opt.icon}
@@ -163,7 +163,7 @@ export function AddExpenseSheet({ open, onClose, onScan, onVoice, onManual }: Ad
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 13, color: '#8B9AAE', marginTop: 3, lineHeight: 1.4 }}>
+                <div style={{ fontSize: 13, color: '#64748B', marginTop: 3, lineHeight: 1.4 }}>
                   {opt.description}
                 </div>
               </div>

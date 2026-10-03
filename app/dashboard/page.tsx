@@ -467,16 +467,16 @@ export default function DashboardPage() {
           position: 'fixed', right: 20, zIndex: 30,
           bottom: 'calc(148px + env(safe-area-inset-bottom, 0px))',
           width: 56, height: 56, borderRadius: '50%',
-          background: '#3b5bdb', display: 'flex',
+          background: '#1D4ED8', display: 'flex',
           alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 10px 24px rgba(59,91,219,0.35)', cursor: 'pointer',
+          boxShadow: '0 10px 24px rgba(29,78,216,0.35)', cursor: 'pointer',
         }}
       >
         <MessageCircle style={{ width: 24, height: 24, color: '#fff' }} />
         <span style={{
           position: 'absolute', top: 10, right: 10,
           width: 10, height: 10, borderRadius: '50%',
-          background: '#22C55E', border: '2px solid #3b5bdb',
+          background: '#22C55E', border: '2px solid #1D4ED8',
         }} />
       </div>
 

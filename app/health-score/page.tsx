@@ -18,7 +18,7 @@ const SCORE_BG: Record<string, string> = {
   red: '#FEE2E2',
   orange: '#FEF3C7',
   yellow: '#FEF9C3',
-  green: '#DCFCE7',
+  green: '#D1FAE5',
   emerald: '#D1FAE5',
 }
 
