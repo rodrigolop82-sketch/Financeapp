@@ -1,5 +1,4 @@
 // Presentación de categorías y formas de pago: emoji, grupos y etiquetas.
-import type { BudgetCategory } from '@/types';
 
 const CATEGORY_EMOJI: Record<string, string> = {
   'Vivienda/alquiler': '🏠',
@@ -18,7 +17,7 @@ const CATEGORY_EMOJI: Record<string, string> = {
   'Pago extra de deudas': '💳',
 };
 
-type CategoryLike = Pick<BudgetCategory, 'name' | 'bucket'> & { icon?: string | null };
+type CategoryLike = { name: string; bucket: string; icon?: string | null };
 
 export function getEmoji(cat: CategoryLike | null | undefined): string {
   if (!cat) return '❔';
