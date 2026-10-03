@@ -270,6 +270,93 @@ export function useReclassifyFlow(
     [editingTx, newCategoryName, merchantName],
   );
 
+  /**
+   * Cambia la categoría (y el tipo) de `tx` en un solo paso, sin pasar por
+   * ReclassifySheet: si `applyToOthers` y hay otros movimientos del mismo
+   * comercio, también los cambia y recuerda la regla. Deja listo el toast
+   * con "Deshacer", que revierte todos. Devuelve true si se guardó.
+   */
+  const reclassifyDirect = useCallback(
+    async (
+      tx: Pick<SearchTransaction, 'id' | 'household_id' | 'description' | 'type'>,
+      categoryId: string,
+      type: 'expense' | 'income',
+      applyToOthers: boolean,
+    ): Promise<boolean> => {
+      setSaving(true);
+      setError(null);
+
+      const readError = async (res: Response) => {
+        try {
+          const errData = await res.json();
+          if (errData?.error) return errData.error as string;
+        } catch {
+          // keep default message
+        }
+        return 'No pudimos guardar el cambio. Intenta de nuevo.';
+      };
+
+      try {
+        const res = await fetch('/api/transactions/reclassify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transactionId: tx.id,
+            categoryId,
+            type: type !== tx.type ? type : undefined,
+          }),
+        });
+        if (!res.ok) {
+          setError(await readError(res));
+          setSaving(false);
+          return false;
+        }
+        const data = await res.json();
+        const items: UndoPayload['items'] = [data.snapshot];
+        let overrideCreated = false;
+
+        if (applyToOthers && Array.isArray(data.matches) && data.matches.length > 0) {
+          const bulk = await fetch('/api/transactions/confirm-reclassify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sourceTransactionId: tx.id,
+              categoryId,
+              ids: (data.matches as MatchItem[]).map((m) => m.id),
+              remember: true,
+            }),
+          });
+          if (bulk.ok) {
+            const bulkData = await bulk.json();
+            items.push(...(bulkData.snapshot ?? []));
+            overrideCreated = bulkData.overrideCreated ?? false;
+          }
+        }
+
+        const catName = categories.find((c) => c.id === categoryId)?.name ?? '';
+        undoRef.current = {
+          items,
+          overrideCreated,
+          merchantKey: getMerchantKey(tx.description),
+          householdId: tx.household_id,
+          title: items.length > 1 ? `${items.length} movimientos ahora son ${catName}` : `Ahora es ${catName}`,
+          subtitle: '',
+        };
+        setUndoTitle(undoRef.current.title);
+        setUndoSubtitle('');
+        setUndoVisible(true);
+        setSaving(false);
+        onMutation();
+        return true;
+      } catch {
+        setError('Error de conexión. Intenta de nuevo.');
+        setSaving(false);
+        return false;
+      }
+    },
+    [categories, onMutation],
+  );
+
   const doUndo = useCallback(async () => {
     const payload = undoRef.current;
     if (!payload) return;
@@ -317,6 +404,8 @@ export function useReclassifyFlow(
     saveCategory,
     confirmBulk,
     singleOnly,
+    reclassifyDirect,
+    clearError: () => setError(null),
     doUndo,
     dismissUndo,
   };
