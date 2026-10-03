@@ -20,6 +20,8 @@ import { EditSheet } from '@/components/transactions/EditSheet';
 import { ReclassifySheet } from '@/components/transactions/ReclassifySheet';
 import { UndoToast } from '@/components/transactions/UndoToast';
 import { useReclassifyFlow } from '@/lib/transactions/useReclassifyFlow';
+import { useUndoableDelete } from '@/lib/transactions/useUndoableDelete';
+import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete';
 import { deriveTransactionType } from '@/lib/transactions/transaction-type';
 import { AppShell } from '@/components/layout/AppShell';
 import { getUserHousehold } from '@/lib/household';
@@ -128,6 +130,7 @@ function TransaccionesPageInner() {
   const fmt = useFormatMoney();
 
   const flow = useReclassifyFlow(categories, () => setSearchGen((g) => g + 1));
+  const deletion = useUndoableDelete(setTransactions);
 
   const trimmedQuery = searchQuery.trim();
   const effectivePeriod = explicitPeriod ?? (trimmedQuery.length >= 2 ? 'all' : 'month');
@@ -191,7 +194,9 @@ function TransaccionesPageInner() {
           category_name: (tx.budget_categories as { name: string } | null)?.name || 'Sin categoría',
           bucket: (tx.budget_categories as { bucket: string } | null)?.bucket || '',
         })) as (Transaction & { category_name?: string; bucket?: string })[];
-        setTransactions(mapped);
+        // Una fila con borrado pendiente sigue en la base hasta que vence el toast.
+        const pendingId = deletion.getPendingId();
+        setTransactions(pendingId ? mapped.filter((t) => t.id !== pendingId) : mapped);
       });
   }, [searchGen, householdId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -432,9 +437,11 @@ function TransaccionesPageInner() {
     setVoiceError(null);
   }
 
-  async function deleteTransaction(id: string) {
-    await supabase.from('transactions').delete().eq('id', id);
-    setTransactions(transactions.filter(t => t.id !== id));
+  function deleteTransaction(tx: Transaction & { category_name?: string }) {
+    const index = transactions.findIndex((t) => t.id === tx.id);
+    if (index === -1) return;
+    if (flow.undoVisible) flow.dismissUndo();
+    deletion.remove(tx, index);
   }
 
   function startEdit(tx: Transaction & { category_name?: string; bucket?: string }) {
@@ -504,13 +511,13 @@ function TransaccionesPageInner() {
     .reduce((s, t) => s + Number(t.amount), 0);
 
   const bucketColors: Record<string, string> = {
-    needs: 'bg-blue-100 text-electric-dark',
-    wants: 'bg-blue-100 text-electric-dark',
-    savings: 'bg-blue-100 text-blue-700',
+    needs: 'bg-ink-100 text-ink-700',
+    wants: 'bg-electric-ghost text-electric-dark',
+    savings: 'bg-success-light text-success-text',
   };
 
   return (
-    <AppShell title="Transacciones" currentPath="/transacciones">
+    <AppShell title="Movimientos" currentPath="/transacciones">
       <div className="max-w-3xl mx-auto">
         {/* Search bar */}
         <SearchBar value={searchQuery} onChange={handleSearchChange} />
@@ -578,7 +585,7 @@ function TransaccionesPageInner() {
 
             {/* SMS paste form */}
             {showSmsForm && (
-              <Card className="mb-4 border-blue-200 bg-blue-50/40">
+              <Card className="mb-4 border-electric-ghost bg-electric-ghost/40">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-electric" />
@@ -594,7 +601,7 @@ function TransaccionesPageInner() {
                     onChange={(e) => setSmsText(e.target.value)}
                   />
                   {smsError && (
-                    <p className="text-xs text-red-600">{smsError}</p>
+                    <p className="text-xs text-danger-text">{smsError}</p>
                   )}
                   <div className="flex gap-2">
                     <Button
@@ -613,9 +620,15 @@ function TransaccionesPageInner() {
               </Card>
             )}
 
+            {deletion.error && (
+              <div role="alert" className="mb-4 p-3 bg-danger-light rounded-xl text-sm text-danger-text">
+                {deletion.error}
+              </div>
+            )}
+
             {/* Voice/SMS transaction preview */}
             {voiceError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+              <div className="mb-4 p-3 bg-danger-light border border-danger/20 rounded-xl text-sm text-danger-text">
                 {voiceError}
               </div>
             )}
@@ -780,7 +793,7 @@ function TransaccionesPageInner() {
                     <CardContent className="p-0 divide-y">
                       {txs.map((tx) => (
                         editingId === tx.id ? (
-                          <div key={tx.id} className="px-4 py-3 bg-blue-50/50 space-y-3">
+                          <div key={tx.id} className="px-4 py-3 bg-electric-ghost/40 space-y-3">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-medium text-electric">Editando movimiento</span>
                               <div className="flex gap-1">
@@ -793,7 +806,7 @@ function TransaccionesPageInner() {
                                 </button>
                                 <button
                                   onClick={() => setEditingId(null)}
-                                  className="p-1.5 rounded-md text-ink-500 hover:text-ink-700 hover:bg-gray-100"
+                                  className="p-1.5 rounded-md text-ink-500 hover:text-ink-700 hover:bg-ink-100"
                                 >
                                   <X className="w-4 h-4" />
                                 </button>
@@ -869,8 +882,8 @@ function TransaccionesPageInner() {
                             </div>
                           </div>
                         ) : (
-                          <div key={tx.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group">
-                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <div key={tx.id} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-tint group">
+                            <div className="w-10 h-10 bg-ink-100 rounded-lg flex items-center justify-center flex-shrink-0">
                               <Receipt className="w-5 h-5 text-ink-500" />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -878,21 +891,21 @@ function TransaccionesPageInner() {
                                 {tx.description || tx.category_name}
                               </p>
                               <div className="flex items-center gap-2">
-                                <span className={`text-xs px-1.5 py-0.5 rounded ${bucketColors[tx.bucket || ''] || 'bg-gray-100 text-ink-700'}`}>
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${bucketColors[tx.bucket || ''] || 'bg-ink-100 text-ink-700'}`}>
                                   {tx.category_name}
                                 </span>
                                 {tx.payment_method && tx.payment_method !== 'efectivo' && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-ink-500">
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-ink-100 text-ink-500">
                                     {tx.payment_method === 'tarjeta' ? 'Tarjeta' : tx.payment_method === 'cheque' ? 'Cheque' : 'Transferencia'}
                                   </span>
                                 )}
                                 {tx.source === 'csv' && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-electric-ghost text-electric">
                                     Importado
                                   </span>
                                 )}
                                 {tx.type === 'income' && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#DCFCE7', color: '#166534' }}>
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-success-light text-success-text">
                                     Ingreso
                                   </span>
                                 )}
@@ -916,8 +929,9 @@ function TransaccionesPageInner() {
                                 <Pencil className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => deleteTransaction(tx.id)}
-                                className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-ink-400 hover:text-red-500 transition-all"
+                                onClick={() => deleteTransaction(tx)}
+                                aria-label="Borrar movimiento"
+                                className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-ink-400 hover:text-danger transition-all"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -935,7 +949,7 @@ function TransaccionesPageInner() {
               <Card>
                 <CardContent className="p-8 text-center">
                   <Receipt className="w-12 h-12 text-ink-400 mx-auto mb-3" />
-                  <p className="font-medium text-ink-700">Sin transacciones</p>
+                  <p className="font-medium text-ink-700">Aún no hay movimientos</p>
                   <p className="text-sm text-ink-500 mt-1 mb-4">
                     Empieza a registrar tus gastos para llevar el control.
                   </p>
@@ -982,6 +996,17 @@ function TransaccionesPageInner() {
         subtitle={flow.undoSubtitle}
         onUndo={flow.doUndo}
         onDismiss={flow.dismissUndo}
+      />
+
+      <UndoToast
+        key={deletion.pending?.id}
+        visible={!!deletion.pending}
+        title={deletion.pending
+          ? `Borraste ${deletion.pending.description || deletion.pending.category_name} · ${fmt(Number(deletion.pending.amount))}`
+          : ''}
+        onUndo={deletion.undo}
+        onDismiss={deletion.commit}
+        duration={DELETE_UNDO_MS}
       />
     </AppShell>
   );

@@ -47,7 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Actividad',
     items: [
-      { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
+      { href: '/transacciones', icon: Receipt, label: 'Movimientos' },
       { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
       { href: '/aprende', icon: BookOpen, label: 'Aprende' },
     ],
