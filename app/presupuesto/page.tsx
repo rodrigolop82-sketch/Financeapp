@@ -195,7 +195,7 @@ function PlanDelMes() {
         subtitle: rec ? `Te ha entrado ${fmt(rec)} este mes` : 'Nada recibido este mes',
         initial: e
           ? { name: e.source, amount: incomeMonthly(e), fixed: e.is_fixed ?? true, day: e.expected_day ?? null }
-          : { name: '', amount: 0, fixed: true, day: null },
+          : { name: '', amount: 0, fixed: false, day: null },
         spent: 0,
         last: e && derived.prevReceived[e.id] ? { label: prevName, amount: Math.round(derived.prevReceived[e.id]) } : null,
         canSplit: false,
@@ -545,7 +545,7 @@ function PlanDelMes() {
         key: c.id, emoji: getEmoji(c), name: c.name,
         fixed: !isGoal && parts.every((p) => p.is_fixed),
         amount: fmt(plan),
-        status: { ...st, text: `${parts.length} partes · ${st.text}` },
+        status: { ...st, text: `${parts.length} ${parts.length === 1 ? 'parte' : 'partes'} · ${st.text}` },
         hasBar: !isGoal,
         open,
         onClick: () => setExpanded((s) => {

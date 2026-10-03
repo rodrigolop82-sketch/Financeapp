@@ -97,7 +97,7 @@ export function EditPlanSheet({ target, month, unassigned, fmt, saving, onSave, 
   const step = (fn: (v: number) => number) => setAmount(amountText(Math.max(0, fn(Math.round(value)))));
 
   return (
-    <div className="flex flex-col gap-4 overflow-y-auto px-5 pb-[calc(30px+env(safe-area-inset-bottom))] pt-1.5">
+    <div className="flex flex-col gap-4 overflow-y-auto px-5 pb-[calc(30px+env(safe-area-inset-bottom))] pt-1.5 [&>*]:shrink-0">
       {/* Encabezado */}
       <div className="flex items-center gap-3">
         <span aria-hidden className={`flex h-[52px] w-[52px] flex-none items-center justify-center rounded-[15px] text-[26px] ${TILE_BG}`}>

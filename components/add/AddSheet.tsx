@@ -419,7 +419,7 @@ export function AddSheet() {
 
         {/* Estado "entendí esto" */}
         {!subView && parsed && (
-          <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto">
+          <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto [&>*]:shrink-0">
             <div className="flex flex-col gap-1">
               <h2 tabIndex={-1} className="eyebrow outline-none">Entendí esto</h2>
               {rawText && <p className={`text-sm italic ${TEXT_MUTED}`}>“{rawText}”</p>}
@@ -495,7 +495,7 @@ export function AddSheet() {
 
         {/* Estado "escribir" */}
         {!subView && !parsed && (
-          <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto">
+          <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto [&>*]:shrink-0">
             <div className="flex flex-col gap-0.5">
               <h2 tabIndex={-1} className={SHEET_TITLE}>Agregar</h2>
               <p className={`text-sm ${TEXT_MUTED}`}>Escríbelo como se lo dirías a alguien.</p>

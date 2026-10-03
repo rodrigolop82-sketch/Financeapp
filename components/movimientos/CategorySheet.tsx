@@ -70,7 +70,7 @@ export function CategorySheet({
   }
 
   return (
-    <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto">
+    <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto [&>*]:shrink-0">
       <div className="flex flex-col gap-0.5">
         <h2 tabIndex={-1} className={SHEET_TITLE}>{categoryQuestion(showType)}</h2>
         {subtitle && <p className={`text-sm ${TEXT_MUTED}`}>{subtitle}</p>}

@@ -94,9 +94,9 @@ export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOp
       </div>
 
       <div className={`rounded-2xl border overflow-hidden ${BORDER}`}>
-        <button type="button" onClick={onOpenCategory} className={rowClass}>
+        <button type="button" onClick={onOpenCategory} className={`flex items-center gap-3 w-full px-4 min-h-14 py-2 border-b text-left ${DIVIDER}`}>
           <span className={label}>Categoría</span>
-          <span className={value}>
+          <span className={`flex-1 min-w-0 line-clamp-2 font-semibold text-[15px] leading-snug ${TEXT_STRONG}`}>
             {getEmoji(cat)} {tx.category_name || 'Sin categoría'}{subItemName ? ` · ${subItemName}` : ''}
           </span>
           {chevron}
