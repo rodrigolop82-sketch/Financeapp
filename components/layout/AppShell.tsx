@@ -74,9 +74,11 @@ interface AppShellProps {
   headerRight?: React.ReactNode
   /** En las pestañas raíz, en móvil: elemento a la derecha del título. */
   titleRight?: React.ReactNode
+  /** En las pestañas raíz, en móvil: reemplaza el bloque del título. */
+  mobileHeader?: React.ReactNode
 }
 
-export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight, titleRight }: AppShellProps) {
+export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight, titleRight, mobileHeader }: AppShellProps) {
   const [isMaster, setIsMaster] = useState(false)
   const router = useRouter()
   const pathname = usePathname() ?? currentPath
@@ -270,10 +272,14 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
               className="lg:hidden flex items-center justify-between gap-3"
               style={{ padding: 'calc(16px + env(safe-area-inset-top)) 20px 0' }}
             >
-              <h1 className="font-serif text-ink-900 dark:text-ink-100" style={{ fontSize: 30, lineHeight: 1.15, margin: 0 }}>
-                {title}
-              </h1>
-              {titleRight}
+              {mobileHeader ?? (
+                <>
+                  <h1 className="font-serif text-ink-900 dark:text-ink-100" style={{ fontSize: 30, lineHeight: 1.15, margin: 0 }}>
+                    {title}
+                  </h1>
+                  {titleRight}
+                </>
+              )}
             </div>
           )}
           {/* Los hijos se pintan una sola vez: sus hojas y toasts no se duplican */}
