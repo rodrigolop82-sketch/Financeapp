@@ -96,7 +96,7 @@ export function buildSmartAlert(params: {
     return {
       type: 'positive',
       title: `Vas a cerrar el mes con Q ${saving.toLocaleString()} de sobra`,
-      subtitle: 'Movelós al fondo de emergencia o al pago extra de deudas.',
+      subtitle: 'Muévelos al fondo de emergencia o al pago extra de deudas.',
     }
   }
 

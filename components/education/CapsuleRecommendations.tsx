@@ -7,9 +7,12 @@ import type { CapsuleRecommendation } from '@/types'
 
 interface CapsuleRecommendationsProps {
   recommendations: CapsuleRecommendation[]
+  title?: string
+  /** Muestra el enlace "Ver todo" a /aprende. */
+  showSeeAll?: boolean
 }
 
-export function CapsuleRecommendations({ recommendations }: CapsuleRecommendationsProps) {
+export function CapsuleRecommendations({ recommendations, title = 'Aprende', showSeeAll = true }: CapsuleRecommendationsProps) {
   if (recommendations.length === 0) return null
 
   return (
@@ -18,14 +21,16 @@ export function CapsuleRecommendations({ recommendations }: CapsuleRecommendatio
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-electric-light" />
-            <CardTitle className="text-lg">Aprende</CardTitle>
+            <CardTitle className="text-lg">{title}</CardTitle>
           </div>
-          <Link
-            href="/aprende"
-            className="text-sm text-electric hover:text-electric-dark flex items-center gap-1"
-          >
-            Ver todo <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+          {showSeeAll && (
+            <Link
+              href="/aprende"
+              className="text-sm text-electric hover:text-electric-dark flex items-center gap-1"
+            >
+              Ver todo <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
           Cápsulas recomendadas para mejorar tu puntaje

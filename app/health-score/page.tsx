@@ -140,7 +140,7 @@ export default function HealthScorePage() {
 
   if (!score) {
     return (
-      <AppShell title="Puntaje Zafi" currentPath="/health-score">
+      <AppShell title="Tu salud financiera" currentPath="/health-score">
         <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8B9AAE' }}>
           <div style={{ fontSize: 40, marginBottom: 16 }}>📊</div>
           <div style={{ fontSize: 16, fontWeight: 600, color: '#1E3A5F', marginBottom: 8 }}>
@@ -158,7 +158,7 @@ export default function HealthScorePage() {
   const labelBg = SCORE_BG[score.color] ?? '#F1F5F9'
 
   return (
-    <AppShell title="Puntaje Zafi" currentPath="/health-score">
+    <AppShell title="Tu salud financiera" currentPath="/health-score">
       {/* Score gauge card */}
       <div style={{
         background: 'linear-gradient(135deg, #1E3A5F 0%, #2A4A6E 100%)',

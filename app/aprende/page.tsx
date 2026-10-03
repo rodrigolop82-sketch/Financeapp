@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { isEffectivelyPremium } from '@/lib/plans'
 import { AppShell } from '@/components/layout/AppShell'
+import { ParaTi } from '@/components/education/ParaTi'
 import { Loader2, BookOpen, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 
@@ -90,6 +91,8 @@ export default function AprendePage() {
       <div style={{ fontSize: 14, color: '#8B9AAE', marginBottom: 24, marginTop: -8 }}>
         Cápsulas de 3–5 minutos conectadas a tu situación financiera real
       </div>
+
+      <ParaTi />
 
       {/* Continue learning card */}
       {continueModule && (
