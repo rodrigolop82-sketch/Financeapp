@@ -5,12 +5,17 @@ import { createClient } from '@/lib/supabase'
 import { formatMoney } from '@/lib/format'
 import { cleanTransactionName } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
-import { Loader2, ArrowLeft } from 'lucide-react'
+import { Loader2, ArrowLeft, Pencil } from 'lucide-react'
 import {
   computeCategoryPace,
   type MonthContext,
   type CategoryPace,
 } from '@/lib/resumen/pace'
+import { EditSheet } from '@/components/transactions/EditSheet'
+import { ReclassifySheet } from '@/components/transactions/ReclassifySheet'
+import { UndoToast } from '@/components/transactions/UndoToast'
+import { useReclassifyFlow } from '@/lib/transactions/useReclassifyFlow'
+import type { BudgetCategory, SearchTransaction } from '@/types'
 
 type SortMode = 'monto' | 'fecha' | 'comercio'
 
@@ -53,6 +58,65 @@ export default function CategoriaDetallePage() {
   const [history, setHistory] = useState<HistMonth[]>([])
   const [budget, setBudget] = useState(0)
   const [isClosed, setIsClosed] = useState(false)
+  const [allCategories, setAllCategories] = useState<BudgetCategory[]>([])
+  const [txById, setTxById] = useState<Record<string, SearchTransaction>>({})
+
+  const flow = useReclassifyFlow(allCategories, () => reload())
+
+  async function reload() {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const hh = await supabase.from('households').select('id').eq('owner_id', user.id).limit(1).single()
+    if (!hh.data) return
+    await loadTxs(supabase, hh.data.id as string)
+  }
+
+  async function loadTxs(supabase: ReturnType<typeof createClient>, hid: string) {
+    const now = new Date()
+    let year = now.getFullYear()
+    let month = now.getMonth()
+    if (mes) {
+      const [y, m] = mes.split('-').map(Number)
+      if (y && m) { year = y; month = m - 1 }
+    }
+    const monthStart = new Date(year, month, 1).toISOString().slice(0, 10)
+    const monthEnd = new Date(year, month + 1, 0).toISOString().slice(0, 10)
+
+    const { data: monthTxs } = await supabase
+      .from('transactions')
+      .select('*, budget_categories(name, bucket, icon)')
+      .eq('household_id', hid)
+      .eq('category_id', categoryId)
+      .eq('type', 'expense')
+      .gte('date', monthStart)
+      .lte('date', monthEnd)
+      .order('amount', { ascending: false })
+
+    const transactions: TxRow[] = (monthTxs ?? []).map((t: Record<string, unknown>) => ({
+      id: t.id as string,
+      amount: Number(t.amount),
+      description: (t.description as string) || '',
+      date: t.date as string,
+      payment_method: (t.payment_method as string) || 'efectivo',
+      source: (t.source as string) || 'manual',
+    }))
+    setTxs(transactions)
+
+    const byId: Record<string, SearchTransaction> = {}
+    for (const t of (monthTxs ?? []) as Record<string, unknown>[]) {
+      const bc = t.budget_categories as { name: string; bucket: string; icon: string | null } | null
+      byId[t.id as string] = {
+        ...(t as unknown as SearchTransaction),
+        category_name: bc?.name || 'Sin categoria',
+        category_bucket: (bc?.bucket as 'needs' | 'wants' | 'savings') || 'needs',
+        category_icon: bc?.icon ?? null,
+      }
+    }
+    setTxById(byId)
+
+    return transactions
+  }
 
   useEffect(() => {
     async function load() {
@@ -69,6 +133,10 @@ export default function CategoriaDetallePage() {
         .from('budget_categories').select('*').eq('id', categoryId).single()
       if (!cat) { router.push('/resumen'); return }
 
+      const { data: hhCats } = await supabase
+        .from('budget_categories').select('*').eq('household_id', hid).order('bucket')
+      setAllCategories((hhCats || []) as BudgetCategory[])
+
       setCategoryName(cat.name)
 
       const now = new Date()
@@ -80,7 +148,6 @@ export default function CategoriaDetallePage() {
       }
 
       const monthStart = new Date(year, month, 1).toISOString().slice(0, 10)
-      const monthEnd = new Date(year, month + 1, 0).toISOString().slice(0, 10)
       const daysInMonth = new Date(year, month + 1, 0).getDate()
       const isCurrentMonth = year === now.getFullYear() && month === now.getMonth()
       const dayOfMonth = isCurrentMonth ? now.getDate() : daysInMonth
@@ -105,25 +172,7 @@ export default function CategoriaDetallePage() {
       const mCtx: MonthContext = { today: now, daysInMonth, dayOfMonth }
       setMonthCtx(mCtx)
 
-      const { data: monthTxs } = await supabase
-        .from('transactions')
-        .select('id, amount, description, date, payment_method, source')
-        .eq('household_id', hid)
-        .eq('category_id', categoryId)
-        .eq('type', 'expense')
-        .gte('date', monthStart)
-        .lte('date', monthEnd)
-        .order('amount', { ascending: false })
-
-      const transactions: TxRow[] = (monthTxs ?? []).map((t: Record<string, unknown>) => ({
-        id: t.id as string,
-        amount: Number(t.amount),
-        description: (t.description as string) || '',
-        date: t.date as string,
-        payment_method: (t.payment_method as string) || 'efectivo',
-        source: (t.source as string) || 'manual',
-      }))
-      setTxs(transactions)
+      const transactions = (await loadTxs(supabase, hid)) ?? []
 
       const spent = transactions.reduce((s, t) => s + t.amount, 0)
       const paceResult = computeCategoryPace({
@@ -415,6 +464,18 @@ export default function CategoriaDetallePage() {
                       </div>
                       <div style={{ fontSize: 11, color: '#8B9AAE' }}>{pct}%</div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => { const full = txById[tx.id]; if (full) flow.openEdit(full) }}
+                      aria-label="Editar transacción"
+                      style={{
+                        flexShrink: 0, width: 30, height: 30, borderRadius: 8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'none', border: 'none', cursor: 'pointer', color: '#8B9AAE',
+                      }}
+                    >
+                      <Pencil style={{ width: 14, height: 14 }} />
+                    </button>
                   </div>
                 )
               })}
@@ -471,6 +532,18 @@ export default function CategoriaDetallePage() {
                           <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 13, color: '#1E3A5F' }}>
                             {formatMoney(tx.amount)}
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => { const full = txById[tx.id]; if (full) flow.openEdit(full) }}
+                            aria-label="Editar transacción"
+                            style={{
+                              flexShrink: 0, width: 26, height: 26, borderRadius: 7,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              background: 'none', border: 'none', cursor: 'pointer', color: '#8B9AAE',
+                            }}
+                          >
+                            <Pencil style={{ width: 13, height: 13 }} />
+                          </button>
                         </div>
                       )
                     })}
@@ -612,6 +685,38 @@ export default function CategoriaDetallePage() {
           </div>
         )}
       </div>
+
+      <EditSheet
+        open={flow.step === 'editing'}
+        transaction={flow.editingTx}
+        categories={allCategories}
+        onSave={flow.saveCategory}
+        onClose={flow.closeEdit}
+        saving={flow.saving}
+        fmt={formatMoney}
+      />
+
+      <ReclassifySheet
+        open={flow.step === 'reclassifying'}
+        merchantName={flow.merchantName}
+        newCategoryName={flow.newCategoryName}
+        matches={flow.matches}
+        defaultSelectedIds={flow.defaultSelectedIds}
+        truncated={flow.truncated}
+        saving={flow.saving}
+        onConfirm={flow.confirmBulk}
+        onSingleOnly={flow.singleOnly}
+        onClose={flow.closeEdit}
+        fmt={formatMoney}
+      />
+
+      <UndoToast
+        visible={flow.undoVisible}
+        title={flow.undoTitle}
+        subtitle={flow.undoSubtitle}
+        onUndo={flow.doUndo}
+        onDismiss={flow.dismissUndo}
+      />
     </AppShell>
   )
 }
