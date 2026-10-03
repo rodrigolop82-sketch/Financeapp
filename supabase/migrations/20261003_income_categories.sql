@@ -4,9 +4,17 @@
 -- (which was silently breaking "Guardar cambio" when editing a
 -- transaction's type to Ingreso).
 --
--- bucket has no CHECK constraint (confirmed against 20260802_unify_categories.sql
--- and 20260915_custom_categories.sql), so no schema change is needed to
--- allow the new value — this only adds rows and updates the seeding trigger.
+-- bucket has a CHECK constraint (budget_categories_bucket_check) that was
+-- never added through a tracked migration in this repo — it must have been
+-- created directly in the Supabase dashboard at some point. It currently
+-- only allows 'needs' | 'wants' | 'savings', so it must be widened before
+-- any 'income' row can be inserted.
+
+-- 0. Widen the bucket CHECK constraint to allow 'income'.
+ALTER TABLE budget_categories DROP CONSTRAINT IF EXISTS budget_categories_bucket_check;
+ALTER TABLE budget_categories
+  ADD CONSTRAINT budget_categories_bucket_check
+  CHECK (bucket IN ('needs', 'wants', 'savings', 'income'));
 
 -- 1. Backfill: give every existing household these two defaults if they
 --    don't already have them (idempotent — safe to re-run).
