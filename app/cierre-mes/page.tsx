@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
@@ -21,6 +21,14 @@ const SOURCE_ICONS: Record<string, typeof CreditCard> = {
 }
 
 export default function CierreMesPage() {
+  return (
+    <Suspense>
+      <CierreMesContent />
+    </Suspense>
+  )
+}
+
+function CierreMesContent() {
   const [checklist, setChecklist] = useState<MonthCloseChecklist | null>(null)
   const [loading, setLoading] = useState(true)
   const searchParams = useSearchParams()

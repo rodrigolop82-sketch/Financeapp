@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { getUserHousehold } from '@/lib/household';
@@ -27,6 +27,14 @@ const FREQUENCY_MULTIPLIER: Record<string, number> = {
 };
 
 export default function PresupuestoPage() {
+  return (
+    <Suspense>
+      <PresupuestoContent />
+    </Suspense>
+  );
+}
+
+function PresupuestoContent() {
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [subItems, setSubItems] = useState<BudgetSubItem[]>([]);
   const [income, setIncome] = useState(0);
