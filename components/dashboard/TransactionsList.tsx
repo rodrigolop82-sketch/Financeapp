@@ -8,7 +8,7 @@ interface Transaction {
   category: string
   amount: number
   date: string
-  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement' | 'text'
   type?: 'expense' | 'income'
   original_amount?: number | null
   original_currency?: string | null
@@ -162,7 +162,7 @@ export function TransactionsList({ transactions, onSeeAll }: TransactionsListPro
                 {tx.type === 'income' && (
                   <span style={{
                     fontSize: 10, fontWeight: 500, padding: '1px 5px',
-                    borderRadius: 4, background: '#DCFCE7', color: '#166534'
+                    borderRadius: 4, background: '#D1FAE5', color: '#065F46'
                   }}>
                     ingreso
                   </span>

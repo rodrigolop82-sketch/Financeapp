@@ -63,7 +63,7 @@ export default function AdminPage() {
 
       const res = await fetch('/api/admin');
       if (res.status === 403) {
-        setError('No tenés acceso al panel de admin.');
+        setError('No tienes acceso al panel de admin.');
         setLoading(false);
         return;
       }

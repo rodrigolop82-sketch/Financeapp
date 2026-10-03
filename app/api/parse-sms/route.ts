@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
-import { localToday } from '@/lib/dates'
+import { localToday, localDaysAgo } from '@/lib/dates'
 import { cleanTransactionName } from '@/lib/format'
 import { getUserHousehold } from '@/lib/household'
 import { toGTQ } from '@/lib/currency'
@@ -11,17 +11,19 @@ const ZAFI_CATEGORIES = [
   'Varios personales', 'Fondo de emergencia', 'Ahorro para metas', 'Pago extra de deudas',
 ]
 
-const SMS_SYSTEM_PROMPT = (today: string, categories: string) => `
-Eres un extractor de transacciones financieras para Guatemala. Analizás mensajes de texto SMS de bancos, notificaciones de Apple Pay, Google Pay y alertas de tarjetas de crédito/débito.
+const SMS_SYSTEM_PROMPT = (today: string, yesterday: string, expenseCategories: string, incomeCategories: string) => `
+Eres un extractor de transacciones financieras para Guatemala. Analizas dos tipos de texto:
+1. Mensajes SMS de bancos, notificaciones de Apple Pay, Google Pay y alertas de tarjetas de crédito/débito.
+2. Frases informales que la persona escribe a mano, como se lo diría a alguien ("uber 38", "me pagaron 8500").
 
-Fecha hoy: ${today}. Moneda principal: GTQ (Q).
+Fecha hoy: ${today}. Ayer fue ${yesterday}. Moneda principal: GTQ (Q).
 
 Patrones comunes que debes reconocer como GASTO (type: "expense"):
 - Bancos Guatemala: "Compra aprobada por Q250.00 en WALMART", "VISA: Compra por Q125.00 en AMAZON", "Alerta: Q350.00 en PRICEMART el 19/04/2026"
 - Apple Pay: "Apple Pay: Q89.50 at Starbucks", "Apple Pay charged $25.00 at Amazon"
 - Google Pay: "Pagaste Q200.00 a Uber con Google Pay", "Google Pay: paid Q150.00"
 - Débito/Crédito: "Su tarjeta fue utilizada por Q450.00 en TIKAL FUTURA"
-- También acepta montos en USD ($), EUR (€) o MXN. Devolvé el monto original y la moneda detectada.
+- También acepta montos en USD ($), EUR (€) o MXN. Devuelve el monto original y la moneda detectada.
 
 Patrones comunes que debes reconocer como INGRESO (type: "income") — dinero que ENTRA a la cuenta, no que sale:
 - "Depósito recibido por Q3,500.00", "Se ha abonado Q500.00 a su cuenta", "Abono a su cuenta por Q2,000.00"
@@ -29,18 +31,34 @@ Patrones comunes que debes reconocer como INGRESO (type: "income") — dinero qu
 - "Su salario ha sido depositado", "Depósito de nómina por Q8,000.00"
 - Cualquier mensaje de "depósito", "abono", "transferencia recibida", "acreditado" donde el dinero entra a la cuenta del usuario (no una compra/pago/cargo)
 
-Categorías disponibles: ${categories}
+Frases informales (sin "Q", sin formato de banco). Ejemplos:
+- "uber 38" → gasto de 38, descripción "Uber", categoría de transporte, payment_method "efectivo"
+- "super la torre 342.50 con tarjeta" → gasto de 342.50, descripción "Super La Torre", categoría de alimentación/supermercado, payment_method "tarjeta"
+- "me pagaron 8500" o "salario 8500" → ingreso de 8500, descripción "Salario"
+- "ayer farmacia 125" → gasto de 125 con fecha ${yesterday}, descripción "Farmacia", categoría de salud
+- "netflix 99 transferencia" → gasto de 99, payment_method "transferencia"
+- Un número suelto sin contexto ("45") es un gasto con descripción vacía.
+
+Categorías de gasto disponibles: ${expenseCategories}
+Categorías de ingreso disponibles: ${incomeCategories}
 
 Reglas:
-- Extraé siempre: monto (número), comercio/descripción, fecha (si no hay, usá hoy), categoría (si es un ingreso, usá la categoría que mejor aplique o dejala vacía), currency (código ISO: GTQ, USD, EUR, MXN — default GTQ), y type ("expense" o "income")
-- Un cargo, compra, pago o débito es SIEMPRE type:"expense". Un depósito, abono o transferencia recibida es SIEMPRE type:"income". Ante la duda, usá "expense".
-- Si hay múltiples transacciones en un solo texto, extraé todas
-- Ignorá saldos disponibles, números de tarjeta y datos que no sean el movimiento en sí
-- Si el texto NO es una notificación de movimiento financiero (ej: SMS de código de verificación), retorná transactions:[]
+- Extrae siempre: monto (número), comercio/descripción (corta, con mayúscula inicial), fecha (si no hay, usa hoy; "ayer" es ${yesterday}), categoría (usa exactamente uno de los nombres de la lista que corresponda al tipo; si ninguno aplica, déjala vacía), currency (código ISO: GTQ, USD, EUR, MXN — default GTQ), type ("expense" o "income") y payment_method ("efectivo", "tarjeta", "transferencia" o "cheque"; default "efectivo"; SMS de tarjeta, Apple Pay o Google Pay son "tarjeta")
+- Un cargo, compra, pago o débito es SIEMPRE type:"expense". Un depósito, abono, transferencia recibida, salario o "me pagaron" es SIEMPRE type:"income". Ante la duda, usa "expense".
+- Si hay múltiples transacciones en un solo texto, extrae todas
+- Ignora saldos disponibles, números de tarjeta y datos que no sean el movimiento en sí
+- Si el texto NO describe un movimiento de dinero (ej: SMS de código de verificación), devuelve transactions:[]
+- Si entiendes el movimiento pero no hay monto, devuélvelo con amount 0.
 
-Respondé SOLO con JSON válido, sin texto adicional:
-{"transactions":[{"amount":250,"description":"Walmart","category":"Alimentación","date":"${today}","confidence":0.95,"currency":"GTQ","type":"expense"}],"raw_text":"...","ambiguous":false,"clarification":null}
+Responde SOLO con JSON válido, sin texto adicional:
+{"transactions":[{"amount":250,"description":"Walmart","category":"Alimentación","date":"${today}","confidence":0.95,"currency":"GTQ","type":"expense","payment_method":"tarjeta"}],"raw_text":"...","ambiguous":false,"clarification":null}
 `.trim()
+
+const PAYMENT_METHODS = ['efectivo', 'tarjeta', 'transferencia', 'cheque'] as const
+
+function norm(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
 
 export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient()
@@ -52,12 +70,28 @@ export async function POST(req: NextRequest) {
   if (!text) return NextResponse.json({ error: 'Texto requerido' }, { status: 400 })
 
   const today = localToday()
+  const yesterday = localDaysAgo(1)
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 500 })
   }
 
-  // Call Claude to extract transactions from the SMS text
+  // Las categorías reales del hogar guían al modelo y luego se usan para
+  // resolver category_id.
+  const household = await getUserHousehold(supabase, user.id)
+  let categories: { id: string; name: string; bucket: string }[] = []
+  if (household) {
+    const { data } = await supabase
+      .from('budget_categories')
+      .select('id, name, bucket')
+      .eq('household_id', household.id)
+      .is('archived_at', null)
+    categories = data ?? []
+  }
+  const expenseNames = categories.filter((c) => c.bucket !== 'income').map((c) => c.name)
+  const incomeNames = categories.filter((c) => c.bucket === 'income').map((c) => c.name)
+
+  // Call Claude to extract transactions from the text
   const extractionResponse = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -68,15 +102,20 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: SMS_SYSTEM_PROMPT(today, ZAFI_CATEGORIES.join(', ')),
-      messages: [{ role: 'user', content: `Mensaje recibido:\n"${text}"` }],
+      system: SMS_SYSTEM_PROMPT(
+        today,
+        yesterday,
+        (expenseNames.length > 0 ? expenseNames : ZAFI_CATEGORIES).join(', '),
+        (incomeNames.length > 0 ? incomeNames : ['Salario', 'Otros ingresos']).join(', '),
+      ),
+      messages: [{ role: 'user', content: `Texto recibido:\n"${text}"` }],
     }),
   })
 
   if (!extractionResponse.ok) {
     const errText = await extractionResponse.text()
     console.error('Claude SMS parse error:', extractionResponse.status, errText)
-    return NextResponse.json({ error: 'Error al interpretar el mensaje. Intentá de nuevo.' }, { status: 500 })
+    return NextResponse.json({ error: 'Error al interpretar el mensaje. Intenta de nuevo.' }, { status: 500 })
   }
 
   const extraction = await extractionResponse.json()
@@ -89,37 +128,36 @@ export async function POST(req: NextRequest) {
     result.raw_text = text
   } catch {
     console.error('JSON parse error from Claude:', extraction.content?.[0]?.text)
-    return NextResponse.json({ error: 'No se pudo interpretar el mensaje. Verificá que sea una notificación de gasto.' }, { status: 500 })
+    return NextResponse.json({ error: 'No se pudo interpretar el mensaje. Intenta escribirlo de otra forma.' }, { status: 500 })
   }
 
-  // Enrich with household category_id
-  const household = await getUserHousehold(supabase, user.id)
-  if (household) {
-    const { data: categories } = await supabase
-      .from('budget_categories')
-      .select('id, name')
-      .eq('household_id', household.id)
-
-    if (categories && result.transactions) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      result.transactions = result.transactions.map((tx: any) => {
-        const match = categories.find((c) =>
-          c.name.toLowerCase().includes(tx.category.toLowerCase()) ||
-          tx.category.toLowerCase().includes(c.name.toLowerCase())
-        )
-        const currency = (tx.currency || 'GTQ').toUpperCase()
-        const isForex = currency !== 'GTQ'
-        return {
-          ...tx,
-          category_id: match?.id,
-          description: cleanTransactionName(tx.description || ''),
-          original_amount: isForex ? tx.amount : null,
-          original_currency: isForex ? currency : null,
-          amount: isForex ? toGTQ(tx.amount, currency) : tx.amount,
-          type: tx.type === 'income' ? 'income' : 'expense',
-        }
-      })
-    }
+  if (Array.isArray(result.transactions)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    result.transactions = result.transactions.map((tx: any) => {
+      const type = tx.type === 'income' ? 'income' : 'expense'
+      const wanted = norm(String(tx.category ?? ''))
+      const pool = categories.filter((c) => (type === 'income') === (c.bucket === 'income'))
+      const match = wanted
+        ? pool.find((c) => norm(c.name) === wanted) ??
+          pool.find((c) => norm(c.name).includes(wanted) || wanted.includes(norm(c.name)))
+        : undefined
+      const currency = (tx.currency || 'GTQ').toUpperCase()
+      const isForex = currency !== 'GTQ'
+      const amount = Number(tx.amount) || 0
+      const pm = String(tx.payment_method ?? '').toLowerCase()
+      return {
+        ...tx,
+        category: match?.name ?? tx.category ?? '',
+        category_id: match?.id,
+        description: cleanTransactionName(tx.description || ''),
+        original_amount: isForex ? amount : null,
+        original_currency: isForex ? currency : null,
+        amount: isForex ? toGTQ(amount, currency) : amount,
+        type,
+        payment_method: (PAYMENT_METHODS as readonly string[]).includes(pm) ? pm : 'efectivo',
+        date: tx.date || today,
+      }
+    })
   }
 
   if (!result.transactions || result.transactions.length === 0) {
@@ -127,7 +165,7 @@ export async function POST(req: NextRequest) {
       transactions: [],
       raw_text: text,
       ambiguous: false,
-      clarification: 'No se detectó ningún gasto en el mensaje. Aseguráte de pegar una notificación de compra de tu banco o billetera digital.',
+      clarification: 'No entendí un movimiento en ese texto. Prueba con algo como “uber 38”.',
     })
   }
 

@@ -50,7 +50,7 @@ export function VoiceButton({
       mediaRecorder.start()
       setState('recording')
     } catch {
-      onError?.('No se pudo acceder al micrófono. Verificá los permisos.')
+      onError?.('No se pudo acceder al micrófono. Verifica los permisos.')
       setState('error')
     }
   }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -89,7 +89,7 @@ export function VoiceButton({
 
       setTimeout(() => setState('idle'), 1500)
     } catch {
-      onError?.('Error de conexión. Intentá de nuevo.')
+      onError?.('Error de conexión. Intenta de nuevo.')
       setState('error')
       setTimeout(() => setState('idle'), 2000)
     }

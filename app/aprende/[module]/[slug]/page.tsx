@@ -233,7 +233,7 @@ export default function CapsulePage() {
           {/* CTA: ask Zafi */}
           <div className="mt-8 p-4 bg-secondary rounded-xl">
             <p className="text-sm font-medium text-foreground mb-1">
-              ¿Querés aplicar esto a tu situación?
+              ¿Quieres aplicar esto a tu situación?
             </p>
             <p className="text-xs text-muted-foreground mb-3">
               Preguntale a Zafi como se aplica esto a tus finanzas reales.

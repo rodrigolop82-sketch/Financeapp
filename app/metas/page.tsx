@@ -68,10 +68,10 @@ export default function MetasPage() {
           </div>
           <div>
             <p style={{ fontSize: 17, fontWeight: 700, color: '#1E3A5F', marginBottom: 6 }}>
-              Aún no tenés metas de ahorro
+              Aún no tienes metas de ahorro
             </p>
             <p style={{ fontSize: 14, color: '#8B9AAE', lineHeight: 1.5 }}>
-              Creá tu primera meta para empezar a ahorrar con propósito.
+              Crea tu primera meta para empezar a ahorrar con propósito.
             </p>
           </div>
           <button

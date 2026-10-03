@@ -409,7 +409,7 @@ export function ReviewScreen({
             boxShadow: selectedCount > 0 ? '0 4px 14px rgba(37,99,235,0.25)' : 'none',
           }}
         >
-          {isLoading ? 'Guardando...' : `Importar ${selectedCount} transaccion${selectedCount === 1 ? '' : 'es'} →`}
+          {isLoading ? 'Guardando...' : `Importar ${selectedCount} movimiento${selectedCount === 1 ? '' : 's'} →`}
         </button>
       </div>
     </div>

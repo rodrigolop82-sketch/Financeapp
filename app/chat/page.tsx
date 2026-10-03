@@ -277,7 +277,7 @@ export default function ChatPage() {
                 <MessageSquare size={28} style={{ color: '#2563EB' }} />
               </div>
               <p style={{ fontSize: 17, fontWeight: 700, color: '#1E3A5F', marginBottom: 6 }}>
-                No tenés conversaciones aún
+                No tienes conversaciones aún
               </p>
               <p style={{ fontSize: 14, color: '#8B9AAE', lineHeight: 1.5, marginBottom: 20 }}>
                 Preguntale a Zafi sobre tus finanzas — te conoce y responde en base a tu situación real.

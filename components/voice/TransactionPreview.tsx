@@ -43,7 +43,7 @@ export function TransactionPreview({ result, onConfirm, onCancel }: TransactionP
             <p className="text-xs text-orange-700 mt-1">{result.clarification}</p>
           )}
           <p className="text-xs text-ink-500 mt-2">
-            Intentá decir algo como: &ldquo;Gasté 50 quetzales en gasolina&rdquo;
+            Intenta decir algo como: &ldquo;Gasté 50 quetzales en gasolina&rdquo;
           </p>
           <Button variant="outline" size="sm" onClick={onCancel} className="mt-2">
             Cerrar

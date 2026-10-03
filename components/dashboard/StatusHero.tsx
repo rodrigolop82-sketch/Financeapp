@@ -20,7 +20,7 @@ function getStatusMessage(pct: number, daysLeft: number, userName: string): {
     if (daysLeft > 10) return { text: `Cuidado — vas un poco rápido, ${userName}`, color: 'amber' }
     return { text: `Vas bien para lo que queda, ${userName}`, color: 'green' }
   }
-  if (pct < 1.0) return { text: `Casi al límite — frenate un poco, ${userName}`, color: 'amber' }
+  if (pct < 1.0) return { text: `Casi al límite — frena un poco, ${userName}`, color: 'amber' }
   return { text: `Superaste el presupuesto este mes, ${userName}`, color: 'red' }
 }
 

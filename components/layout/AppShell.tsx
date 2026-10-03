@@ -1,22 +1,23 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { isMasterUser } from '@/lib/master-user'
+import { isRootPath, parentFor } from '@/lib/navigation'
 import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
-import { BottomNav } from '@/components/dashboard/BottomNav'
+import { BottomNav, openAddSheet } from '@/components/dashboard/BottomNav'
+import { AddSheet } from '@/components/add/AddSheet'
 import {
-  BarChart3, TrendingUp, Wallet, CreditCard, Target, Receipt,
-  MessageCircle, BookOpen, Users, Settings,
-  Menu, ArrowLeft, ShieldCheck, Trophy, Landmark, ClipboardCheck,
-  ChevronRight,
+  Home, List, Target, Wallet, CreditCard, TrendingUp, ClipboardCheck,
+  MessageCircle, BookOpen, Landmark, Users, Settings, ShieldCheck,
+  ChevronRight, ChevronLeft, Plus,
 } from 'lucide-react'
 
 interface NavItem {
   href: string
-  icon: typeof BarChart3
+  icon: typeof Home
   label: string
 }
 
@@ -25,38 +26,38 @@ interface NavGroup {
   items: NavItem[]
 }
 
+// Mismos grupos que la página "Más" (lib/navigation.ts), más las pestañas principales.
 const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Principal',
     items: [
-      { href: '/dashboard', icon: BarChart3, label: 'Dashboard' },
-      { href: '/resumen', icon: TrendingUp, label: 'Resumen' },
+      { href: '/dashboard', icon: Home, label: 'Inicio' },
+      { href: '/transacciones', icon: List, label: 'Movimientos' },
+      { href: '/metas', icon: Target, label: 'Metas' },
     ],
   },
   {
-    label: 'Finanzas',
+    label: 'Tu dinero',
     items: [
-      { href: '/presupuesto', icon: Wallet, label: 'Presupuesto' },
-      { href: '/metas', icon: Trophy, label: 'Metas' },
+      { href: '/presupuesto', icon: Wallet, label: 'Plan del mes' },
       { href: '/deudas', icon: CreditCard, label: 'Deudas' },
-      { href: '/plan', icon: Target, label: 'Plan' },
-      { href: '/mis-fuentes', icon: Landmark, label: 'Mis Fuentes' },
-      { href: '/cierre-mes', icon: ClipboardCheck, label: 'Cierre de mes' },
+      { href: '/resumen', icon: TrendingUp, label: 'Cómo te fue' },
+      { href: '/cierre-mes', icon: ClipboardCheck, label: 'Cerrar el mes' },
     ],
   },
   {
-    label: 'Actividad',
+    label: 'Ayuda',
     items: [
-      { href: '/transacciones', icon: Receipt, label: 'Transacciones' },
-      { href: '/chat', icon: MessageCircle, label: 'Zafi AI' },
+      { href: '/chat', icon: MessageCircle, label: 'Pregúntale a Zafi' },
       { href: '/aprende', icon: BookOpen, label: 'Aprende' },
     ],
   },
   {
-    label: 'Cuenta',
+    label: 'Tu cuenta',
     items: [
+      { href: '/mis-fuentes', icon: Landmark, label: 'Mis bancos' },
       { href: '/familia', icon: Users, label: 'Familia' },
-      { href: '/cuenta', icon: Settings, label: 'Cuenta' },
+      { href: '/cuenta', icon: Settings, label: 'Cuenta y privacidad' },
     ],
   },
 ]
@@ -71,12 +72,18 @@ interface AppShellProps {
   userEmail?: string
   householdName?: string
   headerRight?: React.ReactNode
+  /** En las pestañas raíz, en móvil: elemento a la derecha del título. */
+  titleRight?: React.ReactNode
+  /** En las pestañas raíz, en móvil: reemplaza el bloque del título. */
+  mobileHeader?: React.ReactNode
 }
 
-export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight }: AppShellProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight, titleRight, mobileHeader }: AppShellProps) {
   const [isMaster, setIsMaster] = useState(false)
   const router = useRouter()
+  const pathname = usePathname() ?? currentPath
+  const isRoot = isRootPath(pathname)
+  const parent = parentFor(pathname)
 
   useEffect(() => {
     if (userEmail) {
@@ -97,6 +104,12 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
       )
     : NAV_GROUPS
 
+  function goBack() {
+    // Si se entró directo a esta ruta no hay historial: se va al padre.
+    if (window.history.length > 1) router.back()
+    else router.push(parent.href)
+  }
+
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -106,44 +119,63 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--zafi-bg)' }}>
-      {/* Mobile header */}
-      <header
-        className="lg:hidden sticky top-0 z-40 backdrop-blur-md border-b border-white/[0.08] px-4 py-3 flex items-center gap-3"
-        style={{ background: 'var(--zafi-header)' }}
-      >
-        <button onClick={() => setSidebarOpen(!sidebarOpen)}>
-          <Menu className="w-5 h-5 text-white/60" />
-        </button>
-        <button onClick={() => router.back()} className="text-white/40 hover:text-white/70">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="text-body-sm font-semibold text-white flex-1">{title}</h1>
-        <AppIcon size="xs" variant="electric" />
-      </header>
+      {/* Mobile header — solo fuera de las pestañas raíz */}
+      {!isRoot && (
+        <header
+          className="lg:hidden sticky top-0 z-30 backdrop-blur-md grid items-center px-2"
+          style={{
+            gridTemplateColumns: '1fr auto 1fr',
+            background: 'var(--zafi-bg)',
+            paddingTop: 'env(safe-area-inset-top)',
+            minHeight: 'calc(52px + env(safe-area-inset-top))',
+          }}
+        >
+          <button
+            type="button"
+            onClick={goBack}
+            className="justify-self-start flex items-center min-h-[44px] px-2 truncate max-w-full"
+            style={{ fontSize: 15, color: 'var(--zafi-text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            <ChevronLeft className="w-5 h-5 flex-shrink-0 -ml-1" aria-hidden />
+            <span className="truncate">{parent.label}</span>
+          </button>
+          <h1 className="truncate text-center text-ink-900 dark:text-ink-100" style={{ fontSize: 16, fontWeight: 600, margin: 0, maxWidth: '50vw' }}>
+            {title}
+          </h1>
+          <span aria-hidden />
+        </header>
+      )}
 
       <div className="flex">
         {/* Sidebar — desktop */}
         <aside
-          className={`fixed lg:sticky top-0 left-0 h-screen z-50 transform transition-transform lg:translate-x-0 ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          className="hidden lg:flex lg:sticky top-0 left-0 h-screen z-50"
           style={{
             width: 252,
             background: 'var(--zafi-sidebar)',
-            display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
           }}
         >
           <div style={{ padding: '28px 18px 20px', display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
             {/* Logo */}
-            <Link href="/dashboard" onClick={() => setSidebarOpen(false)} style={{
+            <Link href="/dashboard" style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              padding: '6px 10px 26px', textDecoration: 'none',
+              padding: '6px 10px 20px', textDecoration: 'none',
             }}>
               <AppIcon size="sm" variant="electric" />
               <Wordmark variant="dark" size="sm" />
             </Link>
+
+            <button
+              type="button"
+              onClick={openAddSheet}
+              className="btn-primary w-full"
+              style={{ marginBottom: 22, borderRadius: 14 }}
+            >
+              <Plus className="w-4 h-4" aria-hidden />
+              Agregar
+            </button>
 
             {/* Nav groups */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 22, overflowY: 'auto', flex: 1 }}>
@@ -161,7 +193,6 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
                       <Link
                         key={item.href}
                         href={item.href}
-                        onClick={() => setSidebarOpen(false)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 11,
                           padding: '10px 12px', borderRadius: 10,
@@ -226,14 +257,6 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
           )}
         </aside>
 
-        {/* Overlay */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/40 z-40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
         {/* Main content */}
         <main className="flex-1 min-w-0">
           {/* Desktop header */}
@@ -243,13 +266,24 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
             </h1>
             {headerRight}
           </div>
-          <div className="lg:hidden">
-            {/* Mobile content gets less padding */}
-            <div className="p-4 pb-24">
-              {children}
+          {/* En las pestañas raíz (móvil) el título va dentro del contenido, sin barra */}
+          {isRoot && (
+            <div
+              className="lg:hidden flex items-center justify-between gap-3"
+              style={{ padding: 'calc(16px + env(safe-area-inset-top)) 20px 0' }}
+            >
+              {mobileHeader ?? (
+                <>
+                  <h1 className="font-serif text-ink-900 dark:text-ink-100" style={{ fontSize: 30, lineHeight: 1.15, margin: 0 }}>
+                    {title}
+                  </h1>
+                  {titleRight}
+                </>
+              )}
             </div>
-          </div>
-          <div className="hidden lg:block" style={{ padding: '8px 52px 60px' }}>
+          )}
+          {/* Los hijos se pintan una sola vez: sus hojas y toasts no se duplican */}
+          <div className={`px-4 pb-28 lg:px-[52px] lg:pt-2 lg:pb-[60px] ${isRoot ? 'pt-3' : 'pt-2'}`}>
             {children}
           </div>
         </main>
@@ -257,6 +291,9 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
 
       {/* Bottom nav — mobile */}
       <BottomNav />
+
+      {/* Hoja global de agregar (botón + y ?action=) */}
+      <AddSheet />
     </div>
   )
 }

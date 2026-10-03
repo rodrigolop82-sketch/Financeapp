@@ -48,18 +48,18 @@ export default function AnalisisPage() {
   function validate(): boolean {
     const errs: Record<string, string> = {};
     if (step === 1) {
-      if (!ingresos || Number(ingresos) <= 0) errs.ingresos = 'Ingresá un monto mayor a 0';
-      if (!tipoIngreso) errs.tipoIngreso = 'Seleccioná el tipo de ingreso';
+      if (!ingresos || Number(ingresos) <= 0) errs.ingresos = 'Ingresa un monto mayor a 0';
+      if (!tipoIngreso) errs.tipoIngreso = 'Selecciona el tipo de ingreso';
     }
     if (step === 2) {
-      if (!gastos || Number(gastos) <= 0) errs.gastos = 'Ingresá un monto mayor a 0';
+      if (!gastos || Number(gastos) <= 0) errs.gastos = 'Ingresa un monto mayor a 0';
     }
     if (step === 3) {
-      if (deudas === '' || Number(deudas) < 0) errs.deudas = 'Ingresá 0 si no tenés deudas';
-      if (ahorros === '' || Number(ahorros) < 0) errs.ahorros = 'Ingresá 0 si no tenés ahorros';
+      if (deudas === '' || Number(deudas) < 0) errs.deudas = 'Ingresa 0 si no tienes deudas';
+      if (ahorros === '' || Number(ahorros) < 0) errs.ahorros = 'Ingresa 0 si no tienes ahorros';
     }
     if (step === 4) {
-      if (!meta) errs.meta = 'Seleccioná tu meta principal';
+      if (!meta) errs.meta = 'Selecciona tu meta principal';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -157,7 +157,7 @@ export default function AnalisisPage() {
           {step === 1 && (
             <div>
               <h1 className="font-serif text-2xl text-navy mb-1">
-                ¿Cuánto ganás al mes?
+                ¿Cuánto ganas al mes?
               </h1>
               <p className="text-sm text-ink-500 mb-6">
                 Tu ingreso total mensual, antes de gastos
@@ -210,7 +210,7 @@ export default function AnalisisPage() {
               {/* Trust signal */}
               <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl text-sm text-blue-700">
                 <Lock className="w-4 h-4 flex-shrink-0" />
-                <span>Solo vos ves esta información. Nunca la compartimos.</span>
+                <span>Solo tú ves esta información. Nunca la compartimos.</span>
               </div>
             </div>
           )}
@@ -219,10 +219,10 @@ export default function AnalisisPage() {
           {step === 2 && (
             <div>
               <h1 className="font-serif text-2xl text-navy mb-1">
-                ¿Cuánto gastás al mes?
+                ¿Cuánto gastas al mes?
               </h1>
               <p className="text-sm text-ink-500 mb-6">
-                Incluí renta, comida, transporte, entretenimiento — todo
+                Incluye renta, comida, transporte, entretenimiento — todo
               </p>
 
               <div className="mb-4">
@@ -252,7 +252,7 @@ export default function AnalisisPage() {
                   de tus ingresos.{' '}
                   {Number(ingresos) - Number(gastos) >= 0
                     ? `Te quedan ${formatQ(Number(ingresos) - Number(gastos))} al mes.`
-                    : 'Estás gastando más de lo que ganás.'}
+                    : 'Estás gastando más de lo que ganas.'}
                 </div>
               )}
             </div>
@@ -265,12 +265,12 @@ export default function AnalisisPage() {
                 Deudas y ahorros
               </h1>
               <p className="text-sm text-ink-500 mb-6">
-                Poné 0 si no aplicá — no hay respuesta incorrecta
+                Pon 0 si no aplica — no hay respuesta incorrecta
               </p>
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-navy mb-1">
-                  ¿Cuánto debés en total?
+                  ¿Cuánto debes en total?
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">Q</span>
@@ -289,7 +289,7 @@ export default function AnalisisPage() {
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-navy mb-1">
-                  ¿Cuánto tenés ahorrado?
+                  ¿Cuánto tienes ahorrado?
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">Q</span>
@@ -315,7 +315,7 @@ export default function AnalisisPage() {
                 ¿Cuál es tu meta principal?
               </h1>
               <p className="text-sm text-ink-500 mb-6">
-                Elegí una — la que más te importa ahora mismo
+                Elige una — la que más te importa ahora mismo
               </p>
 
               <div className="space-y-2">

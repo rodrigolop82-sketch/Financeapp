@@ -51,7 +51,7 @@ export function VoiceOverlay({ open, onClose, onResult, onError }: VoiceOverlayP
       mediaRecorder.start()
       setState('recording')
     } catch {
-      onError?.('No se pudo acceder al micrófono. Verificá los permisos.')
+      onError?.('No se pudo acceder al micrófono. Verifica los permisos.')
       onClose()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -77,7 +77,7 @@ export function VoiceOverlay({ open, onClose, onResult, onError }: VoiceOverlayP
       setState('idle')
       onClose()
     } catch {
-      onError?.('Error de conexión. Intentá de nuevo.')
+      onError?.('Error de conexión. Intenta de nuevo.')
       setState('idle')
       onClose()
     }
@@ -161,7 +161,7 @@ export function VoiceOverlay({ open, onClose, onResult, onError }: VoiceOverlayP
               fontSize: 26, fontWeight: 300, color: 'rgba(255,255,255,.85)',
               lineHeight: 1.4, maxWidth: 280,
             }}>
-              Contame todos los detalles de tu gasto
+              Cuéntame todos los detalles de tu gasto
             </p>
 
             <p style={{

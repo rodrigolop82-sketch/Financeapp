@@ -112,7 +112,7 @@ function CaptureContent() {
         if (match) setCategoryId(match.id)
       }
     } catch {
-      setError('Error de conexion al procesar la imagen')
+      setError('Error de conexión al procesar la imagen')
     }
     setProcessing(false)
   }
@@ -436,7 +436,7 @@ function CaptureContent() {
           <label style={{
             fontSize: 10, fontWeight: 700, color: '#64748B',
             letterSpacing: '.06em', display: 'block', marginBottom: 6,
-          }}>DESCRIPCION</label>
+          }}>DESCRIPCIÓN</label>
           <input
             type="text"
             value={description}

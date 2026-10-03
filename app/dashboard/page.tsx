@@ -1,524 +1,369 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
-import { localToday, localMonthStart, localDaysAgo } from '@/lib/dates'
-import { AppShell } from '@/components/layout/AppShell'
-import { StatusHero } from '@/components/dashboard/StatusHero'
-import { ExpenseDrawer } from '@/components/expenses/ExpenseDrawer'
-import { AddExpenseSheet } from '@/components/dashboard/AddExpenseSheet'
-import { SummaryRow } from '@/components/dashboard/SummaryRow'
-import { SmartAlert, buildSmartAlert, type AlertData } from '@/components/dashboard/SmartAlert'
-import { TransactionsList } from '@/components/dashboard/TransactionsList'
-import { StreakCard } from '@/components/dashboard/StreakCard'
-import { TransactionPreview } from '@/components/voice/TransactionPreview'
-import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
-import type { VoiceExtractionResult, ExtractedTransaction, Transaction, BudgetCategory, FinancialProfile, Household, CapsuleRecommendation } from '@/types'
-import { Loader2, ChevronLeft, ChevronRight, Plus, MessageCircle } from 'lucide-react'
+import { localToday } from '@/lib/dates'
 import { getUserHousehold } from '@/lib/household'
-import { useHealthScore } from '@/hooks/useHealthScore'
-import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow'
-import { getRecommendedCapsules } from '@/lib/capsule-recommendations'
-import { CapsuleRecommendations } from '@/components/education/CapsuleRecommendations'
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
+import { getEmoji } from '@/lib/categories-ui'
+import { monthRange } from '@/lib/movimientos'
+import {
+  computeHome, headerDate, initials, pickHomeAlert, STATUS_META,
+  type BarKind, type HomeAlert, type HomeSummary,
+} from '@/lib/inicio'
+import { buildSmartAlert } from '@/components/dashboard/SmartAlert'
+import { AppShell } from '@/components/layout/AppShell'
+import { openAddSheet } from '@/components/dashboard/BottomNav'
+import { TRANSACTIONS_CHANGED_EVENT, type TxChangedDetail } from '@/components/add/AddSheet'
+import { TxRow, txRowData } from '@/components/movimientos/SwipeRow'
+import { useTxSheets } from '@/components/movimientos/useTxSheets'
+import { CARD_BG, DIVIDER, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
+import type { BudgetCategory, SearchTransaction } from '@/types'
 
-const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-
-interface EnrichedTransaction {
-  id: string
-  description: string | null
-  category: string
-  amount: number
-  date: string
-  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement'
-  type?: 'expense' | 'income'
-  categoryIcon?: string | null
-  categoryColor?: string | null
-}
-
-interface DashboardData {
-  profile: FinancialProfile | null
-  household: Household
-  userName: string
-  userInitials: string
-  healthScore: number
-  enrichedTransactions: EnrichedTransaction[]
-  spentMonth: number
-  spentToday: number
-  spentWeek: number
-  todayCount: number
-  daysLeft: number
-  daysInMonth: number
-  alert: AlertData | null
-  weekDayStatus: ('done' | 'today' | 'miss')[]
-  currentStreak: number
-  bestStreak: number
-  weekVsPrev: number
-  budget: number
+interface HomeData {
   householdId: string
-  userId: string
+  fullName: string
+  firstName: string
   categories: BudgetCategory[]
-  isCurrentMonth: boolean
+  summary: HomeSummary
+  alert: HomeAlert | null
 }
 
-export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null)
-  const [voiceResult, setVoiceResult] = useState<VoiceExtractionResult | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
-  const [importFlowActive, setImportFlowActive] = useState(false)
-  const [expenseSheetOpen, setExpenseSheetOpen] = useState(false)
-  const [recommendations, setRecommendations] = useState<CapsuleRecommendation[]>([])
-  const [selectedMonthStart, setSelectedMonthStart] = useState(() => localMonthStart())
+const BAR_STYLE: Record<BarKind, { bar: string; text: string }> = {
+  ok: { bar: '#2563EB', text: 'text-ink-700 dark:text-ink-200' },
+  cuidado: { bar: '#F59E0B', text: 'text-warning-text dark:text-warning' },
+  excedida: { bar: '#EF4444', text: 'text-danger-text dark:text-[var(--zafi-error-text)]' },
+}
+
+type LatestRow = SearchTransaction
+
+export default function InicioPage() {
   const router = useRouter()
-  const { score: healthScoreResult } = useHealthScore(data?.householdId ?? null)
+  const fmt = useFormatMoney()
+  const supabase = useMemo(() => createClient(), [])
+  const today = localToday()
+  const month = today.slice(0, 7)
+
+  const [data, setData] = useState<HomeData | null>(null)
+  const [latest, setLatest] = useState<LatestRow[]>([])
+  const [reloadGen, setReloadGen] = useState(0)
+  const reload = useCallback(() => setReloadGen((g) => g + 1), [])
+
+  const sheets = useTxSheets({
+    rows: latest,
+    setRows: setLatest,
+    categories: data?.categories ?? [],
+    fmt,
+    today,
+    onChanged: reload,
+  })
+  const { getPendingDeleteId, flash } = sheets
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const action = params.get('action')
-    if (action === 'voice') setVoiceOverlayOpen(true)
-    if (action === 'manual') window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
-    if (action === 'scan') setImportFlowActive(true)
-  }, [])
+    let cancelled = false
+    ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+      const household = await getUserHousehold(supabase, user.id)
+      if (!household) { router.push('/onboarding'); return }
+      const hid = household.id as string
+      const { from, to } = monthRange(month)
 
-  useEffect(() => { loadDashboardData(selectedMonthStart) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+      const [profileRes, catsRes, monthRes, latestRes] = await Promise.all([
+        supabase.from('users').select('full_name').eq('id', user.id).single(),
+        supabase.from('budget_categories').select('*').eq('household_id', hid),
+        supabase.from('transactions').select('id, amount, type, category_id').eq('household_id', hid).gte('date', from).lte('date', to),
+        supabase
+          .from('transactions')
+          .select('*, budget_categories(name, bucket, icon)')
+          .eq('household_id', hid)
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(4),
+      ])
+      if (cancelled) return
 
+      const pendingId = getPendingDeleteId()
+      const categories = (catsRes.data ?? []) as BudgetCategory[]
+      const monthTx = ((monthRes.data ?? []) as { id: string; amount: number; type: 'expense' | 'income'; category_id: string | null }[])
+        .filter((t) => t.id !== pendingId)
+      const summary = computeHome(categories, monthTx, new Date())
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const latestRows: LatestRow[] = ((latestRes.data ?? []) as any[])
+        .filter((t) => t.id !== pendingId)
+        .slice(0, 3)
+        .map((t) => ({
+          ...t,
+          category_name: t.budget_categories?.name ?? 'Sin categoría',
+          category_bucket: t.budget_categories?.bucket ?? 'needs',
+          category_icon: t.budget_categories?.icon ?? null,
+        }))
+
+      const lastDate = latestRows[0]?.date ?? null
+      const daysSinceLast = lastDate
+        ? Math.max(0, Math.round((new Date(today + 'T12:00:00').getTime() - new Date(lastDate + 'T12:00:00').getTime()) / 86400000))
+        : null
+
+      // Ahorro del mes: el mensaje sale de buildSmartAlert (categoría de ahorro con mayor meta).
+      const savingsCat = categories
+        .filter((c) => c.bucket === 'savings' && !c.archived_at && c.budgeted_amount > 0)
+        .sort((a, b) => b.budgeted_amount - a.budgeted_amount)[0]
+      const savingsAlert = savingsCat
+        ? buildSmartAlert({
+            spent: 0, budget: 0, daysLeft: summary.daysLeft, daysInMonth: summary.daysLeft,
+            daysSinceLastTransaction: 0,
+            savingsAlert: {
+              name: savingsCat.name,
+              saved: monthTx.filter((t) => t.category_id === savingsCat.id).reduce((s, t) => s + Number(t.amount), 0),
+              goal: savingsCat.budgeted_amount,
+            },
+          })
+        : null
+
+      const fullName = ((profileRes.data?.full_name as string | undefined) ?? '').trim() || 'Usuario'
+      setData({
+        householdId: hid,
+        fullName,
+        firstName: fullName.split(/\s+/)[0],
+        categories,
+        summary,
+        alert: pickHomeAlert({
+          overCategory: summary.overCategory,
+          daysSinceLastTransaction: daysSinceLast,
+          savings: savingsAlert ? { title: savingsAlert.title, subtitle: savingsAlert.subtitle } : null,
+        }),
+      })
+      setLatest(latestRows)
+    })()
+    return () => { cancelled = true }
+  }, [supabase, router, month, today, reloadGen, getPendingDeleteId])
+
+  // Movimientos agregados desde el botón +: recalcula el hero y resalta el nuevo.
   useEffect(() => {
-    if (!data?.userId || !healthScoreResult || healthScoreResult.components.length === 0) return
-    getRecommendedCapsules(data.userId, healthScoreResult.components)
-      .then(setRecommendations)
-      .catch(() => {})
-  }, [data?.userId, healthScoreResult])
-
-  function handleOpenManual() {
-    window.dispatchEvent(new CustomEvent('zafi:open-expense-drawer'))
-  }
-
-  async function loadDashboardData(ms?: string) {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      router.push('/login')
-      return
+    function onChanged(e: Event) {
+      const detail = (e as CustomEvent<TxChangedDetail | undefined>).detail
+      if (detail?.id) flash(detail.id)
+      reload()
     }
-
-    const { data: userProfile } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-
-    const household = await getUserHousehold(supabase, user.id)
-
-    if (!household) {
-      router.push('/onboarding')
-      return
-    }
-
-    const hid = household.id as string
-
-    const now = new Date()
-    const currentMs = localMonthStart()
-    const monthStart = ms ?? currentMs
-    const isCurrentMonth = monthStart === currentMs
-
-    const msDate = new Date(monthStart + 'T12:00:00')
-    const nextMonthDate = new Date(msDate.getFullYear(), msDate.getMonth() + 1, 1)
-    const nextMonthStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-01`
-
-    const weekStart = localDaysAgo(7)
-    const today = localToday()
-
-    const prevWeekStart = localDaysAgo(14)
-    const [profileRes, txMonthRes, categoriesRes, prevWeekRes, allDatesRes] = await Promise.all([
-      supabase.from('financial_profiles').select('*').eq('household_id', hid).order('updated_at', { ascending: false }).limit(1).single(),
-      supabase.from('transactions').select('*').eq('household_id', hid).eq('type', 'expense').gte('date', monthStart).lt('date', nextMonthStr).order('date', { ascending: false }),
-      supabase.from('budget_categories').select('*').eq('household_id', hid),
-      isCurrentMonth
-        ? supabase.from('transactions').select('amount').eq('household_id', hid).eq('type', 'expense').gte('date', prevWeekStart).lt('date', weekStart)
-        : Promise.resolve({ data: [] }),
-      supabase.from('transactions').select('date').eq('household_id', hid),
-    ])
-
-    const profile = profileRes.data as FinancialProfile | null
-    const txMonth = (txMonthRes.data ?? []) as Transaction[]
-    const categories = (categoriesRes.data ?? []) as BudgetCategory[]
-    const prevWeekTx = (prevWeekRes.data ?? []) as { amount: number }[]
-    const allDates = (allDatesRes.data ?? []) as { date: string }[]
-
-    const categoryMap: Record<string, string> = {}
-    const categoryMeta: Record<string, { icon?: string | null; color?: string | null }> = {}
-    categories.forEach((c) => { categoryMap[c.id] = c.name; categoryMeta[c.id] = { icon: c.icon, color: c.color } })
-
-    const daysInMonth = new Date(msDate.getFullYear(), msDate.getMonth() + 1, 0).getDate()
-    const daysLeft = isCurrentMonth ? daysInMonth - now.getDate() : 0
-
-    const spentMonth = txMonth.reduce((s, t) => s + Number(t.amount), 0)
-    const spentToday = isCurrentMonth ? txMonth.filter((t) => t.date === today).reduce((s, t) => s + Number(t.amount), 0) : 0
-    const spentWeek  = isCurrentMonth ? txMonth.filter((t) => t.date >= weekStart).reduce((s, t) => s + Number(t.amount), 0) : 0
-    const todayCount = isCurrentMonth ? txMonth.filter((t) => t.date === today).length : 0
-
-    const enrichedTransactions: EnrichedTransaction[] = txMonth.map((t) => ({
-      id: t.id,
-      description: t.description,
-      category: categoryMap[t.category_id] ?? 'Otros',
-      amount: Number(t.amount),
-      date: t.date,
-      source: t.source ?? 'manual',
-      type: t.type ?? 'expense',
-      categoryIcon: categoryMeta[t.category_id]?.icon,
-      categoryColor: categoryMeta[t.category_id]?.color,
-    }))
-
-    const spentByCat: Record<string, number> = {}
-    txMonth.forEach((t) => { spentByCat[t.category_id] = (spentByCat[t.category_id] ?? 0) + Number(t.amount) })
-    let topOver: { name: string; spent: number; limit: number; pctOver: number } | undefined = undefined
-    let savingsAlertData: { name: string; saved: number; goal: number } | undefined = undefined
-    categories.forEach((c) => {
-      const s = spentByCat[c.id] ?? 0
-      if (c.bucket === 'savings') {
-        if (c.budgeted_amount > 0 && (!savingsAlertData || c.budgeted_amount > savingsAlertData.goal)) {
-          savingsAlertData = { name: c.name, saved: s, goal: c.budgeted_amount }
-        }
-        return
-      }
-      const over = c.budgeted_amount > 0 ? (s - c.budgeted_amount) / c.budgeted_amount * 100 : 0
-      if (over > 20 && (!topOver || over > topOver.pctOver)) {
-        topOver = { name: c.name, spent: s, limit: c.budgeted_amount, pctOver: Math.round(over) }
-      }
-    })
-
-    const lastTxDate = txMonth[0]?.date ?? (allDates.length > 0 ? allDates.sort((a, b) => b.date.localeCompare(a.date))[0].date : null)
-    const daysSinceLast = lastTxDate
-      ? Math.max(0, Math.floor((now.getTime() - new Date(lastTxDate + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24)))
-      : 0
-
-    const txDates = new Set(txMonth.map((t) => t.date))
-    let currentStreak = 0
-    let streakOffset = txDates.has(today) ? 0 : 1
-    while (true) {
-      const ds = localDaysAgo(streakOffset)
-      if (txDates.has(ds)) {
-        currentStreak++
-        streakOffset++
-      } else {
-        break
-      }
-    }
-
-    const allTxDatesSet = new Set(allDates.map((r) => r.date))
-    const sortedAllDates = Array.from(allTxDatesSet).sort()
-    let bestStreak = 0
-    let bStreak = 0
-    let prevD: string | null = null
-    for (const d of sortedAllDates) {
-      if (prevD) {
-        const diffDays = Math.round(
-          (new Date(d + 'T12:00:00').getTime() - new Date(prevD + 'T12:00:00').getTime()) / 86400000
-        )
-        bStreak = diffDays === 1 ? bStreak + 1 : 1
-      } else {
-        bStreak = 1
-      }
-      if (bStreak > bestStreak) bestStreak = bStreak
-      prevD = d
-    }
-    bestStreak = Math.max(bestStreak, currentStreak)
-
-    const spentPrevWeek = prevWeekTx.reduce((s, t) => s + Number(t.amount), 0)
-    const weekVsPrev = spentPrevWeek > 0
-      ? Math.round((spentWeek - spentPrevWeek) / spentPrevWeek * 100)
-      : 0
-
-    const weekDayStatus: ('done' | 'today' | 'miss')[] = Array.from({ length: 7 }, (_, i) => {
-      const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1
-      const ds = localDaysAgo(dayOfWeek - i)
-      if (ds === today) return 'today'
-      if (txDates.has(ds)) return 'done'
-      if (ds < today) return 'miss'
-      return 'miss'
-    })
-
-    const budget = profile?.total_income ? Number(profile.total_income) * 0.8 : 4000
-
-    const alert = buildSmartAlert({
-      spent: spentMonth,
-      budget,
-      daysLeft,
-      daysInMonth,
-      topOverBudgetCategory: topOver,
-      daysSinceLastTransaction: daysSinceLast,
-      savingsAlert: savingsAlertData,
-    })
-
-    const fullName = (userProfile?.full_name || 'Usuario') as string
-    const nameParts = fullName.split(' ')
-    const firstName = nameParts[0]
-    const initials = nameParts.length >= 2
-      ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
-      : nameParts[0].substring(0, 2).toUpperCase()
-
-    setData({
-      profile,
-      household: household as Household,
-      userName: firstName,
-      userInitials: initials,
-      healthScore: profile?.health_score ?? 0,
-      enrichedTransactions, spentMonth, spentToday, spentWeek, todayCount,
-      daysLeft, daysInMonth, alert, weekDayStatus, currentStreak, bestStreak, weekVsPrev, budget,
-      householdId: hid,
-      userId: user.id,
-      categories,
-      isCurrentMonth,
-    })
-  }
-
-  function getMonthLabel(ms: string) {
-    const d = new Date(ms + 'T12:00:00')
-    return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
-  }
-
-  function goToPrevMonth() {
-    const d = new Date(selectedMonthStart + 'T12:00:00')
-    d.setMonth(d.getMonth() - 1)
-    const newMs = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-    setSelectedMonthStart(newMs)
-    setData(null)
-    loadDashboardData(newMs)
-  }
-
-  function goToNextMonth() {
-    const d = new Date(selectedMonthStart + 'T12:00:00')
-    d.setMonth(d.getMonth() + 1)
-    const newMs = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-    if (newMs <= localMonthStart()) {
-      setSelectedMonthStart(newMs)
-      setData(null)
-      loadDashboardData(newMs)
-    }
-  }
-
-  async function handleVoiceConfirm(transactions: ExtractedTransaction[]) {
-    if (!data || transactions.length === 0) return
-    const supabase = createClient()
-
-    const rows = transactions.map((t) => ({
-      household_id: data.householdId,
-      amount: t.amount,
-      description: t.description,
-      category_id: t.category_id ?? null,
-      date: t.date || localToday(),
-      source: 'voice' as const,
-      type: 'expense' as const,
-      payment_method: 'efectivo' as const,
-      voice_raw_text: voiceResult?.raw_text ?? null,
-      created_by: data.userId,
-    }))
-    const { error } = await supabase.from('transactions').insert(rows)
-
-    if (error) {
-      setErrorMsg(`No se pudo guardar: ${error.message}`)
-      setTimeout(() => setErrorMsg(null), 5000)
-      return
-    }
-
-    setVoiceResult(null)
-    const count = transactions.length
-    setSuccessMsg(`${count} gasto${count > 1 ? 's' : ''} guardado${count > 1 ? 's' : ''}`)
-    setTimeout(() => setSuccessMsg(null), 3000)
-    loadDashboardData()
-  }
+    window.addEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged)
+    return () => window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged)
+  }, [reload, flash])
 
   if (!data) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zafi-bg)' }}>
-        <Loader2 className="w-8 h-8 text-electric animate-spin" />
+        <Loader2 className="w-8 h-8 text-electric animate-spin" aria-label="Cargando" />
       </div>
     )
   }
 
-  const isCurrentMonth = data.isCurrentMonth
+  const { summary: s, alert } = data
+  const hasPlan = s.budget > 0
+  const status = STATUS_META[s.status]
+
+  const avatar = (
+    <Link
+      href="/cuenta"
+      aria-label={`${initials(data.fullName)}, tu cuenta`}
+      className="flex-none flex items-center justify-center w-[42px] h-[42px] rounded-full bg-navy dark:bg-electric text-white text-sm font-bold"
+    >
+      {initials(data.fullName)}
+    </Link>
+  )
+
+  const greeting = (
+    <div className="flex flex-col min-w-0">
+      <span className={`text-sm ${TEXT_MUTED}`}>{headerDate(new Date())}</span>
+      <h1 className={`font-serif text-[30px] leading-tight truncate ${TEXT_STRONG}`}>Hola, {data.firstName}</h1>
+    </div>
+  )
 
   return (
-    <AppShell title="Dashboard" currentPath="/dashboard" userName={data.userName} householdName={data.household.name}>
-
-      {/* Month navigator */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <button
-          onClick={goToPrevMonth}
-          className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/5 transition-colors"
-          style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+    <AppShell
+      title="Inicio"
+      currentPath="/dashboard"
+      userName={data.firstName}
+      mobileHeader={<>{greeting}{avatar}</>}
+      headerRight={avatar}
+    >
+      <div className="max-w-2xl flex flex-col">
+        {/* Hero */}
+        <section
+          aria-label={hasPlan ? 'Hoy puedes gastar' : 'Tu plan del mes'}
+          className="mt-3.5 flex flex-col gap-1.5 rounded-[20px] text-white"
+          style={{ background: 'var(--zafi-hero)', padding: '22px 22px 20px' }}
         >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div style={{ textAlign: 'center' }}>
-          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 15, color: 'var(--zafi-text)' }}>
-            {getMonthLabel(selectedMonthStart)}
-          </span>
-          {!isCurrentMonth && (
-            <span style={{ fontSize: 12, color: '#64748B', marginLeft: 8 }}>histórico</span>
+          {hasPlan ? (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[15px] text-[#CBD8E8]">Hoy puedes gastar</span>
+                <span className="flex items-center gap-1.5 rounded-full bg-white/[0.08] px-[11px] py-[5px] text-[13px] font-semibold">
+                  <span aria-hidden className="w-[7px] h-[7px] rounded-full" style={{ background: status.dot }} />
+                  {status.label}
+                </span>
+              </div>
+              <p className="font-outfit font-extrabold text-[58px] leading-none tracking-[-0.02em]">
+                {fmt(s.perDay)}
+              </p>
+              <p className="text-sm text-[#9FB3CB] [text-wrap:pretty]">
+                {s.perDay > 0
+                  ? 'Si te mantienes en eso cada día, llegas a fin de mes con lo que planeaste.'
+                  : 'Ya usaste todo lo planeado para este mes.'}
+              </p>
+              <div className="h-px bg-white/[0.08] mt-3 mb-2" />
+              <div className="flex items-center justify-between text-[13.5px] text-[#9FB3CB]">
+                <span>Te quedan <b className="font-outfit font-bold text-white">{fmt(Math.max(0, s.left))}</b></span>
+                <span>de {fmt(s.budget)}</span>
+              </div>
+              <div
+                className="h-2 rounded-[5px] bg-[#2A4A6E] overflow-hidden"
+                role="progressbar"
+                aria-label="Gastado del plan"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(Math.min(100, s.pct * 100))}
+              >
+                <div className="h-full rounded-[5px]" style={{ width: `${Math.min(100, s.pct * 100)}%`, background: status.bar }} />
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xl font-bold">Aún no tienes un plan para este mes</p>
+              <p className="text-sm text-[#9FB3CB] [text-wrap:pretty]">
+                Dinos cuánto quieres gastar en cada cosa y Zafi te dirá cuánto puedes gastar cada día.
+              </p>
+              <Link
+                href="/presupuesto"
+                className="mt-2.5 self-start flex items-center h-[46px] px-6 rounded-full bg-white text-navy font-semibold"
+              >
+                Hacer mi plan
+              </Link>
+            </>
           )}
-        </div>
-        <button
-          onClick={goToNextMonth}
-          disabled={isCurrentMonth}
-          className="p-1.5 rounded-lg text-navy/60 hover:text-navy hover:bg-navy/5 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-          style={{ background: 'none', border: 'none', cursor: isCurrentMonth ? 'not-allowed' : 'pointer' }}
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
+        </section>
+
+        {/* Alerta única */}
+        {alert && <HomeAlertCard alert={alert} fmt={fmt} />}
+
+        {/* ¿En qué se va? */}
+        <section className="mt-[18px] flex flex-col gap-2">
+          <h2 className={`text-[15px] font-bold ${TEXT_STRONG}`}>¿En qué se va?</h2>
+          {hasPlan ? (
+            s.catBars.length > 0 ? (
+              <div className={`rounded-2xl px-4 py-0.5 ${CARD_BG}`}>
+                {s.catBars.map((b, i) => {
+                  const style = BAR_STYLE[b.kind]
+                  return (
+                    <Link
+                      key={b.id}
+                      href={`/resumen/categoria/${b.id}?mes=${month}`}
+                      className={`flex flex-col gap-[7px] py-3 ${i < s.catBars.length - 1 ? `border-b ${DIVIDER}` : ''}`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span aria-hidden className="text-lg leading-none">{getEmoji(b)}</span>
+                        <span className={`flex-1 min-w-0 truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{b.name}</span>
+                        <span className={`text-[13px] font-semibold ${style.text}`}>
+                          {b.ratio > 1 ? `${fmt(b.spent - b.budget)} de más` : `Quedan ${fmt(b.budget - b.spent)}`}
+                        </span>
+                      </span>
+                      <span className="h-1.5 rounded bg-[var(--zafi-border-light)] overflow-hidden">
+                        <span className="block h-full rounded" style={{ width: `${Math.min(100, b.ratio * 100)}%`, background: style.bar }} />
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className={`text-sm ${TEXT_MUTED}`}>Todavía no hay gastos en las categorías de tu plan este mes.</p>
+            )
+          ) : s.spendByCategory.length > 0 ? (
+            <div className={`rounded-2xl px-4 py-0.5 ${CARD_BG}`}>
+              {s.spendByCategory.map((c, i) => (
+                <Link
+                  key={c.id}
+                  href={`/resumen/categoria/${c.id}?mes=${month}`}
+                  className={`flex items-center gap-2 py-3 ${i < s.spendByCategory.length - 1 ? `border-b ${DIVIDER}` : ''}`}
+                >
+                  <span aria-hidden className="text-lg leading-none">{getEmoji(c)}</span>
+                  <span className={`flex-1 min-w-0 truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{c.name}</span>
+                  <span className={`text-[13px] font-semibold ${TEXT_STRONG}`}>{fmt(c.spent)}</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className={`text-sm ${TEXT_MUTED}`}>Aún no registras gastos este mes.</p>
+          )}
+        </section>
+
+        {/* Lo último */}
+        <section className="mt-[18px] flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <h2 className={`text-[15px] font-bold ${TEXT_STRONG}`}>Lo último</h2>
+            <Link href="/transacciones" className="text-sm font-semibold text-electric dark:text-electric-pale">Ver todo</Link>
+          </div>
+          {latest.length > 0 ? (
+            <div className="flex flex-col gap-[5px]">
+              {latest.map((tx) => (
+                <TxRow
+                  key={tx.id}
+                  row={txRowData(tx, fmt)}
+                  flash={sheets.flashId === tx.id}
+                  onSelect={() => sheets.openDetail(tx.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openAddSheet}
+              className={`rounded-2xl px-4 py-5 text-sm font-semibold text-electric ${CARD_BG}`}
+            >
+              Agrega tu primer movimiento
+            </button>
+          )}
+        </section>
       </div>
 
-      {/* Hero card */}
-      <StatusHero
-        spent={data.spentMonth}
-        budget={data.budget}
-        daysLeft={data.daysLeft}
-        userName={data.userName}
-        score={data.healthScore}
-        userInitials={data.userInitials}
-      />
-
-      {/* Success/error messages */}
-      {successMsg && (
-        <div style={{
-          marginTop: 12, padding: '8px 12px',
-          background: 'var(--zafi-success-bg)', border: '0.5px solid var(--zafi-success-border)',
-          borderRadius: 10, fontSize: 14, color: 'var(--zafi-success-text)'
-        }}>
-          {successMsg}
-        </div>
-      )}
-      {errorMsg && (
-        <div style={{
-          marginTop: 12, padding: '8px 12px',
-          background: 'var(--zafi-error-bg)', border: '0.5px solid var(--zafi-error-border)',
-          borderRadius: 10, fontSize: 14, color: 'var(--zafi-error-text)'
-        }}>
-          {errorMsg}
-        </div>
-      )}
-
-      {/* Voice preview */}
-      {voiceResult && isCurrentMonth && (
-        <div style={{ marginTop: 12, padding: 14, background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14 }}>
-          <p style={{ fontSize: 14, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisá antes de guardar</p>
-          <TransactionPreview
-            result={voiceResult}
-            onConfirm={handleVoiceConfirm}
-            onCancel={() => setVoiceResult(null)}
-          />
-        </div>
-      )}
-
-      {/* Expense drawer */}
-      <ExpenseDrawer
-        householdId={data.householdId}
-        categories={data.categories}
-        onSuccess={() => loadDashboardData()}
-        onVoiceOverlay={() => setVoiceOverlayOpen(true)}
-      />
-
-      {/* Stats row */}
-      <SummaryRow
-        today={data.spentToday}
-        todayCount={data.todayCount}
-        week={data.spentWeek}
-        weekVsPrev={data.weekVsPrev}
-        month={data.spentMonth}
-        monthBudget={data.budget}
-      />
-
-      {/* Smart alert */}
-      {isCurrentMonth && <SmartAlert alert={data.alert} />}
-
-      {/* Capsule recommendations */}
-      {isCurrentMonth && recommendations.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <CapsuleRecommendations recommendations={recommendations} />
-        </div>
-      )}
-
-      {/* Transactions */}
-      <div style={{ marginTop: 20 }}>
-        <TransactionsList
-          transactions={data.enrichedTransactions}
-          onSeeAll={() => router.push('/transacciones')}
-        />
-      </div>
-
-      {/* Streak */}
-      {isCurrentMonth && (
-        <div style={{ marginTop: 12 }}>
-          <StreakCard
-            currentStreak={data.currentStreak}
-            bestStreak={data.bestStreak}
-            weekDays={data.weekDayStatus}
-          />
-        </div>
-      )}
-
-      <div className="h-6" />
-
-      {/* Zafi AI Chat FAB */}
-      <div
-        onClick={() => router.push('/chat')}
-        style={{
-          position: 'fixed', right: 20, zIndex: 30,
-          bottom: 'calc(148px + env(safe-area-inset-bottom, 0px))',
-          width: 56, height: 56, borderRadius: '50%',
-          background: '#3b5bdb', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 10px 24px rgba(59,91,219,0.35)', cursor: 'pointer',
-        }}
-      >
-        <MessageCircle style={{ width: 24, height: 24, color: '#fff' }} />
-        <span style={{
-          position: 'absolute', top: 10, right: 10,
-          width: 10, height: 10, borderRadius: '50%',
-          background: '#22C55E', border: '2px solid #3b5bdb',
-        }} />
-      </div>
-
-      {/* FAB — visible on all screens */}
-      <div
-        onClick={() => setExpenseSheetOpen(true)}
-        style={{
-          position: 'fixed', right: 20, zIndex: 30,
-          bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
-          width: 56, height: 56, borderRadius: '50%',
-          background: '#2563EB', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 10px 24px rgba(37,99,235,0.35)', cursor: 'pointer',
-        }}
-      >
-        <Plus style={{ width: 24, height: 24, color: '#fff' }} />
-      </div>
-
-      {/* Add expense bottom sheet */}
-      <AddExpenseSheet
-        open={expenseSheetOpen}
-        onClose={() => setExpenseSheetOpen(false)}
-        onScan={() => setImportFlowActive(true)}
-        onVoice={() => setVoiceOverlayOpen(true)}
-        onManual={() => handleOpenManual()}
-      />
-
-      {/* Statement import flow */}
-      {importFlowActive && (
-        <StatementImportFlow
-          householdId={data.householdId}
-          onDone={() => { setImportFlowActive(false); loadDashboardData() }}
-        />
-      )}
-
-      {/* Voice overlay */}
-      <VoiceOverlay
-        open={voiceOverlayOpen}
-        onClose={() => setVoiceOverlayOpen(false)}
-        onResult={(result) => { setVoiceResult(result); setVoiceOverlayOpen(false) }}
-        onError={(err) => setSuccessMsg(err)}
-      />
+      {sheets.element}
     </AppShell>
+  )
+}
+
+function HomeAlertCard({ alert, fmt }: { alert: HomeAlert; fmt: (n: number) => string }) {
+  const base = 'mt-3 flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left w-full'
+  if (alert.kind === 'excedida') {
+    return (
+      <Link href={`/transacciones?q=${encodeURIComponent(alert.name)}`} className={`${base} bg-warning-light`}>
+        <span aria-hidden className="text-[22px] leading-none">{getEmoji(alert)}</span>
+        <span className="flex-1 text-sm text-warning-text">
+          <b>{alert.name}</b> va {fmt(alert.excess)} arriba de lo planeado.
+        </span>
+        <span className="text-sm font-semibold text-warning-text">Ver ›</span>
+      </Link>
+    )
+  }
+  if (alert.kind === 'sin-registrar') {
+    return (
+      <button type="button" onClick={openAddSheet} className={`${base} bg-electric-ghost`}>
+        <span aria-hidden className="text-[22px] leading-none">✍️</span>
+        <span className="flex-1 text-sm text-electric-dark">
+          Hace <b>{alert.days} días</b> que no registras un movimiento.
+        </span>
+        <span className="text-sm font-semibold text-electric-dark">Agregar ›</span>
+      </button>
+    )
+  }
+  return (
+    <Link href="/presupuesto" className={`${base} bg-success-light`}>
+      <span aria-hidden className="text-[22px] leading-none">🐷</span>
+      <span className="flex-1 text-sm text-success-text">
+        <b>{alert.title}</b>
+        {alert.subtitle && <span className="block">{alert.subtitle}</span>}
+      </span>
+      <span className="text-sm font-semibold text-success-text">Ver ›</span>
+    </Link>
   )
 }

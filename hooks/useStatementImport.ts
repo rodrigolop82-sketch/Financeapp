@@ -505,7 +505,7 @@ export function useStatementImport(householdId: string) {
           isLoading: false,
           error: isAbort
             ? 'El analisis tardo demasiado. Intenta con una foto mas clara o un PDF mas corto.'
-            : 'Error de conexion. Revisa tu internet e intentalo de nuevo.',
+            : 'Error de conexión. Revisa tu internet e inténtalo de nuevo.',
           step: 'upload',
         }))
         return
@@ -576,7 +576,7 @@ export function useStatementImport(householdId: string) {
       setState(s => ({
         ...s,
         isLoading: false,
-        error: 'Error de conexion. Revisa tu internet e intentalo de nuevo.',
+        error: 'Error de conexión. Revisa tu internet e inténtalo de nuevo.',
         step: 'upload',
       }))
     }
@@ -610,7 +610,7 @@ export function useStatementImport(householdId: string) {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      setState(s => ({ ...s, isLoading: false, error: 'Sesión expirada. Iniciá sesión de nuevo.' }))
+      setState(s => ({ ...s, isLoading: false, error: 'Sesión expirada. Inicia sesión de nuevo.' }))
       return
     }
 
@@ -641,7 +641,7 @@ export function useStatementImport(householdId: string) {
 
     if (!inserted || inserted.length === 0) {
       console.error('Insert returned no rows — RLS may be blocking')
-      setState(s => ({ ...s, isLoading: false, error: 'No se pudieron guardar las transacciones. Verificá permisos.' }))
+      setState(s => ({ ...s, isLoading: false, error: 'No se pudieron guardar las transacciones. Verifica permisos.' }))
       return
     }
 

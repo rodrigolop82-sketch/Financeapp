@@ -151,11 +151,11 @@ export function BudgetDefinition({
           {/* Income section */}
           <div style={{
             border: '1px solid #E5E7EB', borderRadius: 12, padding: '16px 18px',
-            marginBottom: 16, background: '#F0FDF4',
+            marginBottom: 16, background: 'var(--zafi-success-bg)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#166534' }}>Ingresos</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#166534' }}>{fmt(income)}/mes</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--zafi-success-text)' }}>Ingresos</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--zafi-success-text)' }}>{fmt(income)}/mes</span>
             </div>
 
             {/* Quick-add chips */}

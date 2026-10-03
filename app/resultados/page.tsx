@@ -63,11 +63,11 @@ function getScoreLabel(score: number): string {
 }
 
 function getScoreInterpretacion(score: number): string {
-  if (score >= 85) return 'Tus finanzas están en muy buen estado. Seguí así y enfocate en hacer crecer tu patrimonio.';
-  if (score >= 65) return 'Tenés una base sólida. Hay oportunidades para optimizar y alcanzar tus metas más rápido.';
+  if (score >= 85) return 'Tus finanzas están en muy buen estado. Sigue así y enfócate en hacer crecer tu patrimonio.';
+  if (score >= 65) return 'Tienes una base sólida. Hay oportunidades para optimizar y alcanzar tus metas más rápido.';
   if (score >= 45) return 'Estás en camino correcto pero hay áreas importantes que mejorar para mayor estabilidad.';
-  if (score >= 25) return 'Tu situación requiere atención. Con los pasos correctos podés mejorar significativamente.';
-  return 'Tu situación financiera necesita acción urgente. Empezá con el primer paso de abajo.';
+  if (score >= 25) return 'Tu situación requiere atención. Con los pasos correctos puedes mejorar significativamente.';
+  return 'Tu situación financiera necesita acción urgente. Empieza con el primer paso de abajo.';
 }
 
 function generarRecomendaciones(data: AnalisisData): Recomendacion[] {
@@ -82,8 +82,8 @@ function generarRecomendaciones(data: AnalisisData): Recomendacion[] {
   if (mesesEmergencia < 3) {
     recs.push({
       area: 'emergencia',
-      titulo: 'Construí tu fondo de emergencia',
-      descripcion: `Con Q${Math.round(gastos * 3).toLocaleString()} cubrís 3 meses de gastos. Meta: ahorrar Q${Math.round(gastos * 0.1).toLocaleString()} extra al mes.`,
+      titulo: 'Construye tu fondo de emergencia',
+      descripcion: `Con Q${Math.round(gastos * 3).toLocaleString()} cubres 3 meses de gastos. Meta: ahorrar Q${Math.round(gastos * 0.1).toLocaleString()} extra al mes.`,
       prioridad: 'alta',
     });
   }
@@ -91,8 +91,8 @@ function generarRecomendaciones(data: AnalisisData): Recomendacion[] {
   if (data.deudas > ingresos * 6) {
     recs.push({
       area: 'deuda',
-      titulo: 'Reducí tu carga de deuda',
-      descripcion: `Tu deuda representa ${Math.round(data.deudas / ingresos)} meses de ingresos. Priorizá pagar la deuda con mayor interés primero.`,
+      titulo: 'Reduce tu carga de deuda',
+      descripcion: `Tu deuda representa ${Math.round(data.deudas / ingresos)} meses de ingresos. Prioriza pagar la deuda con mayor interés primero.`,
       prioridad: 'alta',
     });
   }
@@ -100,8 +100,8 @@ function generarRecomendaciones(data: AnalisisData): Recomendacion[] {
   if (ratioGastos > 0.8) {
     recs.push({
       area: 'gastos',
-      titulo: 'Revisá tus gastos variables',
-      descripcion: `Estás gastando el ${Math.round(ratioGastos * 100)}% de tus ingresos. Identificá 3 gastos prescindibles para liberar margen.`,
+      titulo: 'Revisa tus gastos variables',
+      descripcion: `Estás gastando el ${Math.round(ratioGastos * 100)}% de tus ingresos. Identifica 3 gastos prescindibles para liberar margen.`,
       prioridad: ratioGastos > 1 ? 'alta' : 'media',
     });
   }
@@ -109,8 +109,8 @@ function generarRecomendaciones(data: AnalisisData): Recomendacion[] {
   if (tasaAhorro < 0.1 && data.gastos <= data.ingresos) {
     recs.push({
       area: 'ahorro',
-      titulo: 'Aumentá tu tasa de ahorro',
-      descripcion: `Estás ahorrando menos del 10% de tus ingresos. Empezá con Q${Math.round(ingresos * 0.05).toLocaleString()} extra al mes como meta inicial.`,
+      titulo: 'Aumenta tu tasa de ahorro',
+      descripcion: `Estás ahorrando menos del 10% de tus ingresos. Empieza con Q${Math.round(ingresos * 0.05).toLocaleString()} extra al mes como meta inicial.`,
       prioridad: 'media',
     });
   }
@@ -119,8 +119,8 @@ function generarRecomendaciones(data: AnalisisData): Recomendacion[] {
   if (recs.length === 0) {
     recs.push({
       area: 'inversion',
-      titulo: '¡Bien! Pensá en invertir tus ahorros',
-      descripcion: 'Tus finanzas están en buena forma. Considerá poner tus ahorros excedentes a trabajar: fondos de inversión, acciones o bienes raíces.',
+      titulo: '¡Bien! Piensa en invertir tus ahorros',
+      descripcion: 'Tus finanzas están en buena forma. Considera poner tus ahorros excedentes a trabajar: fondos de inversión, acciones o bienes raíces.',
       prioridad: 'baja',
     });
   }

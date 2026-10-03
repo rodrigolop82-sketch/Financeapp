@@ -48,7 +48,7 @@
     --zafi-header: rgba(30,58,95,0.95);
     --zafi-bottomnav: rgba(13,31,54,0.98);
     --zafi-nav-active: #60A5FA;
-    --zafi-nav-inactive: rgba(255,255,255,0.4);
+    --zafi-nav-inactive: rgba(255,255,255,0.45);
     --zafi-hero: #1E3A5F;
     --zafi-hero-text: #FFFFFF;
     --zafi-hero-text-secondary: #9FB3CB;
@@ -108,7 +108,7 @@
     --zafi-header: rgba(11,17,32,0.95);
     --zafi-bottomnav: rgba(7,13,26,0.98);
     --zafi-nav-active: #60A5FA;
-    --zafi-nav-inactive: rgba(255,255,255,0.3);
+    --zafi-nav-inactive: rgba(255,255,255,0.45);
     --zafi-hero: #141D2E;
     --zafi-hero-text: #E2E8F0;
     --zafi-hero-text-secondary: #64748B;
@@ -224,3 +224,10 @@
     @apply font-outfit font-extrabold leading-none tracking-tight text-white;
   }
 }
+
+/* ── FILA NUEVA O RECIÉN EDITADA ─────────── */
+@keyframes zafi-row-flash {
+  from { background-color: #DBEAFE; }
+  to   { background-color: var(--zafi-card); }
+}
+.zafi-row-flash { animation: zafi-row-flash 1.6s ease-out; }

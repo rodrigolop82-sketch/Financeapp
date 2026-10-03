@@ -44,12 +44,12 @@ export function buildSmartAlert(params: {
       return {
         type: 'info',
         title: `Vas al ${pct}% de tu meta de ahorro este mes`,
-        subtitle: `${savingsAlert.name} — llevás Q ${savingsAlert.saved.toLocaleString()} de Q ${savingsAlert.goal.toLocaleString()}.`,
+        subtitle: `${savingsAlert.name} — llevas Q ${savingsAlert.saved.toLocaleString()} de Q ${savingsAlert.goal.toLocaleString()}.`,
       }
     } else {
       return {
         type: 'info',
-        title: `Aún no registrás ahorro este mes`,
+        title: `Aún no registras ahorro este mes`,
         subtitle: `Tu meta de ${savingsAlert.name} es Q ${savingsAlert.goal.toLocaleString()} — un buen momento para empezar.`,
       }
     }
@@ -60,7 +60,7 @@ export function buildSmartAlert(params: {
     return {
       type: 'warning',
       title: `A este ritmo cerrarás el mes Q ${overage.toLocaleString()} sobre el presupuesto`,
-      subtitle: 'Aún podés corregirlo — reducí gastos estos días.',
+      subtitle: 'Aún puedes corregirlo — reduce gastos estos días.',
     }
   }
 
@@ -79,7 +79,7 @@ export function buildSmartAlert(params: {
     return {
       type: 'info',
       title: `Hace ${daysSinceLastTransaction} días sin registrar gastos.`,
-      subtitle: 'Registrá uno para mantener tu racha al día →',
+      subtitle: 'Registra uno para mantener tu racha al día →',
     }
   }
 
@@ -87,7 +87,7 @@ export function buildSmartAlert(params: {
     return {
       type: 'positive',
       title: `Tu puntaje Zafi subió ${scorePoints} puntos este mes`,
-      subtitle: '¡Seguís mejorando! Revisá tu plan para continuar.',
+      subtitle: '¡Sigues mejorando! Revisa tu plan para continuar.',
     }
   }
 
@@ -96,7 +96,7 @@ export function buildSmartAlert(params: {
     return {
       type: 'positive',
       title: `Vas a cerrar el mes con Q ${saving.toLocaleString()} de sobra`,
-      subtitle: 'Movelós al fondo de emergencia o al pago extra de deudas.',
+      subtitle: 'Muévelos al fondo de emergencia o al pago extra de deudas.',
     }
   }
 

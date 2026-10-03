@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { formatMoney } from '@/lib/format'
 import { isEffectivelyPremium } from '@/lib/plans'
 import { AppShell } from '@/components/layout/AppShell'
+import { NavCard, NavRow } from '@/components/layout/NavRow'
 import { Loader2, ChevronRight, ChevronDown } from 'lucide-react'
 import {
   computeCategoryPace,
@@ -20,6 +21,9 @@ import {
   type ClosedCategoryInput,
 } from '@/lib/resumen/closed-month'
 import { useSelectedMonth } from '@/hooks/useSelectedMonth'
+import { useActivityStats } from '@/hooks/useActivityStats'
+import { SummaryRow } from '@/components/dashboard/SummaryRow'
+import { StreakCard } from '@/components/dashboard/StreakCard'
 import { MonthNavigator } from '@/components/resumen/MonthNavigator'
 import { MonthPickerSheet } from '@/components/resumen/MonthPickerSheet'
 
@@ -57,6 +61,7 @@ interface MonthlyBucketTotals {
 }
 
 interface ResumenData {
+  householdId: string
   userName: string
   householdName: string
   budget: number
@@ -117,6 +122,7 @@ function ResumenContent() {
   const router = useRouter()
 
   const selectedMonth = useSelectedMonth(availableMonths)
+  const activity = useActivityStats(data?.householdId ?? null)
 
 
   useEffect(() => {
@@ -389,6 +395,7 @@ function ResumenContent() {
       setMonthResults(pickerMonths)
 
       setData({
+        householdId: hid,
         userName: firstName,
         householdName: household.name ?? '',
         budget: totalBudget,
@@ -472,7 +479,7 @@ function ResumenContent() {
   const barColor = ms.totalSpent > ms.totalBudget ? '#EF4444' : '#2563EB'
 
   return (
-    <AppShell title="Resumen" currentPath="/resumen" userName={data.userName} householdName={data.householdName}>
+    <AppShell title="Cómo te fue" currentPath="/resumen" userName={data.userName} householdName={data.householdName}>
       {/* Month navigator */}
       <MonthNavigator
         label={selectedMonth.label}
@@ -504,6 +511,25 @@ function ResumenContent() {
         <button style={tabStyle('insights')} onClick={() => setTab('insights')}>Insights</button>
         <button style={tabStyle('tendencias')} onClick={() => setTab('tendencias')}>Tendencias</button>
       </div>
+
+      {/* Actividad del mes en curso (antes en Inicio) */}
+      {tab === 'mes' && selectedMonth.isCurrent && activity && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+          <SummaryRow
+            today={activity.spentToday}
+            todayCount={activity.todayCount}
+            week={activity.spentWeek}
+            weekVsPrev={activity.weekVsPrev}
+            month={activity.spentMonth}
+            monthBudget={activity.monthBudget}
+          />
+          <StreakCard
+            currentStreak={activity.currentStreak}
+            bestStreak={activity.bestStreak}
+            weekDays={activity.weekDayStatus}
+          />
+        </div>
+      )}
 
       {/* === MES === */}
       {tab === 'mes' && selectedMonth.isClosed && data.closedResult && (() => {
@@ -1718,6 +1744,12 @@ function ResumenContent() {
         </>
         )
       })()}
+
+      <div style={{ marginTop: 20 }}>
+        <NavCard>
+          <NavRow href="/health-score" emoji="💚" name="Tu salud financiera" description="Tu puntaje Zafi y cómo mejorarlo" last />
+        </NavCard>
+      </div>
 
       <div className="h-6" />
     </AppShell>

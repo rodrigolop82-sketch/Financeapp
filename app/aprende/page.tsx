@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { isEffectivelyPremium } from '@/lib/plans'
 import { AppShell } from '@/components/layout/AppShell'
+import { ParaTi } from '@/components/education/ParaTi'
 import { Loader2, BookOpen, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 
@@ -91,6 +92,8 @@ export default function AprendePage() {
         Cápsulas de 3–5 minutos conectadas a tu situación financiera real
       </div>
 
+      <ParaTi />
+
       {/* Continue learning card */}
       {continueModule && (
         <Link href={`/aprende/${continueModule.slug}`} style={{ textDecoration: 'none' }}>
@@ -148,7 +151,7 @@ export default function AprendePage() {
             Los módulos de educación todavía no están disponibles.
           </div>
           <div style={{ fontSize: 13, color: '#8B9AAE', marginTop: 4 }}>
-            Ejecutá la migración de base de datos para cargar el contenido.
+            Ejecuta la migración de base de datos para cargar el contenido.
           </div>
         </div>
       ) : (
