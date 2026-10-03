@@ -1447,8 +1447,8 @@ function ResumenContent() {
         // Evolution chart data
         const chartMonths = history
         const chartMax = Math.max(...chartMonths.map(m => m.total), 1)
-        const chartH = 200
-        const chartPadY = 20
+        const chartH = 240
+        const chartPadY = 34
         const usableH = chartH - 2 * chartPadY
         const toY = (v: number) => chartPadY + usableH - (v / chartMax) * usableH
         const spacing = chartMonths.length > 1 ? 360 / (chartMonths.length - 1) : 180
@@ -1456,6 +1456,7 @@ function ResumenContent() {
 
         const totalPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.total)}`).join(' ')
 
+        const needsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.needs)}`).join(' ')
         const wantsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.wants)}`).join(' ')
         const savingsPath = chartMonths.map((m, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(m.savings)}`).join(' ')
 
@@ -1475,11 +1476,13 @@ function ResumenContent() {
 
         const totalPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.total) }))
 
+        const needsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.needs) }))
         const wantsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.wants) }))
         const savingsPts = chartMonths.map((m, i) => ({ x: toX(i), y: toY(m.savings) }))
 
         const totalSplit = splitPath(totalPath, totalPts)
 
+        const needsSplit = splitPath(needsPath, needsPts)
         const wantsSplit = splitPath(wantsPath, wantsPts)
         const savingsSplit = splitPath(savingsPath, savingsPts)
 
@@ -1567,9 +1570,12 @@ function ResumenContent() {
               }}>
                 Evolución mensual
               </div>
-              <div style={{ display: 'flex', gap: 20, marginBottom: 16, fontSize: 13 }}>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 13, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
                   <span style={{ width: 14, height: 2, background: '#2563EB', display: 'inline-block' }} />Total
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
+                  <span style={{ width: 14, height: 2, background: '#475569', display: 'inline-block' }} />Necesidades
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1E3A5F' }}>
                   <span style={{ width: 14, height: 2, background: '#10B981', display: 'inline-block' }} />Ahorro
@@ -1578,31 +1584,63 @@ function ResumenContent() {
                   <span style={{ width: 14, height: 2, background: '#F59E0B', display: 'inline-block' }} />Deseos
                 </div>
               </div>
-              <svg width="100%" height="200" viewBox={`0 0 ${toX(lastIdx) + 10} 200`} preserveAspectRatio="none">
+              <svg width="100%" height={chartH} viewBox={`0 0 ${toX(lastIdx) + 10} ${chartH}`} preserveAspectRatio="none">
                 <line x1="0" y1={toY(chartMax * 0.25)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.25)} stroke="#EEF1F6" strokeWidth="1" />
                 <line x1="0" y1={toY(chartMax * 0.5)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.5)} stroke="#EEF1F6" strokeWidth="1" />
                 <line x1="0" y1={toY(chartMax * 0.75)} x2={toX(lastIdx) + 10} y2={toY(chartMax * 0.75)} stroke="#EEF1F6" strokeWidth="1" />
                 {/* Total */}
                 <path d={totalSplit.solid} fill="none" stroke="#2563EB" strokeWidth="2.5" />
                 {totalSplit.dashed && <path d={totalSplit.dashed} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeDasharray="4 4" opacity="0.5" />}
+                {/* Needs */}
+                <path d={needsSplit.solid} fill="none" stroke="#475569" strokeWidth="2" />
+                {needsSplit.dashed && <path d={needsSplit.dashed} fill="none" stroke="#475569" strokeWidth="2" strokeDasharray="4 4" opacity="0.5" />}
                 {/* Savings */}
                 <path d={savingsSplit.solid} fill="none" stroke="#10B981" strokeWidth="2" />
                 {savingsSplit.dashed && <path d={savingsSplit.dashed} fill="none" stroke="#10B981" strokeWidth="2" strokeDasharray="4 4" opacity="0.5" />}
                 {/* Wants */}
                 <path d={wantsSplit.solid} fill="none" stroke="#F59E0B" strokeWidth="2" />
                 {wantsSplit.dashed && <path d={wantsSplit.dashed} fill="none" stroke="#F59E0B" strokeWidth="2" strokeDasharray="4 4" opacity="0.5" />}
-                {/* Dots — selected month gets a highlight ring */}
+                {/* Dots — selected month gets a highlight ring. Each point also
+                    shows its amount so the chart reads without tapping. */}
                 {totalPts.map((p, i) => {
                   const isSelected = chartMonths[i].month === selectedMonth.month
+                  const opacity = chartMonths[i].isPartial ? 0.6 : 1
                   return (
-                    <g key={`t${i}`}>
+                    <g key={`t${i}`} opacity={opacity}>
                       {isSelected && (
                         <circle cx={p.x} cy={p.y} r="7" fill="none" stroke="#2563EB" strokeWidth="2" opacity="0.4" />
                       )}
-                      <circle cx={p.x} cy={p.y} r={isSelected ? 5 : 3} fill="#2563EB" opacity={chartMonths[i].isPartial ? 0.5 : 1} />
+                      <circle cx={p.x} cy={p.y} r={isSelected ? 5 : 3} fill="#2563EB" />
+                      <text x={p.x} y={p.y - 10} fontSize="10.5" fontWeight="700" fill="#2563EB" textAnchor="middle">
+                        {formatMoney(chartMonths[i].total, { compact: true })}
+                      </text>
                     </g>
                   )
                 })}
+                {needsPts.map((p, i) => (
+                  <g key={`n${i}`} opacity={chartMonths[i].isPartial ? 0.6 : 1}>
+                    <circle cx={p.x} cy={p.y} r="3" fill="#475569" />
+                    <text x={p.x} y={p.y + 15} fontSize="9.5" fontWeight="700" fill="#475569" textAnchor="middle">
+                      {formatMoney(chartMonths[i].needs, { compact: true })}
+                    </text>
+                  </g>
+                ))}
+                {wantsPts.map((p, i) => (
+                  <g key={`w${i}`} opacity={chartMonths[i].isPartial ? 0.6 : 1}>
+                    <circle cx={p.x} cy={p.y} r="2.5" fill="#F59E0B" />
+                    <text x={p.x} y={p.y - 8} fontSize="9" fontWeight="700" fill="#D97706" textAnchor="middle">
+                      {formatMoney(chartMonths[i].wants, { compact: true })}
+                    </text>
+                  </g>
+                ))}
+                {savingsPts.map((p, i) => (
+                  <g key={`s${i}`} opacity={chartMonths[i].isPartial ? 0.6 : 1}>
+                    <circle cx={p.x} cy={p.y} r="2.5" fill="#10B981" />
+                    <text x={p.x} y={p.y + 14} fontSize="9" fontWeight="700" fill="#059669" textAnchor="middle">
+                      {formatMoney(chartMonths[i].savings, { compact: true })}
+                    </text>
+                  </g>
+                ))}
               </svg>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 6 }}>
                 {chartMonths.map((m, i) => {
