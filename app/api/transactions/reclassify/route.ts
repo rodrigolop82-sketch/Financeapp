@@ -10,10 +10,14 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { transactionId, categoryId } = body;
+  const { transactionId, categoryId, type } = body;
 
   if (!transactionId || !categoryId) {
     return NextResponse.json({ error: 'Faltan datos requeridos.' }, { status: 400 });
+  }
+
+  if (type !== undefined && type !== 'expense' && type !== 'income') {
+    return NextResponse.json({ error: 'Tipo inválido.' }, { status: 400 });
   }
 
   const { data: memberRows } = await supabase
@@ -28,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   const { data: tx, error: txError } = await supabase
     .from('transactions')
-    .select('id, household_id, category_id, description, category_source, transaction_type')
+    .select('id, household_id, category_id, description, category_source, transaction_type, type')
     .eq('id', transactionId)
     .single();
 
@@ -57,10 +61,24 @@ export async function POST(req: NextRequest) {
 
   const prevCategoryId = tx.category_id;
   const prevCategorySource = tx.category_source;
+  const prevType = tx.type;
+  const prevTransactionType = tx.transaction_type;
+
+  const newType: 'expense' | 'income' = type ?? tx.type;
+  // Keep the legacy transaction_type (gasto/ingreso/ahorro, used by search
+  // and the merchant-learning RPCs) in sync with type + the category's bucket
+  // instead of leaving it stuck on its insert-time default.
+  const newTransactionType = newType === 'income' ? 'ingreso' : cat.bucket === 'savings' ? 'ahorro' : 'gasto';
+  const categoryChanged = categoryId !== prevCategoryId;
 
   const { error: updateError } = await supabase
     .from('transactions')
-    .update({ category_id: categoryId, category_source: 'manual' })
+    .update({
+      category_id: categoryId,
+      category_source: 'manual',
+      type: newType,
+      transaction_type: newTransactionType,
+    })
     .eq('id', transactionId);
 
   if (updateError) {
@@ -70,16 +88,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const snapshot = {
+    id: tx.id,
+    categoryId: prevCategoryId,
+    categorySource: prevCategorySource,
+    type: prevType,
+    transactionType: prevTransactionType,
+  };
+
   const merchantKey = getMerchantKey(tx.description);
   const isGasto = tx.transaction_type === 'gasto';
 
-  if (!merchantKey || !isGasto) {
+  // The "same merchant, reclassify the rest too?" flow only makes sense when
+  // the category itself changed — a type-only edit (gasto ↔ ingreso) applies
+  // to this one transaction.
+  if (!merchantKey || !isGasto || !categoryChanged) {
     return NextResponse.json({
       success: true,
       learningDeferred: false,
       matches: [],
       truncated: false,
-      snapshot: { id: tx.id, categoryId: prevCategoryId, categorySource: prevCategorySource },
+      snapshot,
     });
   }
 
@@ -117,6 +146,6 @@ export async function POST(req: NextRequest) {
     matches,
     defaultSelectedIds,
     truncated,
-    snapshot: { id: tx.id, categoryId: prevCategoryId, categorySource: prevCategorySource },
+    snapshot,
   });
 }

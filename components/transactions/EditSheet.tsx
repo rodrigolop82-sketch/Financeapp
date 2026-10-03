@@ -32,7 +32,7 @@ interface EditSheetProps {
   open: boolean;
   transaction: SearchTransaction | null;
   categories: BudgetCategory[];
-  onSave: (categoryId: string) => void;
+  onSave: (categoryId: string, type: 'expense' | 'income') => void;
   onClose: () => void;
   saving: boolean;
   fmt: (amount: number) => string;
@@ -48,16 +48,18 @@ export function EditSheet({
   fmt,
 }: EditSheetProps) {
   const [draft, setDraft] = useState('');
+  const [typeDraft, setTypeDraft] = useState<'expense' | 'income'>('expense');
 
   useEffect(() => {
     if (open && transaction) {
       setDraft(transaction.category_id);
+      setTypeDraft(transaction.type);
     }
   }, [open, transaction?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!transaction) return null;
 
-  const hasChanged = draft !== transaction.category_id;
+  const hasChanged = draft !== transaction.category_id || typeDraft !== transaction.type;
 
   return (
     <BottomSheet open={open} onClose={onClose}>
@@ -94,6 +96,39 @@ export function EditSheet({
           </span>
         </div>
 
+        {/* Type toggle — gasto vs ingreso */}
+        <fieldset className="mb-5">
+          <legend className="text-sm font-semibold text-ink-700 mb-2.5">
+            Tipo
+          </legend>
+          <div className="flex rounded-lg overflow-hidden border border-ink-100" style={{ height: 40 }}>
+            <button
+              type="button"
+              onClick={() => setTypeDraft('expense')}
+              className="flex-1 text-sm font-semibold transition-colors"
+              style={{
+                background: typeDraft === 'expense' ? '#1E3A5F' : 'white',
+                color: typeDraft === 'expense' ? 'white' : '#64748B',
+                border: 'none', cursor: 'pointer',
+              }}
+            >
+              Gasto
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeDraft('income')}
+              className="flex-1 text-sm font-semibold transition-colors"
+              style={{
+                background: typeDraft === 'income' ? '#16A34A' : 'white',
+                color: typeDraft === 'income' ? 'white' : '#64748B',
+                border: 'none', cursor: 'pointer',
+              }}
+            >
+              Ingreso
+            </button>
+          </div>
+        </fieldset>
+
         {/* Category grid */}
         <fieldset>
           <legend className="text-sm font-semibold text-ink-700 mb-2.5">
@@ -113,7 +148,7 @@ export function EditSheet({
       <div className="px-5 py-4 border-t border-ink-100 flex-none">
         <button
           type="button"
-          onClick={() => onSave(draft)}
+          onClick={() => onSave(draft, typeDraft)}
           disabled={!hasChanged || saving}
           className="w-full h-[52px] rounded-[14px] bg-electric text-white font-semibold text-base disabled:bg-ink-200 disabled:text-ink-400 disabled:cursor-not-allowed hover:bg-electric-dark transition-colors"
         >

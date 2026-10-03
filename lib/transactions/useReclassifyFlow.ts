@@ -15,7 +15,7 @@ interface MatchItem {
 }
 
 interface UndoPayload {
-  items: { id: string; categoryId: string; categorySource: string }[];
+  items: { id: string; categoryId: string; categorySource: string; type?: string; transactionType?: string }[];
   overrideCreated: boolean;
   merchantKey: string | null;
   householdId: string;
@@ -61,9 +61,11 @@ export function useReclassifyFlow(
   }, []);
 
   const saveCategory = useCallback(
-    async (categoryId: string) => {
+    async (categoryId: string, type?: 'expense' | 'income') => {
       if (!editingTx) return;
       setSaving(true);
+
+      const typeChanged = !!type && type !== editingTx.type;
 
       try {
         const res = await fetch('/api/transactions/reclassify', {
@@ -72,6 +74,7 @@ export function useReclassifyFlow(
           body: JSON.stringify({
             transactionId: editingTx.id,
             categoryId,
+            type,
           }),
         });
 
@@ -87,6 +90,12 @@ export function useReclassifyFlow(
 
         const catObj = categories.find((c) => c.id === categoryId);
         const catName = catObj?.name ?? '';
+        const label = typeChanged && categoryId === editingTx.category_id
+          ? (type === 'income' ? 'Ingreso' : 'Gasto')
+          : catName;
+        const subtitle = typeChanged
+          ? `${editingTx.description ?? ''} → ${type === 'income' ? 'Ingreso' : 'Gasto'}${categoryId !== editingTx.category_id ? ` · ${catName}` : ''}`
+          : `${editingTx.description ?? ''} → ${catName}`;
 
         if (data.matches && data.matches.length > 0) {
           setMerchantName(editingTx.description || 'Sin descripción');
@@ -103,11 +112,11 @@ export function useReclassifyFlow(
             overrideCreated: false,
             merchantKey: merchantKeyRef.current,
             householdId: editingTx.household_id,
-            title: 'Categoría actualizada',
-            subtitle: `${editingTx.description ?? ''} → ${catName}`,
+            title: typeChanged ? `Movimiento actualizado a ${label}` : 'Categoría actualizada',
+            subtitle,
           };
-          setUndoTitle('Categoría actualizada');
-          setUndoSubtitle(`${editingTx.description ?? ''} → ${catName}`);
+          setUndoTitle(undoRef.current.title);
+          setUndoSubtitle(undoRef.current.subtitle);
           setUndoVisible(true);
           setStep('idle');
           setEditingTx(null);

@@ -333,6 +333,12 @@ function TransaccionesPageInner() {
 
   async function addTransaction() {
     setSaving(true);
+    const selectedCat = categories.find((c) => c.id === newTx.category_id);
+    // transaction_type (gasto/ingreso/ahorro) is a separate legacy column
+    // read by search/totals — keep it in sync with the type toggle instead
+    // of leaving it on its insert-time default ('gasto'), which is what
+    // made income added here invisible to the "Ingresos" search filter.
+    const transactionType = newTx.type === 'income' ? 'ingreso' : selectedCat?.bucket === 'savings' ? 'ahorro' : 'gasto';
     const { data, error } = await supabase
       .from('transactions')
       .insert({
@@ -343,6 +349,7 @@ function TransaccionesPageInner() {
         date: newTx.date,
         source: 'manual',
         type: newTx.type,
+        transaction_type: transactionType,
         payment_method: newTx.payment_method,
         created_by: userId || null,
       })
