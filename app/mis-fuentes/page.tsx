@@ -40,6 +40,7 @@ export default function MisFuentesPage() {
   const [editForm, setEditForm] = useState<AddForm>({ bank_name: '', type: 'tarjeta_credito', nickname: '' })
   const [saving, setSaving] = useState(false)
   const [customBank, setCustomBank] = useState('')
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -75,10 +76,15 @@ export default function MisFuentesPage() {
     if (!bankName) return
 
     setSaving(true)
+    setErrorMsg(null)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) {
+      setSaving(false)
+      router.push('/login')
+      return
+    }
 
-    await supabase.from('user_sources').insert({
+    const { error } = await supabase.from('user_sources').insert({
       user_id: user.id,
       type: form.type,
       bank_name: bankName,
@@ -86,11 +92,17 @@ export default function MisFuentesPage() {
       detection_method: 'manual',
     })
 
+    if (error) {
+      setErrorMsg(`No se pudo guardar la fuente: ${error.message}`)
+      setSaving(false)
+      return
+    }
+
     setAddStep('idle')
     setForm({ bank_name: '', type: 'tarjeta_credito', nickname: '' })
     setCustomBank('')
     setSaving(false)
-    loadSources()
+    await loadSources()
   }
 
   function startEdit(source: UserSource) {
@@ -105,20 +117,32 @@ export default function MisFuentesPage() {
   async function handleSaveEdit() {
     if (!editingId) return
     setSaving(true)
+    setErrorMsg(null)
 
-    await supabase.from('user_sources').update({
+    const { error } = await supabase.from('user_sources').update({
       type: editForm.type,
       nickname: editForm.nickname.trim() || null,
     }).eq('id', editingId)
 
+    if (error) {
+      setErrorMsg(`No se pudo guardar el cambio: ${error.message}`)
+      setSaving(false)
+      return
+    }
+
     setEditingId(null)
     setSaving(false)
-    loadSources()
+    await loadSources()
   }
 
   async function handleDeactivate(id: string) {
-    await supabase.from('user_sources').update({ active: false }).eq('id', id)
-    loadSources()
+    setErrorMsg(null)
+    const { error } = await supabase.from('user_sources').update({ active: false }).eq('id', id)
+    if (error) {
+      setErrorMsg(`No se pudo desactivar la fuente: ${error.message}`)
+      return
+    }
+    await loadSources()
   }
 
   if (loading) {
@@ -138,6 +162,16 @@ export default function MisFuentesPage() {
       }}>
         Declarar tus fuentes le permite a Zafi verificar que cada mes tengas toda tu información financiera al día.
       </p>
+
+      {errorMsg && (
+        <div style={{
+          background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12,
+          padding: '12px 14px', marginBottom: 16, fontSize: 13, color: '#B91C1C',
+          lineHeight: 1.5,
+        }}>
+          {errorMsg}
+        </div>
+      )}
 
       {/* Source list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>

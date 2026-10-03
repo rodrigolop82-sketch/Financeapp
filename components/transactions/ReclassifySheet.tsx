@@ -90,6 +90,14 @@ export function ReclassifySheet({
     }
   }
 
+  // BottomSheet keeps its children mounted (it only slides off-screen),
+  // so before the first reclassify ever happens merchantName/newCategoryName
+  // are still empty strings. Without this guard that renders a permanently
+  // present "¿Cambiar también los demás de ?" placeholder in the DOM.
+  if (!merchantName) {
+    return <BottomSheet open={open} onClose={onClose}><></></BottomSheet>;
+  }
+
   return (
     <BottomSheet open={open} onClose={onClose}>
       <div className="px-5 pt-2 pb-1">

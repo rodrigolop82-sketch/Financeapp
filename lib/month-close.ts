@@ -8,6 +8,8 @@ export interface ChecklistItem {
   done: boolean
   sourceId?: string
   sourceType?: string
+  /** income item only: true when the household hasn't configured any income entries yet */
+  needsSetup?: boolean
 }
 
 export interface MonthCloseChecklist {
@@ -26,7 +28,7 @@ export async function getMonthCloseChecklist(
 ): Promise<MonthCloseChecklist> {
   const supabase = createClient()
 
-  const [{ data: sources }, { data: statuses }, { data: incomeEntries }] = await Promise.all([
+  const [{ data: sources }, { data: statuses }, { data: incomeEntries }, { data: incomeConfirmation }] = await Promise.all([
     supabase
       .from('user_sources')
       .select('*')
@@ -41,6 +43,13 @@ export async function getMonthCloseChecklist(
       .from('income_entries')
       .select('id, amount')
       .eq('household_id', householdId),
+    supabase
+      .from('income_month_confirmations')
+      .select('id')
+      .eq('household_id', householdId)
+      .eq('year_month', yearMonth)
+      .eq('confirmed', true)
+      .maybeSingle(),
   ])
 
   const activeSources = (sources ?? []) as UserSource[]
@@ -60,14 +69,21 @@ export async function getMonthCloseChecklist(
     }
   })
 
-  const hasIncome = (incomeEntries ?? []).length > 0 &&
+  // Having income entries configured at all is necessary (there's something
+  // to confirm) but not sufficient — "done" for a given month means the
+  // household explicitly confirmed their income for THAT month, tracked in
+  // income_month_confirmations. Without this, switching months in the
+  // checklist always showed the same (global) status.
+  const hasIncomeEntries = (incomeEntries ?? []).length > 0 &&
     (incomeEntries ?? []).some((e: { amount: number }) => e.amount > 0)
+  const confirmedThisMonth = !!incomeConfirmation
 
   items.push({
     id: 'income',
     label: 'Ingresos del mes confirmados',
     type: 'income',
-    done: hasIncome,
+    done: hasIncomeEntries && confirmedThisMonth,
+    needsSetup: !hasIncomeEntries,
   })
 
   const completedCount = items.filter(i => i.done).length

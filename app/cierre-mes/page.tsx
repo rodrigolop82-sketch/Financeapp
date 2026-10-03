@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { MonthSeal } from '@/components/cierre/MonthSeal'
@@ -23,7 +23,11 @@ const SOURCE_ICONS: Record<string, typeof CreditCard> = {
 export default function CierreMesPage() {
   const [checklist, setChecklist] = useState<MonthCloseChecklist | null>(null)
   const [loading, setLoading] = useState(true)
-  const [yearMonth, setYearMonth] = useState(getPreviousYearMonth)
+  const searchParams = useSearchParams()
+  const [yearMonth, setYearMonth] = useState(() => {
+    const fromUrl = searchParams.get('month')
+    return fromUrl && /^\d{4}-\d{2}$/.test(fromUrl) ? fromUrl : getPreviousYearMonth()
+  })
   const [marking, setMarking] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -240,7 +244,7 @@ export default function CierreMesPage() {
 
                   {!item.done && !isSource && (
                     <button
-                      onClick={() => router.push('/presupuesto')}
+                      onClick={() => router.push(`/presupuesto?confirmMonth=${yearMonth}`)}
                       style={{
                         padding: '6px 12px', borderRadius: 8,
                         background: '#F0FDF4', border: '1px solid #BBF7D0',
@@ -248,7 +252,7 @@ export default function CierreMesPage() {
                         cursor: 'pointer', flexShrink: 0,
                       }}
                     >
-                      Revisar
+                      {item.needsSetup ? 'Configurar' : 'Revisar'}
                     </button>
                   )}
                 </div>

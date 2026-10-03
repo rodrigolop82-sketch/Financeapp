@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { getUserHousehold } from '@/lib/household';
 import { localMonth } from '@/lib/dates';
@@ -48,8 +48,25 @@ export default function PresupuestoPage() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const fmt = useFormatMoney();
+
+  // Present only when the user arrived here from "Cierre de mes" to review
+  // and confirm income for that specific month (see income_month_confirmations).
+  const confirmMonth = searchParams.get('confirmMonth');
+  const [confirmingIncome, setConfirmingIncome] = useState(false);
+
+  async function confirmIncomeForMonth() {
+    if (!confirmMonth || !householdId) return;
+    setConfirmingIncome(true);
+    await supabase.from('income_month_confirmations').upsert(
+      { household_id: householdId, year_month: confirmMonth, confirmed: true, confirmed_at: new Date().toISOString() },
+      { onConflict: 'household_id,year_month' },
+    );
+    setConfirmingIncome(false);
+    router.push(`/cierre-mes?month=${confirmMonth}`);
+  }
 
   useEffect(() => {
     async function load() {
@@ -402,6 +419,35 @@ export default function PresupuestoPage() {
         <p style={{ fontSize: 14, color: '#64748B', margin: '0 0 20px' }}>
           Ingreso mensual: {fmt(income)}
         </p>
+
+        {/* Banner: arrived here from Cierre de mes to confirm income for a specific month */}
+        {confirmMonth && (
+          <div style={{
+            marginBottom: 20, padding: '14px 16px', borderRadius: 14,
+            background: '#F0FDF4', border: '1px solid #BBF7D0',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 12, flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 13, color: '#065F46', lineHeight: 1.5 }}>
+              Revisa que tus ingresos estén correctos y actualizados para este cierre de mes.
+            </span>
+            <Button
+              onClick={confirmIncomeForMonth}
+              disabled={confirmingIncome}
+              style={{
+                background: '#059669', color: '#fff', borderRadius: 10,
+                padding: '8px 16px', fontSize: 13, fontWeight: 600, flexShrink: 0,
+              }}
+            >
+              {confirmingIncome ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+              )}
+              Ya revisé, confirmar
+            </Button>
+          </div>
+        )}
 
         {/* Voice error/preview */}
         {voiceError && (
