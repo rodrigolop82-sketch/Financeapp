@@ -30,6 +30,7 @@ export function useReclassifyFlow(
   const [step, setStep] = useState<Step>('idle');
   const [editingTx, setEditingTx] = useState<SearchTransaction | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [merchantName, setMerchantName] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -52,18 +53,27 @@ export function useReclassifyFlow(
 
   const openEdit = useCallback((tx: SearchTransaction) => {
     setEditingTx(tx);
+    setError(null);
     setStep('editing');
   }, []);
 
   const closeEdit = useCallback(() => {
     setEditingTx(null);
+    setError(null);
     setStep('idle');
   }, []);
 
   const saveCategory = useCallback(
     async (categoryId: string, type?: 'expense' | 'income') => {
       if (!editingTx) return;
+
+      if (!categoryId) {
+        setError('Selecciona una categoría antes de guardar.');
+        return;
+      }
+
       setSaving(true);
+      setError(null);
 
       const typeChanged = !!type && type !== editingTx.type;
 
@@ -79,6 +89,14 @@ export function useReclassifyFlow(
         });
 
         if (!res.ok) {
+          let message = 'No pudimos guardar el cambio. Intenta de nuevo.';
+          try {
+            const errData = await res.json();
+            if (errData?.error) message = errData.error;
+          } catch {
+            // keep default message
+          }
+          setError(message);
           setSaving(false);
           return;
         }
@@ -124,6 +142,7 @@ export function useReclassifyFlow(
           onMutation();
         }
       } catch {
+        setError('Error de conexión. Intenta de nuevo.');
         setSaving(false);
       }
     },
@@ -134,6 +153,7 @@ export function useReclassifyFlow(
     async (selectedIds: string[], remember: boolean) => {
       if (!editingTx || !firstSnapshotRef.current) return;
       setSaving(true);
+      setError(null);
 
       try {
         const categoryId = newCategoryIdRef.current;
@@ -150,6 +170,14 @@ export function useReclassifyFlow(
         });
 
         if (!res.ok) {
+          let message = 'No pudimos guardar el cambio. Intenta de nuevo.';
+          try {
+            const errData = await res.json();
+            if (errData?.error) message = errData.error;
+          } catch {
+            // keep default message
+          }
+          setError(message);
           setSaving(false);
           return;
         }
@@ -180,6 +208,7 @@ export function useReclassifyFlow(
         setSaving(false);
         onMutation();
       } catch {
+        setError('Error de conexión. Intenta de nuevo.');
         setSaving(false);
       }
     },
@@ -274,6 +303,7 @@ export function useReclassifyFlow(
     step,
     editingTx,
     saving,
+    error,
     merchantName,
     newCategoryName,
     matches,

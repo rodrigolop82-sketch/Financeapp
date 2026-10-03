@@ -693,6 +693,7 @@ export default function CategoriaDetallePage() {
         onSave={flow.saveCategory}
         onClose={flow.closeEdit}
         saving={flow.saving}
+        error={flow.error}
         fmt={formatMoney}
       />
 

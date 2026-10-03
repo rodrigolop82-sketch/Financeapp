@@ -931,6 +931,7 @@ function TransaccionesPageInner() {
         onSave={flow.saveCategory}
         onClose={flow.closeEdit}
         saving={flow.saving}
+        error={flow.error}
         fmt={fmt}
       />
 

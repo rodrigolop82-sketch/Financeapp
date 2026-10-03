@@ -35,6 +35,7 @@ interface EditSheetProps {
   onSave: (categoryId: string, type: 'expense' | 'income') => void;
   onClose: () => void;
   saving: boolean;
+  error?: string | null;
   fmt: (amount: number) => string;
 }
 
@@ -45,6 +46,7 @@ export function EditSheet({
   onSave,
   onClose,
   saving,
+  error,
   fmt,
 }: EditSheetProps) {
   const [draft, setDraft] = useState('');
@@ -60,6 +62,7 @@ export function EditSheet({
   if (!transaction) return null;
 
   const hasChanged = draft !== transaction.category_id || typeDraft !== transaction.type;
+  const hasCategory = Boolean(draft);
 
   return (
     <BottomSheet open={open} onClose={onClose}>
@@ -134,7 +137,7 @@ export function EditSheet({
           <legend className="text-sm font-semibold text-ink-700 mb-2.5">
             Categoría{' '}
             <span className="text-ink-400 font-normal">
-              · ahora: {transaction.category_name}
+              · ahora: {transaction.category_name || 'sin categoría'}
             </span>
           </legend>
           <CategoryGrid
@@ -142,14 +145,24 @@ export function EditSheet({
             selectedId={draft}
             onSelect={setDraft}
           />
+          {!hasCategory && (
+            <p className="text-xs text-amber-600 mt-2.5">
+              Esta transacción no tiene categoría. Selecciona una para poder guardar.
+            </p>
+          )}
         </fieldset>
       </div>
 
       <div className="px-5 py-4 border-t border-ink-100 flex-none">
+        {error && (
+          <p className="text-sm text-red-600 mb-2.5" role="alert">
+            {error}
+          </p>
+        )}
         <button
           type="button"
           onClick={() => onSave(draft, typeDraft)}
-          disabled={!hasChanged || saving}
+          disabled={!hasChanged || !hasCategory || saving}
           className="w-full h-[52px] rounded-[14px] bg-electric text-white font-semibold text-base disabled:bg-ink-200 disabled:text-ink-400 disabled:cursor-not-allowed hover:bg-electric-dark transition-colors"
         >
           {saving ? 'Guardando...' : 'Guardar cambio'}
