@@ -83,6 +83,8 @@ export interface BudgetSubItem {
   recurrence: 'mensual' | 'trimestral' | 'semestral' | 'anual' | 'unica';
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
   frequency: 'mensual' | 'trimestral' | 'anual';
+  /** Día de vencimiento (solo partes fijas). */
+  expected_day?: number | null;
   created_at: string;
 }
 
@@ -102,6 +104,8 @@ export interface Transaction {
   original_currency: string | null;
   category_source: 'auto' | 'manual' | 'bulk';
   transaction_type: 'gasto' | 'ingreso' | 'ahorro';
+  /** Parte (budget_sub_items) de la categoría a la que pertenece. */
+  budget_sub_item_id?: string | null;
   created_at: string;
 }
 
@@ -299,13 +303,20 @@ export interface CapsuleRecommendation {
   reason: string;
 }
 
-// Income entry (persisted in financial_profiles.income_entries JSONB)
+// Fila de la tabla income_entries.
 export interface IncomeEntry {
   id: string;
   source: string;
   member: string;
   amount: number;
   frequency: 'mensual' | 'quincenal' | 'semanal' | 'anual';
+  /** Fijo (mismo monto cada mes) o variable (estimado). */
+  is_fixed?: boolean;
+  /** Día de pago (solo ingresos fijos). */
+  expected_day?: number | null;
+  /** Categoría bucket='income' con la que se registra. */
+  category_id?: string | null;
+  created_at?: string;
 }
 
 export type SourceType = 'tarjeta_credito' | 'cuenta_bancaria' | 'efectivo'
