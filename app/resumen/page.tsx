@@ -3,6 +3,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { formatMoney } from '@/lib/format'
+import { isEffectivelyPremium } from '@/lib/plans'
 import { AppShell } from '@/components/layout/AppShell'
 import { Loader2, ChevronRight, ChevronDown } from 'lucide-react'
 import {
@@ -133,8 +134,8 @@ function ResumenContent() {
       if (!household) { router.push('/onboarding'); return }
       const hid = household.id as string
 
-      const { data: userRow } = await supabase.from('users').select('plan').eq('id', user.id).single()
-      const plan = (userRow?.plan ?? 'free') as 'free' | 'premium'
+      const { data: userRow } = await supabase.from('users').select('plan, trial_ends_at').eq('id', user.id).single()
+      const plan = (userRow && isEffectivelyPremium(userRow) ? 'premium' : 'free') as 'free' | 'premium'
       setUserPlan(plan)
 
       // Determine month to display

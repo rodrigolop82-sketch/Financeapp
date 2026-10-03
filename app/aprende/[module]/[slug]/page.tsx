@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { isEffectivelyPremium } from '@/lib/plans'
 import { ArrowLeft, Clock, Bookmark, BookmarkCheck, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -55,8 +56,8 @@ export default function CapsulePage() {
 
       let plan: 'free' | 'premium' = 'free'
       if (user) {
-        const { data: userRow } = await supabase.from('users').select('plan').eq('id', user.id).single()
-        plan = (userRow?.plan ?? 'free') as 'free' | 'premium'
+        const { data: userRow } = await supabase.from('users').select('plan, trial_ends_at').eq('id', user.id).single()
+        plan = userRow && isEffectivelyPremium(userRow) ? 'premium' : 'free'
       }
 
       const isPremiumCapsule = data.is_premium === true

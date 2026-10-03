@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
+import { isEffectivelyPremium } from '@/lib/plans';
 
 interface Member {
   user_id: string;
@@ -60,8 +61,8 @@ export default function FamiliaPage() {
       if (!user) { router.push('/login'); return; }
 
       const { data: profile } = await supabase
-        .from('users').select('plan').eq('id', user.id).single();
-      setIsPremium(profile?.plan === 'premium');
+        .from('users').select('plan, trial_ends_at').eq('id', user.id).single();
+      setIsPremium(!!profile && isEffectivelyPremium(profile));
 
       const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { isEffectivelyPremium } from '@/lib/plans'
 import { AppShell } from '@/components/layout/AppShell'
 import { Loader2, BookOpen, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
@@ -41,11 +42,11 @@ export default function AprendePage() {
 
       const [modulesRes, userRes, progressRes] = await Promise.all([
         supabase.from('capsule_modules').select('*, capsules(count)').order('order_index'),
-        supabase.from('users').select('plan').eq('id', user.id).single(),
+        supabase.from('users').select('plan, trial_ends_at').eq('id', user.id).single(),
         supabase.from('user_capsule_progress').select('capsule_id, capsules!inner(module_id)').eq('user_id', user.id),
       ])
 
-      setUserPlan(userRes.data?.plan ?? 'free')
+      setUserPlan(userRes.data && isEffectivelyPremium(userRes.data) ? 'premium' : 'free')
 
       const completedByModule: Record<string, number> = {}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

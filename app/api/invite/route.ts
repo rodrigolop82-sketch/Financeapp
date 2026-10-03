@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
+import { isEffectivelyPremium } from '@/lib/plans';
 
 function createSupabase() {
   const cookieStore = cookies();
@@ -41,14 +42,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Solo el dueño puede generar invitaciones' }, { status: 403 });
   }
 
-  // Verify caller has a premium plan
+  // Verify caller has a premium plan (or is still inside their signup trial)
   const { data: ownerProfile } = await supabase
     .from('users')
-    .select('plan')
+    .select('plan, trial_ends_at')
     .eq('id', user.id)
     .single();
 
-  if (ownerProfile?.plan !== 'premium') {
+  if (!ownerProfile || !isEffectivelyPremium(ownerProfile)) {
     return NextResponse.json({ error: 'Se requiere plan Premium para usar el modo familia' }, { status: 403 });
   }
 

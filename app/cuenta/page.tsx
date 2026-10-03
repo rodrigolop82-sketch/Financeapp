@@ -31,6 +31,7 @@ import {
   Tags,
 } from 'lucide-react';
 import { useAppearance, type Appearance } from '@/hooks/useAppearance';
+import { isEffectivelyPremium, isTrialActive } from '@/lib/plans';
 
 export default function CuentaPage() {
   return (
@@ -89,7 +90,7 @@ function CuentaContent() {
       }
       setLoading(false);
 
-      if (profile?.plan !== 'premium') {
+      if (!profile || !isEffectivelyPremium(profile)) {
         try {
           const usageRes = await fetch('/api/usage');
           if (usageRes.ok) {
@@ -183,8 +184,12 @@ function CuentaContent() {
     );
   }
 
-  const isPremium = user?.plan === 'premium';
-  const isTrialing = subscription?.status === 'trialing';
+  const isPremium = !!user && isEffectivelyPremium(user);
+  // "Prueba" badge: either an actual Stripe trial, or the automatic
+  // 14-day signup trial (user.plan is still 'free' but trial_ends_at
+  // hasn't passed yet).
+  const isTrialing = subscription?.status === 'trialing' ||
+    (!!user && user.plan !== 'premium' && isTrialActive(user.trial_ends_at));
   const trialEnd = user?.trial_ends_at ? new Date(user.trial_ends_at) : null;
   const trialDaysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
 
