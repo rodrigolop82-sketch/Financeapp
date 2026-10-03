@@ -112,7 +112,7 @@ export default function OnboardingPage() {
                 href="/login"
                 className="block text-center text-sm text-white/50 hover:text-white/80 mt-4 transition-colors"
               >
-                ¿Ya tenés cuenta? Entrar
+                ¿Ya tienes cuenta? Entrar
               </Link>
             </div>
           )}

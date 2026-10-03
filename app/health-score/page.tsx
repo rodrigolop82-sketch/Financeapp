@@ -147,7 +147,7 @@ export default function HealthScorePage() {
             Aún no tenemos datos
           </div>
           <div style={{ fontSize: 14 }}>
-            Completá tu perfil financiero para calcular tu puntaje Zafi.
+            Completa tu perfil financiero para calcular tu puntaje Zafi.
           </div>
         </div>
       </AppShell>

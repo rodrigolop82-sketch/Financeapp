@@ -167,7 +167,7 @@ export default function PlanPage() {
                 Sin datos suficientes
               </p>
               <p style={{ fontSize: 12, color: '#64748B', margin: 0 }}>
-                Registrá gastos por unos días para que se generen tus retos.
+                Registra gastos por unos días para que se generen tus retos.
               </p>
             </div>
           )}

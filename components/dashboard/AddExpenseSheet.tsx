@@ -110,7 +110,7 @@ export function AddExpenseSheet({ open, onClose, onScan, onVoice, onManual }: Ad
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 24px 16px' }}>
           <div>
             <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1E3A5F', margin: 0 }}>Agregar gasto</h2>
-            <p style={{ fontSize: 14, color: '#8B9AAE', margin: '4px 0 0' }}>¿Cómo querés registrarlo?</p>
+            <p style={{ fontSize: 14, color: '#8B9AAE', margin: '4px 0 0' }}>¿Cómo quieres registrarlo?</p>
           </div>
           <button
             onClick={onClose}

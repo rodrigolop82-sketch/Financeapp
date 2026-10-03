@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!transcription) {
-    return NextResponse.json({ error: 'No se detectó voz. Intentá de nuevo.' }, { status: 400 })
+    return NextResponse.json({ error: 'No se detectó voz. Intenta de nuevo.' }, { status: 400 })
   }
 
   // If chat mode, just return the transcription
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     result.raw_text = transcription
   } catch (err) {
     console.error('Claude extraction error:', err)
-    return NextResponse.json({ error: 'Error al extraer datos. Intentá de nuevo.' }, { status: 500 })
+    return NextResponse.json({ error: 'Error al extraer datos. Intenta de nuevo.' }, { status: 500 })
   }
 
   // Paso 3: Enriquecer con category_id del household del usuario
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
       transactions: [],
       raw_text: transcription,
       ambiguous: false,
-      clarification: `Whisper escuchó: "${transcription}" pero no se detectaron gastos. Intentá ser más específico, por ejemplo: "gasté 100 quetzales en gasolina".`,
+      clarification: `Whisper escuchó: "${transcription}" pero no se detectaron gastos. Intenta ser más específico, por ejemplo: "gasté 100 quetzales en gasolina".`,
     })
   }
 

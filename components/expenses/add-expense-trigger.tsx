@@ -173,7 +173,7 @@ export function AddExpenseTrigger({ onVoice, onManual, onScan }: AddExpenseTrigg
         <SheetContent>
           <div className="px-4 pt-1 pb-2">
             <h3 className="text-base font-semibold text-ink-900">Agregar gasto</h3>
-            <p className="text-xs text-ink-500 mt-0.5">¿Cómo querés registrarlo?</p>
+            <p className="text-xs text-ink-500 mt-0.5">¿Cómo quieres registrarlo?</p>
           </div>
           <div className="px-2 pb-6">
             {optionsList}

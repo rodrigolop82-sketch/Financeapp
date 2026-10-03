@@ -89,7 +89,7 @@ function NotificacionContent() {
       }
 
       if (!data.amount || data.amount <= 0) {
-        setErrorMsg('No se detectó un monto en la notificación. Verificá que el texto contenga información de un pago o compra.')
+        setErrorMsg('No se detectó un monto en la notificación. Verifica que el texto contenga información de un pago o compra.')
         setStep('error')
         return
       }
@@ -101,7 +101,7 @@ function NotificacionContent() {
       setType(data.type === 'income' ? 'income' : 'expense')
       setStep('confirm')
     } catch {
-      setErrorMsg('Error de conexión. Intentá de nuevo.')
+      setErrorMsg('Error de conexión. Intenta de nuevo.')
       setStep('error')
     }
   }
@@ -180,7 +180,7 @@ function NotificacionContent() {
         </div>
 
         <p style={{ fontSize: 18, fontWeight: 600, color: 'white', lineHeight: 1.3 }}>
-          Pegá tu notificación bancaria o de Apple Pay
+          Pega tu notificación bancaria o de Apple Pay
         </p>
         <p style={{ fontSize: 13, color: 'rgba(255,255,255,.55)', marginTop: 4 }}>
           SMS, notificación push o mensaje de tu banco

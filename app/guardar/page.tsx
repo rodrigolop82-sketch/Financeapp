@@ -70,7 +70,7 @@ export default function GuardarPage() {
     if (signUpError) {
       setError(
         signUpError.message === 'User already registered'
-          ? 'Ya existe una cuenta con ese correo. ¿Querés iniciar sesión?'
+          ? 'Ya existe una cuenta con ese correo. ¿Quieres iniciar sesión?'
           : signUpError.message
       );
       setLoading(false);
@@ -115,14 +115,14 @@ export default function GuardarPage() {
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-8 h-8 text-electric" />
             </div>
-            <h2 className="font-serif text-2xl text-navy mb-2">Revisá tu correo</h2>
+            <h2 className="font-serif text-2xl text-navy mb-2">Revisa tu correo</h2>
             <p className="text-ink-500 mb-4">
               Enviamos un enlace de confirmación a{' '}
               <strong className="text-navy">{email}</strong>.
-              Hacé clic en el enlace para activar tu cuenta.
+              Haz clic en el enlace para activar tu cuenta.
             </p>
             <p className="text-sm text-ink-500">
-              ¿No lo ves? Revisá tu carpeta de spam.
+              ¿No lo ves? Revisa tu carpeta de spam.
             </p>
           </div>
         </div>
@@ -158,10 +158,10 @@ export default function GuardarPage() {
 
         {/* Title */}
         <h1 className="font-serif text-2xl text-navy mb-1">
-          Guardá tu plan gratis
+          Guarda tu plan gratis
         </h1>
         <p className="text-sm text-ink-500 mb-5">
-          Creá tu cuenta para acceder a tu dashboard completo
+          Crea tu cuenta para acceder a tu dashboard completo
         </p>
 
         {/* Privacy notice */}
@@ -255,9 +255,9 @@ export default function GuardarPage() {
         </form>
 
         <p className="text-center text-sm text-ink-500 mt-5">
-          ¿Ya tenés cuenta?{' '}
+          ¿Ya tienes cuenta?{' '}
           <Link href="/login" className="text-electric font-medium hover:underline">
-            Entrá aquí
+            Entra aquí
           </Link>
         </p>
       </div>

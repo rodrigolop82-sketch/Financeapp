@@ -51,7 +51,7 @@ function simulatePayoff(
     const monthlyInterest = balance * monthlyRate;
 
     if (minPayment > 0 && minPayment <= monthlyInterest && annualRate > 0) {
-      warnings.push(`"${d.name}": el pago mínimo (Q ${minPayment.toLocaleString()}) no cubre los intereses mensuales (Q ${Math.round(monthlyInterest).toLocaleString()}). Necesitás pagar más para reducir esta deuda.`);
+      warnings.push(`"${d.name}": el pago mínimo (Q ${minPayment.toLocaleString()}) no cubre los intereses mensuales (Q ${Math.round(monthlyInterest).toLocaleString()}). Necesitas pagar más para reducir esta deuda.`);
     }
 
     return {
@@ -135,7 +135,7 @@ function simulatePayoff(
   for (const d of active) {
     if (d.balance > 0 && !d.paidOff) {
       order.push({ name: d.name, months: totalMonths, totalPaid: Math.round(d.totalPaid), interestPaid: Math.round(d.interestPaid) });
-      warnings.push(`"${d.name}" no se paga en 30 años con los pagos actuales. Considerá aumentar el pago mensual.`);
+      warnings.push(`"${d.name}" no se paga en 30 años con los pagos actuales. Considera aumentar el pago mensual.`);
     }
   }
 
@@ -445,7 +445,7 @@ export default function DeudasPage() {
                     {Number(debt.interest_rate) > 0 && Number(debt.min_payment) <= monthlyInterest && (
                       <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
                         <p className="text-xs text-amber-700">
-                          El pago mínimo no cubre los intereses mensuales. Esta deuda va a crecer si no pagás más.
+                          El pago mínimo no cubre los intereses mensuales. Esta deuda va a crecer si no pagas más.
                         </p>
                       </div>
                     )}
@@ -628,7 +628,7 @@ export default function DeudasPage() {
                       </p>
                     ) : avalancheSavings > 0 ? (
                       <p className="text-xs text-electric-dark">
-                        Ambas estrategias son muy similares en tu caso. La diferencia es solo {fmt(avalancheSavings)} en intereses. Elegí la que te motive más.
+                        Ambas estrategias son muy similares en tu caso. La diferencia es solo {fmt(avalancheSavings)} en intereses. Elige la que te motive más.
                       </p>
                     ) : (
                       <p className="text-xs text-electric-dark">
@@ -658,7 +658,7 @@ export default function DeudasPage() {
                   {monthsSaved > 0 && (
                     <div className="bg-white rounded-lg p-3 text-center">
                       <p className="text-sm text-green-700 font-semibold">
-                        Ahorrás {fmt(interestSaved)} en intereses y terminás {monthsSaved} meses antes
+                        Ahorras {fmt(interestSaved)} en intereses y terminas {monthsSaved} meses antes
                       </p>
                     </div>
                   )}

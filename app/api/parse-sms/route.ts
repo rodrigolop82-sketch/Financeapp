@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
   if (!extractionResponse.ok) {
     const errText = await extractionResponse.text()
     console.error('Claude SMS parse error:', extractionResponse.status, errText)
-    return NextResponse.json({ error: 'Error al interpretar el mensaje. Intentá de nuevo.' }, { status: 500 })
+    return NextResponse.json({ error: 'Error al interpretar el mensaje. Intenta de nuevo.' }, { status: 500 })
   }
 
   const extraction = await extractionResponse.json()
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     result.raw_text = text
   } catch {
     console.error('JSON parse error from Claude:', extraction.content?.[0]?.text)
-    return NextResponse.json({ error: 'No se pudo interpretar el mensaje. Verificá que sea una notificación de gasto.' }, { status: 500 })
+    return NextResponse.json({ error: 'No se pudo interpretar el mensaje. Verifica que sea una notificación de gasto.' }, { status: 500 })
   }
 
   // Enrich with household category_id

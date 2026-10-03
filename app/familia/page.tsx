@@ -255,7 +255,7 @@ export default function FamiliaPage() {
                   <span className="text-sm font-medium text-ink-700">Compartir link de invitación</span>
                 </div>
                 <p className="text-sm text-ink-500 mb-3">
-                  Generá un link y compartilo por WhatsApp o cualquier medio. La persona puede registrarse y unirse directamente.
+                  Genera un link y compártelo por WhatsApp o cualquier medio. La persona puede registrarse y unirse directamente.
                 </p>
                 {!inviteLink ? (
                   <Button onClick={generateInviteLink} disabled={generatingLink} variant="outline" className="w-full">

@@ -171,7 +171,7 @@ export function useDynamicChallenges() {
 
         result.push({
           id: String(id++), icon: '📈',
-          title: `Frená el crecimiento en ${t.cat.name}`,
+          title: `Frena el crecimiento en ${t.cat.name}`,
           description: `${t.cat.name} viene subiendo: Q${Math.round(t.m2).toLocaleString()} → Q${Math.round(t.m1).toLocaleString()} (+${t.growth}%). Meta: volver a Q${target.toLocaleString()}.`,
           progress: target > 0 ? Math.min(Math.round((current / target) * 100), 100) : 0,
           current, target, unit: 'Q',
@@ -200,8 +200,8 @@ export function useDynamicChallenges() {
 
           result.push({
             id: String(id++), icon: '🗓️',
-            title: 'Controlá el gasto de fin de semana',
-            description: `Gastás ${ratio}x más los fines de semana (Q${Math.round(weekendDailyAvg).toLocaleString()}/día vs Q${Math.round(weekdayDailyAvg).toLocaleString()}/día entre semana). Meta: no pasar de Q${Math.round(weekendTarget).toLocaleString()}/día.`,
+            title: 'Controla el gasto de fin de semana',
+            description: `Gastas ${ratio}x más los fines de semana (Q${Math.round(weekendDailyAvg).toLocaleString()}/día vs Q${Math.round(weekdayDailyAvg).toLocaleString()}/día entre semana). Meta: no pasar de Q${Math.round(weekendTarget).toLocaleString()}/día.`,
             progress, current: Math.round(weekendSpend), target: Math.round(weekendBudget), unit: 'Q',
             status: calcStatus(weekendSpend, weekendBudget, projected, daysPassed, daysInMonth, true),
             category: 'spending', priority: 2,
@@ -271,14 +271,14 @@ export function useDynamicChallenges() {
           result.push({
             id: String(id++), icon: '⭐',
             title: `${w.cat.name} va mejor que nunca`,
-            description: `Promedio: Q${Math.round(w.avg).toLocaleString()}/mes. Este mes llevas Q${current.toLocaleString()}. ¡Seguí así!`,
+            description: `Promedio: Q${Math.round(w.avg).toLocaleString()}/mes. Este mes llevas Q${current.toLocaleString()}. ¡Sigue así!`,
             progress: 100, current, target: Math.round(w.avg), unit: 'Q',
             status: 'completed', category: 'spending', priority: 5,
           })
         } else {
           result.push({
             id: String(id++), icon: '🎯',
-            title: `Reducí ${w.cat.name} un ${reductionPct}%`,
+            title: `Reduce ${w.cat.name} un ${reductionPct}%`,
             description: `Tu promedio es Q${Math.round(w.avg).toLocaleString()}/mes. Meta: no pasar de Q${target.toLocaleString()} este mes.`,
             progress: target > 0 ? Math.max(Math.min(Math.round(((target - current) / target) * 100), 100), 0) : 0,
             current, target, unit: 'Q',
@@ -312,7 +312,7 @@ export function useDynamicChallenges() {
           result.push({
             id: String(id++), icon: '📅',
             title: `Cuidado con los ${heavyDay}`,
-            description: `Históricamente gastás Q${heavyDayAvg.toLocaleString()} cada ${heavyDay}. Este mes: Q${currentAvg.toLocaleString()} promedio. Meta: Q${target.toLocaleString()}.`,
+            description: `Históricamente gastas Q${heavyDayAvg.toLocaleString()} cada ${heavyDay}. Este mes: Q${currentAvg.toLocaleString()} promedio. Meta: Q${target.toLocaleString()}.`,
             progress: target > 0 ? Math.min(Math.round((currentAvg / target) * 100), 100) : 0,
             current: currentAvg, target, unit: 'Q',
             status: currentAvg <= target ? (currentAvg <= target * 0.8 ? 'completed' : 'on_track') : 'at_risk',
@@ -333,7 +333,7 @@ export function useDynamicChallenges() {
 
         result.push({
           id: String(id++), icon: '🐷',
-          title: `Ahorrá Q${Math.round(totalSavingsBudget).toLocaleString()} este mes`,
+          title: `Ahorra Q${Math.round(totalSavingsBudget).toLocaleString()} este mes`,
           description: totalSavingsSpent >= totalSavingsBudget
             ? `¡Meta alcanzada! Llevas Q${Math.round(totalSavingsSpent).toLocaleString()} ahorrados.`
             : `Llevas Q${Math.round(totalSavingsSpent).toLocaleString()} de Q${Math.round(totalSavingsBudget).toLocaleString()}. Faltan Q${Math.round(totalSavingsBudget - totalSavingsSpent).toLocaleString()}.`,
@@ -355,7 +355,7 @@ export function useDynamicChallenges() {
           id: String(id++), icon: '💰',
           title: `No superar Q${Math.round(budget).toLocaleString()} en ${MONTH_NAMES[now.getMonth()]}`,
           description: projected > budget
-            ? `Al ritmo actual llegarás a Q${Math.round(projected).toLocaleString()}. Tenés Q${dailyAllowance.toLocaleString()}/día disponible.`
+            ? `Al ritmo actual llegarás a Q${Math.round(projected).toLocaleString()}. Tienes Q${dailyAllowance.toLocaleString()}/día disponible.`
             : `Llevas Q${Math.round(spentMonth).toLocaleString()} de Q${Math.round(budget).toLocaleString()}. Te quedan Q${dailyAllowance.toLocaleString()}/día.`,
           progress: Math.min(Math.round((spentMonth / budget) * 100), 100),
           current: Math.round(spentMonth), target: Math.round(budget), unit: 'Q',
@@ -389,8 +389,8 @@ export function useDynamicChallenges() {
         id: String(id++), icon: '🔥',
         title: `Racha de ${streakTarget} días registrando`,
         description: currentStreak >= streakTarget
-          ? `¡Llevás ${currentStreak} días seguidos! Tu mejor racha fue ${bestStreakLast60} días.`
-          : `Llevás ${currentStreak} día${currentStreak !== 1 ? 's' : ''} (mejor: ${bestStreakLast60}). ${currentStreak === 0 ? 'Registrá hoy para empezar.' : 'No pierdas la racha.'}`,
+          ? `¡Llevas ${currentStreak} días seguidos! Tu mejor racha fue ${bestStreakLast60} días.`
+          : `Llevas ${currentStreak} día${currentStreak !== 1 ? 's' : ''} (mejor: ${bestStreakLast60}). ${currentStreak === 0 ? 'Registra hoy para empezar.' : 'No pierdas la racha.'}`,
         progress: Math.min(Math.round((currentStreak / streakTarget) * 100), 100),
         current: currentStreak, target: streakTarget, unit: 'días',
         status: currentStreak >= streakTarget ? 'completed' : currentStreak > 0 ? 'on_track' : 'at_risk',
@@ -408,7 +408,7 @@ export function useDynamicChallenges() {
         if (pctOfPrev < 130) {
           result.push({
             id: String(id++), icon: '📉',
-            title: 'Gastá menos que el mes pasado',
+            title: 'Gasta menos que el mes pasado',
             description: `En ${MONTH_NAMES[new Date(now.getFullYear(), now.getMonth() - 1, 1).getMonth()]} gastaste Q${Math.round(spentPrev).toLocaleString()}. Proyección: Q${projected.toLocaleString()}.`,
             progress: Math.min(Math.round((spentMonth / spentPrev) * 100), 100),
             current: Math.round(spentMonth), target: Math.round(spentPrev), unit: 'Q',
@@ -430,7 +430,7 @@ export function useDynamicChallenges() {
         result.push({
           id: String(id++), icon: '🧘',
           title: `${noSpendTarget} días sin gastar este mes`,
-          description: `Registrás gastos casi todos los días. Llevas ${noSpendDays} día${noSpendDays !== 1 ? 's' : ''} sin gastar. Meta: ${noSpendTarget}.`,
+          description: `Registras gastos casi todos los días. Llevas ${noSpendDays} día${noSpendDays !== 1 ? 's' : ''} sin gastar. Meta: ${noSpendTarget}.`,
           progress, current: noSpendDays, target: noSpendTarget, unit: 'días',
           status: calcStatus(noSpendDays, noSpendTarget, daysPassed > 0 ? (noSpendDays / daysPassed) * daysInMonth : 0, daysPassed, daysInMonth),
           category: 'habits', priority: 4,

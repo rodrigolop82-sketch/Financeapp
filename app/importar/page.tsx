@@ -192,7 +192,7 @@ export default function ImportarPage() {
       const text = ev.target?.result as string
       const parsed = parseCSV(text)
       if (parsed.length === 0) {
-        setError('No se encontraron transacciones en el archivo. Verificá que el CSV tenga columnas de fecha, descripción y monto.')
+        setError('No se encontraron transacciones en el archivo. Verifica que el CSV tenga columnas de fecha, descripción y monto.')
         return
       }
       setRows(parsed)
@@ -206,7 +206,7 @@ export default function ImportarPage() {
     if (selected.length === 0) return
 
     if (!householdId) {
-      setError('No se pudo determinar el hogar. Recargá la página e intentá de nuevo.')
+      setError('No se pudo determinar el hogar. Recarga la página e intenta de nuevo.')
       return
     }
 
@@ -217,7 +217,7 @@ export default function ImportarPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        setError('Sesión expirada. Iniciá sesión de nuevo.')
+        setError('Sesión expirada. Inicia sesión de nuevo.')
         setSaving(false)
         return
       }
@@ -248,7 +248,7 @@ export default function ImportarPage() {
 
       if (!data || data.length === 0) {
         console.error('Insert returned no data — likely RLS blocking')
-        setError('No se pudieron guardar las transacciones. Verificá que tu cuenta tenga permisos.')
+        setError('No se pudieron guardar las transacciones. Verifica que tu cuenta tenga permisos.')
         setSaving(false)
         return
       }
@@ -305,7 +305,7 @@ export default function ImportarPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-ink-500">
-                Subí el estado de cuenta de tu banco en formato CSV. La mayoría de bancos
+                Sube el estado de cuenta de tu banco en formato CSV. La mayoría de bancos
                 (BAC, Industrial, G&T, Banrural) permiten exportar tus movimientos como CSV
                 desde su banca en línea.
               </p>
@@ -325,7 +325,7 @@ export default function ImportarPage() {
                 </div>
                 <div className="text-center">
                   <p className="font-medium text-ink-700">Seleccionar archivo CSV</p>
-                  <p className="text-xs text-ink-500 mt-1">o arrastrá el archivo aquí</p>
+                  <p className="text-xs text-ink-500 mt-1">o arrastra el archivo aquí</p>
                 </div>
               </button>
 

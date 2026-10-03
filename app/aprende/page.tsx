@@ -148,7 +148,7 @@ export default function AprendePage() {
             Los módulos de educación todavía no están disponibles.
           </div>
           <div style={{ fontSize: 13, color: '#8B9AAE', marginTop: 4 }}>
-            Ejecutá la migración de base de datos para cargar el contenido.
+            Ejecuta la migración de base de datos para cargar el contenido.
           </div>
         </div>
       ) : (

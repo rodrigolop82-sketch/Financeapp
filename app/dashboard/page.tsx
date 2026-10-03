@@ -402,7 +402,7 @@ export default function DashboardPage() {
       {/* Voice preview */}
       {voiceResult && isCurrentMonth && (
         <div style={{ marginTop: 12, padding: 14, background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14 }}>
-          <p style={{ fontSize: 14, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisá antes de guardar</p>
+          <p style={{ fontSize: 14, fontWeight: 500, color: '#1E40AF', marginBottom: 10 }}>Revisa antes de guardar</p>
           <TransactionPreview
             result={voiceResult}
             onConfirm={handleVoiceConfirm}

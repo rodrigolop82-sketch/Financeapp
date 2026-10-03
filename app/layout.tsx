@@ -19,7 +19,7 @@ import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistratio
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Zafi — Ordená tu dinero. Construí tu futuro.",
+  title: "Zafi — Ordena tu dinero. Construye tu futuro.",
   description:
     "Tu planner financiero personal para Latinoamérica. Diagnóstico honesto, plan de acción priorizado, y acompañamiento proactivo mes a mes.",
   manifest: "/manifest.json",

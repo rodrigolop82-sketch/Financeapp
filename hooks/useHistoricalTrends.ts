@@ -162,7 +162,7 @@ export function useHistoricalTrends() {
           if (want.amount >= need.amount * 0.8 && need.amount > 0 && want.amount > 0) {
             observations.push({
               type: 'warning',
-              message: `Gastás casi lo mismo en ${want.name} (${formatMoney(want.monthlyAvg)}/mes) que en ${need.name} (${formatMoney(need.monthlyAvg)}/mes). Considerá reducir ${want.name}.`,
+              message: `Gastas casi lo mismo en ${want.name} (${formatMoney(want.monthlyAvg)}/mes) que en ${need.name} (${formatMoney(need.monthlyAvg)}/mes). Considera reducir ${want.name}.`,
             })
           }
         }
@@ -179,7 +179,7 @@ export function useHistoricalTrends() {
             const pctUp = Math.round(((recentVarAvg - olderVarAvg) / olderVarAvg) * 100)
             observations.push({
               type: 'warning',
-              message: `Tu gasto variable ha subido ${pctUp}% en los últimos 3 meses. Revisá categorías como ${wantsCategories[0]?.name ?? 'entretenimiento'}.`,
+              message: `Tu gasto variable ha subido ${pctUp}% en los últimos 3 meses. Revisa categorías como ${wantsCategories[0]?.name ?? 'entretenimiento'}.`,
             })
           }
         }
@@ -201,7 +201,7 @@ export function useHistoricalTrends() {
       if (fixedRatio > 0.7) {
         observations.push({
           type: 'warning',
-          message: `Tus gastos fijos son el ${Math.round(fixedRatio * 100)}% del total. Lo ideal es que no superen el 60%. Revisá si podés renegociar algún servicio.`,
+          message: `Tus gastos fijos son el ${Math.round(fixedRatio * 100)}% del total. Lo ideal es que no superen el 60%. Revisa si puedes renegociar algún servicio.`,
         })
       } else if (fixedRatio < 0.5 && fixedRatio > 0) {
         observations.push({

@@ -13,7 +13,7 @@ const KEY_TO_DB: Record<string, string> = {
 const REASON_MAP: Record<string, string> = {
   savings:   'Tu tasa de ahorro tiene espacio para mejorar',
   debt:      'Tus deudas están impactando tu puntaje',
-  emergency: 'Todavía no tenés fondo de emergencia completo',
+  emergency: 'Todavía no tienes fondo de emergencia completo',
   spending:  'Tus gastos son altos en relación al ingreso',
   stability: 'Tu ingreso variable requiere planificación especial',
 }
