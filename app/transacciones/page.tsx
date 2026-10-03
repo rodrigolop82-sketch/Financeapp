@@ -37,7 +37,7 @@ import {
   Upload,
 } from 'lucide-react';
 
-function periodToDateRange(period: string): { from: string | null; to: string | null } {
+function periodToDateRange(period: string, specificMonth?: string): { from: string | null; to: string | null } {
   const today = new Date();
   switch (period) {
     case 'month': {
@@ -58,6 +58,12 @@ function periodToDateRange(period: string): { from: string | null; to: string | 
         from: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`,
         to: null,
       };
+    }
+    case 'specific': {
+      const ym = specificMonth || `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      const [y, m] = ym.split('-').map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      return { from: `${ym}-01`, to: `${ym}-${String(lastDay).padStart(2, '0')}` };
     }
     default:
       return { from: null, to: null };
@@ -106,6 +112,7 @@ function TransaccionesPageInner() {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [explicitPeriod, setExplicitPeriod] = useState<string | null>(null);
+  const [specificMonth, setSpecificMonth] = useState(() => localToday().slice(0, 7));
   const [searchCategory, setSearchCategory] = useState('all');
   const [searchAmount, setSearchAmount] = useState('any');
   const [searchResults, setSearchResults] = useState<SearchTransaction[]>([]);
@@ -207,7 +214,7 @@ function TransaccionesPageInner() {
 
     const controller = new AbortController();
     const period = explicitPeriod ?? (q.length >= 2 ? 'all' : 'month');
-    const { from, to } = periodToDateRange(period);
+    const { from, to } = periodToDateRange(period, specificMonth);
     const { min, max } = amountToRange(searchAmount);
 
     searchCursor.current = { date: null, id: null };
@@ -244,14 +251,14 @@ function TransaccionesPageInner() {
       .finally(() => setSearchLoading(false));
 
     return () => controller.abort();
-  }, [searchQuery, explicitPeriod, searchCategory, searchAmount, searchGen]);
+  }, [searchQuery, explicitPeriod, searchCategory, searchAmount, searchGen, specificMonth]);
 
   function loadMoreResults() {
     if (!searchHasMore || searchLoading) return;
 
     const q = searchQuery.trim();
     const period = explicitPeriod ?? (q.length >= 2 ? 'all' : 'month');
-    const { from, to } = periodToDateRange(period);
+    const { from, to } = periodToDateRange(period, specificMonth);
     const { min, max } = amountToRange(searchAmount);
 
     setSearchLoading(true);
@@ -295,6 +302,11 @@ function TransaccionesPageInner() {
 
   function handlePeriodChange(v: string) {
     setExplicitPeriod(v);
+  }
+
+  function handleSpecificMonthChange(v: string) {
+    setSpecificMonth(v);
+    setExplicitPeriod('specific');
   }
 
   function clearSearchFilters() {
@@ -503,6 +515,8 @@ function TransaccionesPageInner() {
         <SearchFilters
           period={effectivePeriod}
           onPeriodChange={handlePeriodChange}
+          specificMonth={specificMonth}
+          onSpecificMonthChange={handleSpecificMonthChange}
           category={searchCategory}
           onCategoryChange={setSearchCategory}
           amount={searchAmount}

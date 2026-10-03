@@ -5,6 +5,8 @@ import type { BudgetCategory } from '@/types';
 interface SearchFiltersProps {
   period: string;
   onPeriodChange: (v: string) => void;
+  specificMonth: string;
+  onSpecificMonthChange: (v: string) => void;
   category: string;
   onCategoryChange: (v: string) => void;
   amount: string;
@@ -16,6 +18,8 @@ interface SearchFiltersProps {
 export function SearchFilters({
   period,
   onPeriodChange,
+  specificMonth,
+  onSpecificMonthChange,
   category,
   onCategoryChange,
   amount,
@@ -54,7 +58,18 @@ export function SearchFilters({
         <option value="3m">Últimos 3 meses</option>
         <option value="6m">Últimos 6 meses</option>
         <option value="all">Todos los meses</option>
+        <option value="specific">Mes específico…</option>
       </select>
+      {period === 'specific' && (
+        <input
+          type="month"
+          aria-label="Mes específico"
+          value={specificMonth}
+          onChange={(e) => e.target.value && onSpecificMonthChange(e.target.value)}
+          className={`search-filters ${base} ${active}`}
+          style={{ paddingRight: 12, backgroundImage: 'none' }}
+        />
+      )}
       <select
         aria-label="Categoría"
         value={category}
