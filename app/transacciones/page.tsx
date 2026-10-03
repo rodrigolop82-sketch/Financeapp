@@ -7,56 +7,25 @@ import { localToday } from '@/lib/dates';
 import type { BudgetCategory, SearchTransaction } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
-import { useReclassifyFlow } from '@/lib/transactions/useReclassifyFlow';
-import { useUndoableDelete } from '@/lib/transactions/useUndoableDelete';
-import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete';
-import { deriveTransactionType } from '@/lib/transactions/transaction-type';
-import { getEmoji, PAYMENT_OPTIONS, type PaymentMethod } from '@/lib/categories-ui';
-import { groupByDay, monthLabel, monthRange, recentMonths, sameMerchantOthers } from '@/lib/movimientos';
+import { groupByDay, monthLabel, monthRange, recentMonths } from '@/lib/movimientos';
 import { AppShell } from '@/components/layout/AppShell';
 import { openAddSheet } from '@/components/dashboard/BottomNav';
 import { TRANSACTIONS_CHANGED_EVENT, type TxChangedDetail } from '@/components/add/AddSheet';
-import { UndoToast } from '@/components/transactions/UndoToast';
 import { BottomSheet } from '@/components/transactions/BottomSheet';
 import { MonthSummary } from '@/components/movimientos/MonthSummary';
 import { MovimientosSearch, type TypeFilter } from '@/components/movimientos/MovimientosSearch';
 import { TxDayGroup } from '@/components/movimientos/TxDayGroup';
-import { SwipeRow } from '@/components/movimientos/SwipeRow';
-import { TxDetailSheet } from '@/components/movimientos/TxDetailSheet';
-import { CategorySheet } from '@/components/movimientos/CategorySheet';
-import { DateSheet, OptionSheet } from '@/components/movimientos/OptionSheet';
-import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast';
+import { SwipeRow, txRowData } from '@/components/movimientos/SwipeRow';
+import { OptionSheet } from '@/components/movimientos/OptionSheet';
+import { useTxSheets } from '@/components/movimientos/useTxSheets';
 import { BORDER, CARD_BG, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
 import { Loader2, Receipt, ChevronDown } from 'lucide-react';
 
 const PAGE_SIZE = 50;
 const SWIPE_HINT_KEY = 'zafi:swipe-hint';
-const FLASH_MS = 1600;
-
-type SheetView = 'detail' | 'category' | 'date' | 'payment' | 'month';
-
-interface SheetState {
-  view: SheetView;
-  txId: string | null;
-  /** Vista a la que vuelven "Escape" o tocar fuera (null cierra la hoja). */
-  back: SheetView | null;
-}
-
-const SHEET_LABEL: Record<SheetView, string> = {
-  detail: 'Detalle del movimiento',
-  category: 'Elegir categoría',
-  date: 'Elegir fecha',
-  payment: 'Forma de pago',
-  month: 'Elegir mes',
-};
 
 function readSwipeCount(): number {
   try { return Number(localStorage.getItem(SWIPE_HINT_KEY)) || 0; } catch { return 0; }
-}
-
-function byDateDesc(a: SearchTransaction, b: SearchTransaction): number {
-  if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-  return a.id < b.id ? 1 : -1;
 }
 
 export default function MovimientosPage() {
@@ -82,16 +51,19 @@ export default function MovimientosPage() {
   const [summary, setSummary] = useState<{ spent: number; received: number } | null>(null);
 
   const [openRowId, setOpenRowId] = useState<string | null>(null);
-  const [flashId, setFlashId] = useState<string | null>(null);
   const [swipeCount, setSwipeCount] = useState(3);
-  const [sheet, setSheet] = useState<SheetState | null>(null);
-  const [message, setMessage] = useState<StatusMessage | null>(null);
+  const [monthSheetOpen, setMonthSheetOpen] = useState(false);
 
   const reload = useCallback(() => setReloadGen((g) => g + 1), []);
-  const flow = useReclassifyFlow(categories, reload);
-  const deletion = useUndoableDelete(setRows);
+  const sheets = useTxSheets({ rows, setRows, categories, fmt, today, onChanged: reload, loading });
 
   useEffect(() => { setSwipeCount(readSwipeCount()); }, []);
+
+  // ?q= (por ejemplo desde la alerta de Inicio) es la búsqueda inicial.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q) { setQuery(q); setDebouncedQuery(q); }
+  }, []);
 
   // Hogar y categorías
   useEffect(() => {
@@ -142,7 +114,7 @@ export default function MovimientosPage() {
     setLoading((was) => was || rows.length === 0);
     fetchPage(null, controller.signal)
       .then((page) => {
-        const pendingId = deletion.getPendingId();
+        const pendingId = sheets.getPendingDeleteId();
         setRows(pendingId ? page.filter((r) => r.id !== pendingId) : page);
         setHasMore(page.length === PAGE_SIZE);
         const last = page[page.length - 1];
@@ -154,7 +126,7 @@ export default function MovimientosPage() {
         setRows([]);
         setHasMore(false);
         setLoading(false);
-        setMessage({ text: 'No pudimos cargar tus movimientos. Intenta de nuevo.', tone: 'error' });
+        sheets.showMessage({ text: 'No pudimos cargar tus movimientos. Intenta de nuevo.', tone: 'error' });
       });
     return () => controller.abort();
   }, [ready, fetchPage, reloadGen]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -176,7 +148,7 @@ export default function MovimientosPage() {
     setLoadingMore(true);
     try {
       const page = await fetchPage(cursor.current);
-      const pendingId = deletion.getPendingId();
+      const pendingId = sheets.getPendingDeleteId();
       setRows((prev) => {
         const seen = new Set(prev.map((r) => r.id));
         return [...prev, ...page.filter((r) => !seen.has(r.id) && r.id !== pendingId)];
@@ -185,10 +157,10 @@ export default function MovimientosPage() {
       const last = page[page.length - 1];
       if (last) cursor.current = { date: last.date, id: last.id };
     } catch {
-      setMessage({ text: 'No pudimos cargar más movimientos.', tone: 'error' });
+      sheets.showMessage({ text: 'No pudimos cargar más movimientos.', tone: 'error' });
     }
     setLoadingMore(false);
-  }, [hasMore, loadingMore, loading, fetchPage, deletion]);
+  }, [hasMore, loadingMore, loading, fetchPage, sheets]);
 
   // Scroll infinito
   const sentinel = useRef<HTMLDivElement>(null);
@@ -202,14 +174,8 @@ export default function MovimientosPage() {
     return () => io.disconnect();
   }, [hasMore, loadMore]);
 
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flash = useCallback((id: string) => {
-    setFlashId(id);
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setFlashId(null), FLASH_MS);
-  }, []);
-
   // Movimientos agregados desde el botón +: recarga y resalta el nuevo.
+  const { flash } = sheets;
   useEffect(() => {
     function onChanged(e: Event) {
       const detail = (e as CustomEvent<TxChangedDetail | undefined>).detail;
@@ -221,83 +187,11 @@ export default function MovimientosPage() {
     return () => window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged);
   }, [reload, flash]);
 
-  const selected = sheet?.txId ? rows.find((r) => r.id === sheet.txId) ?? null : null;
-
-  // Si el movimiento abierto desaparece (se borró o cambió de filtro), se cierra la hoja.
-  useEffect(() => {
-    if (sheet?.txId && !loading && !selected) setSheet(null);
-  }, [sheet, selected, loading]);
-
-  // ── Acciones ───────────────────────────────────
-
-  function closeSheet() {
-    setSheet((s) => (s?.back ? { ...s, view: s.back, back: null } : null));
-    flow.clearError();
-  }
-
-  function openDetail(id: string) {
-    setOpenRowId(null);
-    setSheet({ view: 'detail', txId: id, back: null });
-  }
-
-  function openCategory(id: string, fromDetail: boolean) {
-    setOpenRowId(null);
-    flow.clearError();
-    setSheet({ view: 'category', txId: id, back: fromDetail ? 'detail' : null });
-  }
-
-  function deleteTx(tx: SearchTransaction) {
-    const index = rows.findIndex((r) => r.id === tx.id);
-    if (index === -1) return;
-    setSheet(null);
-    setOpenRowId(null);
-    if (flow.undoVisible) flow.dismissUndo();
-    deletion.remove(tx, index);
-  }
-
-  /** Cambio optimista de un campo; si Supabase falla, se revierte. */
-  async function updateTx(id: string, patch: Partial<Pick<SearchTransaction, 'date' | 'payment_method' | 'description' | 'note'>>) {
-    const prev = rows.find((r) => r.id === id);
-    if (!prev) return;
-    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)).sort(byDateDesc));
-    const { error } = await supabase.from('transactions').update(patch).eq('id', id);
-    if (error) {
-      setRows((rs) => rs.map((r) => (r.id === id ? prev : r)).sort(byDateDesc));
-      setMessage({ text: 'No se pudo guardar el cambio. Intenta de nuevo.', tone: 'error' });
-      return;
-    }
-    flash(id);
-  }
-
-  async function saveCategory(tx: SearchTransaction, categoryId: string, type: 'expense' | 'income', applyToOthers: boolean) {
-    if (categoryId === tx.category_id && type === tx.type) {
-      setSheet({ view: 'detail', txId: tx.id, back: null });
-      return;
-    }
-    if (flow.undoVisible) flow.dismissUndo();
-    const ok = await flow.reclassifyDirect(tx, categoryId, type, applyToOthers);
-    if (!ok) return;
-    const cat = categories.find((c) => c.id === categoryId);
-    setRows((rs) => rs.map((r) => (r.id === tx.id ? {
-      ...r,
-      category_id: categoryId,
-      category_name: cat?.name ?? r.category_name,
-      category_bucket: (cat?.bucket ?? r.category_bucket) as SearchTransaction['category_bucket'],
-      category_icon: cat?.icon ?? null,
-      type,
-      transaction_type: deriveTransactionType(type, cat?.bucket),
-    } : r)));
-    flash(tx.id);
-    setSheet({ view: 'detail', txId: tx.id, back: null });
-  }
-
   function markSwiped() {
     const next = swipeCount + 1;
     setSwipeCount(next);
     try { localStorage.setItem(SWIPE_HINT_KEY, String(next)); } catch { /* sin almacenamiento */ }
   }
-
-  // ── Vista ─────────────────────────────────────
 
   const groups = groupByDay(rows, today);
   const filtered = !!searchQuery || typeFilter !== 'all';
@@ -305,7 +199,7 @@ export default function MovimientosPage() {
   const monthPill = (
     <button
       type="button"
-      onClick={() => setSheet({ view: 'month', txId: null, back: null })}
+      onClick={() => setMonthSheetOpen(true)}
       aria-label={`Mes: ${monthLabel(month, today)}. Cambiar mes`}
       className={`flex-none flex items-center gap-1 h-9 px-3.5 rounded-full border text-sm font-semibold text-navy dark:text-ink-100 ${BORDER} ${CARD_BG}`}
     >
@@ -333,9 +227,9 @@ export default function MovimientosPage() {
           />
         </div>
 
-        {deletion.error && (
+        {sheets.deleteError && (
           <div role="alert" className="mt-3 p-3 bg-danger-light rounded-xl text-sm text-danger-text">
-            {deletion.error}
+            {sheets.deleteError}
           </div>
         )}
 
@@ -368,33 +262,20 @@ export default function MovimientosPage() {
             <>
               {groups.map((g) => (
                 <TxDayGroup key={g.date} label={g.label} total={fmt(g.expenseTotal)}>
-                  {g.rows.map((tx) => {
-                    const isIncome = tx.type === 'income';
-                    const forex = tx.original_currency
-                      ? ` · ${tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : `${tx.original_currency} `}${Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      : '';
-                    return (
-                      <SwipeRow
-                        key={tx.id}
-                        row={{
-                          id: tx.id,
-                          emoji: getEmoji({ name: tx.category_name, bucket: tx.category_bucket, icon: tx.category_icon }),
-                          name: tx.description || tx.category_name || 'Sin nombre',
-                          sub: (tx.category_name || 'Sin categoría') + forex,
-                          amountLabel: `${isIncome ? '+' : ''}${fmt(Number(tx.amount))}`,
-                          isIncome,
-                        }}
-                        isOpen={openRowId === tx.id}
-                        anyOpen={openRowId !== null}
-                        flash={flashId === tx.id}
-                        onOpenChange={(open) => setOpenRowId(open ? tx.id : null)}
-                        onSelect={() => openDetail(tx.id)}
-                        onChange={() => openCategory(tx.id, false)}
-                        onDelete={() => deleteTx(tx)}
-                        onSwiped={markSwiped}
-                      />
-                    );
-                  })}
+                  {g.rows.map((tx) => (
+                    <SwipeRow
+                      key={tx.id}
+                      row={txRowData(tx, fmt)}
+                      isOpen={openRowId === tx.id}
+                      anyOpen={openRowId !== null}
+                      flash={sheets.flashId === tx.id}
+                      onOpenChange={(open) => setOpenRowId(open ? tx.id : null)}
+                      onSelect={() => { setOpenRowId(null); sheets.openDetail(tx.id); }}
+                      onChange={() => { setOpenRowId(null); sheets.openCategory(tx.id); }}
+                      onDelete={() => { setOpenRowId(null); sheets.deleteTx(tx); }}
+                      onSwiped={markSwiped}
+                    />
+                  ))}
                 </TxDayGroup>
               ))}
               <div ref={sentinel} />
@@ -413,86 +294,18 @@ export default function MovimientosPage() {
         </div>
       </div>
 
-      <BottomSheet themed open={!!sheet} onClose={closeSheet} label={sheet ? SHEET_LABEL[sheet.view] : undefined}>
-        {sheet?.view === 'month' && (
+      <BottomSheet themed open={monthSheetOpen} onClose={() => setMonthSheetOpen(false)} label="Elegir mes">
+        {monthSheetOpen && (
           <OptionSheet
             title="¿Qué mes quieres ver?"
             options={recentMonths(today, 12).map((m) => ({ value: m, label: monthLabel(m, today) }))}
             selected={month}
-            onSelect={(m) => { setMonth(m); setSheet(null); }}
-          />
-        )}
-        {sheet?.view === 'detail' && selected && (
-          <TxDetailSheet
-            tx={selected}
-            today={today}
-            fmt={fmt}
-            onOpenCategory={() => openCategory(selected.id, true)}
-            onOpenDate={() => setSheet({ view: 'date', txId: selected.id, back: 'detail' })}
-            onOpenPayment={() => setSheet({ view: 'payment', txId: selected.id, back: 'detail' })}
-            onSaveText={(id, patch) => { void updateTx(id, patch); }}
-            onDelete={() => deleteTx(selected)}
-            onDone={() => setSheet(null)}
-          />
-        )}
-        {sheet?.view === 'category' && selected && (
-          <CategorySheet
-            key={selected.id}
-            categories={categories}
-            type={selected.type}
-            subtitle={`${selected.description || selected.category_name} · ${fmt(Number(selected.amount))}`}
-            initialCategoryId={selected.category_id}
-            othersCount={(catId) => sameMerchantOthers(rows, selected, catId).length}
-            merchantName={selected.description ?? ''}
-            saving={flow.saving}
-            error={flow.error}
-            onSave={(catId, type, applyAll) => { void saveCategory(selected, catId, type, applyAll); }}
-          />
-        )}
-        {sheet?.view === 'date' && selected && (
-          <DateSheet
-            today={today}
-            selected={selected.date}
-            onSelect={(date) => {
-              void updateTx(selected.id, { date });
-              setSheet({ view: 'detail', txId: selected.id, back: null });
-            }}
-          />
-        )}
-        {sheet?.view === 'payment' && selected && (
-          <OptionSheet<PaymentMethod>
-            title={selected.type === 'income' ? '¿Cómo lo recibiste?' : '¿Con qué pagaste?'}
-            options={PAYMENT_OPTIONS}
-            selected={selected.payment_method}
-            onSelect={(pm) => {
-              void updateTx(selected.id, { payment_method: pm });
-              setSheet({ view: 'detail', txId: selected.id, back: null });
-            }}
+            onSelect={(m) => { setMonth(m); setMonthSheetOpen(false); }}
           />
         )}
       </BottomSheet>
 
-      <UndoToast
-        visible={flow.undoVisible}
-        title={flow.undoTitle}
-        subtitle={flow.undoSubtitle || undefined}
-        onUndo={flow.doUndo}
-        onDismiss={flow.dismissUndo}
-        duration={DELETE_UNDO_MS}
-      />
-
-      <UndoToast
-        key={deletion.pending?.id}
-        visible={!!deletion.pending}
-        title={deletion.pending
-          ? `Borraste ${deletion.pending.description || deletion.pending.category_name} · ${fmt(Number(deletion.pending.amount))}`
-          : ''}
-        onUndo={deletion.undo}
-        onDismiss={deletion.commit}
-        duration={DELETE_UNDO_MS}
-      />
-
-      <StatusToast message={message} onDone={() => setMessage(null)} />
+      {sheets.element}
     </AppShell>
   );
 }

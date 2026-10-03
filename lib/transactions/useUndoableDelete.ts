@@ -18,7 +18,11 @@ interface PendingDelete<T> {
  */
 export function useUndoableDelete<T extends { id: string }>(
   setItems: Dispatch<SetStateAction<T[]>>,
+  /** Se llama cuando el borrado ya se confirmó en la base. */
+  onCommitted?: () => void,
 ) {
+  const onCommittedRef = useRef(onCommitted);
+  onCommittedRef.current = onCommitted;
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   if (!supabaseRef.current) supabaseRef.current = createClient();
   const supabase = supabaseRef.current;
@@ -51,7 +55,9 @@ export function useUndoableDelete<T extends { id: string }>(
     if (deleteError) {
       setItems((prev) => reinsertAt(prev, p.tx, p.index));
       setError(DELETE_ERROR_MESSAGE);
+      return;
     }
+    onCommittedRef.current?.();
   }, [supabase, setItems]);
 
   /** Quita `tx` (que está en `index`) y abre la ventana para deshacer. */

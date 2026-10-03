@@ -1,6 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import type { SearchTransaction } from '@/types';
+import { getEmoji } from '@/lib/categories-ui';
 import { CARD_BG, TEXT_MUTED, TEXT_STRONG, TILE_BG } from './ui';
 
 const OPEN_X = -150;
@@ -14,6 +16,55 @@ export interface SwipeRowData {
   sub: string;
   amountLabel: string;
   isIncome: boolean;
+}
+
+/** Datos de fila a partir de un movimiento: emoji, nombre, categoría y monto. */
+export function txRowData(tx: SearchTransaction, fmt: (n: number) => string): SwipeRowData {
+  const isIncome = tx.type === 'income';
+  const symbol = tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : `${tx.original_currency} `;
+  const forex = tx.original_currency
+    ? ` · ${symbol}${Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : '';
+  return {
+    id: tx.id,
+    emoji: getEmoji({ name: tx.category_name, bucket: tx.category_bucket, icon: tx.category_icon }),
+    name: tx.description || tx.category_name || 'Sin nombre',
+    sub: (tx.category_name || 'Sin categoría') + forex,
+    amountLabel: `${isIncome ? '+' : ''}${fmt(Number(tx.amount))}`,
+    isIncome,
+  };
+}
+
+/** Contenido visible de una fila: tile con emoji, nombre, categoría y monto. */
+function RowContent({ row, amountClassName = '' }: { row: SwipeRowData; amountClassName?: string }) {
+  return (
+    <>
+      <span aria-hidden className={`flex-none w-10 h-10 rounded-xl flex items-center justify-center text-xl ${TILE_BG}`}>
+        {row.emoji}
+      </span>
+      <span className="flex-1 min-w-0 flex flex-col text-left">
+        <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{row.name}</span>
+        <span className={`truncate text-[13px] ${TEXT_MUTED}`}>{row.sub}</span>
+      </span>
+      <span className={`flex-none font-outfit font-bold text-base ${row.isIncome ? 'text-success-dark' : TEXT_STRONG} ${amountClassName}`}>
+        {row.amountLabel}
+      </span>
+    </>
+  );
+}
+
+/** Fila sin swipe (por ejemplo "Lo último" en Inicio): un toque abre el detalle. */
+export function TxRow({ row, flash, onSelect }: { row: SwipeRowData; flash?: boolean; onSelect: () => void }) {
+  return (
+    <button
+      type="button"
+      data-tx-row={row.id}
+      onClick={onSelect}
+      className={`flex w-full items-center gap-3 h-16 px-3.5 rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-electric-pale ${CARD_BG} ${flash ? 'zafi-row-flash' : ''}`}
+    >
+      <RowContent row={row} />
+    </button>
+  );
 }
 
 interface SwipeRowProps {
@@ -85,7 +136,6 @@ export function SwipeRow({ row, isOpen, anyOpen, flash, onOpenChange, onSelect, 
   }
 
   const x = dragX ?? (isOpen ? OPEN_X : 0);
-  const amountClass = row.isIncome ? 'text-success-dark' : TEXT_STRONG;
   const hiddenActions = isOpen ? {} : { tabIndex: -1, 'aria-hidden': true as const };
 
   return (
@@ -125,16 +175,7 @@ export function SwipeRow({ row, isOpen, anyOpen, flash, onOpenChange, onSelect, 
         className={`absolute inset-0 flex items-center gap-3 px-3.5 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-electric-pale ${CARD_BG} ${flash ? 'zafi-row-flash' : ''}`}
         style={{ transform: `translateX(${x}px)`, transition: dragX === null ? SETTLE : 'none', touchAction: 'pan-y' }}
       >
-        <span aria-hidden className={`flex-none w-10 h-10 rounded-xl flex items-center justify-center text-xl ${TILE_BG}`}>
-          {row.emoji}
-        </span>
-        <span className="flex-1 min-w-0 flex flex-col">
-          <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{row.name}</span>
-          <span className={`truncate text-[13px] ${TEXT_MUTED}`}>{row.sub}</span>
-        </span>
-        <span className={`flex-none font-outfit font-bold text-base lg:group-hover:opacity-0 lg:group-focus-within:opacity-0 ${amountClass}`}>
-          {row.amountLabel}
-        </span>
+        <RowContent row={row} amountClassName="lg:group-hover:opacity-0 lg:group-focus-within:opacity-0" />
       </div>
 
       {/* Acciones con hover (escritorio) */}
