@@ -22,7 +22,7 @@ export const MORE_GROUPS: MoreGroup[] = [
     items: [
       { emoji: '🧮', name: 'Plan del mes', description: 'Cuánto quieres gastar en cada cosa', href: '/presupuesto' },
       { emoji: '💳', name: 'Deudas', description: 'Tarjetas y préstamos', href: '/deudas' },
-      { emoji: '📊', name: 'Cómo te fue', description: 'Meses anteriores y tendencias', href: '/resumen' },
+      { emoji: '📊', name: 'Cómo te fue', description: 'Cuánto ahorraste y dónde ajustar', href: '/resumen' },
       { emoji: '✅', name: 'Cerrar el mes', description: 'Repasa cómo te fue', href: '/cierre-mes' },
     ],
   },
@@ -75,7 +75,6 @@ export interface ParentLink {
  */
 const PARENTS: [string, ParentLink][] = [
   ['/resumen/categoria', { label: 'Cómo te fue', href: '/resumen' }],
-  ['/resumen', { label: 'Inicio', href: '/dashboard' }],
   ['/health-score', { label: 'Cómo te fue', href: '/resumen' }],
   ['/score', { label: 'Cómo te fue', href: '/resumen' }],
   ['/plan', { label: 'Plan del mes', href: '/presupuesto' }],

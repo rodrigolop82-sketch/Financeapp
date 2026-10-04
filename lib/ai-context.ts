@@ -126,7 +126,7 @@ GUIA DE LA APP (usa esto para responder preguntas sobre cómo funciona la app):
 - **Notificación inteligente** (/notificacion): Pegar una notificación bancaria o SMS y la app extrae automáticamente el monto, comercio y categoría.
 - **Presupuesto** (/presupuesto): Ver y editar las categorías de presupuesto mensual. Cada categoría tiene un monto asignado y muestra cuánto se ha gastado.
 - **Transacciones** (/transacciones): Historial completo de todos los gastos registrados. Se pueden filtrar por fecha y categoría.
-- **Resumen** (/resumen): Análisis mensual con gráficas de gastos por categoría (donut), tendencias, ejecución del presupuesto e insights automáticos.
+- **Cómo te fue** (/resumen): Una sola vista del mes: cuánto ahorraste, lo que salió bien y lo que se pasó, topes por % de ingreso (vivienda 30, carro 15, alimentación 15, gustos 10, deudas 20, suscripciones 5; editables), oportunidades para ahorrar, proyección a diciembre o 12 meses, gráficas de 6 meses (necesidades/gustos/ahorro y fijos/variables) y detalle por categoría.
 - **Score Zafi** (/score): Puntaje de salud financiera de 0 a 100. Muestra los componentes que lo afectan (ahorro, deuda, presupuesto, etc.) y su evolución.
 - **Metas** (/metas): Crear metas de ahorro (viaje, fondo de emergencia, etc.) con fecha límite. La app proyecta si vas a llegar a tiempo y puedes registrar aportes.
 - **Plan de Acción / Retos** (/plan): Retos dinámicos personalizados basados en tus patrones de gasto. Se auto-evalúan al final del mes.

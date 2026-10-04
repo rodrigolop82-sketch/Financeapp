@@ -37,7 +37,7 @@ describe('parentFor', () => {
     expect(parentFor('/deudas')).toEqual({ label: 'Más', href: '/mas' });
     expect(parentFor('/cuenta')).toEqual({ label: 'Más', href: '/mas' });
     expect(parentFor('/cuenta/privacidad')).toEqual({ label: 'Cuenta', href: '/cuenta' });
-    expect(parentFor('/resumen')).toEqual({ label: 'Inicio', href: '/dashboard' });
+    expect(parentFor('/resumen')).toEqual({ label: 'Más', href: '/mas' });
     expect(parentFor('/resumen/categoria/abc')).toEqual({ label: 'Cómo te fue', href: '/resumen' });
     expect(parentFor('/metas/123')).toEqual({ label: 'Metas', href: '/metas' });
     expect(parentFor('/plan')).toEqual({ label: 'Plan del mes', href: '/presupuesto' });

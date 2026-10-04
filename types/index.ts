@@ -65,6 +65,16 @@ export interface BudgetCategory {
   parent_category_id: string | null;
   color: string | null;
   archived_at: string | null;
+  /** Tope de "Cómo te fue" al que pertenece (vivienda, comida…). Null: se deduce por nombre. */
+  cap_key?: string | null;
+}
+
+/** Tope del hogar (% de los ingresos recibidos) por grupo de gasto. */
+export interface SpendingCap {
+  household_id: string;
+  cap_key: 'vivienda' | 'carro' | 'comida' | 'gustos' | 'deudas' | 'suscripciones';
+  pct: number;
+  updated_at?: string;
 }
 
 export interface HouseholdHiddenCategory {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  averageOf, bucketShares, bucketsInsight, capGroups, categoryStatus, chartMonths, fixedResolver, fixedVarInsight,
+  analyzeMonth, averageOf, bucketShares, bucketsInsight, capGroups, categoryStatus, chartMonths, fixedResolver, fixedVarInsight,
   fixedVarShares, merchantGroups, monthHighlights, monthTotals, planItems, roundShares, savingsPct, spendByCategory,
   timesText, vsPlanText, type CtfCategory, type CtfTx,
 } from './como-te-fue';
@@ -204,5 +204,49 @@ describe('textos', () => {
     expect(timesText(3)).toBe('3 veces');
     expect(averageOf([null, 100, 200])).toBe(150);
     expect(averageOf([null])).toBeNull();
+  });
+});
+
+describe('analyzeMonth', () => {
+  const cats2: CtfCategory[] = [
+    ...cats,
+    { id: 'tra', name: 'Transporte', bucket: 'needs', budgeted_amount: 3100, pace_mode: 'linear' },
+  ];
+  const subs2: PlanSubItem[] = [
+    ...subs,
+    { id: 'cuota', category_id: 'tra', name: 'Cuota del carro', amount: 2300, is_fixed: true },
+    { id: 'gas', category_id: 'tra', name: 'Gasolina', amount: 800, is_fixed: false },
+  ];
+  const txs = [
+    ...aug,
+    ...sep,
+    tx('tra', 2300, '2026-09-05', 'expense', 'cuota'),
+    tx('tra', 800, '2026-09-15', 'expense', 'gas'),
+  ];
+  const input = {
+    categories: cats2, subs: subs2, txs, snapshots: {}, earliest: '2026-08',
+    incomes: [{ id: 'i1', source: 'Salario', amount: 19500, frequency: 'mensual' }],
+  };
+
+  it('junta veredicto, recomendaciones, plan y alertas del mes', () => {
+    const a = analyzeMonth(input, '2026-09', DEFAULT_CAPS, fmt);
+    expect(a.series.map((t) => t.month)).toEqual(['2026-08', '2026-09']);
+    expect(a.current.income).toBe(19500);
+    expect(a.current.spent).toBe(11150 + 3100);
+    expect(a.recs.over.map((r) => [r.key, r.kind, r.saving])).toEqual([
+      ['comida', 'variable', 425], ['vivienda', 'fijo', 950], ['carro', 'fijo', 175],
+    ]);
+    expect(a.kindOf.tra).toBe('fijo');
+    expect(a.planOf.ali).toBe(2000);
+    expect(a.planIncome).toBe(19500);
+    // Plan: vivienda 6,800 > 5,850; comida 2,000 + 1,300 > 2,925; carro 3,100 > 2,925.
+    expect(a.planAlert).toEqual(['vivienda', 'carro', 'comida']);
+    expect(a.highlights.bad).toContain('Restaurantes y salidas: Q 1,250, Q 550 más que tu promedio.');
+    expect(a.highlights.good).toContain('Gastaste Q 500 menos en alimentación que en agosto.');
+  });
+
+  it('el plan guardado al cerrar el mes manda sobre el vigente', () => {
+    const a = analyzeMonth({ ...input, snapshots: { ali: 2500 } }, '2026-09', DEFAULT_CAPS, fmt);
+    expect(a.planOf.ali).toBe(2500);
   });
 });

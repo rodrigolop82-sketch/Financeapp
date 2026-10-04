@@ -8,9 +8,12 @@
 // - "Ingresos recibidos" = movimientos type='income' del mes.
 // - "Ahorraste" = ingresos recibidos − gastaste.
 
-import { categoryPlan, subMonthly, type PlanCategory, type PlanSubItem } from './plan-del-mes';
 import {
-  CAP_KEYS, type CapGroupInput, type CapKey, type CapOk, type PlanItem,
+  categoryPlan, planSummary, subMonthly, type PlanCategory, type PlanIncome, type PlanSubItem,
+} from './plan-del-mes';
+import {
+  buildRecommendations, CAP_KEYS, categoryCapKeys, planByCapKey, planOverCaps,
+  type CapGroupInput, type CapKey, type CapOk, type ExpenseKind, type PlanItem, type RecommendationResult,
 } from './recomendaciones';
 
 export interface CtfCategory extends PlanCategory {
@@ -45,6 +48,12 @@ export function addMonths(month: string, delta: number): string {
 /** 'Sep' para '2026-09'. */
 export function shortMonth(month: string): string {
   return SHORT[Number(month.split('-')[1]) - 1] ?? '';
+}
+
+/** "Septiembre", o "Septiembre 2025" si no es del año de `current`. */
+export function monthTitle(month: string, current: string): string {
+  const name = longMonth(month).replace(/^./, (c) => c.toUpperCase());
+  return month.slice(0, 4) === current.slice(0, 4) ? name : `${name} ${month.slice(0, 4)}`;
 }
 
 /** 'septiembre' para '2026-09'. */
@@ -420,4 +429,98 @@ export function merchantGroups(
 /** "1 vez" / "3 veces". */
 export function timesText(n: number): string {
   return n === 1 ? '1 vez' : `${n} veces`;
+}
+
+// ── Todo el mes de una vez ───────────────────────────
+
+export interface AnalyzeInput {
+  categories: CtfCategory[];
+  subs: PlanSubItem[];
+  incomes: PlanIncome[];
+  txs: CtfTx[];
+  /** Plan guardado al cerrar el mes, por categoría. */
+  snapshots: Record<string, number>;
+  earliest: string | null;
+}
+
+export interface MonthAnalysis {
+  month: string;
+  /** Hasta 6 meses terminando en `month`. */
+  series: MonthTotals[];
+  current: MonthTotals;
+  savedPct: number | null;
+  capKeyOf: Record<string, CapKey | null>;
+  spend: Record<string, CategorySpend>;
+  /** Plan del mes por categoría (el guardado al cerrar o el vigente). */
+  planOf: Record<string, number>;
+  kindOf: Record<string, ExpenseKind>;
+  recs: RecommendationResult;
+  highlights: { good: string[]; bad: string[] };
+  /** Plan vigente (el que se ajusta con "Aplicar a mi plan"). */
+  planItems: PlanItem[];
+  /** Ingresos del plan vigente (o los recibidos si el plan no tiene). */
+  planIncome: number;
+  /** Topes que el plan vigente pasa. */
+  planAlert: CapKey[];
+}
+
+export function analyzeMonth(
+  input: AnalyzeInput,
+  month: string,
+  caps: Record<CapKey, number>,
+  fmt: (n: number) => string,
+): MonthAnalysis {
+  const { categories, subs, incomes, txs, snapshots, earliest } = input;
+  const fixed = fixedResolver(categories, subs);
+  const capKeyOf = categoryCapKeys(categories);
+  const series = monthTotals(txs, chartMonths(month, earliest), categories, fixed.tx);
+  const current = series[series.length - 1];
+  const spend = spendByCategory(txs, month, categories, fixed.tx);
+  const groups = capGroups(spend, capKeyOf, subs, fixed.category, categories);
+  const recs = buildRecommendations(groups, current.income, caps, fmt);
+
+  const planOf: Record<string, number> = {};
+  const kindOf: Record<string, ExpenseKind> = {};
+  for (const c of categories) {
+    planOf[c.id] = c.id in snapshots ? snapshots[c.id] : round2(categoryPlan(c, subs));
+    const s = spend[c.id];
+    kindOf[c.id] = s && s.spent > 0
+      ? (s.fixedSpent * 2 >= s.spent ? 'fijo' : 'variable')
+      : (fixed.category(c.id) ? 'fijo' : 'variable');
+  }
+
+  // Historia por categoría: mes anterior y promedio de los 3 anteriores con datos.
+  const prevMonths = [1, 2, 3].map((i) => addMonths(month, -i));
+  const hasData = (m: string) => series.find((t) => t.month === m)?.hasData ?? false;
+  const prevSpend = prevMonths.map((m) => (hasData(m) ? spendByCategory(txs, m, categories, fixed.tx) : null));
+  const ids = new Set([...Object.keys(spend), ...prevSpend.flatMap((p) => (p ? Object.keys(p) : []))]);
+  const history: CategoryHistory[] = Array.from(ids).map((id) => {
+    const c = categories.find((x) => x.id === id)!;
+    const ofMonth = (p: Record<string, CategorySpend> | null) => (p ? p[id]?.spent ?? 0 : null);
+    return {
+      id, name: c.name, spent: spend[id]?.spent ?? 0,
+      prev: ofMonth(prevSpend[0]),
+      avg3: averageOf(prevSpend.map(ofMonth)),
+      plan: planOf[id] ?? 0,
+    };
+  });
+  const savedPct = savingsPct(current);
+  const then = series.find((t) => t.month !== month && t.income > 0);
+  const highlights = monthHighlights({
+    categories: history,
+    okCaps: recs.ok,
+    savingsNow: savedPct,
+    savingsThen: then ? { month: then.month, pct: savingsPct(then)! } : null,
+    prevMonth: prevMonths[0],
+    fmt,
+  });
+
+  const items = planItems(categories, subs, capKeyOf);
+  const planned = planSummary(categories.filter((c) => !c.archived_at), subs, incomes).income;
+  const planIncome = planned > 0 ? planned : current.income;
+  return {
+    month, series, current, savedPct, capKeyOf, spend, planOf, kindOf, recs, highlights,
+    planItems: items, planIncome,
+    planAlert: planOverCaps(planByCapKey(items), planIncome, caps),
+  };
 }
