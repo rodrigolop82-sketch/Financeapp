@@ -64,10 +64,11 @@ const METER_COLOR: Record<MeterTone, string> = {
 
 function CuentaContent() {
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<{ email: string; full_name: string; plan: string; trial_ends_at: string; show_decimals: boolean; currency: string } | null>(null);
+  const [user, setUser] = useState<{ email: string; full_name: string; plan: string; trial_ends_at: string; show_decimals: boolean; currency: string; marketing_opt_in?: boolean | null } | null>(null);
   const [subscription, setSubscription] = useState<{ plan: string; status: string; current_period_end: string } | null>(null);
   const [upgrading, setUpgrading] = useState(false);
   const [showDecimals, setShowDecimals] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [usage, setUsage] = useState<UsageInfo | null>(null);
   const [notifPrefs, setNotifPrefs] = useState({
@@ -105,6 +106,7 @@ function CuentaContent() {
 
       setUser(profile as typeof user);
       setShowDecimals(profile?.show_decimals ?? false);
+      setMarketingOptIn(profile?.marketing_opt_in === true);
       setSubscription(sub as typeof subscription);
       if (nPrefs) {
         setNotifPrefs({
@@ -152,6 +154,21 @@ function CuentaContent() {
       await supabase.from('users').update({ show_decimals: val }).eq('id', authUser.id);
     }
     showToast(val ? 'Mostrando centavos' : 'Sin centavos');
+  }
+
+  /** Consentimiento para el CSV de Mailchimp (Admin › Para reactivar). */
+  async function toggleMarketing(val: boolean) {
+    setMarketingOptIn(val);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const { error } = await supabase.from('users').update({ marketing_opt_in: val }).eq('id', authUser.id);
+      if (error) {
+        setMarketingOptIn(!val);
+        showToast('No pudimos guardar el cambio');
+        return;
+      }
+    }
+    showToast(val ? 'Te mandaremos consejos por correo' : 'Ya no te mandaremos correos');
   }
 
   async function changeCurrency(val: string) {
@@ -417,7 +434,6 @@ function CuentaContent() {
             emoji="✅"
             title="Cierre de mes"
             hint="Recordarme cerrar el mes"
-            last
             right={
               <Switch
                 checked={notifPrefs.month_close_enabled}
@@ -434,6 +450,13 @@ function CuentaContent() {
                 de cada mes
               </div>
             )}
+          />
+          <AccountRow
+            emoji="📬"
+            title="Recibir consejos y novedades por correo"
+            hint="Ideas para tu dinero y lo nuevo de Zafi. Sin spam."
+            last
+            right={<Switch checked={marketingOptIn} onChange={toggleMarketing} label="Recibir consejos y novedades por correo" />}
           />
         </AccountGroup>
 

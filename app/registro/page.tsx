@@ -25,6 +25,7 @@ function RegistroForm() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [emailSent, setEmailSent] = useState(false);
@@ -43,7 +44,8 @@ function RegistroForm() {
       email,
       password,
       options: {
-        data: { full_name: fullName },
+        // marketing_opt_in pasa a users.marketing_opt_in con un trigger (migración 20261011).
+        data: { full_name: fullName, marketing_opt_in: marketingOptIn },
         emailRedirectTo: `${window.location.origin}/auth/callback?next=${callbackNext}`,
       },
     });
@@ -172,6 +174,16 @@ function RegistroForm() {
                 required
               />
             </div>
+            <label htmlFor="marketing" className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm text-ink-700">
+              <input
+                id="marketing"
+                type="checkbox"
+                checked={marketingOptIn}
+                onChange={(e) => setMarketingOptIn(e.target.checked)}
+                className="mt-0.5 h-5 w-5 flex-none cursor-pointer rounded accent-electric"
+              />
+              <span>Recibir consejos y novedades por correo</span>
+            </label>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Creando cuenta...' : 'Crear cuenta gratis'}
             </Button>
