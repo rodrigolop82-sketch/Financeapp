@@ -125,11 +125,79 @@ const config: Config = {
           "0%": { opacity: "0" },
           "100%": { opacity: "1" },
         },
+        // ── Fase 9: movimiento ───────────────────
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(14px)" },
+          to: { opacity: "1", transform: "none" },
+        },
+        "fade-quick": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        pop: {
+          "0%": { transform: "scale(0.4)", opacity: "0" },
+          "60%": { transform: "scale(1.12)", opacity: "1" },
+          "100%": { transform: "scale(1)", opacity: "1" },
+        },
+        draw: {
+          to: { strokeDashoffset: "0" },
+        },
+        ring: {
+          "0%": { transform: "scale(0.8)", opacity: "0.6" },
+          "100%": { transform: "scale(1.9)", opacity: "0" },
+        },
+        shimmer: {
+          from: { backgroundPosition: "200% 0" },
+          to: { backgroundPosition: "-200% 0" },
+        },
+        "bounce-tab": {
+          "0%": { transform: "scale(1)" },
+          "35%": { transform: "scale(0.82)" },
+          "70%": { transform: "scale(1.15)" },
+          "100%": { transform: "scale(1)" },
+        },
+        // Fila nueva: entra deslizando hacia abajo y su fondo pasa de #DBEAFE al de la tarjeta.
+        "row-in": {
+          from: { opacity: "0", transform: "translateY(-16px) scale(0.98)" },
+          to: { opacity: "1", transform: "none" },
+        },
+        "row-flash": {
+          "0%, 40%": { backgroundColor: "#DBEAFE" },
+          "100%": { backgroundColor: "var(--zafi-card)" },
+        },
+        confetti: {
+          "0%": { transform: "translate(0,0) rotate(0)", opacity: "1" },
+          "85%": { opacity: "1" },
+          "100%": { transform: "translate(var(--dx), 640px) rotate(var(--r))", opacity: "0" },
+        },
+        breath: {
+          "0%, 100%": { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(96,165,250,0.35)" },
+          "50%": { transform: "scale(1.05)", boxShadow: "0 0 0 18px rgba(96,165,250,0)" },
+        },
+        dot: {
+          "0%, 80%, 100%": { opacity: "0.25", transform: "scale(0.8)" },
+          "40%": { opacity: "1", transform: "scale(1)" },
+        },
       },
       animation: {
         "score-fill": "score-fill 1.5s ease-out forwards",
         "fade-in": "fade-in 0.5s ease-out forwards",
         "count-up": "count-up 0.3s ease-out forwards",
+        "fade-up": "fade-up .45s cubic-bezier(.2,.8,.2,1) both",
+        "fade-quick": "fade-quick .15s ease-out both",
+        pop: "pop .5s cubic-bezier(.3,1.4,.5,1) both",
+        draw: "draw .35s ease-out forwards",
+        ring: "ring .9s ease-out both",
+        shimmer: "shimmer 1.3s linear infinite",
+        "bounce-tab": "bounce-tab .45s cubic-bezier(.3,1.5,.5,1)",
+        "row-in": "row-in .64s cubic-bezier(.2,.8,.2,1) .2s both",
+        "row-flash": "row-flash 1.6s ease-out",
+        confetti: "confetti 2s cubic-bezier(.2,.6,.4,1) both",
+        breath: "breath 1.6s ease-in-out .5s infinite",
+        dot: "dot 1s ease-in-out infinite",
+      },
+      transitionTimingFunction: {
+        spring: "cubic-bezier(.3,1.5,.5,1)",
       },
     },
   },

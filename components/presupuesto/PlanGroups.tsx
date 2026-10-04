@@ -84,7 +84,7 @@ function Bar({ status, height, className = '' }: { status: RowStatus; height: nu
 function PlanRow({ row, last }: { row: PlanRowVM; last: boolean }) {
   const hasParts = !!row.parts;
   return (
-    <div className={`flex flex-col ${last ? '' : `border-b ${DIVIDER}`} ${row.flash ? 'zafi-row-flash' : ''}`}>
+    <div className={`flex flex-col ${last ? '' : `border-b ${DIVIDER}`} ${row.flash ? 'animate-row-flash' : ''}`}>
       <button
         type="button"
         onClick={row.onClick}

@@ -162,7 +162,7 @@
     @apply inline-flex items-center justify-center gap-2
            bg-electric text-white font-sans font-semibold text-body-sm
            px-5 py-3 rounded-full
-           hover:bg-electric-dark active:scale-[0.98]
+           hover:bg-electric-dark active:scale-[0.96]
            transition-all duration-150
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
@@ -170,21 +170,21 @@
     @apply inline-flex items-center justify-center gap-2
            bg-navy text-white font-sans font-semibold text-body-sm
            px-5 py-3 rounded-full
-           hover:bg-navy-light active:scale-[0.98]
+           hover:bg-navy-light active:scale-[0.96]
            transition-all duration-150;
   }
   .btn-outline {
     @apply inline-flex items-center justify-center gap-2
            border-[1.5px] border-electric text-electric font-sans font-semibold text-body-sm
            px-5 py-3 rounded-full
-           hover:bg-electric/5 active:scale-[0.98]
+           hover:bg-electric/5 active:scale-[0.96]
            transition-all duration-150;
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2
            text-navy/60 font-sans font-medium text-body-sm
            px-4 py-2.5 rounded-full
-           hover:bg-navy/5 active:scale-[0.98]
+           hover:bg-navy/5 active:scale-[0.96]
            transition-all duration-150;
   }
 
@@ -233,9 +233,77 @@
   }
 }
 
-/* ── FILA NUEVA O RECIÉN EDITADA ─────────── */
-@keyframes zafi-row-flash {
-  from { background-color: #DBEAFE; }
-  to   { background-color: var(--zafi-card); }
+/* ── MOVIMIENTO (Fase 9) ─────────────────── */
+
+/* Siluetas: bloque con brillo que recorre. */
+:root {
+  --zafi-skel-base: #E2E8F0;
+  --zafi-skel-hi: #F1F5F9;
 }
-.zafi-row-flash { animation: zafi-row-flash 1.6s ease-out; }
+.dark {
+  --zafi-skel-base: rgba(255,255,255,0.06);
+  --zafi-skel-hi: rgba(255,255,255,0.14);
+}
+.zafi-skel {
+  background: linear-gradient(90deg, var(--zafi-skel-base) 0%, var(--zafi-skel-hi) 50%, var(--zafi-skel-base) 100%);
+  background-size: 200% 100%;
+}
+.zafi-skel-dark {
+  --zafi-skel-base: rgba(255,255,255,0.06);
+  --zafi-skel-hi: rgba(255,255,255,0.14);
+  /* El borde del botón + de la barra se funde con el fondo oscuro. */
+  --zafi-bg: #0D1F36;
+}
+
+/* Contenido que llega: cada bloque hijo entra escalonado (60 ms). */
+.zafi-stagger > * { animation: fade-up .45s cubic-bezier(.2,.8,.2,1) both; }
+.zafi-stagger > :nth-child(2) { animation-delay: 60ms; }
+.zafi-stagger > :nth-child(3) { animation-delay: 120ms; }
+.zafi-stagger > :nth-child(4) { animation-delay: 180ms; }
+.zafi-stagger > :nth-child(5) { animation-delay: 240ms; }
+.zafi-stagger > :nth-child(6) { animation-delay: 300ms; }
+.zafi-stagger > :nth-child(7) { animation-delay: 360ms; }
+.zafi-stagger > :nth-child(n+8) { animation-delay: 420ms; }
+
+/* El splash ya se vio en esta sesión (o la ruta no lo lleva): no se pinta. */
+html[data-splash="off"] .zafi-splash { display: none; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes zafi-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Reducir movimiento: sin confeti, rebotes ni escalas; solo fundidos de 150 ms. */
+@media (prefers-reduced-motion: reduce) {
+  *:active {
+    --tw-scale-x: 1 !important;
+    --tw-scale-y: 1 !important;
+    --tw-rotate: 0deg !important;
+  }
+  .animate-bounce-tab,
+  .animate-ring,
+  .animate-breath,
+  .animate-dot,
+  .animate-shimmer,
+  .animate-row-flash {
+    animation: none !important;
+  }
+  /* Va después: una fila nueva (row-in + row-flash) se funde. */
+  .zafi-stagger > *,
+  .animate-fade-up,
+  .animate-pop,
+  .animate-row-in,
+  .animate-fade-in,
+  .animate-in {
+    animation: zafi-fade .15s ease-out both !important;
+  }
+  .animate-draw {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  .animate-confetti { display: none !important; }
+}
