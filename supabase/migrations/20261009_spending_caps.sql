@@ -55,6 +55,18 @@ ALTER TABLE budget_categories DROP CONSTRAINT IF EXISTS budget_categories_cap_ke
 ALTER TABLE budget_categories ADD CONSTRAINT budget_categories_cap_key_check
   CHECK (cap_key IS NULL OR cap_key IN ('vivienda', 'carro', 'comida', 'gustos', 'deudas', 'suscripciones'));
 
+-- El trigger trg_validate_custom_category (20260915) rechaza cualquier UPDATE
+-- de categorías no predeterminadas sin grupo padre (las de hogares creados
+-- antes de las categorías personalizadas). Solo llenamos cap_key: se apaga
+-- durante el relleno y se vuelve a encender al final.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_validate_custom_category'
+             AND tgrelid = 'public.budget_categories'::regclass) THEN
+    ALTER TABLE budget_categories DISABLE TRIGGER trg_validate_custom_category;
+  END IF;
+END $$;
+
 -- 1. Por nombre (solo las que aún no tienen tope).
 UPDATE budget_categories AS bc
 SET cap_key = m.cap_key
@@ -91,5 +103,13 @@ BEGIN
       AND child.cap_key IS NULL
       AND parent.cap_key IS NOT NULL
       AND child.bucket IN ('needs', 'wants');
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_validate_custom_category'
+             AND tgrelid = 'public.budget_categories'::regclass) THEN
+    ALTER TABLE budget_categories ENABLE TRIGGER trg_validate_custom_category;
   END IF;
 END $$;
