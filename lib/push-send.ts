@@ -1,11 +1,17 @@
 import webpush from 'web-push'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { DAILY_LIMIT_MS, countsTowardDailyLimit, type NotificationType } from '@/lib/avisos'
 
-if (process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+/** Sin llaves VAPID no se manda nada (se registra un aviso en el log del servidor). */
+export function pushConfigured(): boolean {
+  return !!(process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
+}
+
+if (pushConfigured()) {
   webpush.setVapidDetails(
     process.env.VAPID_SUBJECT || 'mailto:notificaciones@zafiapp.com',
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY,
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!,
   )
 }
 
@@ -13,21 +19,35 @@ function getServiceSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
   )
 }
 
-interface PushPayload {
+export interface PushPayload {
   title: string
   body: string
+  /** Pantalla que abre al tocar (public/sw.js → notificationclick). */
   url?: string
   tag?: string
+  /** Clave para no repetir el mismo aviso (se guarda en notification_log.payload). */
+  key?: string
 }
 
+/**
+ * Manda el push a todos los teléfonos del usuario y lo anota en
+ * notification_log. Devuelve a cuántos llegó (0 sin llaves VAPID o sin
+ * suscripciones). No aplica el límite diario: eso lo decide quien llama
+ * (lib/avisos.ts pickAviso / usersNotifiedToday).
+ */
 export async function sendPushToUser(
   userId: string,
   payload: PushPayload,
-  notificationType: 'inactivity' | 'month_close' | 'month_start',
+  notificationType: NotificationType,
 ): Promise<number> {
+  if (!pushConfigured()) {
+    console.warn('[push] Faltan las llaves VAPID: no se envió el aviso', notificationType)
+    return 0
+  }
   const supabase = getServiceSupabase()
 
   const { data: subs } = await supabase
@@ -58,31 +78,38 @@ export async function sendPushToUser(
   }
 
   if (sent > 0) {
-    await supabase.from('notification_log').insert({
+    const { error } = await supabase.from('notification_log').insert({
       user_id: userId,
       type: notificationType,
       payload: payload as unknown as Record<string, unknown>,
     })
+    if (error) console.warn('[push] No se pudo anotar en notification_log', error.message)
   }
 
   return sent
 }
 
-export async function wasNotifiedRecently(
-  userId: string,
-  type: 'inactivity' | 'month_close' | 'month_start',
-  withinMs: number,
-): Promise<boolean> {
-  const supabase = getServiceSupabase()
-  const since = new Date(Date.now() - withinMs).toISOString()
-
-  const { data } = await supabase
+/**
+ * Máximo 1 aviso por usuario por día (regla compartida por el cron y por
+ * Admin › Para reactivar): de `userIds`, quiénes ya recibieron un aviso que
+ * cuenta en las últimas 24 h. Si notification_log no existe, nadie.
+ */
+export async function usersNotifiedToday(
+  supabase: SupabaseClient,
+  userIds: string[],
+  nowMs = Date.now(),
+): Promise<Set<string>> {
+  if (userIds.length === 0) return new Set()
+  const since = new Date(nowMs - DAILY_LIMIT_MS).toISOString()
+  const { data, error } = await supabase
     .from('notification_log')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('type', type)
+    .select('user_id, type')
+    .in('user_id', userIds)
     .gte('sent_at', since)
-    .limit(1)
-
-  return (data?.length ?? 0) > 0
+  if (error) console.warn('[push] No se pudo leer notification_log', error.message)
+  return new Set(
+    ((data ?? []) as { user_id: string; type: string }[])
+      .filter((r) => countsTowardDailyLimit(r.type))
+      .map((r) => r.user_id),
+  )
 }

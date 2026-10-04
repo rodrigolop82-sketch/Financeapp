@@ -115,6 +115,4 @@ export async function loadTxs(admin: SupabaseClient): Promise<AdminTx[]> {
   return rows.map((t) => ({ householdId: t.household_id, createdAt: t.created_at, type: t.type, source: t.source }));
 }
 
-export function pushConfigured(): boolean {
-  return !!(process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
-}
+export { pushConfigured } from '@/lib/push-send';

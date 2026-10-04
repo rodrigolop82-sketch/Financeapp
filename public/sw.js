@@ -70,32 +70,51 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   if (!event.data) return
 
-  const data = event.data.json()
+  let data = {}
+  try {
+    data = event.data.json()
+  } catch {
+    data = { body: event.data.text() }
+  }
   const title = data.title || 'Zafi'
   const options = {
     body: data.body || '',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     tag: data.tag || 'zafi-notification',
+    // Pantalla relacionada: la abre notificationclick.
     data: { url: data.url || '/dashboard' },
   }
 
   event.waitUntil(self.registration.showNotification(title, options))
 })
 
+// Tocar el aviso abre su pantalla (data.url, siempre del mismo origen):
+// si Zafi ya está abierta, la enfoca y navega; si no, abre una ventana.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const url = event.notification.data?.url || '/dashboard'
+  let target = new URL('/dashboard', self.location.origin)
+  try {
+    const candidate = new URL(event.notification.data?.url || '/dashboard', self.location.origin)
+    if (candidate.origin === self.location.origin) target = candidate
+  } catch {
+    // URL inválida: Inicio.
+  }
 
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      for (const client of clients) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(url)
-          return client.focus()
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    for (const client of windows) {
+      if (new URL(client.url).origin !== self.location.origin) continue
+      try {
+        const focused = 'focus' in client ? await client.focus() : client
+        if ('navigate' in focused) {
+          const navigated = await focused.navigate(target.href)
+          if (navigated) return
         }
+      } catch {
+        // Ventana no controlada por el SW: se abre una nueva abajo.
       }
-      return self.clients.openWindow(url)
-    })
-  )
+    }
+    await self.clients.openWindow(target.href)
+  })())
 })

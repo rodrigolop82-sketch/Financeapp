@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pushConfigured, requireAdmin } from '@/lib/admin/server';
 import { REMINDER_PAYLOAD, parseReminderIds, type ReminderSummary } from '@/lib/admin/access';
-import { sendPushToUser } from '@/lib/push-send';
+import { sendPushToUser, usersNotifiedToday } from '@/lib/push-send';
 
 export const dynamic = 'force-dynamic';
-
-const DAY_MS = 86_400_000;
 
 /**
  * POST /api/admin/recordatorio { userIds: string[] } — push de "vuelve a
  * Zafi" a los seleccionados (máx. 50 por llamada). Respeta 1 aviso al día:
- * si la persona ya recibió cualquier aviso en las últimas 24 h, se salta.
- * Sin llaves VAPID responde 503. Solo admins. (La fase 13 rehará el envío.)
+ * si la persona ya recibió un aviso en las últimas 24 h (la misma regla del
+ * cron, lib/push-send usersNotifiedToday), se salta. Sin llaves VAPID
+ * responde 503. Solo admins.
  */
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin();
@@ -29,14 +28,7 @@ export async function POST(req: NextRequest) {
   const ids = (existing ?? []).map((u: { id: string }) => u.id);
 
   // 1 aviso por día: quién ya recibió algo en las últimas 24 h.
-  const since = new Date(Date.now() - DAY_MS).toISOString();
-  const { data: recent, error: logError } = await admin
-    .from('notification_log')
-    .select('user_id')
-    .in('user_id', ids)
-    .gte('sent_at', since);
-  if (logError) console.warn('[admin] No se pudo leer notification_log', logError.message);
-  const notifiedToday = new Set((recent ?? []).map((r: { user_id: string }) => r.user_id));
+  const notifiedToday = await usersNotifiedToday(admin, ids);
 
   const summary: ReminderSummary = { sent: 0, alreadyToday: 0, noDevice: 0 };
   for (const id of ids) {

@@ -1,174 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { sendPushToUser, wasNotifiedRecently } from '@/lib/push-send'
-import { getMonthCloseChecklist, getPreviousYearMonth } from '@/lib/month-close'
+import { pushConfigured, sendPushToUser } from '@/lib/push-send'
+import { buildCandidates, pickAviso, type AvisoKind } from '@/lib/avisos'
+import { loadUserAvisoContext, usersWithDevices } from '@/lib/avisos-data'
+import { localToday } from '@/lib/dates'
+import { formatMoney } from '@/lib/format'
 
-const CRON_SECRET = process.env.CRON_SECRET
-
-function getServiceSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  )
-}
-
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const supabase = getServiceSupabase()
-  const results = { inactivity: 0, monthClose: 0, monthStart: 0 }
-
-  const { data: prefs } = await supabase
-    .from('notification_preferences')
-    .select('user_id, inactivity_enabled, inactivity_threshold_days, month_close_enabled, month_close_day')
-
-  if (!prefs || prefs.length === 0) {
-    return NextResponse.json({ message: 'No preferences found', results })
-  }
-
-  const today = new Date()
-  const dayOfMonth = today.getDate()
-
-  for (const pref of prefs) {
-    // --- Inicio de mes: el día 1 (el cron corre a las 8:00 de Guatemala) ---
-    if (dayOfMonth === 1 && await sendMonthStartReminder(supabase, pref.user_id, today)) {
-      results.monthStart++
-    }
-
-    // --- Inactivity check ---
-    if (pref.inactivity_enabled) {
-      const alreadyNotified = await wasNotifiedRecently(
-        pref.user_id,
-        'inactivity',
-        7 * 24 * 60 * 60 * 1000,
-      )
-
-      if (!alreadyNotified) {
-        const thresholdDays = pref.inactivity_threshold_days || 5
-        const cutoff = new Date(Date.now() - thresholdDays * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0]
-
-        const { data: members } = await supabase
-          .from('household_members')
-          .select('household_id')
-          .eq('user_id', pref.user_id)
-          .limit(1)
-
-        const householdId = members?.[0]?.household_id
-        if (householdId) {
-          const { count } = await supabase
-            .from('transactions')
-            .select('id', { count: 'exact', head: true })
-            .eq('household_id', householdId)
-            .gte('date', cutoff)
-
-          if ((count ?? 0) === 0) {
-            await sendPushToUser(
-              pref.user_id,
-              {
-                title: '¿Todo bien? 👀',
-                body: `Llevas ${thresholdDays} días sin registrar gastos. Un registro rápido mantiene tu plan al día.`,
-                url: '/dashboard',
-                tag: 'inactivity',
-              },
-              'inactivity',
-            )
-            results.inactivity++
-          }
-        }
-      }
-    }
-
-    // --- Month close check ---
-    if (pref.month_close_enabled && dayOfMonth === (pref.month_close_day || 2)) {
-      const alreadyNotified = await wasNotifiedRecently(
-        pref.user_id,
-        'month_close',
-        25 * 24 * 60 * 60 * 1000,
-      )
-
-      if (!alreadyNotified) {
-        const { data: members } = await supabase
-          .from('household_members')
-          .select('household_id')
-          .eq('user_id', pref.user_id)
-          .limit(1)
-
-        const householdId = members?.[0]?.household_id
-        if (householdId) {
-          const yearMonth = getPreviousYearMonth()
-          const checklist = await getMonthCloseChecklist(pref.user_id, householdId, yearMonth)
-
-          if (!checklist.isFullyClosed) {
-            const pending = checklist.totalCount - checklist.completedCount
-            const body = pending === 1
-              ? `Te falta 1 elemento por cerrar del mes pasado.`
-              : `Te faltan ${pending} elementos por cerrar del mes pasado.`
-
-            await sendPushToUser(
-              pref.user_id,
-              {
-                title: 'Cierre de mes pendiente 📋',
-                body,
-                url: '/cierre-mes',
-                tag: 'month-close',
-              },
-              'month_close',
-            )
-            results.monthClose++
-          }
-        }
-      }
-    }
-  }
-
-  return NextResponse.json({ message: 'Notifications processed', results })
-}
-
-const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+export const dynamic = 'force-dynamic'
 
 /**
- * "Empieza {mes}: confirma tu salario y aparta tus fijos." Solo a quien ya
- * hizo un inicio de mes con "Recordarme cada día 1" encendido y todavía no
- * hizo el de este mes. La hoja abre con lo del mes anterior ya marcado.
+ * Cron diario (vercel.json, 8:00 de Guatemala). Para cada usuario con un
+ * teléfono suscrito junta sus datos y manda como mucho UN aviso, el de mayor
+ * prioridad: vencimiento > tope > cierre > inactividad > ingreso
+ * (lib/avisos.ts decide; aquí solo se juntan datos y se envía).
+ * Sin CRON_SECRET en producción no corre; sin llaves VAPID no envía nada.
  */
-async function sendMonthStartReminder(
-  supabase: ReturnType<typeof getServiceSupabase>,
-  userId: string,
-  today: Date,
-): Promise<boolean> {
-  const { data: members } = await supabase
-    .from('household_members')
-    .select('household_id')
-    .eq('user_id', userId)
-    .limit(1)
-  const householdId = members?.[0]?.household_id
-  if (!householdId) return false
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET
+  if (secret) {
+    if (req.headers.get('authorization') !== `Bearer ${secret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    console.warn('[cron/notifications] Falta CRON_SECRET: no se envían avisos')
+    return NextResponse.json({ error: 'Falta configurar CRON_SECRET' }, { status: 503 })
+  }
+  if (!pushConfigured()) {
+    console.warn('[cron/notifications] Faltan las llaves VAPID: no se envían avisos')
+    return NextResponse.json({ message: 'Avisos push sin configurar', sent: 0 })
+  }
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!key) {
+    console.error('[cron/notifications] Falta SUPABASE_SERVICE_ROLE_KEY')
+    return NextResponse.json({ error: 'Falta configurar el servidor' }, { status: 503 })
+  }
+  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
 
-  const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
-  const { data: starts, error } = await supabase
-    .from('month_starts')
-    .select('year_month, remind_monthly')
-    .eq('household_id', householdId)
-    .order('year_month', { ascending: false })
-    .limit(1)
-  const last = starts?.[0]
-  if (error || !last || !last.remind_monthly || last.year_month === yearMonth) return false
-  if (await wasNotifiedRecently(userId, 'month_start', 20 * 24 * 60 * 60 * 1000)) return false
+  const nowMs = Date.now()
+  const today = localToday()
+  const fmt = (n: number) => formatMoney(n)
+  const results: Record<AvisoKind | 'skippedToday' | 'nothing' | 'noDevice', number> = {
+    due: 0, cap: 0, month_end: 0, month_start: 0, inactivity: 0, income: 0, skippedToday: 0, nothing: 0, noDevice: 0,
+  }
 
-  const sent = await sendPushToUser(
-    userId,
-    {
-      title: `Empieza ${MONTHS[today.getMonth()]} 🗓️`,
-      body: `Empieza ${MONTHS[today.getMonth()]}: confirma tu salario y aparta tus fijos.`,
-      url: '/dashboard?inicio_mes=1',
-      tag: 'month-start',
-    },
-    'month_start',
-  )
-  return sent > 0
+  for (const userId of await usersWithDevices(admin)) {
+    try {
+      const ctx = await loadUserAvisoContext(admin, userId, today, nowMs)
+      if (!ctx) { results.nothing++; continue }
+      const candidates = buildCandidates(ctx.data, ctx.prefs, fmt)
+      const aviso = pickAviso(candidates, ctx.prefs, ctx.log, nowMs)
+      if (!aviso) {
+        if (candidates.length > 0) results.skippedToday++
+        else results.nothing++
+        continue
+      }
+      const sent = await sendPushToUser(
+        userId,
+        { title: aviso.title, body: aviso.body, url: aviso.url, tag: aviso.tag, key: aviso.key },
+        aviso.kind,
+      )
+      if (sent > 0) results[aviso.kind]++
+      else results.noDevice++
+    } catch (err) {
+      console.error('[cron/notifications] Error con un usuario', err)
+    }
+  }
+
+  return NextResponse.json({ message: 'Notifications processed', today, results })
 }
