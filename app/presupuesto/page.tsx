@@ -27,6 +27,10 @@ import { EditPlanSheet, type EditPlanTarget, type PlanDraft } from '@/components
 import { daysLeftInMonth, isCounted, totalCountedIncome } from '@/lib/inicio-de-mes';
 import { MonthStartNotice } from '@/components/inicio-de-mes/MonthStartNotice';
 import { useMonthStart } from '@/components/inicio-de-mes/useMonthStart';
+import { planItems } from '@/lib/como-te-fue';
+import {
+  capListText, categoryCapKeys, planByCapKey, planOverCaps, resolveCaps, type CapKey,
+} from '@/lib/recomendaciones';
 import type { BudgetCategory, BudgetSubItem, IncomeEntry } from '@/types';
 import { PageSkeleton } from '@/components/motion/PageSkeleton';
 
@@ -105,6 +109,9 @@ function PlanDelMes() {
   const [message, setMessage] = useState<StatusMessage | null>(null);
   const [flashKey, setFlashKey] = useState<string | null>(null);
   const [confirmingIncome, setConfirmingIncome] = useState(false);
+  const [caps, setCaps] = useState<Record<CapKey, number>>(resolveCaps(null));
+  // La alerta de topes aparece al guardar un cambio del plan.
+  const [capAlertArmed, setCapAlertArmed] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
@@ -115,7 +122,7 @@ function PlanDelMes() {
     const hid = hh.id as string;
     const from = monthRange(prevMonth).from;
     const to = monthRange(month).to;
-    const [{ data: cats }, { data: subs }, { data: entries }, txRes] = await Promise.all([
+    const [{ data: cats }, { data: subs }, { data: entries }, txRes, capsRes] = await Promise.all([
       supabase.from('budget_categories').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
       supabase.from('budget_sub_items').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
       supabase.from('income_entries').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
@@ -125,7 +132,10 @@ function PlanDelMes() {
         .eq('household_id', hid)
         .gte('date', from)
         .lte('date', to),
+      // Sin la migración de topes falla y se usan los recomendados.
+      supabase.from('spending_caps').select('cap_key, pct').eq('household_id', hid),
     ]);
+    setCaps(resolveCaps(capsRes.error ? null : capsRes.data));
     let monthTx = txRes.data as MonthTx[] | null;
     // Sin la migración del Plan del mes no existe budget_sub_item_id: se carga sin partes.
     if (txRes.error) {
@@ -198,6 +208,12 @@ function PlanDelMes() {
     income: countedIncomeTotal,
     unassigned: Math.round((countedIncomeTotal - baseSummary.assigned) * 100) / 100,
   };
+  // Topes de "Cómo te fue" que este plan pasa (mismo motor que /resumen).
+  const capAlert = useMemo(() => {
+    const items = planItems(categories, subItems, categoryCapKeys(categories));
+    return planOverCaps(planByCapKey(items), baseSummary.income, caps);
+  }, [categories, subItems, baseSummary.income, caps]);
+
   const reservedLeaf = (id: string, day: number | null) =>
     monthStart.done && isCounted(monthStart.choices, 'expense', id) ? { day } : undefined;
 
@@ -286,6 +302,7 @@ function PlanDelMes() {
 
   async function finish(title: string, run: Undo['run'] | null, flashOn?: string) {
     await load();
+    setCapAlertArmed(true);
     setSheet(null);
     if (flashOn) flash(flashOn);
     if (run) setUndo({ title, run });
@@ -680,6 +697,16 @@ function PlanDelMes() {
             fmt={fmt}
             onSendToCushion={cushion ? () => void guarded(sendToCushion) : undefined}
           />
+
+          {capAlertArmed && capAlert.length > 0 && (
+            <div role="note" className="mt-3 flex items-start gap-2.5 rounded-[14px] bg-warning-light px-3.5 py-3 dark:bg-warning/15">
+              <span aria-hidden className="text-lg leading-none">⚠️</span>
+              <span className="text-[13.5px] leading-[1.4] text-warning-text [text-wrap:pretty] dark:text-warning">
+                <b>Tu plan de {monthName0}</b> pasa tus topes en {capListText(capAlert)}.{' '}
+                <Link href="/resumen" className="font-semibold underline">Ver en Cómo te fue</Link>
+              </span>
+            </div>
+          )}
 
           {monthStart.loaded && (
             <MonthStartNotice
