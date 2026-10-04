@@ -110,13 +110,13 @@ export function MonthStartSheet({
         <span className="eyebrow">Inicio de mes</span>
         <h2 tabIndex={-1} className={`font-serif text-[26px] leading-tight outline-none ${TEXT_STRONG}`}>{title}</h2>
         <p className={`text-sm leading-[1.45] [text-wrap:pretty] ${TEXT_MUTED}`}>
-          Confirma lo que te entra y aparta lo que pagas cada mes. Así lo que ves como disponible es real, aunque algo llegue o se pague hasta fin de mes.
+          Confirma tus ingresos y aparta lo que pagas cada mes. Así lo que ves como disponible es real, aunque algo llegue o se pague hasta fin de mes.
         </p>
       </div>
 
       {incomes.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h3 className={`px-0.5 text-[13px] font-bold ${TEXT_BODY}`}>Lo que te entra</h3>
+          <h3 className={`px-0.5 text-[13px] font-bold ${TEXT_BODY}`}>Tus ingresos</h3>
           <div className={`overflow-hidden rounded-2xl border ${BORDER}`}>
             {incomes.map((r, i) => {
               const got = r.amount > 0 && r.received >= r.amount;

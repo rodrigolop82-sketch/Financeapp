@@ -155,8 +155,8 @@ export function stackedWidths(s: Pick<PlanSummary, 'income' | 'needs' | 'wants' 
 
 export function unassignedCopy(unassigned: number): { label: string; hint: string } {
   if (unassigned > 0) return { label: 'Sin asignar', hint: 'Dale un destino antes de que se vaya en gastos sueltos.' };
-  if (unassigned === 0) return { label: 'Todo tiene a dónde ir', hint: 'Cada quetzal que te entra ya tiene un trabajo.' };
-  return { label: 'Planeaste de más', hint: 'Tu plan pide más de lo que te entra. Baja alguna categoría.' };
+  if (unassigned === 0) return { label: 'Todo tiene a dónde ir', hint: 'Cada quetzal de tus ingresos ya tiene un trabajo.' };
+  return { label: 'Planeaste de más', hint: 'Tu plan pide más de tus ingresos. Baja alguna categoría.' };
 }
 
 export type Tone = 'muted' | 'danger' | 'warning';
@@ -306,8 +306,8 @@ export function impactText(newUnassigned: number, isIncome: boolean, fmt: (n: nu
   if (newUnassigned > 0) return `Te quedarían ${fmt(newUnassigned)} sin asignar`;
   if (newUnassigned === 0) return 'Todo tu dinero queda asignado';
   return isIncome
-    ? `Tu plan pediría ${fmt(-newUnassigned)} más de lo que te entra`
-    : `Te pasarías ${fmt(-newUnassigned)} de lo que te entra`;
+    ? `Tu plan pediría ${fmt(-newUnassigned)} más de tus ingresos`
+    : `Te pasarías ${fmt(-newUnassigned)} de tus ingresos`;
 }
 
 /** Categoría de ingreso de cada ingreso del plan (la suya o la inferida). */

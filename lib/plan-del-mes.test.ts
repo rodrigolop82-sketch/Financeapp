@@ -98,7 +98,7 @@ describe('unassignedCopy', () => {
   it('tres casos', () => {
     expect(unassignedCopy(10).label).toBe('Sin asignar');
     expect(unassignedCopy(0).label).toBe('Todo tiene a dónde ir');
-    expect(unassignedCopy(-1).hint).toBe('Tu plan pide más de lo que te entra. Baja alguna categoría.');
+    expect(unassignedCopy(-1).hint).toBe('Tu plan pide más de tus ingresos. Baja alguna categoría.');
   });
 });
 
@@ -182,8 +182,8 @@ describe('textos', () => {
   it('impacto en vivo', () => {
     expect(impactText(875, false, fmt)).toBe('Te quedarían Q 875 sin asignar');
     expect(impactText(0, false, fmt)).toBe('Todo tu dinero queda asignado');
-    expect(impactText(-50, false, fmt)).toBe('Te pasarías Q 50 de lo que te entra');
-    expect(impactText(-50, true, fmt)).toBe('Tu plan pediría Q 50 más de lo que te entra');
+    expect(impactText(-50, false, fmt)).toBe('Te pasarías Q 50 de tus ingresos');
+    expect(impactText(-50, true, fmt)).toBe('Tu plan pediría Q 50 más de tus ingresos');
   });
   it('meses', () => {
     expect(monthName('2026-10')).toBe('octubre');

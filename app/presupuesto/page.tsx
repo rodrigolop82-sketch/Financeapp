@@ -190,7 +190,7 @@ function PlanDelMes() {
     onSaved: (text) => { void load(); setMessage({ text, tone: 'ok' }); },
     onError: (text) => setMessage({ text, tone: 'error' }),
   });
-  // "Te entra al mes" cuenta solo los ingresos con los que cuentas este mes.
+  // "Ingresos del mes" cuenta solo los ingresos con los que cuentas este mes.
   const countedIncomeTotal = totalCountedIncome(incomes, derived.received, monthStart.choices);
   const summary = {
     ...baseSummary,
@@ -539,7 +539,7 @@ function PlanDelMes() {
   const incomeGroup: PlanGroupVM = {
     key: 'income',
     title: 'Ingresos',
-    hint: 'lo que te entra',
+    hint: 'tus ingresos',
     total: fmt(summary.income),
     onAdd: () => openSheet({ kind: 'income', id: null }),
     addLabel: '+ Agregar ingreso',

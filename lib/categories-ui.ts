@@ -35,7 +35,7 @@ export const BUCKET_GROUPS: { bucket: Bucket; title: string; hint: string }[] = 
   { bucket: 'needs', title: 'Lo básico', hint: 'lo que no puedes dejar de pagar' },
   { bucket: 'wants', title: 'Gustos', hint: 'lo que podrías recortar' },
   { bucket: 'savings', title: 'Ahorro y deudas', hint: 'lo que guardas o adelantas' },
-  { bucket: 'income', title: 'Ingresos', hint: 'dinero que te entró' },
+  { bucket: 'income', title: 'Ingresos', hint: 'dinero que recibiste' },
 ];
 
 export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'cheque';

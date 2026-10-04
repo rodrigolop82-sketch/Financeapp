@@ -28,7 +28,7 @@ export function PlanSummaryCard({ summary, fmt, onSendToCushion }: PlanSummaryCa
       style={{ background: 'var(--zafi-hero)', padding: '20px 22px' }}
     >
       <div className="flex justify-between text-sm text-[#CBD8E8]">
-        <span>Te entra al mes</span>
+        <span>Ingresos del mes</span>
         <span className="font-outfit font-bold text-white">{fmt(summary.income)}</span>
       </div>
       <span className="mt-2 text-[15px] text-[#CBD8E8]">{copy.label}</span>

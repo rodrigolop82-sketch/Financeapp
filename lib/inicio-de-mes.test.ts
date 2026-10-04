@@ -72,7 +72,7 @@ describe('criterios de aceptación', () => {
     expect(r.reserved).toBe(281);
   });
 
-  it('apagar la 2da quincena sin recibir: te entran Q 4,850', () => {
+  it('apagar la 2da quincena sin recibir: recibes Q 4,850', () => {
     const incomes: PlanIncome[] = [
       { id: 'q1', source: 'Q1', amount: 4250, frequency: 'mensual', is_fixed: true },
       { id: 'q2', source: 'Q2', amount: 4250, frequency: 'mensual', is_fixed: true },
