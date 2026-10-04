@@ -54,13 +54,27 @@ function RowContent({ row, amountClassName = '' }: { row: SwipeRowData; amountCl
 }
 
 /** Fila sin swipe (por ejemplo "Lo último" en Inicio): un toque abre el detalle. */
-export function TxRow({ row, flash, onSelect }: { row: SwipeRowData; flash?: boolean; onSelect: () => void }) {
+/** `flash`: true resalta el fondo; 'new' además entra deslizando hacia abajo. */
+export type RowFlash = boolean | 'new';
+
+function flashClasses(flash: RowFlash | undefined): { outer: string; inner: string } {
+  return {
+    outer: flash === 'new' ? 'animate-row-in' : '',
+    inner: flash ? 'animate-row-flash' : '',
+  };
+}
+
+/** Al tocar, la fila baja a 0.98. */
+const PRESS = 'transition-transform duration-150 active:scale-[0.98]';
+
+export function TxRow({ row, flash, onSelect }: { row: SwipeRowData; flash?: RowFlash; onSelect: () => void }) {
+  const f = flashClasses(flash);
   return (
     <button
       type="button"
       data-tx-row={row.id}
       onClick={onSelect}
-      className={`flex w-full items-center gap-3 h-16 px-3.5 rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-electric-pale ${CARD_BG} ${flash ? 'zafi-row-flash' : ''}`}
+      className={`flex w-full items-center gap-3 h-16 px-3.5 rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-electric-pale ${PRESS} ${CARD_BG} ${f.outer} ${f.inner}`}
     >
       <RowContent row={row} />
     </button>
@@ -72,7 +86,7 @@ interface SwipeRowProps {
   isOpen: boolean;
   /** Hay alguna fila abierta en la lista (un toque solo la cierra). */
   anyOpen: boolean;
-  flash?: boolean;
+  flash?: RowFlash;
   onOpenChange: (open: boolean) => void;
   onSelect: () => void;
   onChange: () => void;
@@ -136,10 +150,11 @@ export function SwipeRow({ row, isOpen, anyOpen, flash, onOpenChange, onSelect, 
   }
 
   const x = dragX ?? (isOpen ? OPEN_X : 0);
+  const f = flashClasses(flash);
   const hiddenActions = isOpen ? {} : { tabIndex: -1, 'aria-hidden': true as const };
 
   return (
-    <div className="group relative h-16 rounded-[14px] overflow-hidden">
+    <div className={`group relative h-16 rounded-[14px] overflow-hidden ${dragX === null ? PRESS : ''} ${f.outer}`}>
       {/* Acciones detrás de la fila (táctil) */}
       <div className="absolute inset-y-0 right-0 flex w-[150px] lg:hidden">
         <button
@@ -172,7 +187,7 @@ export function SwipeRow({ row, isOpen, anyOpen, flash, onOpenChange, onSelect, 
         onPointerCancel={onPointerCancel}
         onClick={onClick}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}
-        className={`absolute inset-0 flex items-center gap-3 px-3.5 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-electric-pale ${CARD_BG} ${flash ? 'zafi-row-flash' : ''}`}
+        className={`absolute inset-0 flex items-center gap-3 px-3.5 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-electric-pale ${CARD_BG} ${f.inner}`}
         style={{ transform: `translateX(${x}px)`, transition: dragX === null ? SETTLE : 'none', touchAction: 'pan-y' }}
       >
         <RowContent row={row} amountClassName="lg:group-hover:opacity-0 lg:group-focus-within:opacity-0" />

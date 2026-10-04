@@ -23,4 +23,6 @@ export const SOFT_BG = 'bg-[var(--zafi-card-alt)]';
 export const SHEET_TITLE = `font-serif text-[24px] leading-tight outline-none ${TEXT_STRONG}`;
 /** Botón primario de hoja (54px, radio 14). */
 export const PRIMARY_BUTTON =
-  'h-[54px] w-full rounded-[14px] bg-electric text-white font-semibold text-base transition-colors hover:bg-electric-dark disabled:opacity-60';
+  'h-[54px] w-full rounded-[14px] bg-electric text-white font-semibold text-base transition duration-150 hover:bg-electric-dark active:scale-[0.96] disabled:opacity-60';
+/** Al tocar: botones bajan a 0.96. */
+export const PRESS_BUTTON = 'transition duration-150 active:scale-[0.96]';

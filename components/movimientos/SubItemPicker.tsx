@@ -39,9 +39,9 @@ export function SubItemPicker({ options, selectedId, onSelect, variant = 'field'
               role="radio"
               aria-checked={on}
               onClick={() => onSelect(o.id)}
-              className={`h-10 px-3.5 rounded-full border-[1.5px] text-sm font-semibold ${
+              className={`h-10 px-3.5 rounded-full border-[1.5px] text-sm font-semibold transition-[color,background-color,border-color,transform] [transition-duration:250ms] ease-spring active:scale-[0.96] ${
                 on
-                  ? 'border-electric bg-[#EFF6FF] text-electric-dark dark:bg-electric/20 dark:text-electric-pale'
+                  ? 'border-electric bg-[#EFF6FF] text-electric-dark dark:bg-electric/20 dark:text-electric-pale motion-safe:scale-[1.05]'
                   : `${BORDER} bg-[var(--zafi-card)] ${TEXT_BODY}`
               }`}
             >

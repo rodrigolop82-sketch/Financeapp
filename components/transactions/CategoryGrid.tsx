@@ -17,7 +17,10 @@ interface CategoryGridProps {
 }
 
 export const CATEGORY_TILE_CLASS =
-  'flex flex-col items-center justify-center gap-[3px] h-[72px] px-0.5 rounded-[14px] border-[1.5px] text-center transition-colors';
+  'flex flex-col items-center justify-center gap-[3px] h-[72px] px-0.5 rounded-[14px] border-[1.5px] text-center transition-[color,background-color,border-color,transform] [transition-duration:250ms] ease-spring active:scale-[0.96]';
+
+/** Casilla o chip elegido: crece a 1.05 con resorte (sin escala con "reducir movimiento"). */
+export const CHIP_SELECTED_SCALE = 'motion-safe:scale-[1.05]';
 
 export function CategoryGrid({
   categories,
@@ -46,8 +49,8 @@ export function CategoryGrid({
               className={`${CATEGORY_TILE_CLASS} ${
                 active
                   ? themed
-                    ? 'border-electric bg-[#EFF6FF] dark:bg-electric/20'
-                    : 'border-electric bg-[#EFF6FF]'
+                    ? `border-electric bg-[#EFF6FF] dark:bg-electric/20 ${CHIP_SELECTED_SCALE}`
+                    : `border-electric bg-[#EFF6FF] ${CHIP_SELECTED_SCALE}`
                   : themed
                     ? 'border-ink-100 dark:border-white/10 bg-[var(--zafi-card)] hover:border-ink-400'
                     : 'border-ink-100 bg-white hover:border-ink-400'
