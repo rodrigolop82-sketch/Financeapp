@@ -26,7 +26,6 @@ import {
   accountDeletionMailto,
   currencyOption,
   decimalsHint,
-  feedbackMailto,
   initialsFrom,
   planPill,
   shortDate,
@@ -37,6 +36,7 @@ import {
 import { pushHint, type PushStatus } from '@/lib/push-status';
 import { enablePush, getPushStatus } from '@/lib/push-client';
 import { PageSkeleton } from '@/components/motion/PageSkeleton';
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 
 export default function CuentaPage() {
   return (
@@ -79,6 +79,7 @@ function CuentaContent() {
   const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null);
   const { appearance, setAppearance } = useAppearance();
   const triggerInstall = useInstallTrigger();
@@ -239,12 +240,9 @@ function CuentaContent() {
     else if (next === 'denied') showToast('Bloqueaste los avisos');
   }
 
-  /**
-   * "Envíanos tu idea". Fase 11: reemplazar por abrir <FeedbackSheet />
-   * (p. ej. setFeedbackOpen(true)); mientras tanto abre el correo.
-   */
+  /** "Envíanos tu idea": abre la hoja de feedback. */
   function openFeedback() {
-    window.location.href = feedbackMailto();
+    setFeedbackOpen(true);
   }
 
   async function requestAccountDeletion() {
@@ -536,6 +534,7 @@ function CuentaContent() {
         </div>
       </div>
 
+      <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <OptionsSheet
         open={sheet === 'currency'}
         title="Moneda principal"

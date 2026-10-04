@@ -5,6 +5,7 @@ import { isMasterUser } from '@/lib/master-user'
 import { AppShell } from '@/components/layout/AppShell'
 import { NavCard, NavRow } from '@/components/layout/NavRow'
 import { MORE_GROUPS, type MoreGroup } from '@/lib/navigation'
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet'
 
 const ADMIN_GROUP: MoreGroup = {
   title: 'Administración',
@@ -13,6 +14,7 @@ const ADMIN_GROUP: MoreGroup = {
 
 export default function MasPage() {
   const [isMaster, setIsMaster] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   useEffect(() => {
     createClient().auth.getUser().then(({ data: { user } }) => {
@@ -35,12 +37,18 @@ export default function MasPage() {
             </h2>
             <NavCard>
               {group.items.map((item, i) => (
-                <NavRow key={item.href} {...item} last={i === group.items.length - 1} />
+                <NavRow
+                  key={item.href ?? item.name}
+                  {...item}
+                  onClick={item.action === 'feedback' ? () => setFeedbackOpen(true) : undefined}
+                  last={i === group.items.length - 1}
+                />
               ))}
             </NavCard>
           </section>
         ))}
       </div>
+      <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </AppShell>
   )
 }

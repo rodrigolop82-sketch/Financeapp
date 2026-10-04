@@ -4,7 +4,6 @@ import {
   accountDeletionMailto,
   currencyOption,
   decimalsHint,
-  feedbackMailto,
   initialsFrom,
   planPill,
   shortDate,
@@ -79,9 +78,6 @@ describe('usageMeter', () => {
 });
 
 describe('mailto', () => {
-  it('feedback va a hola@zafiapp.com', () => {
-    expect(feedbackMailto()).toBe('mailto:hola@zafiapp.com?subject=Idea%20para%20Zafi');
-  });
   it('eliminar cuenta lleva el correo del usuario', () => {
     const url = accountDeletionMailto('r@x.com');
     expect(url.startsWith('mailto:hola@zafiapp.com?subject=Eliminar%20mi%20cuenta&body=')).toBe(true);

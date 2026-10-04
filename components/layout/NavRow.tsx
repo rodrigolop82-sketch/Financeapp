@@ -1,7 +1,9 @@
 import Link from 'next/link'
 
 interface NavRowProps {
-  href: string
+  /** Sin `href`, la fila es un botón que llama a `onClick`. */
+  href?: string
+  onClick?: () => void
   emoji: string
   name: string
   description: string
@@ -10,19 +12,29 @@ interface NavRowProps {
 }
 
 /** Fila de navegación de 58px: emoji, nombre, descripción y chevron. */
-export function NavRow({ href, emoji, name, description, last }: NavRowProps) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 px-4 h-[58px] no-underline transition-colors hover:bg-[var(--zafi-hover)]"
-      style={{ borderBottom: last ? 'none' : '1px solid var(--zafi-border-light)' }}
-    >
+export function NavRow({ href, onClick, emoji, name, description, last }: NavRowProps) {
+  const className = 'flex w-full items-center gap-3 px-4 h-[58px] text-left no-underline transition-colors hover:bg-[var(--zafi-hover)]'
+  const style = { borderBottom: last ? 'none' : '1px solid var(--zafi-border-light)' }
+  const body = (
+    <>
       <span aria-hidden className="w-6 text-center" style={{ fontSize: 19 }}>{emoji}</span>
       <span className="flex-1 min-w-0 flex flex-col">
         <span className="truncate text-ink-900 dark:text-ink-100" style={{ fontSize: 15, fontWeight: 600 }}>{name}</span>
         <span className="truncate" style={{ fontSize: 12.5, color: 'var(--zafi-text-secondary)' }}>{description}</span>
       </span>
       <span aria-hidden style={{ fontSize: 18, color: 'var(--zafi-text-muted)' }}>›</span>
+    </>
+  )
+  if (!href) {
+    return (
+      <button type="button" onClick={onClick} className={className} style={style}>
+        {body}
+      </button>
+    )
+  }
+  return (
+    <Link href={href} className={className} style={style}>
+      {body}
     </Link>
   )
 }

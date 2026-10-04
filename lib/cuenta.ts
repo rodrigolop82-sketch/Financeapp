@@ -94,14 +94,6 @@ export const MONTH_CLOSE_DAY_OPTIONS = [1, 2, 3, 5, 7];
 
 export const SUPPORT_EMAIL = 'hola@zafiapp.com';
 
-/**
- * "Envíanos tu idea" mientras no exista la hoja de la fase 11: abre el
- * correo con el asunto puesto.
- */
-export function feedbackMailto(): string {
-  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Idea para Zafi')}`;
-}
-
 /** Correo para pedir que eliminemos la cuenta (no hay borrado automático). */
 export function accountDeletionMailto(email: string | null | undefined): string {
   const subject = 'Eliminar mi cuenta';

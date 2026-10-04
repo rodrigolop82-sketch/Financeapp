@@ -8,7 +8,10 @@ export interface MoreItem {
   emoji: string;
   name: string;
   description: string;
-  href: string;
+  /** Ruta a la que lleva. Las filas con `action` no navegan. */
+  href?: string;
+  /** Acción en la misma página (p. ej. abrir la hoja de feedback). */
+  action?: 'feedback';
 }
 
 export interface MoreGroup {
@@ -31,6 +34,7 @@ export const MORE_GROUPS: MoreGroup[] = [
     items: [
       { emoji: '💬', name: 'Pregúntale a Zafi', description: 'Resuelve dudas de tu dinero', href: '/chat' },
       { emoji: '📚', name: 'Aprende', description: 'Lecciones cortas', href: '/aprende' },
+      { emoji: '💡', name: 'Envíanos tu idea', description: 'Sugerencias, errores o lo que quieras', action: 'feedback' },
     ],
   },
   {
@@ -55,7 +59,7 @@ export function activeTabFor(pathname: string): TabKey | null {
   if (['/dashboard', '/resumen', '/health-score', '/score'].some((p) => matches(pathname, p))) return 'inicio';
   if (['/transacciones', '/importar', '/capture', '/notificacion'].some((p) => matches(pathname, p))) return 'movimientos';
   if (matches(pathname, '/metas')) return 'metas';
-  const moreRoutes = ['/mas', '/plan', '/admin', ...MORE_GROUPS.flatMap((g) => g.items.map((i) => i.href))];
+  const moreRoutes = ['/mas', '/plan', '/admin', ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href] : [])))];
   if (moreRoutes.some((p) => matches(pathname, p))) return 'mas';
   return null;
 }
