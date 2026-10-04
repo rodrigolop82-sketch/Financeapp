@@ -105,8 +105,10 @@ export interface Transaction {
   amount: number;
   description: string | null;
   date: string;
-  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement' | 'text';
+  source: 'manual' | 'voice' | 'ocr' | 'csv' | 'statement' | 'text' | 'apple_pay';
   payment_method: 'efectivo' | 'tarjeta' | 'cheque' | 'transferencia';
+  /** Tarjeta de Wallet que mandó el atajo de Apple Pay ("BI Visa ··4821"). */
+  payment_card?: string | null;
   type: 'expense' | 'income';
   voice_raw_text: string | null;
   note?: string | null;

@@ -3,6 +3,9 @@ import { localToday } from '@/lib/dates'
 import { cleanTransactionName } from '@/lib/format'
 import { toGTQ, detectCurrency } from '@/lib/currency'
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import { parseApplePayBody } from '@/lib/apple-pay'
+import { findShortcutToken, registerApplePayCharge, touchShortcutToken } from '@/lib/apple-pay-server'
 
 const BANK_PATTERNS = [
   // BAM Guatemala
@@ -27,7 +30,19 @@ const ZAFI_CATEGORIES = [
   'Varios personales', 'Fondo de emergencia', 'Ahorro para metas', 'Pago extra de deudas',
 ]
 
+/**
+ * POST /api/parse-notification
+ * - Con sesión (cookie) y { text }: interpreta el texto de una notificación
+ *   del banco y devuelve lo detectado (pantalla /notificacion). Sin cambios.
+ * - Con `Authorization: Bearer zafi_…` y { amount, merchant, card, date }:
+ *   el atajo de Apple Pay (fase 13.3). Crea el gasto y manda el push.
+ */
 export async function POST(req: NextRequest) {
+  const auth = req.headers.get('authorization')
+  if (auth && /^bearer\s+/i.test(auth)) {
+    return handleShortcut(req, auth.replace(/^bearer\s+/i, '').trim())
+  }
+
   const supabase = createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
@@ -192,4 +207,51 @@ Reglas:
     }
     return NextResponse.json({ error: 'No se pudo interpretar la notificación' }, { status: 500 })
   }
+}
+
+/** Atajo de Apple Pay: clave personal → gasto con source 'apple_pay'. */
+async function handleShortcut(req: NextRequest, token: string) {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) {
+    console.error('[apple-pay] Falta SUPABASE_SERVICE_ROLE_KEY')
+    return NextResponse.json({ error: 'Falta configurar el servidor.' }, { status: 503 })
+  }
+  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+
+  const row = await findShortcutToken(admin, token)
+  if (!row) {
+    return NextResponse.json({ error: 'Clave inválida o revocada. Genera una nueva en Zafi › Mis bancos › Apple Pay.' }, { status: 401 })
+  }
+
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Manda un JSON con amount, merchant, card y date.' }, { status: 400 })
+  }
+  const parsed = parseApplePayBody(body, localToday())
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+
+  if (!(await touchShortcutToken(admin, row))) {
+    return NextResponse.json({ error: 'Demasiados pagos seguidos con esta clave. Intenta en una hora.' }, { status: 429 })
+  }
+
+  const result = await registerApplePayCharge(admin, row.user_id, parsed.value)
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+  const r = result.value
+  return NextResponse.json({
+    ok: true,
+    id: r.id,
+    amount: r.amount,
+    merchant: r.merchant,
+    date: r.date,
+    category: r.categoryName,
+    categorized: r.remembered,
+    notified: r.pushed,
+    message: r.remembered && r.categoryName
+      ? `Registramos ${r.merchant} en ${r.categoryName}.`
+      : `Registramos ${r.merchant}. Abre Zafi para elegir la categoría.`,
+  }, { status: 201 })
 }
