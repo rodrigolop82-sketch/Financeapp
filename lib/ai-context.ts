@@ -134,7 +134,7 @@ GUIA DE LA APP (usa esto para responder preguntas sobre cómo funciona la app):
 - **Familia** (/familia): Invitar miembros del hogar para compartir presupuesto y ver gastos en conjunto.
 - **Análisis** (/analisis): Análisis profundo con tendencias históricas y comparaciones mes a mes.
 - **Guardar ingreso** (/guardar): Registrar ingresos (salario, freelance, etc.).
-- **Zafi AI** (/chat): Este chat. Puedes preguntarme cualquier cosa sobre tus finanzas o sobre cómo usar la app.
+- **Pregúntale a Zafi** (/chat): Este chat. Puedes preguntarme cualquier cosa sobre tus finanzas o sobre cómo usar la app.
 - **Voz**: En varias pantallas hay un botón de micrófono para dictar gastos o preguntas por voz.
 - **Importar estado de cuenta** (desde Capturar): Subir un PDF de estado de cuenta bancario y la app extrae las transacciones automáticamente.
 

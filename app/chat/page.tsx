@@ -2,12 +2,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Plus, ArrowLeft, Trash2, MessageSquare } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { VoiceButton } from '@/components/voice/VoiceButton'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { PageSkeleton, SkeletonRows } from '@/components/motion/PageSkeleton'
+import { UndoToast } from '@/components/transactions/UndoToast'
+import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
+import { BORDER, CARD_BG, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG } from '@/components/movimientos/ui'
+import {
+  Chevron, GroupTitle, HERO, HERO_MUTED, HERO_STYLE, LINK_TEXT, ListCard, PageHeader, ROW_DIVIDER, RowBody, Tile,
+} from '@/components/layout/Pantalla'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -20,24 +25,33 @@ interface Conversation {
   updated_at: string
 }
 
-const SUGGESTED_QUESTIONS = [
-  '¿Qué hago con el dinero que me sobra este mes?',
-  '¿Cómo salgo de mis deudas más rápido?',
-  '¿Estoy ahorrando suficiente?',
-  '¿Cuándo puedo dejar de preocuparme por el dinero?',
-  '¿Qué pasa si viene el aguinaldo?',
+const SUGGESTED_QUESTIONS: [emoji: string, text: string][] = [
+  ['🐷', '¿Estoy ahorrando suficiente?'],
+  ['💳', '¿Cómo salgo de mis deudas más rápido?'],
+  ['🎁', '¿Qué hago con el aguinaldo?'],
+  ['💸', '¿Qué hago con el dinero que me sobra este mes?'],
+  ['🧘', '¿Cuándo puedo dejar de preocuparme por el dinero?'],
 ]
 
+const NEW_TITLE = 'Nueva conversación'
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`
+}
+
+/** "Hace un momento", "Hace 2 horas", "Ayer", "Hace 1 semana" o "12 sep". */
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'Ahora'
-  if (minutes < 60) return `${minutes}m`
+  if (minutes < 1) return 'Hace un momento'
+  if (minutes < 60) return `Hace ${plural(minutes, 'minuto', 'minutos')}`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h`
+  if (hours < 24) return `Hace ${plural(hours, 'hora', 'horas')}`
   const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d`
-  return new Date(dateStr).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' })
+  if (days === 1) return 'Ayer'
+  if (days < 7) return `Hace ${days} días`
+  if (days < 28) return `Hace ${plural(Math.floor(days / 7), 'semana', 'semanas')}`
+  return new Date(dateStr).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' }).replace('.', '')
 }
 
 interface UsageData {
@@ -57,6 +71,8 @@ export default function ChatPage() {
   const [usage, setUsage] = useState<UsageData | null>(null)
   const [limitReached, setLimitReached] = useState(false)
   const [resetsAt, setResetsAt] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null)
+  const pendingRef = useRef<Conversation | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -128,20 +144,44 @@ export default function ChatPage() {
     }
   }
 
-  async function deleteConversation(id: string, e: React.MouseEvent) {
-    e.stopPropagation()
-    await fetch(`/api/chat/conversations?id=${id}`, { method: 'DELETE' })
-    setConversations(prev => prev.filter(c => c.id !== id))
-    if (activeConversation?.id === id) {
-      setActiveConversation(null)
-      setView('list')
-    }
+  // Borrar espera al toast: si tocas Deshacer, la conversación vuelve.
+  const commitDelete = useCallback(async (conv: Conversation) => {
+    await fetch(`/api/chat/conversations?id=${conv.id}`, { method: 'DELETE' })
+    setConversations(prev => prev.filter(c => c.id !== conv.id))
+  }, [])
+
+  function deleteConversation(conv: Conversation) {
+    if (pendingRef.current) void commitDelete(pendingRef.current)
+    pendingRef.current = conv
+    setPendingDelete(conv)
+    if (activeConversation?.id === conv.id) setActiveConversation(null)
   }
 
-  async function sendMessage(text: string) {
+  const dismissDelete = useCallback(() => {
+    const conv = pendingRef.current
+    pendingRef.current = null
+    setPendingDelete(null)
+    if (conv) void commitDelete(conv)
+  }, [commitDelete])
+
+  function undoDelete() {
+    pendingRef.current = null
+    setPendingDelete(null)
+  }
+
+  /** Abre una conversación nueva y manda la pregunta. */
+  function ask(text: string) {
+    setActiveConversation(null)
+    setMessages([])
+    setView('chat')
+    void sendMessage(text, true)
+  }
+
+  async function sendMessage(text: string, fresh = false) {
     if (!text.trim() || isStreaming) return
 
-    let convId = activeConversation?.id
+    const history = fresh ? [] : messages
+    let convId = fresh ? undefined : activeConversation?.id
 
     // Auto-create conversation if none active
     if (!convId) {
@@ -158,7 +198,7 @@ export default function ChatPage() {
       }
     } else if (messages.length === 0) {
       // Update title to first message if it's still default
-      if (activeConversation?.title === 'Nueva conversación') {
+      if (activeConversation?.title === NEW_TITLE) {
         const newTitle = text.slice(0, 60)
         await supabase
           .from('chat_conversations')
@@ -184,7 +224,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
-          conversationHistory: messages,
+          conversationHistory: history,
           conversationId: convId,
         }),
       })
@@ -233,182 +273,155 @@ export default function ChatPage() {
     return <PageSkeleton variant="list" />
   }
 
+  const free = usage?.plan === 'free' && usage.ai.limit !== null && usage.ai.remaining !== null
+  const quota = free ? (
+    <>Te quedan <b className={`font-outfit ${TEXT_STRONG}`}>{usage!.ai.remaining} de {usage!.ai.limit}</b> preguntas gratis este mes</>
+  ) : null
+  const visible = conversations.filter(c => c.id !== pendingDelete?.id)
+
+  const undoToast = (
+    <UndoToast
+      key={pendingDelete?.id}
+      visible={!!pendingDelete}
+      title="Conversación borrada"
+      subtitle={pendingDelete?.title}
+      onUndo={undoDelete}
+      onDismiss={dismissDelete}
+      duration={DELETE_UNDO_MS}
+    />
+  )
+
   // Conversation list view
   if (view === 'list') {
     return (
-      <AppShell title="Zafi AI" currentPath="/chat">
-        <div style={{ maxWidth: 640, margin: '0 auto' }}>
-          {/* Header with new chat button — only when conversations exist */}
-          {conversations.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <p style={{ fontSize: 14, color: '#8B9AAE' }}>
-                {conversations.length} conversación{conversations.length !== 1 ? 'es' : ''}
-              </p>
-              <button
-                onClick={startNewConversation}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  background: '#2563EB', color: '#fff',
-                  border: 'none', borderRadius: 10, padding: '10px 18px',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                <Plus size={16} strokeWidth={2.5} />
-                Nueva conversación
-              </button>
-            </div>
-          )}
+      <AppShell title="Pregúntale a Zafi" currentPath="/chat" hideMobileBar>
+        <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
+          <PageHeader
+            back={{ href: '/mas', label: 'Más' }}
+            title="Pregúntale a Zafi"
+            subtitle="Responde con tus números reales, no con consejos genéricos."
+          />
+          <p className={`hidden text-sm lg:block ${TEXT_MUTED}`}>Responde con tus números reales, no con consejos genéricos.</p>
 
+          <div className="mt-3.5 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={startNewConversation}
+              className="h-[50px] rounded-full bg-electric text-[15px] font-bold text-white transition-transform duration-150 hover:bg-electric-dark active:scale-[0.97]"
+            >
+              + Nueva pregunta
+            </button>
+            {quota && <span className={`text-center text-[13px] ${TEXT_MUTED}`}>{quota}</span>}
+          </div>
+
+          <GroupTitle>Prueba con</GroupTitle>
+          <ListCard>
+            {SUGGESTED_QUESTIONS.map(([emoji, q]) => (
+              <button
+                key={q}
+                type="button"
+                onClick={() => ask(q)}
+                className={`flex min-h-[48px] w-full items-center gap-3 py-1.5 text-left ${ROW_DIVIDER}`}
+              >
+                <span aria-hidden className="flex-none text-lg">{emoji}</span>
+                <span className={`flex-1 text-[15px] [text-wrap:pretty] ${TEXT_STRONG}`}>{q}</span>
+                <Chevron />
+              </button>
+            ))}
+          </ListCard>
+
+          {(loadingConversations || visible.length > 0) && <GroupTitle>Tus conversaciones</GroupTitle>}
           {loadingConversations ? (
-            <SkeletonRows count={5} />
-          ) : conversations.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: '50%',
-                background: '#EFF6FF', display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-                margin: '0 auto 16px',
-              }}>
-                <MessageSquare size={28} style={{ color: '#2563EB' }} />
-              </div>
-              <p style={{ fontSize: 17, fontWeight: 700, color: '#1E3A5F', marginBottom: 6 }}>
-                No tienes conversaciones aún
-              </p>
-              <p style={{ fontSize: 14, color: '#8B9AAE', lineHeight: 1.5, marginBottom: 20 }}>
-                Preguntale a Zafi sobre tus finanzas — te conoce y responde en base a tu situación real.
-              </p>
-              <button
-                onClick={startNewConversation}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  background: '#2563EB', color: '#fff',
-                  border: 'none', borderRadius: 12, padding: '14px 28px',
-                  fontSize: 15, fontWeight: 700, cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(37,99,235,0.25)',
-                }}
-              >
-                <Plus size={18} strokeWidth={2.5} />
-                Iniciar conversación
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {conversations.map(conv => (
-                <button
-                  key={conv.id}
-                  onClick={() => openConversation(conv)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    background: '#fff', border: '1px solid #E2E8F0',
-                    borderRadius: 14, padding: '16px 18px',
-                    cursor: 'pointer', textAlign: 'left', width: '100%',
-                    transition: 'border-color 150ms',
-                  }}
-                >
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 12,
-                    background: '#EFF6FF', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <MessageSquare size={18} color="#2563EB" />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{
-                      fontSize: 14, fontWeight: 600, color: '#1E3A5F',
-                      margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {conv.title}
-                    </p>
-                    <p style={{ fontSize: 12, color: '#64748B', margin: '3px 0 0' }}>
-                      {timeAgo(conv.updated_at)}
-                    </p>
-                  </div>
+            <SkeletonRows count={3} />
+          ) : visible.length > 0 && (
+            <ListCard>
+              {visible.map(conv => (
+                <div key={conv.id} className={`flex items-center gap-3 py-3 ${ROW_DIVIDER}`}>
                   <button
-                    onClick={(e) => deleteConversation(conv.id, e)}
-                    style={{
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      padding: 6, borderRadius: 8, color: '#64748B',
-                    }}
+                    type="button"
+                    onClick={() => openConversation(conv)}
+                    className="flex min-w-0 flex-1 items-center gap-3"
                   >
-                    <Trash2 size={16} />
+                    <RowBody tile={<Tile>💬</Tile>} name={conv.title} help={timeAgo(conv.updated_at)} />
                   </button>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteConversation(conv)}
+                    aria-label={`Borrar “${conv.title}”`}
+                    className={`-mr-2.5 flex h-11 w-11 flex-none items-center justify-center text-base ${TEXT_FAINT}`}
+                  >
+                    ✕
+                  </button>
+                </div>
               ))}
-            </div>
+            </ListCard>
           )}
-
-          <div className="h-24" />
         </div>
+        {undoToast}
       </AppShell>
     )
   }
 
   // Chat view
   return (
-    <AppShell title="Zafi AI" currentPath="/chat">
-      <div className="flex flex-col h-[calc(100vh-64px)] max-w-2xl mx-auto">
-        {/* Chat header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '8px 0 12px', borderBottom: '1px solid #E2E8F0',
-          marginBottom: 8,
-        }}>
+    <AppShell title="Pregúntale a Zafi" currentPath="/chat" hideMobileBar>
+      <div className="mx-auto flex min-h-[calc(100dvh-180px)] max-w-2xl flex-col lg:mx-0">
+        {/* Encabezado */}
+        <div className={`-mx-4 flex flex-col items-start gap-0.5 border-b px-5 pb-2.5 pt-[env(safe-area-inset-top)] lg:mx-0 lg:px-0 ${BORDER}`}>
           <button
+            type="button"
             onClick={() => { setView('list'); loadConversations() }}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              padding: 4, color: '#2563EB', display: 'flex',
-            }}
+            className={`flex h-11 items-center text-[15px] font-semibold ${LINK_TEXT}`}
           >
-            <ArrowLeft size={20} />
+            ‹ Pregúntale a Zafi
           </button>
-          <p style={{
-            fontSize: 15, fontWeight: 600, color: '#1E3A5F',
-            margin: 0, flex: 1, overflow: 'hidden',
-            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {activeConversation?.title || 'Nueva conversación'}
-          </p>
+          <span className={`max-w-full truncate text-[17px] font-bold ${TEXT_STRONG}`}>
+            {activeConversation?.title || NEW_TITLE}
+          </span>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Mensajes */}
+        <div className="flex flex-1 flex-col gap-2.5 py-4">
           {messages.length === 0 && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Preguntame lo que quieras sobre tus finanzas
-              </p>
-              {SUGGESTED_QUESTIONS.map((q, i) => (
-                <button
-                  key={i}
-                  onClick={() => sendMessage(q)}
-                  className="w-full text-left text-sm px-4 py-3 rounded-xl border border-border
-                             hover:border-electric-soft hover:bg-surface-tint transition-colors"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
+            <>
+              <GroupTitle className="mb-1.5">Prueba con</GroupTitle>
+              <ListCard>
+                {SUGGESTED_QUESTIONS.map(([emoji, q]) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => sendMessage(q)}
+                    className={`flex min-h-[48px] w-full items-center gap-3 py-1.5 text-left ${ROW_DIVIDER}`}
+                  >
+                    <span aria-hidden className="flex-none text-lg">{emoji}</span>
+                    <span className={`flex-1 text-[15px] [text-wrap:pretty] ${TEXT_STRONG}`}>{q}</span>
+                    <Chevron />
+                  </button>
+                ))}
+              </ListCard>
+            </>
           )}
 
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed
-                ${msg.role === 'user'
-                  ? 'bg-electric text-white rounded-br-sm whitespace-pre-wrap'
-                  : 'bg-secondary text-foreground rounded-bl-sm'
-                }`}>
+              <div
+                className={`max-w-[84%] px-3.5 py-[11px] text-[15px] leading-[1.45] [text-wrap:pretty] ${
+                  msg.role === 'user'
+                    ? 'whitespace-pre-wrap rounded-[18px_18px_6px_18px] bg-electric text-white'
+                    : `rounded-[18px_18px_18px_6px] border ${BORDER} ${CARD_BG} ${TEXT_STRONG}`
+                }`}
+              >
                 {msg.content ? (
                   msg.role === 'assistant' ? (
-                    <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0
-                      prose-headings:text-navy prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1
-                      prose-strong:text-navy prose-p:text-foreground prose-li:text-foreground
-                      prose-a:text-electric prose-blockquote:border-l-electric prose-blockquote:text-muted-foreground">
+                    <div className="prose prose-sm max-w-none text-[15px] leading-[1.45] text-inherit prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0
+                      prose-headings:mb-1 prose-headings:mt-3 prose-headings:font-semibold prose-headings:text-inherit
+                      prose-p:text-inherit prose-li:text-inherit prose-strong:text-inherit prose-a:text-electric-dark dark:prose-a:text-electric-soft
+                      prose-blockquote:border-l-electric prose-blockquote:text-[var(--zafi-text-secondary)] prose-code:text-inherit">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                     </div>
                   ) : msg.content
                 ) : (isStreaming && i === messages.length - 1
-                  ? <span className="animate-pulse">...</span>
+                  ? <span className="animate-pulse">…</span>
                   : '')}
               </div>
             </div>
@@ -416,21 +429,17 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
-        <div className="p-4 border-t">
+        {/* Barra para escribir */}
+        <div className={`sticky bottom-[calc(68px+env(safe-area-inset-bottom))] -mx-4 border-t px-3.5 pb-3 pt-2.5 lg:bottom-0 lg:mx-0 lg:rounded-t-2xl ${BORDER} ${CARD_BG}`}>
           {limitReached ? (
-            <div style={{
-              background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)',
-              borderRadius: 16, padding: '20px 24px', color: '#fff',
-            }}>
-              <p style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
-                Zafi AI sin límites
-              </p>
-              <p style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.5, marginBottom: 16 }}>
-                Con Premium puedes hablar con Zafi todas las veces que necesites.
-                {resetsAt && ` Tus mensajes gratis se renuevan el ${new Date(resetsAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' })}.`}
+            <div className={`flex flex-col gap-1.5 p-5 ${HERO}`} style={HERO_STYLE}>
+              <p className="text-base font-bold">Pregunta sin límites</p>
+              <p className={`text-[13.5px] leading-[1.45] ${HERO_MUTED}`}>
+                Con Premium puedes preguntarle a Zafi todas las veces que necesites.
+                {resetsAt && ` Tus preguntas gratis se renuevan el ${new Date(resetsAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' })}.`}
               </p>
               <button
+                type="button"
                 onClick={async () => {
                   const res = await fetch('/api/stripe/checkout', {
                     method: 'POST',
@@ -440,31 +449,17 @@ export default function ChatPage() {
                   const { url } = await res.json()
                   if (url) window.location.href = url
                 }}
-                style={{
-                  background: '#fff', color: '#1E3A5F',
-                  border: 'none', borderRadius: 10, padding: '12px 24px',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                  width: '100%',
-                }}
+                className="mt-2 h-[46px] rounded-full bg-white text-[15px] font-bold text-navy transition-transform duration-150 active:scale-[0.97]"
               >
                 Pasar a Premium
               </button>
             </div>
           ) : (
-            <>
-              {usage && usage.plan === 'free' && usage.ai.remaining !== null && (
-                <p style={{
-                  fontSize: 12, color: usage.ai.remaining <= 3 ? '#EF4444' : '#8B9AAE',
-                  textAlign: 'center', marginBottom: 8,
-                }}>
-                  {usage.ai.remaining > 0
-                    ? `Te quedan ${usage.ai.remaining} de ${usage.ai.limit} mensajes este mes`
-                    : `Alcanzaste tus ${usage.ai.limit} mensajes de este mes`}
-                </p>
-              )}
-              <div className="flex gap-2">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
                 <VoiceButton
                   mode="chat"
+                  className={`h-11 w-11 flex-none rounded-full border-0 ${TILE_BG}`}
                   onTranscription={(text) => {
                     setInput(text)
                     sendMessage(text)
@@ -476,27 +471,31 @@ export default function ChatPage() {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
-                  placeholder="Preguntale algo a Zafi..."
+                  placeholder="Pregúntale algo a Zafi…"
+                  aria-label="Tu pregunta"
                   disabled={isStreaming}
-                  className="flex-1 px-4 py-2.5 rounded-xl border text-sm
-                             focus:outline-none focus:border-electric-light"
+                  className={`h-11 min-w-0 flex-1 rounded-full border px-4 text-[15px] outline-none placeholder:text-[var(--zafi-text-secondary)] focus:border-electric ${BORDER} ${TILE_BG} ${TEXT_STRONG}`}
                 />
                 <button
+                  type="button"
                   onClick={() => sendMessage(input)}
                   disabled={isStreaming || !input.trim()}
-                  className="px-4 py-2.5 bg-electric text-white rounded-xl text-sm
-                             disabled:opacity-40 hover:bg-navy transition-colors"
+                  aria-label="Enviar"
+                  className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-electric text-lg font-bold text-white transition-transform duration-150 active:scale-[0.92] disabled:opacity-50"
                 >
-                  Enviar
+                  ↑
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground mt-2 text-center">
-                Zafi conoce tu situación financiera real y responde en base a ella.
-              </p>
-            </>
+              {free && (
+                <span className={`text-center text-[12.5px] ${TEXT_MUTED}`}>
+                  Te quedan {usage!.ai.remaining} de {usage!.ai.limit} preguntas este mes
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
+      {undoToast}
     </AppShell>
   )
 }

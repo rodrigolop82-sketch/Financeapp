@@ -233,7 +233,7 @@ export default function CapsulePage() {
               ¿Quieres aplicar esto a tu situación?
             </p>
             <p className="text-xs text-muted-foreground mb-3">
-              Preguntale a Zafi como se aplica esto a tus finanzas reales.
+              Pregúntale a Zafi cómo se aplica esto a tus finanzas reales.
             </p>
             <Link
               href={`/chat?q=Leí sobre ${encodeURIComponent(capsule.title)} — ¿cómo aplica esto a mi situación?`}
