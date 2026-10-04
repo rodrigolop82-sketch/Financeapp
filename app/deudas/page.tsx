@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { getUserHousehold } from '@/lib/household';
+import { PageSkeleton } from '@/components/motion/PageSkeleton';
 
 interface SimResult {
   totalMonths: number;
@@ -265,11 +266,7 @@ export default function DeudasPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    );
+    return <PageSkeleton variant="list" />;
   }
 
   return (

@@ -36,6 +36,7 @@ import {
 } from '@/lib/cuenta';
 import { pushHint, type PushStatus } from '@/lib/push-status';
 import { enablePush, getPushStatus } from '@/lib/push-client';
+import { PageSkeleton } from '@/components/motion/PageSkeleton';
 
 export default function CuentaPage() {
   return (
@@ -257,11 +258,7 @@ function CuentaContent() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[var(--zafi-bg)] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    );
+    return <PageSkeleton variant="list" />;
   }
 
   const paidPremium = user?.plan === 'premium';
@@ -295,7 +292,7 @@ function CuentaContent() {
 
   return (
     <AppShell title="Mi cuenta" currentPath="/cuenta" hideMobileBar>
-      <div className="mx-auto flex max-w-2xl flex-col pb-6 lg:mx-0">
+      <div className="mx-auto flex max-w-2xl flex-col pb-6 lg:mx-0 zafi-stagger">
         {/* Encabezado móvil */}
         <div className="-mx-4 flex flex-col items-start gap-0.5 px-5 pt-[env(safe-area-inset-top)] lg:hidden">
           <Link href="/mas" className="flex h-11 items-center text-[15px] font-semibold text-electric-dark dark:text-electric-soft">

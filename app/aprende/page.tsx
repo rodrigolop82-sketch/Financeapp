@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase'
 import { isEffectivelyPremium } from '@/lib/plans'
 import { AppShell } from '@/components/layout/AppShell'
 import { ParaTi } from '@/components/education/ParaTi'
-import { Loader2, BookOpen, ChevronRight } from 'lucide-react'
+import { BookOpen, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 interface ModuleData {
   id: string
@@ -79,11 +80,7 @@ export default function AprendePage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    )
+    return <PageSkeleton variant="list" />
   }
 
   return (

@@ -11,8 +11,9 @@ import { ScoreSparkline } from '@/components/score/ScoreSparkline'
 import { useHealthScore } from '@/hooks/useHealthScore'
 import { getRecommendedCapsules } from '@/lib/capsule-recommendations'
 import { CapsuleRecommendations } from '@/components/education/CapsuleRecommendations'
-import { ChevronLeft, Loader2 } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import type { Household, CapsuleRecommendation } from '@/types'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 export default function ScorePage() {
   const router = useRouter()
@@ -53,11 +54,7 @@ export default function ScorePage() {
   }, [userId, score])
 
   if (!householdId || loading || !score) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric animate-spin" />
-      </div>
-    )
+    return <PageSkeleton variant="detail" />
   }
 
   return (

@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   ArrowLeft,
-  Loader2,
   Users,
   Receipt,
   Mic,
@@ -18,6 +17,7 @@ import {
   Home,
 } from 'lucide-react';
 import Link from 'next/link';
+import { PageSkeleton } from '@/components/motion/PageSkeleton';
 
 interface UserInfo {
   email: string;
@@ -81,11 +81,7 @@ export default function AdminPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric animate-spin" />
-      </div>
-    );
+    return <PageSkeleton variant="list" />;
   }
 
   if (error) {

@@ -5,8 +5,9 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { isEffectivelyPremium } from '@/lib/plans'
 import { CapsuleCard } from '@/components/education/CapsuleCard'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 interface CapsuleData {
   id: string
@@ -59,11 +60,7 @@ export default function ModulePage() {
   }, [moduleSlug])
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    )
+    return <PageSkeleton variant="list" />
   }
 
   const readCount = capsules.filter(c => readIds.has(c.id)).length

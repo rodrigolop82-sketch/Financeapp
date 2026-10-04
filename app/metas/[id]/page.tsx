@@ -7,7 +7,8 @@ import { ContributionHistory } from '@/components/goals/ContributionHistory'
 import { AddContributionSheet } from '@/components/goals/AddContributionSheet'
 import { useGoals, type Goal, type Contribution } from '@/hooks/useGoals'
 import { formatMoney } from '@/lib/format'
-import { Loader2, ArrowLeft, Pencil, Trash2, Pause, Play, X, Check } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Pause, Play, X, Check } from 'lucide-react'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 export default function GoalDetailPage() {
   const params = useParams()
@@ -60,13 +61,7 @@ export default function GoalDetailPage() {
   }, [isLoading, goalId, loadContributions])
 
   if (isLoading) {
-    return (
-      <AppShell title="Meta" currentPath="/metas">
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
-          <Loader2 className="w-8 h-8 text-electric animate-spin" />
-        </div>
-      </AppShell>
-    )
+    return <PageSkeleton variant="detail" />
   }
 
   if (!goal) {

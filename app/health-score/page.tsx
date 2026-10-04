@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { calculateHealthScore, type ScoreBreakdown } from '@/lib/scoring'
-import { Loader2, Lightbulb } from 'lucide-react'
+import { Lightbulb } from 'lucide-react'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 const SCORE_COLORS: Record<string, string> = {
   red: '#EF4444',
@@ -131,11 +132,7 @@ export default function HealthScorePage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    )
+    return <PageSkeleton variant="detail" />
   }
 
   if (!score) {

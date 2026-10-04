@@ -2,11 +2,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Loader2, Plus, ArrowLeft, Trash2, MessageSquare } from 'lucide-react'
+import { Plus, ArrowLeft, Trash2, MessageSquare } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { VoiceButton } from '@/components/voice/VoiceButton'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { PageSkeleton, SkeletonRows } from '@/components/motion/PageSkeleton'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -229,11 +230,7 @@ export default function ChatPage() {
   }
 
   if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    )
+    return <PageSkeleton variant="list" />
   }
 
   // Conversation list view
@@ -263,9 +260,7 @@ export default function ChatPage() {
           )}
 
           {loadingConversations ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
-              <Loader2 className="w-8 h-8 text-electric animate-spin" />
-            </div>
+            <SkeletonRows count={5} />
           ) : conversations.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 24px' }}>
               <div style={{

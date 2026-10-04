@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Upload, FileText, Loader2, Check, AlertCircle, Trash2 } from 'lucide-react'
 import type { BudgetCategory } from '@/types'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 interface ParsedRow {
   date: string
@@ -276,11 +277,7 @@ export default function ImportarPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    )
+    return <PageSkeleton variant="detail" />
   }
 
   return (

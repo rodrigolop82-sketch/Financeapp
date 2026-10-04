@@ -10,6 +10,7 @@ import {
   Landmark, CreditCard, Banknote, Wallet, Plus,
   Pencil, X, Check, Loader2, Sparkles,
 } from 'lucide-react'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 const TYPE_LABELS: Record<SourceType, string> = {
   tarjeta_credito: 'Tarjeta de crédito',
@@ -146,13 +147,7 @@ export default function MisFuentesPage() {
   }
 
   if (loading) {
-    return (
-      <AppShell title="Mis Fuentes" currentPath="/mis-fuentes">
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-          <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#2563EB' }} />
-        </div>
-      </AppShell>
-    )
+    return <PageSkeleton variant="list" />
   }
 
   return (

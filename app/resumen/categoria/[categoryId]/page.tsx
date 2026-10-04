@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { formatMoney } from '@/lib/format'
 import { cleanTransactionName } from '@/lib/format'
 import { AppShell } from '@/components/layout/AppShell'
-import { Loader2, ArrowLeft, Pencil } from 'lucide-react'
+import { ArrowLeft, Pencil } from 'lucide-react'
 import {
   computeCategoryPace,
   type MonthContext,
@@ -16,6 +16,7 @@ import { ReclassifySheet } from '@/components/transactions/ReclassifySheet'
 import { UndoToast } from '@/components/transactions/UndoToast'
 import { useReclassifyFlow } from '@/lib/transactions/useReclassifyFlow'
 import type { BudgetCategory, SearchTransaction } from '@/types'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 type SortMode = 'monto' | 'fecha' | 'comercio'
 
@@ -211,11 +212,7 @@ export default function CategoriaDetallePage() {
   }, [router, categoryId, mes])
 
   if (loading || !pace || !monthCtx) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F3F5F9' }}>
-        <Loader2 className="w-8 h-8 text-electric animate-spin" />
-      </div>
-    )
+    return <PageSkeleton variant="detail" />
   }
 
   const monthLabel = (() => {

@@ -2,7 +2,7 @@
 
 import { AppShell } from '@/components/layout/AppShell'
 import { useDynamicChallenges, type Challenge } from '@/hooks/useDynamicChallenges'
-import { Loader2 } from 'lucide-react'
+import { SkeletonRows } from '@/components/motion/PageSkeleton'
 
 const STATUS_CONFIG: Record<Challenge['status'], { label: string; bg: string; color: string; border: string; barColor: string }> = {
   on_track: { label: 'En camino', bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE', barColor: '#2563EB' },
@@ -98,9 +98,7 @@ export default function PlanPage() {
   return (
     <AppShell title="Retos del mes" currentPath="/plan">
       {loading && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
-          <Loader2 className="w-8 h-8 text-electric animate-spin" />
-        </div>
+        <SkeletonRows count={4} />
       )}
 
       {error && (

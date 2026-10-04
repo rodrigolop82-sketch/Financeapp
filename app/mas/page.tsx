@@ -24,7 +24,7 @@ export default function MasPage() {
 
   return (
     <AppShell title="Más" currentPath="/mas">
-      <div className="max-w-xl flex flex-col" style={{ gap: 18 }}>
+      <div className="max-w-xl flex flex-col zafi-stagger" style={{ gap: 18 }}>
         {groups.map((group) => (
           <section key={group.title} className="flex flex-col" style={{ gap: 6 }}>
             <h2

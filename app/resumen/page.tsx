@@ -7,7 +7,7 @@ import { isEffectivelyPremium } from '@/lib/plans'
 import { AppShell } from '@/components/layout/AppShell'
 import { PlanVsRealSection } from '@/components/resumen/PlanVsRealSection'
 import { NavCard, NavRow } from '@/components/layout/NavRow'
-import { Loader2, ChevronRight, ChevronDown } from 'lucide-react'
+import { ChevronRight, ChevronDown } from 'lucide-react'
 import {
   computeCategoryPace,
   summarizeMonth,
@@ -27,6 +27,7 @@ import { SummaryRow } from '@/components/dashboard/SummaryRow'
 import { StreakCard } from '@/components/dashboard/StreakCard'
 import { MonthNavigator } from '@/components/resumen/MonthNavigator'
 import { MonthPickerSheet } from '@/components/resumen/MonthPickerSheet'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 type Tab = 'mes' | 'insights' | 'tendencias'
 
@@ -100,11 +101,7 @@ const CLOSED_STATUS_COLORS: Record<string, { dot: string; pill: string; pillBg: 
 
 export default function ResumenPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F3F5F9' }}>
-        <Loader2 className="w-8 h-8 text-electric animate-spin" />
-      </div>
-    }>
+    <Suspense fallback={<PageSkeleton variant="detail" />}>
       <ResumenContent />
     </Suspense>
   )
@@ -428,11 +425,7 @@ function ResumenContent() {
   }, [router, selectedMonth.month]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading || !data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F3F5F9' }}>
-        <Loader2 className="w-8 h-8 text-electric animate-spin" />
-      </div>
-    )
+    return <PageSkeleton variant="detail" />
   }
 
   const tabStyle = (t: Tab) => ({

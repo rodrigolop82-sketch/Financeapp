@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import {
   ArrowLeft,
-  Loader2,
   LogIn,
   LogOut,
   Download,
@@ -16,6 +15,7 @@ import {
   ShieldOff,
   UserX,
 } from 'lucide-react'
+import { SkeletonRows } from '@/components/motion/PageSkeleton'
 
 interface AuditEntry {
   id: string
@@ -90,9 +90,7 @@ export default function HistorialAccesoPage() {
       </button>
 
       {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
-          <Loader2 className="w-8 h-8 text-electric animate-spin" />
-        </div>
+        <SkeletonRows count={6} />
       ) : entries.length === 0 ? (
         <p style={{ textAlign: 'center', color: '#64748B', padding: '40px 0', fontSize: 14 }}>
           No hay registros de acceso todavía.

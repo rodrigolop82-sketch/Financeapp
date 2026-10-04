@@ -28,10 +28,11 @@ import { daysLeftInMonth, isCounted, totalCountedIncome } from '@/lib/inicio-de-
 import { MonthStartNotice } from '@/components/inicio-de-mes/MonthStartNotice';
 import { useMonthStart } from '@/components/inicio-de-mes/useMonthStart';
 import type { BudgetCategory, BudgetSubItem, IncomeEntry } from '@/types';
+import { PageSkeleton } from '@/components/motion/PageSkeleton';
 
 export default function PresupuestoPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<PageSkeleton variant="detail" />}>
       <PlanDelMes />
     </Suspense>
   );
@@ -639,6 +640,8 @@ function PlanDelMes() {
 
   const title = `Plan de ${monthName0}`;
 
+  if (loading) return <PageSkeleton variant="detail" />;
+
   return (
     <AppShell title={title} currentPath="/presupuesto" hideMobileBar>
       <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
@@ -653,62 +656,56 @@ function PlanDelMes() {
           <h1 className="font-serif text-[30px] leading-[1.15] text-ink-900 dark:text-ink-100">{title}</h1>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-24">
-            <Loader2 className="h-8 w-8 animate-spin text-electric-light" aria-label="Cargando" />
-          </div>
-        ) : (
-          <>
-            {/* Llegaste desde "Cerrar el mes" a confirmar ingresos */}
-            {confirmMonth && (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--zafi-success-border)] bg-[var(--zafi-success-bg)] px-4 py-3.5">
-                <span className="text-[13px] leading-normal text-[var(--zafi-success-text)]">
-                  Revisa que tus ingresos estén correctos y actualizados para este cierre de mes.
-                </span>
-                <button
-                  type="button"
-                  onClick={confirmIncomeForMonth}
-                  disabled={confirmingIncome}
-                  className="flex h-11 flex-none items-center gap-2 rounded-xl bg-success-dark px-4 text-[13px] font-semibold text-white"
-                >
-                  {confirmingIncome ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Ya revisé, confirmar
-                </button>
-              </div>
-            )}
-
-            <PlanSummaryCard
-              summary={summary}
-              fmt={fmt}
-              onSendToCushion={cushion ? () => void guarded(sendToCushion) : undefined}
-            />
-
-            {monthStart.loaded && (
-              <MonthStartNotice
-                variant="plan"
-                monthName={monthName0}
-                done={monthStart.done}
-                summary={monthStart.summary}
-                onOpen={monthStart.open}
-              />
-            )}
-
-            <PlanGroups groups={[incomeGroup, ...expenseGroups]} />
-
-            <p className={`mx-1 mt-3.5 text-center text-[13px] leading-normal [text-wrap:pretty] ${TEXT_MUTED}`}>
-              Toca cualquier categoría para cambiar cuánto planeas.
-            </p>
-
-            <div className="mt-5">
-              <Link
-                href="/plan"
-                className={`flex min-h-[44px] items-center justify-center text-sm font-semibold text-electric`}
+        <div className="flex flex-col zafi-stagger">
+          {/* Llegaste desde "Cerrar el mes" a confirmar ingresos */}
+          {confirmMonth && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--zafi-success-border)] bg-[var(--zafi-success-bg)] px-4 py-3.5">
+              <span className="text-[13px] leading-normal text-[var(--zafi-success-text)]">
+                Revisa que tus ingresos estén correctos y actualizados para este cierre de mes.
+              </span>
+              <button
+                type="button"
+                onClick={confirmIncomeForMonth}
+                disabled={confirmingIncome}
+                className="flex h-11 flex-none items-center gap-2 rounded-xl bg-success-dark px-4 text-[13px] font-semibold text-white"
               >
-                Retos del mes ›
-              </Link>
+                {confirmingIncome ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Ya revisé, confirmar
+              </button>
             </div>
-          </>
-        )}
+          )}
+
+          <PlanSummaryCard
+            summary={summary}
+            fmt={fmt}
+            onSendToCushion={cushion ? () => void guarded(sendToCushion) : undefined}
+          />
+
+          {monthStart.loaded && (
+            <MonthStartNotice
+              variant="plan"
+              monthName={monthName0}
+              done={monthStart.done}
+              summary={monthStart.summary}
+              onOpen={monthStart.open}
+            />
+          )}
+
+          <PlanGroups groups={[incomeGroup, ...expenseGroups]} />
+
+          <p className={`mx-1 mt-3.5 text-center text-[13px] leading-normal [text-wrap:pretty] ${TEXT_MUTED}`}>
+            Toca cualquier categoría para cambiar cuánto planeas.
+          </p>
+
+          <div className="mt-5">
+            <Link
+              href="/plan"
+              className={`flex min-h-[44px] items-center justify-center text-sm font-semibold text-electric`}
+            >
+              Retos del mes ›
+            </Link>
+          </div>
+        </div>
       </div>
 
       <BottomSheet themed open={!!sheet} onClose={closeSheet} label="Editar plan">

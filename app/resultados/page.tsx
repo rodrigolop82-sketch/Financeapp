@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { PageSkeleton } from '@/components/motion/PageSkeleton';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, RotateCcw } from 'lucide-react';
@@ -198,11 +199,7 @@ export default function ResultadosPage() {
   }, [router]);
 
   if (!loaded || !data) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-electric border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageSkeleton variant="detail" nav={false} />;
   }
 
   const score = data.score!;

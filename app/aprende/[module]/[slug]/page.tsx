@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { useParams, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { isEffectivelyPremium } from '@/lib/plans'
-import { ArrowLeft, Clock, Bookmark, BookmarkCheck, Loader2 } from 'lucide-react'
+import { ArrowLeft, Clock, Bookmark, BookmarkCheck } from 'lucide-react'
 import Link from 'next/link'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 interface CapsuleData {
   id: string
@@ -115,11 +116,7 @@ export default function CapsulePage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    )
+    return <PageSkeleton variant="detail" />
   }
 
   if (!capsule) return notFound()

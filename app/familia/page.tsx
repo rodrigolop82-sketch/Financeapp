@@ -27,6 +27,7 @@ import {
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
 import { isEffectivelyPremium } from '@/lib/plans';
+import { PageSkeleton } from '@/components/motion/PageSkeleton';
 
 interface Member {
   user_id: string;
@@ -187,11 +188,7 @@ export default function FamiliaPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
-      </div>
-    );
+    return <PageSkeleton variant="list" />;
   }
 
   return (

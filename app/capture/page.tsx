@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
@@ -547,21 +548,7 @@ function CaptureContent() {
 
 export default function CapturePage() {
   return (
-    <Suspense fallback={
-      <div style={{
-        minHeight: '100vh', background: '#F8F9FF',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexDirection: 'column', gap: 12,
-      }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: '50%',
-          border: '3px solid #DBEAFE', borderTopColor: '#2563EB',
-          animation: 'spin 0.8s linear infinite',
-        }}/>
-        <p style={{ fontSize: 13, color: '#64748B' }}>Cargando...</p>
-        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-      </div>
-    }>
+    <Suspense fallback={<PageSkeleton variant="detail" nav={false} />}>
       <CaptureContent />
     </Suspense>
   )

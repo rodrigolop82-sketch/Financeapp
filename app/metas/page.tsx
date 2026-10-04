@@ -5,20 +5,15 @@ import { AppShell } from '@/components/layout/AppShell'
 import { GoalCard } from '@/components/goals/GoalCard'
 import { GoalsSummaryCard } from '@/components/goals/GoalsSummaryCard'
 import { useGoals } from '@/hooks/useGoals'
-import { Loader2, Plus, Target } from 'lucide-react'
+import { Plus, Target } from 'lucide-react'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 export default function MetasPage() {
   const router = useRouter()
   const { goals, totalSaved, totalTarget, isLoading, error } = useGoals()
 
   if (isLoading) {
-    return (
-      <AppShell title="Metas" currentPath="/metas">
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <Loader2 className="w-8 h-8 text-electric animate-spin" />
-        </div>
-      </AppShell>
-    )
+    return <PageSkeleton variant="list" />
   }
 
   const activeGoals = goals.filter(g => g.status === 'active')
@@ -89,7 +84,7 @@ export default function MetasPage() {
           </button>
         </div>
       ) : (
-        <>
+        <div className="zafi-stagger">
           <div style={{ fontSize: 14, color: '#8B9AAE', marginBottom: 16, marginTop: -8 }}>
             {activeGoals.length} meta{activeGoals.length !== 1 ? 's' : ''} activa{activeGoals.length !== 1 ? 's' : ''}
           </div>
@@ -133,7 +128,7 @@ export default function MetasPage() {
               ))}
             </>
           )}
-        </>
+        </div>
       )}
 
       <div className="h-24" />

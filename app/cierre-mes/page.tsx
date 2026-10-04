@@ -14,6 +14,7 @@ import {
   Loader2, CheckCircle2, Circle, CreditCard, Landmark, Banknote,
   Wallet, ChevronLeft, ChevronRight, Upload,
 } from 'lucide-react'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 const SOURCE_ICONS: Record<string, typeof CreditCard> = {
   tarjeta_credito: CreditCard,
@@ -23,7 +24,7 @@ const SOURCE_ICONS: Record<string, typeof CreditCard> = {
 
 export default function CierreMesPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<PageSkeleton variant="detail" />}>
       <CierreMesContent />
     </Suspense>
   )
@@ -91,13 +92,7 @@ function CierreMesContent() {
   const monthLabel = formatYearMonth(yearMonth)
 
   if (loading) {
-    return (
-      <AppShell title="Cierre de mes" currentPath="/cierre-mes">
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-          <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#2563EB' }} />
-        </div>
-      </AppShell>
-    )
+    return <PageSkeleton variant="detail" />
   }
 
   return (
