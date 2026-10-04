@@ -10,6 +10,7 @@ import { ImportSuccessScreen } from './ImportSuccessScreen'
 import { UndoToast } from '@/components/transactions/UndoToast'
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
 import { importBannerQuery, type ImportBanner } from '@/lib/motion'
+import { useIsMobile } from '@/lib/hooks/useIsMobile'
 
 /** Ya en Movimientos: se pide el banner por evento (no cambia la ruta). */
 export const IMPORT_BANNER_EVENT = 'zafi:import-banner'
@@ -25,6 +26,8 @@ interface StatementImportFlowProps {
 export function StatementImportFlow({ householdId, onDone, onChanged }: StatementImportFlowProps) {
   const imp = useStatementImport(householdId)
   const router = useRouter()
+  // Solo un panel monta el contenido: si no, el éxito vibra y lanza confeti dos veces.
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (imp.step === 'idle') imp.startImport()
@@ -100,7 +103,7 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
       }}>
         <div style={{ width: 36, height: 4, background: '#CBD5E1', borderRadius: 2, margin: '12px auto 8px', flexShrink: 0 }} />
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {renderStep()}
+          {isMobile && renderStep()}
         </div>
       </div>
 
@@ -111,7 +114,7 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
         overflow: 'hidden',
       }}>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {renderStep()}
+          {!isMobile && renderStep()}
         </div>
       </div>
     </>
