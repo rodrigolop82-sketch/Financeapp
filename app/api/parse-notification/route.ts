@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { localToday } from '@/lib/dates'
-import { cleanTransactionName } from '@/lib/format'
+import { cleanTransactionName, formatMoney } from '@/lib/format'
 import { toGTQ, detectCurrency } from '@/lib/currency'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
@@ -241,6 +241,7 @@ async function handleShortcut(req: NextRequest, token: string) {
   const result = await registerApplePayCharge(admin, row.user_id, parsed.value)
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
   const r = result.value
+  const spent = `${formatMoney(r.amount, { showDecimals: true })} en ${r.merchant}`
   return NextResponse.json({
     ok: true,
     id: r.id,
@@ -251,7 +252,7 @@ async function handleShortcut(req: NextRequest, token: string) {
     categorized: r.remembered,
     notified: r.pushed,
     message: r.remembered && r.categoryName
-      ? `Registramos ${r.merchant} en ${r.categoryName}.`
-      : `Registramos ${r.merchant}. Abre Zafi para elegir la categoría.`,
+      ? `Registramos ${spent}: ${r.categoryName}.`
+      : `Registramos ${spent}. Abre Zafi para elegir la categoría.`,
   }, { status: 201 })
 }
