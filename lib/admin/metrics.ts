@@ -321,9 +321,11 @@ export function computeResumen(ctx: Ctx, days: PeriodDays): Resumen {
     { key: 'premium', label: 'Prueba → premium', value: fmtPct(convNow), delta: ptsDelta(convNow, convPrev), sub: `${paid} de ${trials.length} ${trials.length === 1 ? 'prueba' : 'pruebas'}` },
   ];
 
+  // Mismo rango que las barras: los últimos `days` días locales, hoy incluido.
+  const from = startOfLocalDay(now) - (days - 1) * DAY_MS;
   const periodTxs = ctx.txs.filter((t) => {
     const ms = toMs(t.createdAt);
-    return ms !== null && ms >= now - P && ms <= now;
+    return ms !== null && ms >= from && ms <= now;
   });
 
   return {
