@@ -87,6 +87,7 @@ const PARENTS: [string, ParentLink][] = [
   ['/notificacion', { label: 'Movimientos', href: '/transacciones' }],
   ['/metas', { label: 'Metas', href: '/metas' }],
   ['/cuenta', { label: 'Cuenta', href: '/cuenta' }],
+  ['/mis-fuentes', { label: 'Mis bancos', href: '/mis-fuentes' }],
   ['/aprende', { label: 'Aprende', href: '/aprende' }],
 ];
 

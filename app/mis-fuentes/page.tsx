@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { GT_BANKS } from '@/lib/sources'
@@ -157,6 +158,19 @@ export default function MisFuentesPage() {
       }}>
         Declarar tus fuentes le permite a Zafi verificar que cada mes tengas toda tu información financiera al día.
       </p>
+
+      {/* Apple Pay vía Atajos (fase 13) */}
+      <Link
+        href="/mis-fuentes/apple-pay"
+        className="mb-5 flex min-h-[64px] items-center gap-3 rounded-[14px] border border-[var(--zafi-border)] bg-[var(--zafi-card)] px-4 py-3 no-underline transition-transform active:scale-[0.98]"
+      >
+        <span aria-hidden className="flex h-10 w-10 flex-none items-center justify-center rounded-[10px] bg-[var(--zafi-card-alt)] text-lg">📲</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-[15px] font-semibold text-ink-900 dark:text-ink-100">Apple Pay</span>
+          <span className="text-[13px] text-[var(--zafi-text-secondary)]">Tus pagos con el iPhone llegan solos a Zafi</span>
+        </span>
+        <span aria-hidden className="font-bold text-[var(--zafi-text-secondary)]">›</span>
+      </Link>
 
       {errorMsg && (
         <div style={{

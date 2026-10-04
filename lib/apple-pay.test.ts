@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  RATE_LIMIT, cardLabel, cleanText, looksLikeShortcutToken, parseAmount, parseApplePayBody, parseDate, rateLimitStep,
+  RATE_LIMIT, cardLabel, cleanText, looksLikeShortcutToken, parseAmount, parseApplePayBody, parseDate, rateLimitStep, tokenSummary,
 } from './apple-pay';
 import { generateShortcutToken, hashShortcutToken } from './apple-pay-token';
 
@@ -102,5 +102,14 @@ describe('cardLabel', () => {
   it('etiqueta de la hoja', () => {
     expect(cardLabel('BI Visa ··4821')).toBe('Apple Pay · BI Visa ··4821');
     expect(cardLabel(null)).toBe('Apple Pay');
+  });
+});
+
+describe('tokenSummary', () => {
+  it('creada y usada', () => {
+    const now = new Date(2026, 9, 4, 12).getTime();
+    expect(tokenSummary({ created_at: new Date(2026, 9, 1, 9).toISOString(), last_used_at: null }, now)).toBe('Creada el 1 oct · sin usar todavía');
+    expect(tokenSummary({ created_at: new Date(2026, 9, 1, 9).toISOString(), last_used_at: new Date(2026, 9, 4, 8).toISOString() }, now)).toBe('Creada el 1 oct · usada hoy');
+    expect(tokenSummary({ created_at: new Date(2026, 8, 1, 9).toISOString(), last_used_at: new Date(2026, 9, 2, 8).toISOString() }, now)).toBe('Creada el 1 sep · usada el 2 oct');
   });
 });

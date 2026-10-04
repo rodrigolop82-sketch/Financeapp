@@ -153,3 +153,28 @@ export function cardLabel(card: string | null | undefined): string {
   const c = (card ?? '').trim();
   return c ? `Apple Pay · ${c}` : 'Apple Pay';
 }
+
+const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+function shortDay(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+}
+
+/** "Creada el 4 oct · usada hoy" para la lista de claves. */
+export function tokenSummary(t: { created_at: string; last_used_at: string | null }, nowMs: number): string {
+  const created = `Creada el ${shortDay(t.created_at)}`;
+  if (!t.last_used_at) return `${created} · sin usar todavía`;
+  const used = new Date(t.last_used_at);
+  const now = new Date(nowMs);
+  const sameDay = used.getFullYear() === now.getFullYear() && used.getMonth() === now.getMonth() && used.getDate() === now.getDate();
+  return `${created} · usada ${sameDay ? 'hoy' : `el ${shortDay(t.last_used_at)}`}`;
+}
+
+/** Los 4 pasos de la pantalla Mis bancos › Apple Pay. */
+export const SHORTCUT_STEPS: { title: string; detail: string }[] = [
+  { title: 'Abre Atajos › Automatización', detail: 'Toca “Nueva automatización” y elige “Transacción”.' },
+  { title: 'Elige tus tarjetas', detail: 'Marca las tarjetas de Wallet que quieres registrar.' },
+  { title: 'Agrega “Registrar en Zafi”', detail: 'O instala nuestro atajo y se configura solo.' },
+  { title: 'Activa “Ejecutar de inmediato”', detail: 'Así no te pregunta en cada pago.' },
+];
