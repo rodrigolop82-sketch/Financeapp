@@ -206,7 +206,7 @@ export default function MisFuentesPage() {
                   onChange={e => setEditForm(f => ({ ...f, nickname: e.target.value }))}
                   style={{
                     width: '100%', padding: '10px 14px', borderRadius: 10,
-                    border: '1px solid #E2E8F0', fontSize: 14, marginTop: 12,
+                    border: '1px solid var(--zafi-border)', fontSize: 14, marginTop: 12,
                     outline: 'none', boxSizing: 'border-box',
                   }}
                 />
@@ -379,7 +379,7 @@ export default function MisFuentesPage() {
               autoFocus
               style={{
                 width: '100%', padding: '10px 14px', borderRadius: 10,
-                border: '1px solid #E2E8F0', fontSize: 14, marginBottom: 12,
+                border: '1px solid var(--zafi-border)', fontSize: 14, marginBottom: 12,
                 outline: 'none', boxSizing: 'border-box',
               }}
             />
@@ -394,7 +394,7 @@ export default function MisFuentesPage() {
             onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))}
             style={{
               width: '100%', padding: '10px 14px', borderRadius: 10,
-              border: '1px solid #E2E8F0', fontSize: 14, marginTop: 12,
+              border: '1px solid var(--zafi-border)', fontSize: 14, marginTop: 12,
               outline: 'none', boxSizing: 'border-box',
             }}
           />

@@ -199,8 +199,8 @@ function NotificacionContent() {
               rows={5}
               style={{
                 width: '100%', padding: '14px', fontSize: 14,
-                border: '1px solid #E2E8F0', borderRadius: 12,
-                background: 'white', color: '#1E3A5F',
+                border: '1px solid var(--zafi-border)', borderRadius: 12,
+                background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
                 fontFamily: 'inherit', outline: 'none', resize: 'vertical',
                 lineHeight: 1.5,
               }}
@@ -349,8 +349,8 @@ function NotificacionContent() {
                 onChange={(e) => setCategoryId(e.target.value)}
                 style={{
                   width: '100%', padding: '11px 13px', fontSize: 14,
-                  border: '1px solid #E2E8F0', borderRadius: 11,
-                  background: 'white', color: '#1E3A5F', fontFamily: 'inherit', outline: 'none',
+                  border: '1px solid var(--zafi-border)', borderRadius: 11,
+                  background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)', fontFamily: 'inherit', outline: 'none',
                 }}
               >
                 <option value="">Sin categoría</option>
@@ -379,8 +379,8 @@ function NotificacionContent() {
                 onChange={(e) => setDescription(e.target.value)}
                 style={{
                   width: '100%', padding: '11px 13px', fontSize: 14,
-                  border: '1px solid #E2E8F0', borderRadius: 11,
-                  background: 'white', color: '#1E3A5F', fontFamily: 'inherit', outline: 'none',
+                  border: '1px solid var(--zafi-border)', borderRadius: 11,
+                  background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)', fontFamily: 'inherit', outline: 'none',
                 }}
               />
             </div>
@@ -397,8 +397,8 @@ function NotificacionContent() {
                   onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
                   style={{
                     flex: 1, padding: '11px 13px', fontSize: 14,
-                    border: '1px solid #E2E8F0', borderRadius: 11,
-                    background: 'white', color: '#1E3A5F', fontFamily: 'inherit',
+                    border: '1px solid var(--zafi-border)', borderRadius: 11,
+                    background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)', fontFamily: 'inherit',
                     outline: 'none', textAlign: 'right',
                   }}
                 />

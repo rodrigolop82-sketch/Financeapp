@@ -405,7 +405,7 @@ export default function ImportarPage() {
                             <select
                               value={row.category_id}
                               onChange={(e) => updateRowCategory(i, e.target.value)}
-                              className="text-xs border rounded px-2 py-1 max-w-[150px] bg-white"
+                              className="text-xs border rounded px-2 py-1 max-w-[150px] bg-[var(--zafi-input-bg)] text-[var(--zafi-text)]"
                             >
                               <option value="">Sin categoría</option>
                               {['needs', 'wants', 'savings'].map(bucket => {

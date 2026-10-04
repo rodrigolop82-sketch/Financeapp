@@ -49,9 +49,9 @@ export function GoalForm({ emoji, templateName, goalType, avgMonthlyExpenses, on
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '14px 16px',
-    background: 'white',
-    border: '1px solid #CBD5E1',
-    borderRadius: 12, color: '#0F172A',
+    background: 'var(--zafi-input-bg)',
+    border: '1px solid var(--zafi-border)',
+    borderRadius: 12, color: 'var(--zafi-text)',
     fontSize: 16, outline: 'none',
     fontFamily: 'inherit',
   }

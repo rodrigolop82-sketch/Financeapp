@@ -472,8 +472,8 @@ export default function CategoriasPage() {
               onChange={e => setReassignId(e.target.value)}
               style={{
                 width: '100%', padding: '10px 12px', fontSize: 13,
-                border: '1px solid #E2E8F0', borderRadius: 10,
-                background: 'white', color: '#1E3A5F',
+                border: '1px solid var(--zafi-border)', borderRadius: 10,
+                background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
                 fontFamily: 'inherit', outline: 'none',
                 marginBottom: 18,
               }}

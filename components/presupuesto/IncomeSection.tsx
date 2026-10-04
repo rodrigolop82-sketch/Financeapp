@@ -111,7 +111,7 @@ export function IncomeSection({
                   onChange={(e) => onUpdateIncomeEntry(entry.id, 'source', e.target.value)}
                 />
                 <select
-                  className="text-xs border rounded-lg px-2 py-1.5 bg-white text-ink-700 flex-shrink-0"
+                  className="text-xs border rounded-lg px-2 py-1.5 bg-[var(--zafi-input-bg)] text-[var(--zafi-text)] flex-shrink-0"
                   value={entry.member}
                   onChange={(e) => onUpdateIncomeEntry(entry.id, 'member', e.target.value)}
                 >
@@ -121,7 +121,7 @@ export function IncomeSection({
                   <option value="Hogar">Hogar</option>
                 </select>
                 <select
-                  className="text-xs border rounded-lg px-2 py-1.5 bg-white text-ink-700 flex-shrink-0"
+                  className="text-xs border rounded-lg px-2 py-1.5 bg-[var(--zafi-input-bg)] text-[var(--zafi-text)] flex-shrink-0"
                   value={entry.frequency}
                   onChange={(e) => onUpdateIncomeEntry(entry.id, 'frequency', e.target.value)}
                 >

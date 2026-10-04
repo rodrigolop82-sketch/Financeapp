@@ -35,7 +35,7 @@
     --zafi-card: #FFFFFF;
     --zafi-card-alt: #F8F9FC;
     --zafi-text: #1E3A5F;
-    --zafi-text-secondary: #64748B;
+    --zafi-text-secondary: #475569;
     --zafi-text-muted: #94A3B8;
     --zafi-text-faint: #8B9AAE;
     --zafi-border: #E2E8F0;
@@ -91,14 +91,17 @@
     --color-surface:  #141D2E;
     --color-bg:       #0B1120;
 
+    /* Controles nativos (fechas, scroll, autocompletar) en oscuro. */
+    color-scheme: dark;
+
     --zafi-bg: #0B1120;
     --zafi-card: #141D2E;
     --zafi-card-alt: #1A2435;
     --zafi-text: #E2E8F0;
-    --zafi-text-secondary: #94A3B8;
+    --zafi-text-secondary: #A8B6C8;
     --zafi-text-muted: #64748B;
     --zafi-text-faint: #64748B;
-    --zafi-border: #1E293B;
+    --zafi-border: #243044;
     --zafi-border-light: #1E293B;
     --zafi-sidebar: #070D1A;
     --zafi-sidebar-text: #94A3B8;
@@ -136,6 +139,11 @@
     color: var(--zafi-text);
     @apply font-sans;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Campos sin fondo propio siguen el tema (en claro, el blanco de siempre). */
+  :where(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), select, textarea) {
+    background-color: var(--zafi-input-bg);
   }
 
   ::-webkit-scrollbar { width: 4px; }

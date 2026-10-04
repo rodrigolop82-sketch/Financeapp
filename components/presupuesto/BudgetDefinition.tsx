@@ -191,7 +191,7 @@ export function BudgetDefinition({
                     onChange={(e) => onUpdateIncomeEntry(entry.id, 'source', e.target.value)}
                   />
                   <select
-                    className="text-xs border rounded px-1.5 py-1 bg-white text-ink-700 flex-shrink-0"
+                    className="text-xs border rounded px-1.5 py-1 bg-[var(--zafi-input-bg)] text-[var(--zafi-text)] flex-shrink-0"
                     value={entry.member}
                     onChange={(e) => onUpdateIncomeEntry(entry.id, 'member', e.target.value)}
                   >
@@ -201,7 +201,7 @@ export function BudgetDefinition({
                     <option value="Hogar">Hogar</option>
                   </select>
                   <select
-                    className="text-xs border rounded px-1.5 py-1 bg-white text-ink-700 flex-shrink-0"
+                    className="text-xs border rounded px-1.5 py-1 bg-[var(--zafi-input-bg)] text-[var(--zafi-text)] flex-shrink-0"
                     value={entry.frequency}
                     onChange={(e) => onUpdateIncomeEntry(entry.id, 'frequency', e.target.value)}
                   >
@@ -335,7 +335,7 @@ export function BudgetDefinition({
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0', flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 12, fontWeight: 500, color: '#64748B' }}>Ritmo del gasto</span>
                               <select
-                                style={{ fontSize: 12, border: '1px solid #E5E7EB', borderRadius: 6, padding: '3px 8px', background: '#fff', color: '#64748B' }}
+                                style={{ fontSize: 12, border: '1px solid var(--zafi-border)', borderRadius: 6, padding: '3px 8px', background: 'var(--zafi-input-bg)', color: 'var(--zafi-text-secondary)' }}
                                 value={cat.pace_mode || 'linear'}
                                 onChange={(e) => onUpdatePaceMode(cat.id, e.target.value as 'linear' | 'fixed')}
                               >
@@ -376,7 +376,7 @@ export function BudgetDefinition({
                                   {sub.is_fixed ? 'fijo' : 'variable'}
                                 </span>
                                 <select
-                                  style={{ fontSize: 10, border: '1px solid #E5E7EB', borderRadius: 4, padding: '1px 4px', background: '#fff', color: '#64748B' }}
+                                  style={{ fontSize: 10, border: '1px solid var(--zafi-border)', borderRadius: 4, padding: '1px 4px', background: 'var(--zafi-input-bg)', color: 'var(--zafi-text-secondary)' }}
                                   value={sub.payment_method || 'efectivo'}
                                   onChange={(e) => onUpdateSubPayment(sub.id, e.target.value as BudgetSubItem['payment_method'])}
                                 >
@@ -386,7 +386,7 @@ export function BudgetDefinition({
                                   <option value="transferencia">Transfer.</option>
                                 </select>
                                 <select
-                                  style={{ fontSize: 10, border: '1px solid #E5E7EB', borderRadius: 4, padding: '1px 4px', background: '#fff', color: '#64748B' }}
+                                  style={{ fontSize: 10, border: '1px solid var(--zafi-border)', borderRadius: 4, padding: '1px 4px', background: 'var(--zafi-input-bg)', color: 'var(--zafi-text-secondary)' }}
                                   value={sub.recurrence || 'mensual'}
                                   onChange={(e) => onUpdateSubRecurrence(sub.id, e.target.value as BudgetSubItem['recurrence'])}
                                 >
@@ -448,7 +448,7 @@ export function BudgetDefinition({
                                     Fijo
                                   </label>
                                   <select
-                                    style={{ fontSize: 10, border: '1px solid #E5E7EB', borderRadius: 4, padding: '2px 4px', background: '#fff' }}
+                                    style={{ fontSize: 10, border: '1px solid var(--zafi-border)', borderRadius: 4, padding: '2px 4px', background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)' }}
                                     value={newSubPayment}
                                     onChange={(e) => setNewSubPayment(e.target.value as BudgetSubItem['payment_method'])}
                                   >
@@ -458,7 +458,7 @@ export function BudgetDefinition({
                                     <option value="transferencia">Transfer.</option>
                                   </select>
                                   <select
-                                    style={{ fontSize: 10, border: '1px solid #E5E7EB', borderRadius: 4, padding: '2px 4px', background: '#fff' }}
+                                    style={{ fontSize: 10, border: '1px solid var(--zafi-border)', borderRadius: 4, padding: '2px 4px', background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)' }}
                                     value={newSubRecurrence}
                                     onChange={(e) => setNewSubRecurrence(e.target.value as BudgetSubItem['recurrence'])}
                                   >

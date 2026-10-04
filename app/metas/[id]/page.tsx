@@ -244,7 +244,7 @@ export default function GoalDetailPage() {
                 onChange={e => setEditEmoji(e.target.value)}
                 style={{
                   width: 56, height: 44, textAlign: 'center', fontSize: 24,
-                  border: '1.5px solid #E2E8F0', borderRadius: 10, outline: 'none',
+                  border: '1.5px solid var(--zafi-border)', borderRadius: 10, outline: 'none',
                 }}
               />
             </div>
@@ -255,8 +255,8 @@ export default function GoalDetailPage() {
                 onChange={e => setEditName(e.target.value)}
                 style={{
                   width: '100%', height: 44, padding: '0 12px',
-                  border: '1.5px solid #E2E8F0', borderRadius: 10,
-                  fontSize: 14, color: '#1E3A5F', outline: 'none',
+                  border: '1.5px solid var(--zafi-border)', borderRadius: 10,
+                  fontSize: 14, color: 'var(--zafi-text)', outline: 'none',
                   boxSizing: 'border-box',
                 }}
               />
@@ -271,8 +271,8 @@ export default function GoalDetailPage() {
                 onChange={e => setEditTarget(e.target.value)}
                 style={{
                   width: '100%', height: 44, padding: '0 12px',
-                  border: '1.5px solid #E2E8F0', borderRadius: 10,
-                  fontSize: 14, color: '#1E3A5F', outline: 'none',
+                  border: '1.5px solid var(--zafi-border)', borderRadius: 10,
+                  fontSize: 14, color: 'var(--zafi-text)', outline: 'none',
                   boxSizing: 'border-box',
                 }}
               />
@@ -286,8 +286,8 @@ export default function GoalDetailPage() {
                 placeholder="Opcional"
                 style={{
                   width: '100%', height: 44, padding: '0 12px',
-                  border: '1.5px solid #E2E8F0', borderRadius: 10,
-                  fontSize: 14, color: '#1E3A5F', outline: 'none',
+                  border: '1.5px solid var(--zafi-border)', borderRadius: 10,
+                  fontSize: 14, color: 'var(--zafi-text)', outline: 'none',
                   boxSizing: 'border-box',
                 }}
               />
@@ -301,8 +301,8 @@ export default function GoalDetailPage() {
               onChange={e => setEditDate(e.target.value)}
               style={{
                 width: '100%', height: 44, padding: '0 12px',
-                border: '1.5px solid #E2E8F0', borderRadius: 10,
-                fontSize: 14, color: '#1E3A5F', outline: 'none',
+                border: '1.5px solid var(--zafi-border)', borderRadius: 10,
+                fontSize: 14, color: 'var(--zafi-text)', outline: 'none',
                 boxSizing: 'border-box',
               }}
             />

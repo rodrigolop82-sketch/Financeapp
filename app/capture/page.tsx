@@ -423,8 +423,8 @@ function CaptureContent() {
               placeholder="0.00"
               style={{
                 flex: 1, padding: '11px 13px', fontSize: 14,
-                border: '1px solid #E2E8F0', borderRadius: 11,
-                background: 'white', color: '#1E3A5F',
+                border: '1px solid var(--zafi-border)', borderRadius: 11,
+                background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
                 fontFamily: 'inherit', outline: 'none', textAlign: 'right',
               }}
             />
@@ -444,8 +444,8 @@ function CaptureContent() {
             placeholder="Ej: Supermercado, Gasolina"
             style={{
               width: '100%', padding: '11px 13px', fontSize: 14,
-              border: '1px solid #E2E8F0', borderRadius: 11,
-              background: 'white', color: '#1E3A5F',
+              border: '1px solid var(--zafi-border)', borderRadius: 11,
+              background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
               fontFamily: 'inherit', outline: 'none',
             }}
           />
@@ -482,8 +482,8 @@ function CaptureContent() {
               onChange={(e) => setDate(e.target.value)}
               style={{
                 width: '100%', padding: '11px 13px', fontSize: 14,
-                border: '1px solid #E2E8F0', borderRadius: 11,
-                background: 'white', color: '#1E3A5F',
+                border: '1px solid var(--zafi-border)', borderRadius: 11,
+                background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
                 fontFamily: 'inherit', outline: 'none',
               }}
             />
@@ -498,8 +498,8 @@ function CaptureContent() {
               onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
               style={{
                 width: '100%', padding: '11px 13px', fontSize: 14,
-                border: '1px solid #E2E8F0', borderRadius: 11,
-                background: 'white', color: '#1E3A5F',
+                border: '1px solid var(--zafi-border)', borderRadius: 11,
+                background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
                 fontFamily: 'inherit', outline: 'none',
               }}
             >
