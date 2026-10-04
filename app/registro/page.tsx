@@ -174,7 +174,7 @@ function RegistroForm() {
                 required
               />
             </div>
-            <label htmlFor="marketing" className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm text-ink-700">
+            <label htmlFor="marketing" className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm">
               <input
                 id="marketing"
                 type="checkbox"
