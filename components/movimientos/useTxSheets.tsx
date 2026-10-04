@@ -62,6 +62,7 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [message, setMessage] = useState<StatusMessage | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [flashNew, setFlashNew] = useState(false);
 
   const flow = useReclassifyFlow(categories, onChanged);
 
@@ -82,11 +83,17 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
   const deletion = useUndoableDelete(setRows, onChanged);
 
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flash = useCallback((id: string) => {
+  /** Resalta una fila; `isNew`: además entra deslizando (recién agregada, llega al recargar). */
+  const flash = useCallback((id: string, isNew = false) => {
     setFlashId(id);
+    setFlashNew(isNew);
     if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setFlashId(null), FLASH_MS);
+    flashTimer.current = setTimeout(() => setFlashId(null), isNew ? FLASH_MS + 1000 : FLASH_MS);
   }, []);
+  const flashFor = useCallback(
+    (id: string): boolean | 'new' => (flashId === id ? (flashNew ? 'new' : true) : false),
+    [flashId, flashNew],
+  );
 
   const selected = sheet ? rows.find((r) => r.id === sheet.txId) ?? null : null;
 
@@ -246,6 +253,8 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
     deleteTx,
     flash,
     flashId,
+    /** Valor de `flash` para la fila `id` (TxRow / SwipeRow). */
+    flashFor,
     /** Id con borrado pendiente: hay que filtrarlo al recargar. */
     getPendingDeleteId: deletion.getPendingId,
     deleteError: deletion.error,

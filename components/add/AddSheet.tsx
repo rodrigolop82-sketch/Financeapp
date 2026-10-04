@@ -16,6 +16,9 @@ import { CategoryGrid, CATEGORY_TILE_CLASS } from '@/components/transactions/Cat
 import { CategorySheet } from '@/components/movimientos/CategorySheet'
 import { DateSheet, OptionSheet } from '@/components/movimientos/OptionSheet'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
+import { UndoToast } from '@/components/transactions/UndoToast'
+import { SuccessCheck } from '@/components/motion/SuccessCheck'
+import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
 import { SubItemPicker, type SubItemOption } from '@/components/movimientos/SubItemPicker'
 import { suggestSubItem } from '@/lib/plan-del-mes'
 import { isReservedLeaf } from '@/lib/month-start-data'
@@ -59,6 +62,26 @@ interface AddContext {
 }
 
 type SubView = 'category' | 'date' | 'payment'
+
+/** Pantalla de éxito dentro de la hoja después de guardar. */
+interface SaveSuccess {
+  amount: string
+  label: string
+  /** Alto que tenía el formulario: la hoja no salta al cambiar de contenido. */
+  minHeight: number
+}
+
+/** Guardado reciente con "Deshacer". */
+interface SavedUndo {
+  text: string
+  ids: string[]
+}
+
+/** Mínimo que se ve el spinner del botón, y cuánto se queda el check antes de bajar la hoja. */
+const SAVE_SPINNER_MIN_MS = 350
+const SUCCESS_HOLD_MS = 1000
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** Qué borrador edita la sub-hoja: el formulario manual o una tarjeta de "entendí esto". */
 type Target = 'manual' | number
 
@@ -113,6 +136,10 @@ export function AddSheet() {
   const [parsedSource, setParsedSource] = useState<'text' | 'voice'>('text')
   const [rawText, setRawText] = useState('')
   const [saving, setSaving] = useState(false)
+  const [success, setSuccess] = useState<SaveSuccess | null>(null)
+  const [saved, setSaved] = useState<SavedUndo | null>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const finishRef = useRef<(() => void) | null>(null)
 
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [importActive, setImportActive] = useState(false)
@@ -166,6 +193,7 @@ export function AddSheet() {
   }, [])
 
   const toast = useCallback((text: string, tone: StatusMessage['tone'] = 'error') => setMessage({ text, tone }), [])
+  const dismissSaved = useCallback(() => setSaved(null), [])
 
   const resetAll = useCallback(() => {
     setQuick('')
@@ -280,11 +308,14 @@ export function AddSheet() {
   }
 
   async function save(drafts: Draft[], source: 'manual' | 'text' | 'voice') {
+    if (saving || success) return
     const problem = drafts.map(validate).find(Boolean)
     if (problem) { toast(problem); return }
     const context = await ensureContext()
     if (!context) { toast('No pudimos encontrar tu hogar. Recarga la página.'); return }
     setSaving(true)
+    const startedAt = Date.now()
+    const formHeight = contentRef.current?.offsetHeight ?? 0
     const rows = drafts.map((d) => {
       const cat = context.categories.find((c) => c.id === d.categoryId)
       return {
@@ -306,29 +337,67 @@ export function AddSheet() {
       }
     })
     const { data, error } = await createClient().from('transactions').insert(rows).select('id, date')
-    setSaving(false)
     if (error) {
+      setSaving(false)
       toast(`No se pudo guardar: ${error.message}`)
       return
     }
     const first = rows[0]
     // Gasto en una hoja fija apartada: "pendiente" baja solo, no se cuenta dos veces.
-    const joined = rows.length === 1 && first.type === 'expense' && !!first.category_id && first.date.slice(0, 7) === localToday().slice(0, 7)
-      && await isReservedLeaf(createClient(), context.householdId, first.date.slice(0, 7), {
-        categoryId: first.category_id,
-        subItemId: drafts[0].subItemId,
-      }).catch(() => false)
-    toast(
-      rows.length > 1
-        ? `Guardados ${rows.length} movimientos`
-        : joined
-          ? `Guardado: ${first.description ?? ''}. Lo juntamos con lo que ya habías apartado.`
-          : `Guardado: ${first.description ?? ''} · ${formatMoney(first.amount, { showDecimals: true })}`,
-      'ok',
-    )
-    closeSheet()
-    resetAll()
-    notifyTransactionsChanged({ id: data?.[0]?.id, date: data?.[0]?.date ?? first.date })
+    const joinedPromise = rows.length === 1 && first.type === 'expense' && !!first.category_id && first.date.slice(0, 7) === localToday().slice(0, 7)
+      ? isReservedLeaf(createClient(), context.householdId, first.date.slice(0, 7), {
+          categoryId: first.category_id,
+          subItemId: drafts[0].subItemId,
+        }).catch(() => false)
+      : Promise.resolve(false)
+
+    // El spinner del botón se ve al menos 350 ms; luego, el check.
+    await wait(Math.max(0, SAVE_SPINNER_MIN_MS - (Date.now() - startedAt)))
+    setSaving(false)
+    const total = rows.reduce((sum, r) => sum + r.amount, 0)
+    const cat = context.categories.find((c) => c.id === first.category_id)
+    setSuccess({
+      amount: formatMoney(total, { showDecimals: true }),
+      label: rows.length > 1
+        ? `${rows.length} movimientos · guardados`
+        : `${cat ? `${getEmoji(cat)} ${cat.name}` : first.description ?? ''} · guardado`,
+      minHeight: Math.min(formHeight, 520),
+    })
+    navigator.vibrate?.(15)
+
+    const ids = ((data ?? []) as { id: string }[]).map((r) => r.id)
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      finishRef.current = null
+      closeSheet()
+      // La hoja termina de bajar antes de volver al formulario.
+      setTimeout(() => { setSuccess(null); resetAll() }, 320)
+      notifyTransactionsChanged({ id: data?.[0]?.id, date: data?.[0]?.date ?? first.date })
+      void joinedPromise.then((joined) => {
+        setSaved({
+          ids,
+          text: rows.length > 1
+            ? `Guardados ${rows.length} movimientos`
+            : joined
+              ? `Guardado: ${first.description ?? ''}. Lo juntamos con lo que ya habías apartado.`
+              : `Guardado: ${first.description ?? ''} · ${formatMoney(first.amount, { showDecimals: true })}`,
+        })
+      })
+    }
+    finishRef.current = finish
+    setTimeout(finish, SUCCESS_HOLD_MS)
+  }
+
+  /** "Deshacer" del guardado: borra lo que se acaba de insertar. */
+  async function undoSaved() {
+    const s = saved
+    setSaved(null)
+    if (!s || s.ids.length === 0) return
+    const { error } = await createClient().from('transactions').delete().in('id', s.ids)
+    if (error) { toast('No se pudo deshacer. Intenta de nuevo.'); return }
+    notifyTransactionsChanged()
   }
 
   // ── Edición de borradores ────────────────────────
@@ -386,15 +455,27 @@ export function AddSheet() {
   const sub = subView ? draftFor(subView.target) : undefined
 
   function closeSubOrSheet() {
-    if (subView) setSubView(null)
+    if (finishRef.current) finishRef.current()
+    else if (subView) setSubView(null)
     else closeSheet()
   }
 
   return (
     <>
       <BottomSheet themed open={open} onClose={closeSubOrSheet} label="Agregar movimiento">
+        {/* Guardado: check, monto y categoría; la hoja baja sola en ~1 s */}
+        {success && (
+          <div
+            role="status"
+            className="flex flex-col items-center justify-center px-5 pt-6 pb-[calc(60px+env(safe-area-inset-bottom))]"
+            style={{ minHeight: success.minHeight || 360 }}
+          >
+            <SuccessCheck size={96} title={success.amount} subtitle={success.label} />
+          </div>
+        )}
+
         {/* Sub-hojas: categoría, fecha, forma de pago */}
-        {subView?.view === 'category' && sub && (
+        {!success && subView?.view === 'category' && sub && (
           <CategorySheet
             key={`${String(subView.target)}-${sub.type}`}
             categories={categories}
@@ -410,14 +491,14 @@ export function AddSheet() {
             }}
           />
         )}
-        {subView?.view === 'date' && sub && (
+        {!success && subView?.view === 'date' && sub && (
           <DateSheet
             today={today}
             selected={sub.date}
             onSelect={(date) => { patchDraft(subView.target, { date }); setSubView(null) }}
           />
         )}
-        {subView?.view === 'payment' && sub && (
+        {!success && subView?.view === 'payment' && sub && (
           <OptionSheet<PaymentMethod>
             title={sub.type === 'income' ? '¿Cómo lo recibiste?' : '¿Con qué pagaste?'}
             options={PAYMENT_OPTIONS}
@@ -427,8 +508,8 @@ export function AddSheet() {
         )}
 
         {/* Estado "entendí esto" */}
-        {!subView && parsed && (
-          <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto [&>*]:shrink-0">
+        {!success && !subView && parsed && (
+          <div ref={contentRef} className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto [&>*]:shrink-0">
             <div className="flex flex-col gap-1">
               <h2 tabIndex={-1} className="eyebrow outline-none">Entendí esto</h2>
               {rawText && <p className={`text-sm italic ${TEXT_MUTED}`}>“{rawText}”</p>}
@@ -490,7 +571,7 @@ export function AddSheet() {
                 ? 'h-[54px] w-full rounded-[14px] font-semibold text-base bg-ink-100 text-ink-400 dark:bg-white/10'
                 : PRIMARY_BUTTON}
             >
-              {saving ? 'Guardando…' : parsed.length > 1 ? `Guardar ${parsed.length}` : 'Guardar'}
+              {saving ? <span className="inline-block w-[22px] h-[22px] border-[2.5px] border-white/40 border-t-white rounded-full animate-spin align-middle" role="status" aria-label="Guardando" /> : parsed.length > 1 ? `Guardar ${parsed.length}` : 'Guardar'}
             </button>
             <button
               type="button"
@@ -503,8 +584,8 @@ export function AddSheet() {
         )}
 
         {/* Estado "escribir" */}
-        {!subView && !parsed && (
-          <div className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto [&>*]:shrink-0">
+        {!success && !subView && !parsed && (
+          <div ref={contentRef} className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto [&>*]:shrink-0">
             <div className="flex flex-col gap-0.5">
               <h2 tabIndex={-1} className={SHEET_TITLE}>Agregar</h2>
               <p className={`text-sm ${TEXT_MUTED}`}>Escríbelo como se lo dirías a alguien.</p>
@@ -666,12 +747,13 @@ export function AddSheet() {
             <button
               type="button"
               aria-disabled={!canSaveManual}
+              disabled={saving}
               onClick={() => void save([manual], 'manual')}
-              className={`h-[54px] w-full rounded-[14px] font-semibold text-base transition-colors ${
-                canSaveManual ? 'bg-electric text-white hover:bg-electric-dark' : 'bg-ink-100 text-ink-400 dark:bg-white/10'
+              className={`h-[54px] w-full rounded-[14px] font-semibold text-base flex items-center justify-center transition duration-150 ${
+                canSaveManual || saving ? 'bg-electric text-white hover:bg-electric-dark active:scale-[0.96]' : 'bg-ink-100 text-ink-400 dark:bg-white/10'
               }`}
             >
-              {saving ? 'Guardando…' : manual.type === 'income' ? 'Guardar ingreso' : 'Guardar gasto'}
+              {saving ? <span className="inline-block w-[22px] h-[22px] border-[2.5px] border-white/40 border-t-white rounded-full animate-spin align-middle" role="status" aria-label="Guardando" /> : manual.type === 'income' ? 'Guardar ingreso' : 'Guardar gasto'}
             </button>
 
             <div className="grid grid-cols-2 gap-2">
@@ -720,6 +802,13 @@ export function AddSheet() {
       />
 
       <StatusToast message={message} onDone={() => setMessage(null)} />
+      <UndoToast
+        visible={!!saved && !message}
+        title={saved?.text ?? ''}
+        duration={DELETE_UNDO_MS}
+        onUndo={() => void undoSaved()}
+        onDismiss={dismissSaved}
+      />
     </>
   )
 }

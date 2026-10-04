@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { localToday } from '@/lib/dates'
 import { getUserHousehold } from '@/lib/household'
@@ -15,6 +14,8 @@ import {
 } from '@/lib/inicio'
 import { buildSmartAlert } from '@/components/dashboard/SmartAlert'
 import { AppShell } from '@/components/layout/AppShell'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
+import { CountUp } from '@/components/motion/CountUp'
 import { openAddSheet } from '@/components/dashboard/BottomNav'
 import { TRANSACTIONS_CHANGED_EVENT, type TxChangedDetail } from '@/components/add/AddSheet'
 import { TxRow, txRowData } from '@/components/movimientos/SwipeRow'
@@ -164,7 +165,7 @@ export default function InicioPage() {
   useEffect(() => {
     function onChanged(e: Event) {
       const detail = (e as CustomEvent<TxChangedDetail | undefined>).detail
-      if (detail?.id) flash(detail.id)
+      if (detail?.id) flash(detail.id, true)
       reload()
     }
     window.addEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged)
@@ -226,11 +227,7 @@ export default function InicioPage() {
   }, [monthStart.loaded, openMonthStart])
 
   if (!data || !baseSummary) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zafi-bg)' }}>
-        <Loader2 className="w-8 h-8 text-electric animate-spin" aria-label="Cargando" />
-      </div>
-    )
+    return <PageSkeleton variant="home" />
   }
 
   const s: HomeSummary = computeHome(data.categories, data.monthTx, new Date(), monthStart.reserve.reserved)
@@ -267,7 +264,7 @@ export default function InicioPage() {
       mobileHeader={<>{greeting}{avatar}</>}
       headerRight={avatar}
     >
-      <div className="max-w-2xl flex flex-col">
+      <div className="max-w-2xl flex flex-col zafi-stagger">
         {/* Hero */}
         <section
           aria-label={hasPlan ? 'Hoy puedes gastar' : 'Tu plan del mes'}
@@ -284,7 +281,7 @@ export default function InicioPage() {
                 </span>
               </div>
               <p className="font-outfit font-extrabold text-[58px] leading-none tracking-[-0.02em]">
-                {fmt(s.perDay)}
+                <CountUp value={s.perDay} format={fmt} />
               </p>
               <p className="text-sm text-[#9FB3CB] [text-wrap:pretty]">
                 {s.left <= 0
@@ -295,7 +292,7 @@ export default function InicioPage() {
               </p>
               <div className="h-px bg-white/[0.08] mt-3 mb-2" />
               <div className="flex items-center justify-between text-[13.5px] text-[#9FB3CB]">
-                <span>Te quedan <b className="font-outfit font-bold text-white">{fmt(Math.max(0, s.left))}</b></span>
+                <span>Te quedan <b className="font-outfit font-bold text-white"><CountUp value={Math.max(0, s.left)} format={fmt} /></b></span>
                 <span>de {fmt(s.budget)}</span>
               </div>
               <div
@@ -306,7 +303,7 @@ export default function InicioPage() {
                 aria-valuemax={100}
                 aria-valuenow={Math.round(Math.min(100, s.pct * 100))}
               >
-                <div className="h-full rounded-[5px]" style={{ width: `${Math.min(100, s.pct * 100)}%`, background: status.bar }} />
+                <div className="h-full rounded-[5px] transition-[width,background-color] [transition-duration:600ms]" style={{ width: `${Math.min(100, s.pct * 100)}%`, background: status.bar }} />
               </div>
             </>
           ) : (
@@ -360,7 +357,7 @@ export default function InicioPage() {
                         </span>
                       </span>
                       <span className="h-1.5 rounded bg-[var(--zafi-border-light)] overflow-hidden">
-                        <span className="block h-full rounded" style={{ width: `${Math.min(100, b.ratio * 100)}%`, background: style.bar }} />
+                        <span className="block h-full rounded transition-[width,background-color] [transition-duration:600ms]" style={{ width: `${Math.min(100, b.ratio * 100)}%`, background: style.bar }} />
                       </span>
                     </Link>
                   )
@@ -400,7 +397,7 @@ export default function InicioPage() {
                 <TxRow
                   key={tx.id}
                   row={txRowData(tx, fmt)}
-                  flash={sheets.flashId === tx.id}
+                  flash={sheets.flashFor(tx.id)}
                   onSelect={() => sheets.openDetail(tx.id)}
                 />
               ))}
