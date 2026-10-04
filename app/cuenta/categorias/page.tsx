@@ -3,12 +3,24 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { getUserHousehold } from '@/lib/household'
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { AppShell } from '@/components/layout/AppShell'
 import { CategorySheet } from '@/components/categories/CategorySheet'
+import { BottomSheet } from '@/components/transactions/BottomSheet'
+import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
+import { PageSkeleton } from '@/components/motion/PageSkeleton'
+import { Switch } from '@/components/cuenta/AccountUI'
+import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
+import { CARD } from '@/components/resumen/ctf-ui'
+import {
+  BADGE_INFO, BADGE_NEUTRAL, BADGE_OK, BADGE_WARN, Chevron, FieldLabel, GroupTitle, INPUT_48, ListCard, PageHeader,
+  PILL_OUTLINE, PillButton, ROW_DIVIDER, RowBody, SheetHeader, Tile,
+} from '@/components/layout/Pantalla'
+import { BUCKET_GROUPS, getEmoji } from '@/lib/categories-ui'
 import {
   MAX_CUSTOM_CATEGORIES,
   MIN_VISIBLE_DEFAULTS,
-  COUNTER_VISIBLE_FROM,
 } from '@/lib/categories'
 
 interface CategoryItem {
@@ -26,6 +38,18 @@ interface CategoryItem {
   archived_at?: string | null
 }
 
+/** Pill del grupo: Lo básico (gris), Gustos (azul), Ahorro y deudas (verde), Ingresos (ámbar). */
+const GROUP_BADGE: Record<string, string> = {
+  needs: BADGE_NEUTRAL,
+  wants: BADGE_INFO,
+  savings: BADGE_OK,
+  income: BADGE_WARN,
+}
+
+function groupTitle(bucket: string): string {
+  return BUCKET_GROUPS.find(g => g.bucket === bucket)?.title ?? 'Lo básico'
+}
+
 export default function CategoriasPage() {
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -36,8 +60,9 @@ export default function CategoriasPage() {
   const [archiveTarget, setArchiveTarget] = useState<CategoryItem | null>(null)
   const [reassignId, setReassignId] = useState('')
   const [archiving, setArchiving] = useState(false)
-  const [toast, setToast] = useState('')
+  const [message, setMessage] = useState<StatusMessage | null>(null)
   const router = useRouter()
+  const fmt = useFormatMoney()
 
   const supabase = createClient()
 
@@ -45,8 +70,8 @@ export default function CategoriasPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
-    const { data: hh } = await supabase
-      .from('households').select('id').eq('owner_id', user.id).limit(1).single()
+    // Igual que Cerrar el mes: los miembros invitados también ven las categorías del hogar.
+    const hh = await getUserHousehold(supabase, user.id)
     if (!hh) { router.push('/dashboard'); return }
     setHouseholdId(hh.id)
 
@@ -79,10 +104,13 @@ export default function CategoriasPage() {
   const defaultsForSheet = defaults.map(c => ({ id: c.id, name: c.name, bucket: c.bucket }))
   const existingNames = categories.filter(c => !c.archived_at).map(c => c.name)
 
-  function showToast(msg: string) {
-    setToast(msg)
-    setTimeout(() => setToast(''), 2500)
+  function showToast(text: string, tone: StatusMessage['tone'] = 'ok') {
+    setMessage({ text, tone })
   }
+
+  const closeSheet = useCallback(() => { setSheetOpen(false); setEditCategory(null) }, [])
+  const closeArchive = useCallback(() => { setArchiveTarget(null); setReassignId('') }, [])
+  const clearMessage = useCallback(() => setMessage(null), [])
 
   function handleEdit(cat: CategoryItem) {
     setEditCategory(cat)
@@ -95,9 +123,17 @@ export default function CategoriasPage() {
   }
 
   function handleSheetCreated() {
+    showToast(editCategory ? 'Guardado' : 'Categoría creada')
     setSheetOpen(false)
     setEditCategory(null)
     loadCategories()
+  }
+
+  function openArchive() {
+    if (!editCategory) return
+    setSheetOpen(false)
+    setArchiveTarget(editCategory)
+    setReassignId('')
   }
 
   async function handleArchive() {
@@ -111,7 +147,7 @@ export default function CategoriasPage() {
 
     if ((txCount ?? 0) > 0 && !reassignId) {
       setArchiving(false)
-      showToast('Elige a dónde mover los gastos')
+      showToast('Elige a dónde mover sus movimientos', 'error')
       return
     }
 
@@ -130,20 +166,20 @@ export default function CategoriasPage() {
     setArchiving(false)
     setArchiveTarget(null)
     setReassignId('')
-    showToast('Categoría archivada')
+    showToast(`${archiveTarget.name} archivada`)
     loadCategories()
   }
 
   async function handleRestore(cat: CategoryItem) {
     if (custom.length >= MAX_CUSTOM_CATEGORIES) {
-      showToast(`Máximo ${MAX_CUSTOM_CATEGORIES} categorías activas`)
+      showToast(`Máximo ${MAX_CUSTOM_CATEGORIES} categorías activas`, 'error')
       return
     }
 
     const nameLower = cat.name.toLowerCase()
     const dup = categories.find(c => !c.archived_at && c.name.toLowerCase() === nameLower && c.id !== cat.id)
     if (dup) {
-      showToast('Ya existe una categoría activa con ese nombre')
+      showToast('Ya existe una categoría activa con ese nombre', 'error')
       return
     }
 
@@ -152,13 +188,13 @@ export default function CategoriasPage() {
       .update({ archived_at: null })
       .eq('id', cat.id)
 
-    showToast('Categoría restaurada')
+    showToast(`${cat.name} restaurada`)
     loadCategories()
   }
 
   async function toggleDefaultVisibility(catId: string, currentlyVisible: boolean) {
     if (currentlyVisible && visibleDefaults.length <= MIN_VISIBLE_DEFAULTS) {
-      showToast(`Deja al menos ${MIN_VISIBLE_DEFAULTS} categorías visibles`)
+      showToast(`Deja al menos ${MIN_VISIBLE_DEFAULTS} visibles`, 'error')
       return
     }
 
@@ -182,361 +218,144 @@ export default function CategoriasPage() {
   }
 
   if (loading) {
-    return (
-      <AppShell title="Categorías" currentPath="/cuenta">
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%',
-            border: '3px solid #DBEAFE', borderTopColor: '#2563EB',
-            animation: 'spin 0.8s linear infinite',
-          }}/>
-          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-        </div>
-      </AppShell>
-    )
+    return <PageSkeleton variant="list" />
   }
 
-  const showCounter = custom.length >= COUNTER_VISIBLE_FROM
+  const atMax = custom.length >= MAX_CUSTOM_CATEGORIES
+  const help = (cat: CategoryItem) => [
+    cat.pace_mode === 'fixed' ? `Fijo${cat.expected_day ? ` · día ${cat.expected_day}` : ''}` : 'Variable',
+    cat.budgeted_amount ? fmt(cat.budgeted_amount) : null,
+  ].filter(Boolean).join(' · ')
+  const newButton = (
+    <PillButton
+      onClick={handleCreate}
+      disabled={atMax}
+      className="flex h-9 items-center rounded-full bg-electric px-3.5 text-sm font-bold text-white transition duration-150 group-active:scale-[0.96]"
+    >
+      + Nueva
+    </PillButton>
+  )
+  const counter = `Tienes ${custom.length} de ${MAX_CUSTOM_CATEGORIES} categorías tuyas.`
 
   return (
-    <AppShell title="Categorías" currentPath="/cuenta">
-      <div style={{ maxWidth: 600, margin: '0 auto' }}>
+    <AppShell title="Categorías" currentPath="/cuenta" hideMobileBar headerRight={newButton}>
+      <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
+        <PageHeader back={{ href: '/cuenta', label: 'Cuenta' }} title="Categorías" subtitle={counter} right={newButton} />
+        <p className={`hidden text-sm lg:block ${TEXT_MUTED}`}>{counter}</p>
 
-        {/* Counter + Create button */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          marginBottom: 20,
-        }}>
-          <div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1E3A5F', margin: 0 }}>
-              Tus categorías
-            </h2>
-            {showCounter && (
-              <p style={{ fontSize: 12, color: '#64748B', margin: '4px 0 0' }}>
-                {custom.length} de {MAX_CUSTOM_CATEGORIES} activas
-              </p>
-            )}
-          </div>
-          <button
-            onClick={handleCreate}
-            disabled={custom.length >= MAX_CUSTOM_CATEGORIES}
-            style={{
-              padding: '9px 18px', fontSize: 13, fontWeight: 600,
-              background: custom.length >= MAX_CUSTOM_CATEGORIES ? '#CBD5E1' : '#1E3A5F',
-              color: 'white', border: 'none', borderRadius: 10,
-              cursor: custom.length >= MAX_CUSTOM_CATEGORIES ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            + Nueva categoría
-          </button>
-        </div>
-
-        {/* Custom categories list */}
+        <GroupTitle>Tus categorías</GroupTitle>
         {custom.length === 0 ? (
-          <div style={{
-            padding: '40px 20px', textAlign: 'center',
-            background: 'white', borderRadius: 16,
-            border: '1px solid #E2E8F0', marginBottom: 24,
-          }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
-            <p style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F', margin: '0 0 6px' }}>
-              Sin categorías personalizadas
-            </p>
-            <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 16px', lineHeight: 1.5 }}>
-              Crea categorías para organizar tus gastos a tu manera.
-            </p>
+          <div className={`flex flex-col items-start gap-1.5 p-5 ${CARD}`}>
+            <span className={`text-[15px] font-semibold ${TEXT_STRONG}`}>Aún no tienes categorías tuyas</span>
+            <span className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>Crea una para ordenar tus gastos a tu manera.</span>
             <button
+              type="button"
               onClick={handleCreate}
-              style={{
-                padding: '10px 22px', fontSize: 13, fontWeight: 600,
-                background: '#1E3A5F', color: 'white', border: 'none',
-                borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
-              }}
+              className="mt-2 flex h-11 items-center rounded-full bg-electric px-5 text-[15px] font-bold text-white transition-transform duration-150 active:scale-[0.97]"
             >
-              Crear primera categoría
+              Crear mi primera categoría
             </button>
           </div>
         ) : (
-          <div style={{
-            background: 'white', borderRadius: 16,
-            border: '1px solid #E2E8F0', overflow: 'hidden',
-            marginBottom: 24,
-          }}>
-            {custom.map((cat, i) => (
-              <div
+          <ListCard>
+            {custom.map(cat => (
+              <button
                 key={cat.id}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '14px 16px',
-                  borderBottom: i < custom.length - 1 ? '1px solid #F1F5F9' : 'none',
-                }}
+                type="button"
+                onClick={() => handleEdit(cat)}
+                className={`flex w-full items-center gap-3 py-3 ${ROW_DIVIDER}`}
               >
-                <div style={{
-                  width: 40, height: 40, borderRadius: 12,
-                  background: cat.color ? `${cat.color}18` : '#F1F5F9',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20, flexShrink: 0,
-                }}>
-                  {cat.icon || '📌'}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{
-                    fontSize: 14, fontWeight: 600, color: '#1E3A5F', margin: 0,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {cat.name}
-                  </p>
-                  <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>
-                    {defaults.find(d => d.id === cat.parent_category_id)?.name || cat.bucket}
-                    {cat.pace_mode === 'fixed' && cat.expected_day ? ` · Día ${cat.expected_day}` : ''}
-                    {cat.budgeted_amount ? ` · Q${cat.budgeted_amount}` : ''}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleEdit(cat)}
-                  style={{
-                    padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                    background: '#F1F5F9', color: '#64748B', border: 'none',
-                    borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
-                  }}
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={() => { setArchiveTarget(cat); setReassignId('') }}
-                  style={{
-                    padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                    background: '#FEF2F2', color: '#DC2626', border: 'none',
-                    borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
-                  }}
-                >
-                  Archivar
-                </button>
-              </div>
+                <RowBody tile={<Tile>{getEmoji(cat)}</Tile>} name={cat.name} help={help(cat)} />
+                <span className={`${GROUP_BADGE[cat.bucket] ?? BADGE_NEUTRAL} !text-xs`}>{groupTitle(cat.bucket)}</span>
+                <Chevron />
+              </button>
             ))}
-          </div>
+          </ListCard>
         )}
 
-        {/* Archived categories */}
         {archived.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#64748B', marginBottom: 10 }}>
-              Archivadas ({archived.length})
-            </h3>
-            <div style={{
-              background: 'white', borderRadius: 16,
-              border: '1px solid #E2E8F0', overflow: 'hidden',
-            }}>
-              {archived.map((cat, i) => (
-                <div
-                  key={cat.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '12px 16px',
-                    borderBottom: i < archived.length - 1 ? '1px solid #F1F5F9' : 'none',
-                    opacity: 0.7,
-                  }}
-                >
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    background: '#F1F5F9',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 18, flexShrink: 0,
-                  }}>
-                    {cat.icon || '📌'}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{
-                      fontSize: 13, fontWeight: 600, color: '#64748B', margin: 0,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {cat.name}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleRestore(cat)}
-                    style={{
-                      padding: '6px 14px', fontSize: 12, fontWeight: 600,
-                      background: '#F0FDF4', color: '#16A34A', border: 'none',
-                      borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
-                    }}
-                  >
-                    Restaurar
-                  </button>
+          <>
+            <GroupTitle>Archivadas</GroupTitle>
+            <ListCard>
+              {archived.map(cat => (
+                <div key={cat.id} className={`flex items-center gap-3 py-3 ${ROW_DIVIDER}`}>
+                  <RowBody tile={<Tile>{getEmoji(cat)}</Tile>} name={cat.name} help="Ya no aparece al agregar" />
+                  <PillButton onClick={() => handleRestore(cat)} className={PILL_OUTLINE}>Restaurar</PillButton>
                 </div>
               ))}
-            </div>
-          </div>
+            </ListCard>
+          </>
         )}
 
-        {/* Default categories visibility */}
-        <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#64748B', marginBottom: 4 }}>
-            Categorías de Zafi
-          </h3>
-          <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 12px' }}>
-            Oculta las que no uses. Mínimo {MIN_VISIBLE_DEFAULTS} visibles.
-          </p>
-          <div style={{
-            background: 'white', borderRadius: 16,
-            border: '1px solid #E2E8F0', overflow: 'hidden',
-          }}>
-            {defaults.map((cat, i) => {
-              const isVisible = !hiddenIds.has(cat.id)
-              return (
-                <div
-                  key={cat.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '12px 16px',
-                    borderBottom: i < defaults.length - 1 ? '1px solid #F1F5F9' : 'none',
-                    opacity: isVisible ? 1 : 0.5,
-                  }}
-                >
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    background: '#F1F5F9',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 18, flexShrink: 0,
-                  }}>
-                    {cat.icon || '📂'}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{
-                      fontSize: 13, fontWeight: 600, color: '#1E3A5F', margin: 0,
-                    }}>
-                      {cat.name}
-                    </p>
-                    <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>
-                      {cat.bucket === 'needs' ? 'Necesidades' : cat.bucket === 'wants' ? 'Gustos' : cat.bucket === 'income' ? 'Ingresos' : 'Ahorro/Deudas'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => toggleDefaultVisibility(cat.id, isVisible)}
-                    style={{
-                      position: 'relative',
-                      width: 44, height: 24, borderRadius: 12,
-                      background: isVisible ? '#2563EB' : '#E2E8F0',
-                      border: 'none', cursor: 'pointer',
-                      transition: 'background 200ms',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <div style={{
-                      position: 'absolute', top: 2, left: isVisible ? 22 : 2,
-                      width: 20, height: 20, borderRadius: '50%',
-                      background: 'white',
-                      transition: 'left 200ms',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                    }} />
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <GroupTitle className="mb-0.5 mt-[22px]">Categorías de Zafi</GroupTitle>
+        <p className={`mx-1 mb-1.5 text-[13px] ${TEXT_MUTED}`}>Oculta las que no uses. Deja al menos {MIN_VISIBLE_DEFAULTS}.</p>
+        <ListCard>
+          {defaults.map(cat => {
+            const isVisible = !hiddenIds.has(cat.id)
+            return (
+              <div key={cat.id} className={`flex items-center gap-3 py-2.5 ${ROW_DIVIDER}`}>
+                <Tile>{getEmoji(cat)}</Tile>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className={`truncate text-[15px] font-semibold ${isVisible ? TEXT_STRONG : TEXT_MUTED}`}>{cat.name}</span>
+                  <span className={`text-[13px] ${TEXT_MUTED}`}>{isVisible ? groupTitle(cat.bucket) : `Oculta · ${groupTitle(cat.bucket)}`}</span>
+                </span>
+                <Switch
+                  checked={isVisible}
+                  onChange={() => toggleDefaultVisibility(cat.id, isVisible)}
+                  label={`Mostrar ${cat.name}`}
+                />
+              </div>
+            )
+          })}
+        </ListCard>
       </div>
 
-      {/* Archive confirmation dialog */}
-      {archiveTarget && (
-        <div
-          onClick={() => { setArchiveTarget(null); setReassignId('') }}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 60,
-            background: 'rgba(0,0,0,0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: 'white', borderRadius: 20, padding: 24,
-              maxWidth: 380, width: '100%',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-            }}
-          >
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: '#1E3A5F', margin: '0 0 8px' }}>
-              Archivar &quot;{archiveTarget.name}&quot;
-            </h3>
-            <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 16px', lineHeight: 1.5 }}>
-              La categoría dejará de aparecer en la captura. Los gastos existentes se pueden mover a otra categoría.
-            </p>
-
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 6 }}>
-              Mover gastos a (opcional)
-            </label>
-            <select
-              value={reassignId}
-              onChange={e => setReassignId(e.target.value)}
-              style={{
-                width: '100%', padding: '10px 12px', fontSize: 13,
-                border: '1px solid var(--zafi-border)', borderRadius: 10,
-                background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
-                fontFamily: 'inherit', outline: 'none',
-                marginBottom: 18,
-              }}
-            >
-              <option value="">No mover (eliminar asignación)</option>
-              {categories
-                .filter(c => !c.archived_at && c.id !== archiveTarget.id)
-                .map(c => (
-                  <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
-                ))
-              }
-            </select>
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => { setArchiveTarget(null); setReassignId('') }}
-                style={{
-                  flex: 1, padding: 12, fontSize: 13, fontWeight: 600,
-                  background: '#F1F5F9', color: '#64748B', border: 'none',
-                  borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
-                }}
+      {/* Archivar */}
+      <BottomSheet themed open={!!archiveTarget} onClose={closeArchive} label="Archivar categoría">
+        {archiveTarget && (
+          <div className="flex flex-col gap-3.5 px-5 pb-[calc(30px+env(safe-area-inset-bottom))] pt-2.5">
+            <SheetHeader emoji={getEmoji(archiveTarget)} title={`Archivar ${archiveTarget.name}`} subtitle="Ya no aparecerá al agregar un gasto" />
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel htmlFor="reassign">Mover sus movimientos a</FieldLabel>
+              <select
+                id="reassign"
+                value={reassignId}
+                onChange={e => setReassignId(e.target.value)}
+                className={INPUT_48}
               >
-                Cancelar
-              </button>
-              <button
-                onClick={handleArchive}
-                disabled={archiving}
-                style={{
-                  flex: 1, padding: 12, fontSize: 13, fontWeight: 600,
-                  background: archiving ? '#FCA5A5' : '#DC2626', color: 'white',
-                  border: 'none', borderRadius: 10,
-                  cursor: archiving ? 'wait' : 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                {archiving ? 'Archivando...' : 'Archivar'}
-              </button>
+                <option value="">No mover</option>
+                {categories
+                  .filter(c => !c.archived_at && c.id !== archiveTarget.id)
+                  .map(c => (
+                    <option key={c.id} value={c.id}>{getEmoji(c)} {c.name}</option>
+                  ))}
+              </select>
+              <span className={`text-[13px] leading-[1.4] ${TEXT_MUTED}`}>Si tiene movimientos, elige a dónde moverlos.</span>
             </div>
+            <button
+              type="button"
+              onClick={handleArchive}
+              disabled={archiving}
+              className={`${PRIMARY_BUTTON} !bg-danger-text hover:!bg-danger-text`}
+            >
+              {archiving ? 'Archivando…' : 'Archivar'}
+            </button>
           </div>
-        </div>
-      )}
+        )}
+      </BottomSheet>
 
-      {/* Category create/edit sheet */}
       <CategorySheet
         open={sheetOpen}
-        onClose={() => { setSheetOpen(false); setEditCategory(null) }}
+        onClose={closeSheet}
         onCreated={handleSheetCreated}
         householdId={householdId}
         defaults={defaultsForSheet}
         existingNames={existingNames}
         editCategory={editCategory as Record<string, unknown> | null}
+        onArchive={openArchive}
       />
 
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)',
-          background: '#1E3A5F', color: 'white', padding: '10px 20px',
-          borderRadius: 12, fontSize: 14, fontWeight: 600, zIndex: 70,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        }}>
-          {toast}
-        </div>
-      )}
+      <StatusToast message={message} onDone={clearMessage} />
     </AppShell>
   )
 }

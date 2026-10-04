@@ -8,6 +8,12 @@ import {
   createCategorySchema,
   updateCategorySchema,
 } from '@/lib/categories'
+import { BottomSheet } from '@/components/transactions/BottomSheet'
+import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG, TILE_BG } from '@/components/movimientos/ui'
+import {
+  DANGER_TEXT_BUTTON, ErrorBox, FieldLabel, INPUT_48, Segmented, SheetHeader,
+} from '@/components/layout/Pantalla'
+import { BUCKET_GROUPS, type Bucket } from '@/lib/categories-ui'
 
 interface CategorySheetProps {
   open: boolean
@@ -17,7 +23,13 @@ interface CategorySheetProps {
   defaults: Array<{ id: string; name: string; bucket: string }>
   existingNames: string[]
   editCategory?: Record<string, unknown> | null
+  /** Al editar: muestra "Archivar categoría" al final. */
+  onArchive?: () => void
 }
+
+const CHIP = 'h-11 rounded-full border px-3.5 text-sm font-semibold transition-transform duration-150 active:scale-[0.96]'
+const CHIP_ON = 'border-electric bg-electric-ghost text-electric-dark dark:bg-[#1B2B4D] dark:text-electric-soft'
+const CHIP_OFF = `border-[var(--zafi-border)] bg-[var(--zafi-card)] ${TEXT_STRONG}`
 
 export function CategorySheet({
   open,
@@ -27,54 +39,47 @@ export function CategorySheet({
   defaults,
   existingNames,
   editCategory,
+  onArchive,
 }: CategorySheetProps) {
   const isEdit = !!editCategory
-  const [visible, setVisible] = useState(false)
-  const [animating, setAnimating] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('')
   const [color, setColor] = useState<string>(CATEGORY_COLORS[0])
   const [parentId, setParentId] = useState('')
+  const [bucket, setBucket] = useState<Bucket>('needs')
   const [paceMode, setPaceMode] = useState<'linear' | 'fixed'>('linear')
   const [expectedDay, setExpectedDay] = useState<number | null>(null)
   const [budget, setBudget] = useState(0)
 
   useEffect(() => {
-    if (open) {
-      if (editCategory) {
-        setName((editCategory.name as string) || '')
-        setIcon((editCategory.icon as string) || '')
-        setColor((editCategory.color as string) || CATEGORY_COLORS[0])
-        setParentId((editCategory.parent_category_id as string) || '')
-        setPaceMode((editCategory.pace_mode as 'linear' | 'fixed') || 'linear')
-        setExpectedDay((editCategory.expected_day as number) || null)
-        setBudget((editCategory.budgeted_amount as number) || 0)
-      } else {
-        setName('')
-        setIcon('')
-        setColor(CATEGORY_COLORS[0])
-        // Default to a non-income group — custom categories are almost
-        // always expenses, and 'income' can sort first in `defaults`.
-        setParentId(defaults.find(d => d.bucket !== 'income')?.id || defaults[0]?.id || '')
-        setPaceMode('linear')
-        setExpectedDay(null)
-        setBudget(0)
-      }
-      setVisible(true)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setAnimating(true))
-      })
+    if (!open) return
+    setError(null)
+    if (editCategory) {
+      const parent = defaults.find(d => d.id === editCategory.parent_category_id)
+      setName((editCategory.name as string) || '')
+      setIcon((editCategory.icon as string) || '')
+      setColor((editCategory.color as string) || CATEGORY_COLORS[0])
+      setParentId((editCategory.parent_category_id as string) || '')
+      setBucket(((parent?.bucket ?? editCategory.bucket) as Bucket) || 'needs')
+      setPaceMode((editCategory.pace_mode as 'linear' | 'fixed') || 'linear')
+      setExpectedDay((editCategory.expected_day as number) || null)
+      setBudget((editCategory.budgeted_amount as number) || 0)
     } else {
-      setAnimating(false)
-      const timer = setTimeout(() => setVisible(false), 300)
-      return () => clearTimeout(timer)
+      // Por defecto un grupo de gasto: las categorías tuyas casi siempre son gastos.
+      const first = defaults.find(d => d.bucket === 'needs') ?? defaults.find(d => d.bucket !== 'income') ?? defaults[0]
+      setName('')
+      setIcon('')
+      setColor(CATEGORY_COLORS[0])
+      setParentId(first?.id || '')
+      setBucket((first?.bucket as Bucket) || 'needs')
+      setPaceMode('linear')
+      setExpectedDay(null)
+      setBudget(0)
     }
   }, [open, editCategory, defaults])
-
-  if (!visible) return null
 
   const nameLower = name.trim().toLowerCase()
   const isDuplicate = existingNames.some(
@@ -83,9 +88,23 @@ export function CategorySheet({
   const nameValid = name.trim().length >= 2 && name.trim().length <= 30 && !isDuplicate
   const formValid = nameValid && icon && parentId
 
+  // Ingresos solo aparece si la categoría ya está ahí.
+  const buckets: Bucket[] = bucket === 'income' ? ['needs', 'wants', 'savings', 'income'] : ['needs', 'wants', 'savings']
+  const bucketOptions = buckets
+    .filter(b => defaults.some(d => d.bucket === b))
+    .map(b => ({ value: b, label: b === 'savings' ? 'Ahorro' : BUCKET_GROUPS.find(g => g.bucket === b)!.title }))
+  const parents = defaults.filter(d => d.bucket === bucket)
+
+  function pickBucket(b: Bucket) {
+    setBucket(b)
+    const first = defaults.find(d => d.bucket === b)
+    if (first && !parents.some(p => p.id === parentId && p.bucket === b)) setParentId(first.id)
+  }
+
   async function handleSave() {
     if (!formValid || saving) return
     setSaving(true)
+    setError(null)
 
     const supabase = createClient()
     const input = {
@@ -100,7 +119,7 @@ export function CategorySheet({
 
     if (isEdit) {
       const parsed = updateCategorySchema.safeParse(input)
-      if (!parsed.success) { setSaving(false); return }
+      if (!parsed.success) { setSaving(false); setError('Revisa el nombre y el emoji.'); return }
 
       const parent = defaults.find(d => d.id === parentId)
       const { data, error } = await supabase
@@ -113,12 +132,13 @@ export function CategorySheet({
         .select()
         .single()
 
-      if (error) { setSaving(false); return }
-      setToast('Categoría actualizada')
-      setTimeout(() => { onCreated(data); onClose(); setToast('') }, 800)
+      setSaving(false)
+      if (error) { setError('No se pudo guardar. Intenta de nuevo.'); return }
+      onCreated(data)
+      onClose()
     } else {
       const parsed = createCategorySchema.safeParse(input)
-      if (!parsed.success) { setSaving(false); return }
+      if (!parsed.success) { setSaving(false); setError('Revisa el nombre y el emoji.'); return }
 
       const parent = defaults.find(d => d.id === parentId)
       const { data, error } = await supabase
@@ -133,281 +153,140 @@ export function CategorySheet({
         .select()
         .single()
 
-      if (error) { setSaving(false); return }
-      setToast('Categoría creada')
-      setTimeout(() => { onCreated(data); onClose(); setToast('') }, 800)
+      setSaving(false)
+      if (error) { setError('No se pudo crear la categoría. Intenta de nuevo.'); return }
+      onCreated(data)
+      onClose()
     }
-    setSaving(false)
   }
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 60,
-        background: animating ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)',
-        transition: 'background 300ms ease',
-        overflowY: 'auto',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          background: '#fff',
-          borderRadius: '20px 20px 0 0',
-          paddingBottom: 'env(safe-area-inset-bottom, 20px)',
-          transform: animating ? 'translateY(0)' : 'translateY(100%)',
-          transition: 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
-          maxHeight: '92vh',
-          overflowY: 'auto',
-        }}
-      >
-        {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#D1D5DB' }} />
+    <BottomSheet themed open={open} onClose={onClose} label={isEdit ? 'Editar categoría' : 'Nueva categoría'}>
+      <div className="flex flex-col gap-4 overflow-y-auto px-5 pb-[calc(30px+env(safe-area-inset-bottom))] pt-2.5">
+        <SheetHeader
+          emoji={icon || '📌'}
+          title={isEdit ? (name.trim() || 'Categoría') : 'Nueva categoría'}
+          subtitle={isEdit ? 'Cambia su nombre o su grupo' : 'Para ordenar tus gastos a tu manera'}
+        />
+
+        {/* Nombre */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-baseline justify-between">
+            <FieldLabel htmlFor="cat-name">Nombre</FieldLabel>
+            <span className={`text-xs ${TEXT_MUTED}`}>{name.trim().length}/30</span>
+          </div>
+          <input
+            id="cat-name"
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Ej. Mascota"
+            maxLength={30}
+            aria-invalid={isDuplicate}
+            className={`${INPUT_48} ${isDuplicate ? '!border-danger' : ''}`}
+          />
+          {isDuplicate && (
+            <span className="text-[13px] text-danger-text dark:text-[var(--zafi-error-text)]">Ya existe una categoría con ese nombre</span>
+          )}
         </div>
 
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 24px 16px' }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1E3A5F', margin: 0 }}>
-            {isEdit ? 'Editar categoría' : 'Nueva categoría'}
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: '#F1F5F9', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M4 4l8 8M12 4l-8 8" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </button>
-        </div>
-
-        <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {/* Live preview */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12, padding: 16,
-            background: '#F8F9FC', borderRadius: 14,
-          }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: 14,
-              background: color ? `${color}18` : '#F1F5F9',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 24,
-            }}>
-              {icon || '❓'}
-            </div>
-            <div>
-              <p style={{ fontSize: 16, fontWeight: 700, color: '#1E3A5F', margin: 0 }}>
-                {name.trim() || 'Nombre de categoría'}
-              </p>
-              <p style={{ fontSize: 12, color: '#64748B', margin: 0 }}>
-                {defaults.find(d => d.id === parentId)?.name || 'Grupo padre'}
-              </p>
-            </div>
-          </div>
-
-          {/* Name */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Nombre</label>
-              <span style={{ fontSize: 11, color: name.trim().length > 30 ? '#EF4444' : '#64748B' }}>
-                {name.trim().length}/30
-              </span>
-            </div>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Ej: Tuk-tuk, Cuota mamá"
-              maxLength={30}
-              style={{
-                width: '100%', padding: '11px 13px', fontSize: 14,
-                border: `1px solid ${isDuplicate ? '#EF4444' : '#E2E8F0'}`,
-                borderRadius: 11, background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
-                fontFamily: 'inherit', outline: 'none',
-              }}
-            />
-            {isDuplicate && (
-              <p style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>
-                Ya existe una categoría con ese nombre
-              </p>
-            )}
-          </div>
-
-          {/* Emoji */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 8 }}>
-              Emoji
-            </label>
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 6,
-            }}>
-              {CATEGORY_EMOJIS.map(e => (
+        {/* Grupo */}
+        <div className="flex flex-col gap-1.5">
+          <span className={`text-[13px] font-bold uppercase tracking-[0.04em] ${TEXT_MUTED}`}>¿En qué grupo va?</span>
+          <Segmented label="Grupo" options={bucketOptions} value={bucket} onChange={pickBucket} />
+          {parents.length > 1 && (
+            <div className="mt-1 flex flex-wrap gap-2" role="radiogroup" aria-label="Dentro de">
+              {parents.map(d => (
                 <button
-                  key={e}
-                  onClick={() => setIcon(e)}
-                  style={{
-                    width: '100%', aspectRatio: '1', fontSize: 20,
-                    border: icon === e ? '2px solid #2563EB' : '1px solid #E2E8F0',
-                    borderRadius: 10, background: icon === e ? '#EFF6FF' : 'white',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
+                  key={d.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={parentId === d.id}
+                  onClick={() => setParentId(d.id)}
+                  className={`${CHIP} ${parentId === d.id ? CHIP_ON : CHIP_OFF}`}
                 >
-                  {e}
+                  {d.name}
                 </button>
               ))}
             </div>
-          </div>
+          )}
+          <span className={`text-[13px] leading-[1.4] ${TEXT_MUTED}`}>
+            El grupo decide cómo cuenta en Cómo te fue y en tu plan.
+          </span>
+        </div>
 
-          {/* Color */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 8 }}>
-              Color
-            </label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {CATEGORY_COLORS.map(c => (
-                <button
-                  key={c}
-                  onClick={() => setColor(c)}
-                  style={{
-                    width: 36, height: 36, borderRadius: '50%',
-                    background: c, border: color === c ? '3px solid #1E3A5F' : '2px solid transparent',
-                    cursor: 'pointer', outline: color === c ? '2px solid white' : 'none',
-                    outlineOffset: -4,
-                  }}
-                />
-              ))}
-            </div>
+        {/* Emoji */}
+        <div className="flex flex-col gap-1.5">
+          <span className={`text-[13px] font-bold uppercase tracking-[0.04em] ${TEXT_MUTED}`}>Emoji</span>
+          <div className="grid grid-cols-8 gap-1.5" role="radiogroup" aria-label="Emoji">
+            {CATEGORY_EMOJIS.map(e => (
+              <button
+                key={e}
+                type="button"
+                role="radio"
+                aria-checked={icon === e}
+                onClick={() => setIcon(e)}
+                className={`flex aspect-square min-h-[40px] items-center justify-center rounded-xl border text-xl ${
+                  icon === e ? 'border-electric bg-electric-ghost dark:bg-[#1B2B4D]' : `border-transparent ${TILE_BG}`
+                }`}
+              >
+                {e}
+              </button>
+            ))}
           </div>
+        </div>
 
-          {/* Parent group */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 4 }}>
-              Grupo
-            </label>
-            <p style={{ fontSize: 11, color: '#64748B', margin: '0 0 8px' }}>
-              El grupo decide cómo cuenta en tu Health Score y en Aprende
-            </p>
-            <select
-              value={parentId}
-              onChange={e => setParentId(e.target.value)}
-              style={{
-                width: '100%', padding: '11px 13px', fontSize: 14,
-                border: '1px solid var(--zafi-border)', borderRadius: 11,
-                background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
-                fontFamily: 'inherit', outline: 'none',
-              }}
-            >
-              <option value="">Selecciona un grupo</option>
-              {defaults.map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Pace mode: Variable / Fijo */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 8 }}>
-              Tipo
-            </label>
-            <div style={{ display: 'flex', gap: 0, borderRadius: 10, overflow: 'hidden', border: '1px solid #E2E8F0' }}>
-              {(['linear', 'fixed'] as const).map(mode => (
-                <button
-                  key={mode}
-                  onClick={() => { setPaceMode(mode); if (mode === 'linear') setExpectedDay(null) }}
-                  style={{
-                    flex: 1, padding: '10px 0', fontSize: 14, fontWeight: 600,
-                    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                    background: paceMode === mode ? '#1E3A5F' : 'white',
-                    color: paceMode === mode ? 'white' : '#64748B',
-                    transition: 'all 150ms',
-                  }}
-                >
-                  {mode === 'linear' ? 'Variable' : 'Fijo'}
-                </button>
-              ))}
-            </div>
-            {paceMode === 'fixed' && (
-              <div style={{ marginTop: 10 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 6 }}>
-                  Día de pago
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={expectedDay || ''}
-                  onChange={e => setExpectedDay(parseInt(e.target.value) || null)}
-                  placeholder="1-31"
-                  style={{
-                    width: 100, padding: '9px 13px', fontSize: 14,
-                    border: '1px solid var(--zafi-border)', borderRadius: 11,
-                    background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
-                    fontFamily: 'inherit', outline: 'none',
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Budget */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 6 }}>
-              Presupuesto mensual (opcional)
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 15, color: '#64748B', fontWeight: 600 }}>Q</span>
+        {/* Fijo / variable */}
+        <div className="flex flex-col gap-1.5">
+          <span className={`text-[13px] font-bold uppercase tracking-[0.04em] ${TEXT_MUTED}`}>Tipo</span>
+          <Segmented
+            label="Tipo"
+            options={[{ value: 'linear', label: 'Variable' }, { value: 'fixed', label: 'Fijo' }]}
+            value={paceMode}
+            onChange={mode => { setPaceMode(mode); if (mode === 'linear') setExpectedDay(null) }}
+          />
+          {paceMode === 'fixed' && (
+            <div className="mt-1 flex items-center gap-3">
+              <FieldLabel htmlFor="cat-day">Día de pago</FieldLabel>
               <input
+                id="cat-day"
                 type="number"
-                min={0}
-                value={budget || ''}
-                onChange={e => setBudget(parseFloat(e.target.value) || 0)}
-                placeholder="0"
-                style={{
-                  width: 140, padding: '9px 13px', fontSize: 14,
-                  border: '1px solid var(--zafi-border)', borderRadius: 11,
-                  background: 'var(--zafi-input-bg)', color: 'var(--zafi-text)',
-                  fontFamily: 'inherit', outline: 'none',
-                  textAlign: 'right',
-                }}
+                inputMode="numeric"
+                min={1}
+                max={31}
+                value={expectedDay || ''}
+                onChange={e => setExpectedDay(parseInt(e.target.value) || null)}
+                placeholder="1-31"
+                className={`${INPUT_48} !w-24`}
               />
             </div>
-          </div>
-
-          {/* Save button */}
-          <button
-            onClick={handleSave}
-            disabled={!formValid || saving}
-            style={{
-              width: '100%', padding: 15, fontSize: 15, fontWeight: 700,
-              background: formValid && !saving ? '#1E3A5F' : '#CBD5E1',
-              color: 'white', border: 'none', borderRadius: 13,
-              cursor: formValid && !saving ? 'pointer' : 'not-allowed',
-              fontFamily: 'inherit', transition: 'background 200ms',
-              marginTop: 4,
-            }}
-          >
-            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear categoría'}
-          </button>
+          )}
         </div>
 
-        {/* Toast */}
-        {toast && (
-          <div style={{
-            position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)',
-            background: '#1E3A5F', color: 'white', padding: '10px 20px',
-            borderRadius: 12, fontSize: 14, fontWeight: 600, zIndex: 70,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          }}>
-            {toast}
-          </div>
+        {/* Presupuesto */}
+        <div className="flex flex-col gap-1.5">
+          <FieldLabel htmlFor="cat-budget">Plan mensual (opcional)</FieldLabel>
+          <input
+            id="cat-budget"
+            type="number"
+            inputMode="decimal"
+            min={0}
+            value={budget || ''}
+            onChange={e => setBudget(parseFloat(e.target.value) || 0)}
+            placeholder="0"
+            className={`${INPUT_48} !w-40 text-right font-outfit`}
+          />
+        </div>
+
+        {error && <ErrorBox>{error}</ErrorBox>}
+
+        <button type="button" onClick={handleSave} disabled={!formValid || saving} className={PRIMARY_BUTTON}>
+          {saving ? 'Guardando…' : isEdit ? 'Guardar' : 'Crear categoría'}
+        </button>
+        {isEdit && onArchive && (
+          <button type="button" onClick={onArchive} className={DANGER_TEXT_BUTTON}>Archivar categoría</button>
         )}
       </div>
-    </div>
+    </BottomSheet>
   )
 }

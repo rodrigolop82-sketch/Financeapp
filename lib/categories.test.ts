@@ -121,7 +121,7 @@ describe('constantes de negocio', () => {
     expect(MAX_CUSTOM_CATEGORIES).toBe(15)
   })
 
-  it('MIN_VISIBLE_DEFAULTS es 3', () => {
-    expect(MIN_VISIBLE_DEFAULTS).toBe(3)
+  it('MIN_VISIBLE_DEFAULTS es 5', () => {
+    expect(MIN_VISIBLE_DEFAULTS).toBe(5)
   })
 })

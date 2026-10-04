@@ -6,7 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // ============================================================
 
 export const MAX_CUSTOM_CATEGORIES = 15
-export const MIN_VISIBLE_DEFAULTS = 3
+export const MIN_VISIBLE_DEFAULTS = 5
 export const COUNTER_VISIBLE_FROM = 12
 
 export const CATEGORY_EMOJIS = [
