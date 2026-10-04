@@ -24,6 +24,7 @@ import { Receipt, ChevronDown, X } from 'lucide-react';
 import { PageSkeleton, SkeletonRows } from '@/components/motion/PageSkeleton';
 import { IMPORT_BANNER_EVENT } from '@/components/statement-import/StatementImportFlow';
 import { importBannerText, parseImportBanner, type ImportBanner } from '@/lib/motion';
+import { ApplePaySheet } from '@/components/movimientos/ApplePaySheet';
 
 const PAGE_SIZE = 50;
 const SWIPE_HINT_KEY = 'zafi:swipe-hint';
@@ -76,6 +77,23 @@ export default function MovimientosPage() {
     const q = new URLSearchParams(window.location.search).get('q');
     if (q) { setQuery(q); setDebouncedQuery(q); }
   }, []);
+
+  // ?applepay={id}: el push de Apple Pay abre la hoja para confirmar la categoría.
+  const [applePayId, setApplePayId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('applepay');
+    if (id) setApplePayId(id);
+  }, []);
+  const closeApplePay = useCallback(() => {
+    setApplePayId(null);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('applepay')) {
+      url.searchParams.delete('applepay');
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    }
+  }, []);
+  const { showMessage } = sheets;
+  const showError = useCallback((text: string) => showMessage({ text, tone: 'error' }), [showMessage]);
 
   // Banner verde después de importar un estado de cuenta (?importados=&banco=&mes=).
   const [banner, setBanner] = useState<ImportBanner | null>(null);
@@ -379,6 +397,19 @@ export default function MovimientosPage() {
       </BottomSheet>
 
       {sheets.element}
+
+      <ApplePaySheet
+        txId={applePayId}
+        householdId={householdId}
+        categories={categories}
+        onClose={closeApplePay}
+        onError={showError}
+        onSaved={({ id, date }) => {
+          setMonth(date.slice(0, 7));
+          flash(id, true);
+          reload();
+        }}
+      />
     </AppShell>
   );
 }
