@@ -24,7 +24,7 @@ import {
 import type { PushStatus } from '@/lib/push-status';
 import { PRIMARY_BUTTON, SOFT_BG, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
 
-/** Lo emite la hoja de agregar cuando guarda al menos un gasto. */
+/** Lo emite la hoja de agregar cuando se cierra el toast de un gasto guardado (sin "Deshacer"). */
 export const EXPENSE_SAVED_EVENT = 'zafi:expense-saved';
 const OPEN_EVENT = 'zafi:open-push-offer';
 /** Lo emite esta hoja cuando cambia el estado de los avisos (Mi cuenta lo escucha). */
@@ -89,9 +89,9 @@ export function PushOfferSheet() {
   }, []);
 
   useEffect(() => {
-    // Tras guardar, la hoja de agregar baja (~1.3 s); luego se ofrece.
+    // La hoja de agregar avisa cuando se cierra el toast de "Guardado"; un respiro y se ofrece.
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const onSaved = () => { clearTimeout(timer); timer = setTimeout(() => { void offer('expense-saved'); }, 1600); };
+    const onSaved = () => { clearTimeout(timer); timer = setTimeout(() => { void offer('expense-saved'); }, 400); };
     const onOpen = () => { void offer('manual'); };
     window.addEventListener(EXPENSE_SAVED_EVENT, onSaved);
     window.addEventListener(OPEN_EVENT, onOpen);

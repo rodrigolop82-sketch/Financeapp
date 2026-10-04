@@ -76,6 +76,9 @@ interface SaveSuccess {
 interface SavedUndo {
   text: string
   ids: string[]
+  /** Incluye un gasto: al cerrarse el toast (sin "Deshacer") se ofrecen los avisos. */
+  hasExpense: boolean
+  undone?: boolean
 }
 
 /** Mínimo que se ve el spinner del botón, y cuánto se queda el check antes de bajar la hoja. */
@@ -195,6 +198,15 @@ export function AddSheet() {
 
   const toast = useCallback((text: string, tone: StatusMessage['tone'] = 'error') => setMessage({ text, tone }), [])
   const dismissSaved = useCallback(() => setSaved(null), [])
+
+  // Momento justo para ofrecer los avisos (components/avisos/PushOfferSheet.tsx):
+  // cuando se cierra el toast de un gasto guardado y no se deshizo.
+  const lastSavedRef = useRef<SavedUndo | null>(null)
+  useEffect(() => {
+    const prev = lastSavedRef.current
+    lastSavedRef.current = saved
+    if (!saved && prev?.hasExpense && !prev.undone) window.dispatchEvent(new Event(EXPENSE_SAVED_EVENT))
+  }, [saved])
 
   const resetAll = useCallback(() => {
     setQuick('')
@@ -376,11 +388,10 @@ export function AddSheet() {
       // La hoja termina de bajar antes de volver al formulario.
       setTimeout(() => { setSuccess(null); resetAll() }, 320)
       notifyTransactionsChanged({ id: data?.[0]?.id, date: data?.[0]?.date ?? first.date })
-      // Momento justo para ofrecer los avisos (components/avisos/PushOfferSheet.tsx).
-      if (rows.some((r) => r.type === 'expense')) window.dispatchEvent(new Event(EXPENSE_SAVED_EVENT))
       void joinedPromise.then((joined) => {
         setSaved({
           ids,
+          hasExpense: rows.some((r) => r.type === 'expense'),
           text: rows.length > 1
             ? `Guardados ${rows.length} movimientos`
             : joined
@@ -396,6 +407,7 @@ export function AddSheet() {
   /** "Deshacer" del guardado: borra lo que se acaba de insertar. */
   async function undoSaved() {
     const s = saved
+    if (s) s.undone = true
     setSaved(null)
     if (!s || s.ids.length === 0) return
     const { error } = await createClient().from('transactions').delete().in('id', s.ids)
