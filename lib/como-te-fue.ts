@@ -6,7 +6,8 @@
 // - "Gastaste" = gastos de Lo básico (needs) + Gustos (wants) + sin categoría.
 // - Lo que va a Ahorro y deudas (savings) no es gasto: es parte de lo que ahorras.
 // - "Ingresos recibidos" = movimientos type='income' del mes.
-// - "Ahorraste" = ingresos recibidos − gastaste.
+// - "Ahorraste" = lo apartado en Ahorro y deudas + lo que sobró sin apartar
+//   (nunca menos de lo apartado, aunque el mes no tenga ingresos).
 
 import {
   categoryPlan, planSummary, subMonthly, type PlanCategory, type PlanIncome, type PlanSubItem,
@@ -97,11 +98,13 @@ export interface MonthTotals {
   wants: number;
   /** Lo que se fue a Ahorro y deudas (no cuenta como gasto). */
   savingsBucket: number;
+  /** Categorías de Ahorro y deudas con movimientos, de mayor a menor. */
+  savingsNames: string[];
   /** needs + wants (+ sin categoría). */
   spent: number;
   fixed: number;
   variable: number;
-  /** income − spent. */
+  /** income − spent (puede ser negativo). Para el ahorro usa monthSaved(). */
   saved: number;
   /** El mes tiene algún movimiento. */
   hasData: boolean;
@@ -114,15 +117,22 @@ export function monthTotals(
   isFixedTx: (t: CtfTx) => boolean,
 ): MonthTotals[] {
   const bucketOf = new Map(categories.map((c) => [c.id, c.bucket]));
+  const nameOf = new Map(categories.map((c) => [c.id, c.name]));
   return months.map((month) => {
-    const t: MonthTotals = { month, income: 0, needs: 0, wants: 0, savingsBucket: 0, spent: 0, fixed: 0, variable: 0, saved: 0, hasData: false };
+    const t: MonthTotals = { month, income: 0, needs: 0, wants: 0, savingsBucket: 0, savingsNames: [], spent: 0, fixed: 0, variable: 0, saved: 0, hasData: false };
+    const bySaving = new Map<string, number>();
     for (const tx of txs) {
       if (!tx.date.startsWith(month)) continue;
       t.hasData = true;
       const amt = Number(tx.amount) || 0;
       if (tx.type === 'income') { t.income += amt; continue; }
       const bucket = tx.category_id ? bucketOf.get(tx.category_id) ?? 'needs' : 'needs';
-      if (bucket === 'savings') { t.savingsBucket += amt; continue; }
+      if (bucket === 'savings') {
+        t.savingsBucket += amt;
+        const name = nameOf.get(tx.category_id!) ?? '';
+        bySaving.set(name, (bySaving.get(name) ?? 0) + amt);
+        continue;
+      }
       if (bucket === 'income') continue;
       if (bucket === 'wants') t.wants += amt; else t.needs += amt;
       if (isFixedTx(tx)) t.fixed += amt; else t.variable += amt;
@@ -135,6 +145,7 @@ export function monthTotals(
     t.variable = round2(t.variable);
     t.spent = round2(t.needs + t.wants);
     t.saved = round2(t.income - t.spent);
+    t.savingsNames = Array.from(bySaving).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([k]) => k);
     return t;
   });
 }
@@ -152,12 +163,35 @@ export function roundShares(values: number[]): number[] {
 }
 
 /**
- * Reparto de los ingresos del mes en Necesidades / Gustos / Ahorro (lo que
- * quedó). Si gastaste más de lo que recibiste, el ahorro es 0 y la base es
- * el gasto. null si el mes no tiene ni ingresos ni gastos.
+ * Ahorro del mes: lo apartado en Ahorro y deudas + lo que sobró sin
+ * apartar. Nunca menos de lo apartado, aunque no haya ingresos registrados
+ * o se haya gastado más de lo que entró.
+ */
+export function monthSaved(t: MonthTotals): number {
+  const left = Math.max(0, t.income - t.spent - t.savingsBucket);
+  return round2(t.savingsBucket + left);
+}
+
+/** Lo que sobró sin apartar (ingresos − gastos − lo apartado, mínimo 0). */
+export function monthLeftover(t: MonthTotals): number {
+  return round2(Math.max(0, t.income - t.spent - t.savingsBucket));
+}
+
+/**
+ * Monto del Veredicto: el ahorro del mes; si no apartaste nada y gastaste
+ * más de lo que recibiste, lo que gastaste de más (negativo).
+ */
+export function verdictSaved(t: MonthTotals): number {
+  return t.savingsBucket > 0 ? monthSaved(t) : t.saved;
+}
+
+/**
+ * Reparto del mes en Lo básico / Gustos / Ahorro. La base es lo gastado +
+ * el ahorro del mes (igual a los ingresos cuando alcanzan). null si el mes
+ * no tiene ni gastos ni ahorro.
  */
 export function bucketShares(t: MonthTotals): { needs: number; wants: number; savings: number } | null {
-  const savings = Math.max(0, t.income - t.spent);
+  const savings = monthSaved(t);
   if (!(t.needs + t.wants + savings > 0)) return null;
   const [needs, wants, sav] = roundShares([t.needs, t.wants, savings]);
   return { needs, wants, savings: sav };
@@ -166,7 +200,14 @@ export function bucketShares(t: MonthTotals): { needs: number; wants: number; sa
 /** % de ahorro del mes sobre los ingresos (null sin ingresos). */
 export function savingsPct(t: MonthTotals): number | null {
   if (!(t.income > 0)) return null;
-  return Math.round((t.saved / t.income) * 100);
+  return Math.round((monthSaved(t) / t.income) * 100);
+}
+
+/** % de ahorro sobre lo gastado + ahorrado (sirve aunque no haya ingresos). */
+function savingsShare(t: MonthTotals): number | null {
+  const saved = monthSaved(t);
+  const base = t.spent + saved;
+  return base > 0 ? Math.round((saved / base) * 100) : null;
 }
 
 /** Fijos / variables en % del gasto del mes. */
@@ -188,21 +229,26 @@ export function chartMonths(month: string, earliest: string | null, n = 6): stri
 
 /** Subtítulo de "¿A dónde se va tu dinero?". */
 export function bucketsInsight(series: MonthTotals[]): string {
-  const withIncome = series.filter((t) => t.income > 0);
+  const withData = series.filter((t) => savingsShare(t) !== null);
   const last = series[series.length - 1];
-  const lastPct = last ? savingsPct(last) : null;
-  if (withIncome.length < 2 || lastPct === null) return 'Así se repartieron tus ingresos este mes. Lo sano: 50% necesidades, 30% gustos y 20% ahorro.';
-  const first = withIncome[0];
-  const firstPct = savingsPct(first)!;
+  const lastPct = last ? savingsShare(last) : null;
+  if (withData.length < 2 || lastPct === null) return 'Así se repartió tu dinero este mes. Lo sano: 50% lo básico, 30% gustos y 20% ahorro.';
+  if (withData.every((t) => t.savingsBucket > 0)) {
+    return `Apartaste para ahorro todos los meses. En ${longMonth(last.month)} llegaste a ${lastPct}%${lastPct >= 20 ? ': vas por buen camino.' : '; lo sano es 20%.'}`;
+  }
+  const first = withData[0];
+  const firstPct = savingsShare(first)!;
   const n = series.length - series.indexOf(first);
-  const fmtPct = (p: number) => `${Math.max(0, p)}%`;
-  const wantsShare = (t: MonthTotals) => (t.income > 0 ? Math.round((t.wants / t.income) * 100) : 0);
+  const wantsShare = (t: MonthTotals) => {
+    const base = t.spent + monthSaved(t);
+    return base > 0 ? Math.round((t.wants / base) * 100) : 0;
+  };
   if (lastPct <= firstPct - 2) {
     const wantsUp = wantsShare(last) >= wantsShare(first) + 2;
-    return `Tu ahorro bajó de ${fmtPct(firstPct)} a ${fmtPct(lastPct)} en ${n} meses${wantsUp ? ', mientras los gustos subieron' : ''}.`;
+    return `Tu ahorro bajó de ${firstPct}% a ${lastPct}% en ${n} meses${wantsUp ? ', mientras los gustos subieron' : ''}.`;
   }
-  if (lastPct >= firstPct + 2) return `Tu ahorro subió de ${fmtPct(firstPct)} a ${fmtPct(lastPct)} en ${n} meses. Vas por buen camino.`;
-  return `Tu ahorro se ha mantenido cerca de ${fmtPct(lastPct)} en ${n} meses.`;
+  if (lastPct >= firstPct + 2) return `Tu ahorro subió de ${firstPct}% a ${lastPct}% en ${n} meses. Vas por buen camino.`;
+  return `Tu ahorro se ha mantenido cerca de ${lastPct}% en ${n} meses.`;
 }
 
 /** Subtítulo de "Fijos vs variables". */

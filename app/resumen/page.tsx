@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
-import { addMonths, analyzeMonth, longMonth, monthTitle } from '@/lib/como-te-fue';
+import { addMonths, analyzeMonth, longMonth, monthSaved, monthTitle, verdictSaved } from '@/lib/como-te-fue';
 import { categoryPlan, monthName, subAmountFromMonthly } from '@/lib/plan-del-mes';
 import {
   capListText, capPlanChanges, DEFAULT_CAPS, horizonMonths, projection,
@@ -72,7 +72,7 @@ function ComoTeFue() {
   const effHorizon: Horizon = horizon === '12' || !canYear ? '12' : 'year';
   const extra = (a?.recs.over ?? []).filter((r) => selected.has(r.key)).reduce((s, r) => s + r.saving, 0);
   const proj = useMemo(
-    () => projection(a?.current.saved ?? 0, extra, horizonMonths(month, effHorizon)),
+    () => projection(a ? monthSaved(a.current) : 0, extra, horizonMonths(month, effHorizon)),
     [a, extra, month, effHorizon],
   );
 
@@ -225,7 +225,7 @@ function ComoTeFue() {
               isCurrent={isCurrent}
               income={cur.income}
               spent={cur.spent}
-              saved={cur.saved}
+              saved={verdictSaved(cur)}
               savedPct={a.savedPct}
               hasRecs={a.recs.over.length > 0}
               fmt={fmt}
@@ -256,7 +256,7 @@ function ComoTeFue() {
                 fmt={fmt}
               />
             )}
-            <BucketsChart series={a.series} />
+            <BucketsChart series={a.series} fmt={fmt} />
             <FixedVarChart series={a.series} fixedNames={topNames('fijo')} variableNames={topNames('variable')} fmt={fmt} />
             <Link
               href={`/resumen/categoria?mes=${month}`}

@@ -12,7 +12,7 @@
 // - Cada aviso lleva una `key` que se guarda en notification_log.payload
 //   para no repetir el mismo (el mismo pago, el mismo tope en el mes…).
 
-import { analyzeMonth, longMonth, type CtfCategory, type CtfTx } from './como-te-fue';
+import { analyzeMonth, longMonth, verdictSaved, type CtfCategory, type CtfTx } from './como-te-fue';
 import { planLeaves, planSummary, type PlanIncome, type PlanSubItem } from './plan-del-mes';
 import { CAP_META, type CapKey } from './recomendaciones';
 
@@ -321,7 +321,7 @@ export function monthEndCandidate(d: AvisoData, closeDay: number, fmt: Fmt): Avi
   );
   if (!(a.current.income > 0)) return null;
   return {
-    kind: 'month_end', ...monthEndCopy(prev, a.current.saved, a.recs.potential, fmt),
+    kind: 'month_end', ...monthEndCopy(prev, verdictSaved(a.current), a.recs.potential, fmt),
     url: `/resumen?mes=${prev}`, key: `month_end:${prev}`, tag: 'zafi-month-end',
   };
 }

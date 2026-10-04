@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   analyzeMonth, averageOf, bucketShares, bucketsInsight, capGroups, categoryStatus, chartMonths, fixedResolver, fixedVarInsight,
-  fixedVarShares, merchantGroups, monthHighlights, monthTotals, planItems, roundShares, savingsPct, spendByCategory,
-  timesText, vsPlanText, type CtfCategory, type CtfTx,
+  fixedVarShares, merchantGroups, monthHighlights, monthLeftover, monthSaved, monthTotals, planItems, roundShares, savingsPct, spendByCategory,
+  timesText, verdictSaved, vsPlanText, type CtfCategory, type CtfTx,
 } from './como-te-fue';
 import { buildRecommendations, categoryCapKeys, DEFAULT_CAPS } from './recomendaciones';
 import type { PlanSubItem } from './plan-del-mes';
@@ -78,11 +78,46 @@ describe('monthTotals', () => {
     expect(fixedVarShares(s)).toEqual({ fixed: 69, variable: 31 });
   });
 
-  it('gastar de más deja el ahorro en 0', () => {
+  it('gastar de más sin apartar deja el ahorro en 0', () => {
     const t = monthTotals([tx('sal', 1000, '2026-07-01', 'income'), tx('ali', 1500, '2026-07-02')], ['2026-07'], cats, fixed.tx)[0];
     expect(bucketShares(t)).toEqual({ needs: 100, wants: 0, savings: 0 });
-    expect(savingsPct(t)).toBe(-50);
+    expect(savingsPct(t)).toBe(0);
+    expect(verdictSaved(t)).toBe(-500);
     expect(bucketShares(monthTotals([], ['2026-06'], cats, fixed.tx)[0])).toBeNull();
+  });
+});
+
+describe('monthSaved', () => {
+  const ib: CtfCategory = { id: 'ib', name: 'Interactive Brokers', bucket: 'savings', budgeted_amount: 2500 };
+  const all = [...cats, ib];
+
+  it('mes sin ingresos con aporte de 3,000: el ahorro es 3,000', () => {
+    const t = monthTotals([tx('viv', 7080, '2026-04-01'), tx('res', 4920, '2026-04-10'), tx('ib', 3000, '2026-04-15')], ['2026-04'], all, fixed.tx)[0];
+    expect(monthSaved(t)).toBe(3000);
+    expect(monthLeftover(t)).toBe(0);
+    expect(verdictSaved(t)).toBe(3000);
+    expect(t.savingsNames).toEqual(['Interactive Brokers']);
+    expect(bucketShares(t)!.savings).toBeGreaterThan(0);
+    expect(savingsPct(t)).toBeNull();
+  });
+
+  it('ingresos 19,500, gasto 15,795 y aporte 2,500: ahorro 3,705 (19%)', () => {
+    const t = monthTotals([
+      tx('sal', 19500, '2026-09-01', 'income'), tx('viv', 8580, '2026-09-01'), tx('res', 7215, '2026-09-10'), tx('ib', 2500, '2026-09-15'),
+    ], ['2026-09'], all, fixed.tx)[0];
+    expect(t.spent).toBe(15795);
+    expect(monthSaved(t)).toBe(3705);
+    expect(monthLeftover(t)).toBe(1205);
+    expect(savingsPct(t)).toBe(19);
+    expect(bucketShares(t)!.savings).toBe(19);
+  });
+
+  it('el insight reconoce que apartaste todos los meses', () => {
+    const series = monthTotals([
+      tx('viv', 7080, '2026-08-01'), tx('ib', 3000, '2026-08-15'),
+      tx('sal', 19500, '2026-09-01', 'income'), tx('viv', 8580, '2026-09-01'), tx('res', 7215, '2026-09-10'), tx('ib', 2500, '2026-09-15'),
+    ], ['2026-08', '2026-09'], all, fixed.tx);
+    expect(bucketsInsight(series)).toBe('Apartaste para ahorro todos los meses. En septiembre llegaste a 19%; lo sano es 20%.');
   });
 });
 
@@ -187,7 +222,7 @@ describe('textos', () => {
     expect(bucketsInsight(worse)).toBe('Tu ahorro bajó de 44% a 17% en 2 meses, mientras los gustos subieron.');
     expect(fixedVarInsight(worse, fmt)).toBe('Los variables subieron Q 5,150 desde agosto. Son los más fáciles de bajar; los fijos piden cambiar contratos, deudas o servicios.');
     expect(fixedVarInsight(series, fmt)).toMatch(/^Los variables subieron|^Los variables bajaron|^Tus variables/);
-    expect(bucketsInsight(series.slice(1))).toMatch(/^Así se repartieron/);
+    expect(bucketsInsight(series.slice(1))).toMatch(/^Así se repartió/);
   });
 
   it('estado de categoría, vs plan, comercios y veces', () => {
