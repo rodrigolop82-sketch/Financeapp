@@ -3,7 +3,7 @@
 // tailwind.config.ts y variables --zafi-* para el modo oscuro.
 
 import Link from 'next/link';
-import { DIVIDER, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG } from '@/components/movimientos/ui';
+import { DIVIDER, SHEET_TITLE, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG } from '@/components/movimientos/ui';
 import { CARD, GROUP_LABEL } from '@/components/resumen/ctf-ui';
 
 /** Texto de enlace/acción azul (#1D4ED8; #93C5FD en oscuro). */
@@ -101,3 +101,72 @@ export function RowBody({ tile, name, help, badge }: {
 export function Chevron() {
   return <span aria-hidden className={`flex-none font-bold ${TEXT_FAINT}`}>›</span>;
 }
+
+/** Selector segmentado (igual al de Apariencia en Mi cuenta). */
+export function Segmented<T extends string>({ label, options, value, onChange }: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="grid rounded-xl bg-[var(--zafi-tab-bg)] p-[3px]"
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+    >
+      {options.map((o) => {
+        const active = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(o.value)}
+            className={`flex h-[38px] items-center justify-center rounded-[9px] text-[13.5px] font-semibold transition-colors ${
+              active ? `bg-[var(--zafi-tab-active)] shadow-[var(--zafi-tab-shadow)] ${TEXT_STRONG}` : TEXT_MUTED
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Etiqueta de campo dentro de una hoja. */
+export function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
+  return <label htmlFor={htmlFor} className={`${GROUP_LABEL} ${TEXT_MUTED}`}>{children}</label>;
+}
+
+/** Campo de texto de 48px para hojas. */
+export const INPUT_48 =
+  `h-12 w-full rounded-[14px] border border-[var(--zafi-border)] bg-[var(--zafi-bg)] px-3.5 text-[15px] outline-none placeholder:text-[var(--zafi-text-secondary)] focus:border-electric ${TEXT_STRONG}`;
+
+/** Caja de error (radio 12). */
+export function ErrorBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div role="alert" className="rounded-xl bg-danger-light px-3.5 py-3 text-[13.5px] leading-[1.45] text-danger-text dark:bg-[var(--zafi-error-bg)] dark:text-[var(--zafi-error-text)]">
+      {children}
+    </div>
+  );
+}
+
+/** Encabezado de hoja: tile de 44px, título DM Serif 24 y subtítulo. */
+export function SheetHeader({ emoji, title, subtitle }: { emoji: string; title: string; subtitle?: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span aria-hidden className={`flex h-11 w-11 flex-none items-center justify-center rounded-xl text-[22px] ${TILE_BG}`}>{emoji}</span>
+      <div className="flex min-w-0 flex-col">
+        <h2 tabIndex={-1} className={`${SHEET_TITLE} leading-[1.15]`}>{title}</h2>
+        {subtitle && <span className={`text-[13.5px] ${TEXT_MUTED}`}>{subtitle}</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Botón de texto rojo (acciones que quitan algo). */
+export const DANGER_TEXT_BUTTON = 'h-11 text-[15px] font-semibold text-danger-text dark:text-[var(--zafi-error-text)]';

@@ -6,12 +6,18 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { GT_BANKS } from '@/lib/sources'
+import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
 import type { UserSource, SourceType } from '@/types'
-import {
-  Landmark, CreditCard, Banknote, Wallet, Plus,
-  Pencil, X, Check, Loader2, Sparkles,
-} from 'lucide-react'
 import { PageSkeleton } from '@/components/motion/PageSkeleton'
+import { BottomSheet } from '@/components/transactions/BottomSheet'
+import { UndoToast } from '@/components/transactions/UndoToast'
+import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
+import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG, TILE_BG } from '@/components/movimientos/ui'
+import { CARD } from '@/components/resumen/ctf-ui'
+import {
+  BADGE_INFO, BADGE_OK, Chevron, DANGER_TEXT_BUTTON, ErrorBox, FieldLabel, GroupTitle, INPUT_48, LINK_TEXT, ListCard,
+  PageHeader, ROW_DIVIDER, RowBody, Segmented, SheetHeader, Tile,
+} from '@/components/layout/Pantalla'
 
 const TYPE_LABELS: Record<SourceType, string> = {
   tarjeta_credito: 'Tarjeta de crédito',
@@ -19,16 +25,29 @@ const TYPE_LABELS: Record<SourceType, string> = {
   efectivo: 'Efectivo',
 }
 
-const TYPE_ICONS: Record<SourceType, typeof CreditCard> = {
-  tarjeta_credito: CreditCard,
-  cuenta_bancaria: Landmark,
-  efectivo: Banknote,
+const TYPE_EMOJI: Record<SourceType, string> = {
+  tarjeta_credito: '💳',
+  cuenta_bancaria: '🏦',
+  efectivo: '💵',
 }
 
-type AddStep = 'idle' | 'pick_bank' | 'form'
+const TYPE_OPTIONS: { value: SourceType; label: string }[] = [
+  { value: 'tarjeta_credito', label: 'Tarjeta' },
+  { value: 'cuenta_bancaria', label: 'Cuenta' },
+  { value: 'efectivo', label: 'Efectivo' },
+]
 
-interface AddForm {
-  bank_name: string
+const SUBTITLE = 'Así Zafi sabe qué estados de cuenta te faltan al cerrar el mes.'
+const OTHER = 'Otro banco'
+
+/** Hoja abierta: editar un banco, elegir uno nuevo o completar sus datos. */
+type Sheet =
+  | { kind: 'edit'; source: UserSource }
+  | { kind: 'pick' }
+  | { kind: 'new'; bank: string }
+
+interface Draft {
+  bank: string
   type: SourceType
   nickname: string
 }
@@ -36,13 +55,13 @@ interface AddForm {
 export default function MisFuentesPage() {
   const [sources, setSources] = useState<UserSource[]>([])
   const [loading, setLoading] = useState(true)
-  const [addStep, setAddStep] = useState<AddStep>('idle')
-  const [form, setForm] = useState<AddForm>({ bank_name: '', type: 'tarjeta_credito', nickname: '' })
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<AddForm>({ bank_name: '', type: 'tarjeta_credito', nickname: '' })
+  const [applePay, setApplePay] = useState(false)
+  const [sheet, setSheet] = useState<Sheet | null>(null)
+  const [draft, setDraft] = useState<Draft>({ bank: '', type: 'tarjeta_credito', nickname: '' })
   const [saving, setSaving] = useState(false)
-  const [customBank, setCustomBank] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [undo, setUndo] = useState<UserSource | null>(null)
+  const [message, setMessage] = useState<StatusMessage | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -63,18 +82,36 @@ export default function MisFuentesPage() {
 
   useEffect(() => { loadSources() }, [loadSources])
 
-  function handleBankPick(bank: string) {
-    if (bank === 'Otro') {
-      setCustomBank('')
-      setForm(f => ({ ...f, bank_name: '' }))
-    } else {
-      setForm(f => ({ ...f, bank_name: bank }))
-    }
-    setAddStep('form')
+  // Apple Pay está activo si hay al menos una clave del atajo.
+  useEffect(() => {
+    fetch('/api/shortcut-tokens', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setApplePay((data?.tokens ?? []).length > 0))
+      .catch(() => {})
+  }, [])
+
+  const closeSheet = useCallback(() => { setSheet(null); setErrorMsg(null) }, [])
+  const dismissUndo = useCallback(() => setUndo(null), [])
+  const clearMessage = useCallback(() => setMessage(null), [])
+
+  function openEdit(source: UserSource) {
+    setErrorMsg(null)
+    setDraft({ bank: source.bank_name, type: source.type, nickname: source.nickname ?? '' })
+    setSheet({ kind: 'edit', source })
+  }
+
+  function openPick() {
+    setErrorMsg(null)
+    setSheet({ kind: 'pick' })
+  }
+
+  function pickBank(bank: string) {
+    setDraft({ bank: bank === OTHER ? '' : bank, type: 'tarjeta_credito', nickname: '' })
+    setSheet({ kind: 'new', bank })
   }
 
   async function handleAdd() {
-    const bankName = form.bank_name || customBank.trim()
+    const bankName = draft.bank.trim()
     if (!bankName) return
 
     setSaving(true)
@@ -88,63 +125,62 @@ export default function MisFuentesPage() {
 
     const { error } = await supabase.from('user_sources').insert({
       user_id: user.id,
-      type: form.type,
+      type: draft.type,
       bank_name: bankName,
-      nickname: form.nickname.trim() || null,
+      nickname: draft.nickname.trim() || null,
       detection_method: 'manual',
     })
+    setSaving(false)
 
     if (error) {
-      setErrorMsg(`No se pudo guardar la fuente: ${error.message}`)
-      setSaving(false)
+      setErrorMsg('No se pudo agregar el banco. Intenta de nuevo.')
       return
     }
 
-    setAddStep('idle')
-    setForm({ bank_name: '', type: 'tarjeta_credito', nickname: '' })
-    setCustomBank('')
-    setSaving(false)
+    setSheet(null)
+    setMessage({ text: `${bankName} agregado`, tone: 'ok' })
     await loadSources()
   }
 
-  function startEdit(source: UserSource) {
-    setEditingId(source.id)
-    setEditForm({
-      bank_name: source.bank_name,
-      type: source.type,
-      nickname: source.nickname ?? '',
-    })
-  }
-
-  async function handleSaveEdit() {
-    if (!editingId) return
+  async function handleSaveEdit(source: UserSource) {
     setSaving(true)
     setErrorMsg(null)
 
     const { error } = await supabase.from('user_sources').update({
-      type: editForm.type,
-      nickname: editForm.nickname.trim() || null,
-    }).eq('id', editingId)
+      type: draft.type,
+      nickname: draft.nickname.trim() || null,
+    }).eq('id', source.id)
+    setSaving(false)
 
     if (error) {
-      setErrorMsg(`No se pudo guardar el cambio: ${error.message}`)
-      setSaving(false)
+      setErrorMsg('No se pudo guardar el cambio. Intenta de nuevo.')
       return
     }
 
-    setEditingId(null)
-    setSaving(false)
+    setSheet(null)
+    setMessage({ text: 'Guardado', tone: 'ok' })
     await loadSources()
   }
 
-  async function handleDeactivate(id: string) {
-    setErrorMsg(null)
-    const { error } = await supabase.from('user_sources').update({ active: false }).eq('id', id)
+  async function setActive(source: UserSource, active: boolean) {
+    const { error } = await supabase.from('user_sources').update({ active }).eq('id', source.id)
     if (error) {
-      setErrorMsg(`No se pudo desactivar la fuente: ${error.message}`)
-      return
+      setMessage({ text: active ? 'No se pudo deshacer. Intenta de nuevo.' : 'No se pudo quitar el banco. Intenta de nuevo.', tone: 'error' })
+      return false
     }
     await loadSources()
+    return true
+  }
+
+  async function handleDeactivate(source: UserSource) {
+    setSheet(null)
+    if (await setActive(source, false)) setUndo(source)
+  }
+
+  async function runUndo() {
+    const u = undo
+    setUndo(null)
+    if (u) await setActive(u, true)
   }
 
   if (loading) {
@@ -152,326 +188,137 @@ export default function MisFuentesPage() {
   }
 
   return (
-    <AppShell title="Mis Fuentes" currentPath="/mis-fuentes">
-      <p style={{
-        fontSize: 14, color: '#64748B', margin: '0 0 20px', lineHeight: 1.6,
-      }}>
-        Declarar tus fuentes le permite a Zafi verificar que cada mes tengas toda tu información financiera al día.
-      </p>
+    <AppShell title="Mis bancos" currentPath="/mis-fuentes" hideMobileBar>
+      <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
+        <PageHeader back={{ href: '/mas', label: 'Más' }} title="Mis bancos" subtitle={SUBTITLE} />
+        <p className={`hidden text-sm lg:block ${TEXT_MUTED}`}>{SUBTITLE}</p>
 
-      {/* Apple Pay vía Atajos (fase 13) */}
-      <Link
-        href="/mis-fuentes/apple-pay"
-        className="mb-5 flex min-h-[64px] items-center gap-3 rounded-[14px] border border-[var(--zafi-border)] bg-[var(--zafi-card)] px-4 py-3 no-underline transition-transform active:scale-[0.98]"
-      >
-        <span aria-hidden className="flex h-10 w-10 flex-none items-center justify-center rounded-[10px] bg-[var(--zafi-card-alt)] text-lg">📲</span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="text-[15px] font-semibold text-ink-900 dark:text-ink-100">Apple Pay</span>
-          <span className="text-[13px] text-[var(--zafi-text-secondary)]">Tus pagos con el iPhone llegan solos a Zafi</span>
-        </span>
-        <span aria-hidden className="font-bold text-[var(--zafi-text-secondary)]">›</span>
-      </Link>
+        {/* Apple Pay vía Atajos (fase 13) */}
+        <Link
+          href="/mis-fuentes/apple-pay"
+          className={`mt-3.5 flex items-center gap-3 p-3.5 transition-transform duration-150 active:scale-[0.98] ${CARD}`}
+        >
+          <RowBody tile={<Tile>📲</Tile>} name="Apple Pay" help="Tus pagos con el iPhone llegan solos" />
+          {applePay && <span className={BADGE_OK}>Activo</span>}
+          <Chevron />
+        </Link>
 
-      {errorMsg && (
-        <div style={{
-          background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12,
-          padding: '12px 14px', marginBottom: 16, fontSize: 13, color: '#B91C1C',
-          lineHeight: 1.5,
-        }}>
-          {errorMsg}
-        </div>
-      )}
-
-      {/* Source list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-        {sources.map(source => {
-          const Icon = TYPE_ICONS[source.type]
-          const isEditing = editingId === source.id
-
-          if (isEditing) {
-            return (
-              <div key={source.id} style={{
-                background: '#fff', borderRadius: 14, padding: 16,
-                border: '2px solid #2563EB',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>
-                    {source.bank_name}
-                  </span>
-                  <button
-                    onClick={() => setEditingId(null)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
-                  >
-                    <X size={18} color="#94A3B8" />
-                  </button>
-                </div>
-
-                <TypeSelector value={editForm.type} onChange={t => setEditForm(f => ({ ...f, type: t }))} />
-
-                <input
-                  type="text"
-                  placeholder="Apodo (opcional)"
-                  value={editForm.nickname}
-                  onChange={e => setEditForm(f => ({ ...f, nickname: e.target.value }))}
-                  style={{
-                    width: '100%', padding: '10px 14px', borderRadius: 10,
-                    border: '1px solid var(--zafi-border)', fontSize: 14, marginTop: 12,
-                    outline: 'none', boxSizing: 'border-box',
-                  }}
-                />
-
-                <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-                  <button
-                    onClick={handleSaveEdit}
-                    disabled={saving}
-                    style={{
-                      flex: 1, padding: '10px 16px', borderRadius: 10,
-                      background: '#2563EB', color: '#fff', border: 'none',
-                      fontWeight: 700, fontSize: 14, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    }}
-                  >
-                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                    Guardar
-                  </button>
-                  <button
-                    onClick={() => handleDeactivate(source.id)}
-                    style={{
-                      padding: '10px 16px', borderRadius: 10,
-                      background: '#FEF2F2', color: '#DC2626', border: 'none',
-                      fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                    }}
-                  >
-                    Desactivar
-                  </button>
-                </div>
-              </div>
-            )
-          }
-
-          return (
-            <div key={source.id} style={{
-              background: '#fff', borderRadius: 14, padding: '14px 16px',
-              border: '1px solid #E2E8F0',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 10,
-                background: '#EFF6FF', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                <Icon size={20} color="#2563EB" />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: '#1E3A5F' }}>
-                    {source.bank_name}
-                  </span>
-                  {source.detection_method === 'auto' && (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 3,
-                      fontSize: 11, fontWeight: 600, color: '#7C3AED',
-                      background: '#F5F3FF', padding: '2px 8px', borderRadius: 20,
-                    }}>
-                      <Sparkles size={10} />
-                      Auto
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: 12, color: '#64748B' }}>
-                  {TYPE_LABELS[source.type]}
-                  {source.nickname ? ` · ${source.nickname}` : ''}
-                </span>
-              </div>
-              <button
-                onClick={() => startEdit(source)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6 }}
-              >
-                <Pencil size={16} color="#94A3B8" />
-              </button>
-            </div>
-          )
-        })}
+        <GroupTitle>Tus cuentas y tarjetas · {sources.length}</GroupTitle>
+        <ListCard>
+          {sources.map((source) => (
+            <button
+              key={source.id}
+              type="button"
+              onClick={() => openEdit(source)}
+              className={`flex w-full items-center gap-3 py-3 ${ROW_DIVIDER}`}
+            >
+              <RowBody
+                tile={<Tile>{TYPE_EMOJI[source.type]}</Tile>}
+                name={source.bank_name}
+                badge={source.detection_method === 'auto' && <span className={BADGE_INFO}>Detectado</span>}
+                help={`${TYPE_LABELS[source.type]}${source.nickname ? ` · ${source.nickname}` : ''}`}
+              />
+              <Chevron />
+            </button>
+          ))}
+          <button type="button" onClick={openPick} className={`flex w-full items-center gap-3 py-3 ${ROW_DIVIDER}`}>
+            <Tile className="bg-electric-ghost text-[22px] font-semibold text-electric-dark dark:bg-[#1B2B4D] dark:text-electric-soft">+</Tile>
+            <span className={`flex-1 text-left text-[15px] font-semibold ${LINK_TEXT}`}>Agregar banco o tarjeta</span>
+          </button>
+        </ListCard>
+        <p className={`mx-1 mt-3 text-[13px] leading-[1.45] [text-wrap:pretty] ${TEXT_MUTED}`}>
+          Al importar un estado de cuenta, Zafi agrega el banco por ti.
+        </p>
       </div>
 
-      {/* Add source */}
-      {addStep === 'idle' && (
-        <button
-          onClick={() => setAddStep('pick_bank')}
-          style={{
-            width: '100%', padding: '14px 16px', borderRadius: 14,
-            border: '2px dashed #CBD5E1', background: 'transparent',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            cursor: 'pointer', color: '#64748B', fontSize: 14, fontWeight: 600,
-          }}
-        >
-          <Plus size={18} />
-          Agregar otra fuente
-        </button>
-      )}
-
-      {addStep === 'pick_bank' && (
-        <div style={{
-          background: '#fff', borderRadius: 14, padding: 16,
-          border: '2px solid #2563EB',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>
-              Selecciona tu banco
-            </span>
-            <button
-              onClick={() => setAddStep('idle')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
-            >
-              <X size={18} color="#94A3B8" />
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {GT_BANKS.map(bank => {
-              const alreadyAdded = sources.some(s => s.bank_name === bank)
-              return (
+      <BottomSheet themed open={!!sheet} onClose={closeSheet} label={sheet?.kind === 'edit' ? 'Editar banco' : 'Agregar banco'}>
+        {sheet && (
+          <div className="flex flex-col gap-3.5 overflow-y-auto px-5 pb-[calc(30px+env(safe-area-inset-bottom))] pt-2.5">
+            {sheet.kind === 'pick' ? (
+              <>
+                <SheetHeader emoji="🏦" title="Agrega un banco" subtitle="Elige el tuyo" />
+                <div className="flex flex-wrap gap-2">
+                  {[...GT_BANKS, OTHER].map((bank) => {
+                    const added = bank !== OTHER && sources.some((s) => s.bank_name === bank)
+                    return (
+                      <button
+                        key={bank}
+                        type="button"
+                        onClick={() => pickBank(bank)}
+                        className={`h-11 rounded-full border border-[var(--zafi-border)] px-3.5 text-sm font-semibold transition-transform duration-150 active:scale-[0.96] ${
+                          added ? `${TILE_BG} ${TEXT_MUTED}` : `bg-[var(--zafi-card)] ${TEXT_STRONG}`
+                        }`}
+                      >
+                        {bank}{added ? ' ✓' : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                {sheet.kind === 'edit' ? (
+                  <SheetHeader emoji={TYPE_EMOJI[draft.type]} title={sheet.source.bank_name} subtitle="Cambia el tipo o ponle un apodo" />
+                ) : (
+                  <SheetHeader emoji={TYPE_EMOJI[draft.type]} title={sheet.bank === OTHER ? 'Otro banco' : sheet.bank} subtitle="¿Qué es?" />
+                )}
+                {sheet.kind === 'new' && sheet.bank === OTHER && (
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel htmlFor="bank-name">Nombre del banco</FieldLabel>
+                    <input
+                      id="bank-name"
+                      type="text"
+                      value={draft.bank}
+                      onChange={(e) => setDraft((d) => ({ ...d, bank: e.target.value }))}
+                      placeholder="Ej. Banco Azteca"
+                      className={INPUT_48}
+                    />
+                  </div>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <span className={`text-[13px] font-bold uppercase tracking-[0.04em] ${TEXT_MUTED}`}>Tipo</span>
+                  <Segmented label="Tipo" options={TYPE_OPTIONS} value={draft.type} onChange={(type) => setDraft((d) => ({ ...d, type }))} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <FieldLabel htmlFor="bank-nick">Apodo</FieldLabel>
+                  <input
+                    id="bank-nick"
+                    type="text"
+                    value={draft.nickname}
+                    onChange={(e) => setDraft((d) => ({ ...d, nickname: e.target.value }))}
+                    placeholder="Opcional, ej. “Tarjeta principal”"
+                    className={INPUT_48}
+                  />
+                </div>
+                {errorMsg && <ErrorBox>{errorMsg}</ErrorBox>}
                 <button
-                  key={bank}
-                  onClick={() => !alreadyAdded && handleBankPick(bank)}
-                  disabled={alreadyAdded}
-                  style={{
-                    padding: '8px 16px', borderRadius: 20,
-                    border: alreadyAdded ? '1px solid #E2E8F0' : '1px solid #BFDBFE',
-                    background: alreadyAdded ? '#F8FAFC' : '#EFF6FF',
-                    color: alreadyAdded ? '#CBD5E1' : '#1E3A5F',
-                    fontSize: 13, fontWeight: 600, cursor: alreadyAdded ? 'default' : 'pointer',
-                  }}
+                  type="button"
+                  onClick={() => (sheet.kind === 'edit' ? handleSaveEdit(sheet.source) : handleAdd())}
+                  disabled={saving || !draft.bank.trim()}
+                  className={PRIMARY_BUTTON}
                 >
-                  {bank}
-                  {alreadyAdded && ' ✓'}
+                  {saving ? 'Guardando…' : 'Guardar'}
                 </button>
-              )
-            })}
-            <button
-              onClick={() => handleBankPick('Otro')}
-              style={{
-                padding: '8px 16px', borderRadius: 20,
-                border: '1px dashed #CBD5E1', background: 'transparent',
-                color: '#64748B', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              Otro banco
-            </button>
+                {sheet.kind === 'edit' && (
+                  <button type="button" onClick={() => handleDeactivate(sheet.source)} className={DANGER_TEXT_BUTTON}>
+                    Dejar de usar este banco
+                  </button>
+                )}
+              </>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </BottomSheet>
 
-      {addStep === 'form' && (
-        <div style={{
-          background: '#fff', borderRadius: 14, padding: 16,
-          border: '2px solid #2563EB',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>
-              {form.bank_name || 'Nuevo banco'}
-            </span>
-            <button
-              onClick={() => { setAddStep('idle'); setCustomBank('') }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
-            >
-              <X size={18} color="#94A3B8" />
-            </button>
-          </div>
-
-          {!form.bank_name && (
-            <input
-              type="text"
-              placeholder="Nombre del banco"
-              value={customBank}
-              onChange={e => setCustomBank(e.target.value)}
-              autoFocus
-              style={{
-                width: '100%', padding: '10px 14px', borderRadius: 10,
-                border: '1px solid var(--zafi-border)', fontSize: 14, marginBottom: 12,
-                outline: 'none', boxSizing: 'border-box',
-              }}
-            />
-          )}
-
-          <TypeSelector value={form.type} onChange={t => setForm(f => ({ ...f, type: t }))} />
-
-          <input
-            type="text"
-            placeholder="Apodo (opcional, ej. 'Tarjeta principal')"
-            value={form.nickname}
-            onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))}
-            style={{
-              width: '100%', padding: '10px 14px', borderRadius: 10,
-              border: '1px solid var(--zafi-border)', fontSize: 14, marginTop: 12,
-              outline: 'none', boxSizing: 'border-box',
-            }}
-          />
-
-          <button
-            onClick={handleAdd}
-            disabled={saving || (!form.bank_name && !customBank.trim())}
-            style={{
-              width: '100%', marginTop: 14, padding: '12px 16px', borderRadius: 10,
-              background: (!form.bank_name && !customBank.trim()) ? '#CBD5E1' : '#2563EB',
-              color: '#fff', border: 'none',
-              fontWeight: 700, fontSize: 14, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            }}
-          >
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-            Agregar fuente
-          </button>
-        </div>
-      )}
-
-      {sources.length === 0 && addStep === 'idle' && (
-        <div style={{
-          textAlign: 'center', padding: '32px 20px', color: '#64748B', fontSize: 14,
-          lineHeight: 1.6,
-        }}>
-          <Wallet size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
-          <p style={{ margin: 0 }}>
-            Aún no tienes fuentes registradas. Al importar un estado de cuenta, Zafi las detecta automáticamente.
-          </p>
-        </div>
-      )}
-
-      <div className="h-24" />
+      <UndoToast
+        key={undo?.id}
+        visible={!!undo}
+        title={`${undo?.bank_name ?? ''} ya no se usa`}
+        onUndo={() => void runUndo()}
+        onDismiss={dismissUndo}
+        duration={DELETE_UNDO_MS}
+      />
+      <StatusToast message={message} onDone={clearMessage} />
     </AppShell>
-  )
-}
-
-function TypeSelector({ value, onChange }: { value: SourceType; onChange: (t: SourceType) => void }) {
-  const types: SourceType[] = ['tarjeta_credito', 'cuenta_bancaria', 'efectivo']
-
-  return (
-    <div style={{ display: 'flex', gap: 8 }}>
-      {types.map(t => {
-        const Icon = TYPE_ICONS[t]
-        const active = value === t
-        return (
-          <button
-            key={t}
-            onClick={() => onChange(t)}
-            style={{
-              flex: 1, padding: '8px 4px', borderRadius: 10,
-              border: active ? '2px solid #2563EB' : '1px solid #E2E8F0',
-              background: active ? '#EFF6FF' : '#fff',
-              cursor: 'pointer',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-            }}
-          >
-            <Icon size={18} color={active ? '#2563EB' : '#64748B'} />
-            <span style={{
-              fontSize: 11, fontWeight: 600,
-              color: active ? '#2563EB' : '#64748B',
-            }}>
-              {t === 'tarjeta_credito' ? 'Tarjeta' : t === 'cuenta_bancaria' ? 'Cuenta' : 'Efectivo'}
-            </span>
-          </button>
-        )
-      })}
-    </div>
   )
 }
