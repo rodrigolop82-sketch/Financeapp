@@ -9,6 +9,7 @@ import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav, openAddSheet } from '@/components/dashboard/BottomNav'
 import { AddSheet } from '@/components/add/AddSheet'
+import { signalAppReady } from '@/components/motion/Splash'
 import {
   Home, List, Target, Wallet, CreditCard, TrendingUp, ClipboardCheck,
   MessageCircle, BookOpen, Landmark, Users, Settings, ShieldCheck,
@@ -86,6 +87,9 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
   const pathname = usePathname() ?? currentPath
   const isRoot = isRootPath(pathname)
   const parent = parentFor(pathname)
+
+  // La página ya tiene sus datos (pinta AppShell): el splash puede salir.
+  useEffect(() => { signalAppReady() }, [])
 
   useEffect(() => {
     if (userEmail) {

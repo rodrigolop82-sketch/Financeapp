@@ -17,13 +17,15 @@ import "./globals.css";
 import { InstallPromptManager } from "@/components/install/InstallPromptManager";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { Splash } from "@/components/motion/Splash";
+import { SPLASH_BOOT_SCRIPT } from "@/lib/motion";
 
 export const metadata: Metadata = {
   title: "Zafi — Ordena tu dinero. Construye tu futuro.",
   description:
     "Tu planner financiero personal para Latinoamérica. Diagnóstico honesto, plan de acción priorizado, y acompañamiento proactivo mes a mes.",
   manifest: "/manifest.json",
-  themeColor: "#1E3A5F",
+  themeColor: "#0D1F36",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -41,10 +43,13 @@ export default function RootLayout({
       <head>
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        {/* Antes de pintar: oculta el splash si ya se vio en esta sesión. */}
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_BOOT_SCRIPT }} />
       </head>
       <body className="font-sans antialiased">
         <ThemeProvider>
           <ServiceWorkerRegistration />
+          <Splash />
           <InstallPromptManager>
             {children}
           </InstallPromptManager>
