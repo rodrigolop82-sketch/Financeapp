@@ -288,6 +288,7 @@ html[data-splash="off"] .zafi-splash { display: none; }
   .animate-ring,
   .animate-breath,
   .animate-dot,
+  .animate-bell,
   .animate-shimmer,
   .animate-row-flash {
     animation: none !important;

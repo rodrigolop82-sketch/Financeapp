@@ -34,7 +34,10 @@ import {
   type MeterTone,
 } from '@/lib/cuenta';
 import { pushHint, type PushStatus } from '@/lib/push-status';
-import { enablePush, getPushStatus } from '@/lib/push-client';
+import { getPushStatus } from '@/lib/push-client';
+import { getPlatformContext } from '@/lib/platform-detection';
+import { saveNotificationPrefs } from '@/lib/notification-prefs';
+import { openPushOffer, PUSH_STATUS_EVENT } from '@/components/avisos/PushOfferSheet';
 import { PageSkeleton } from '@/components/motion/PageSkeleton';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 
@@ -76,9 +79,11 @@ function CuentaContent() {
     inactivity_threshold_days: 5,
     month_close_enabled: true,
     month_close_day: 2,
+    due_enabled: true,
+    cap_enabled: true,
+    income_enabled: false,
   });
   const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
-  const [pushBusy, setPushBusy] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null);
@@ -114,6 +119,9 @@ function CuentaContent() {
           inactivity_threshold_days: nPrefs.inactivity_threshold_days ?? 5,
           month_close_enabled: nPrefs.month_close_enabled ?? true,
           month_close_day: nPrefs.month_close_day ?? 2,
+          due_enabled: nPrefs.due_enabled ?? true,
+          cap_enabled: nPrefs.cap_enabled ?? true,
+          income_enabled: nPrefs.income_enabled ?? false,
         });
       }
       setLoading(false);
@@ -131,6 +139,30 @@ function CuentaContent() {
     load();
     getPushStatus().then(setPushStatus).catch(() => setPushStatus('unsupported'));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // La hoja de avisos avisa cuando cambia el estado (y vuelve a leer los switches).
+  useEffect(() => {
+    async function onStatus(e: Event) {
+      const status = (e as CustomEvent<PushStatus>).detail;
+      if (status) setPushStatus(status);
+      if (status === 'on') showToast('Avisos activados');
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+      const { data: nPrefs } = await supabase.from('notification_preferences').select('*').eq('user_id', authUser.id).maybeSingle();
+      if (nPrefs) {
+        setNotifPrefs((prev) => ({
+          ...prev,
+          inactivity_enabled: nPrefs.inactivity_enabled ?? prev.inactivity_enabled,
+          month_close_enabled: nPrefs.month_close_enabled ?? prev.month_close_enabled,
+          due_enabled: nPrefs.due_enabled ?? prev.due_enabled,
+          cap_enabled: nPrefs.cap_enabled ?? prev.cap_enabled,
+          income_enabled: nPrefs.income_enabled ?? prev.income_enabled,
+        }));
+      }
+    }
+    window.addEventListener(PUSH_STATUS_EVENT, onStatus);
+    return () => window.removeEventListener(PUSH_STATUS_EVENT, onStatus);
+  }, [supabase, showToast]);
 
   async function handleUpgrade(plan: 'monthly' | 'annual') {
     setUpgrading(true);
@@ -226,35 +258,32 @@ function CuentaContent() {
     setNotifPrefs(next);
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (authUser) {
-      await supabase.from('notification_preferences').upsert({
-        user_id: authUser.id,
-        ...next,
-      });
+      const { error } = await saveNotificationPrefs(supabase, authUser.id, next);
+      if (error) {
+        setNotifPrefs(notifPrefs);
+        showToast('No pudimos guardar el cambio');
+        return;
+      }
     }
     if (message) showToast(message);
   }
 
   /**
-   * "Activar" de Avisos en el teléfono. Usa el mismo flujo de suscripción que
-   * el registro del service worker (lib/push-client.ts).
-   * Fase 13: aquí se abrirá la hoja de permisos antes de llamar a enablePush().
+   * "Activar" de Avisos en el teléfono: abre la hoja "¿Te avisamos lo
+   * importante?" (o, en iPhone sin instalar, "Agrega Zafi a tu pantalla de
+   * inicio"). La hoja pide el permiso y avisa con PUSH_STATUS_EVENT.
    */
-  async function handleEnablePush() {
-    if (pushStatus === 'needs-install') {
-      triggerInstall();
-      showToast('Primero agrega Zafi a tu pantalla de inicio');
-      return;
-    }
+  function handleEnablePush() {
     if (pushStatus === 'denied') {
       showToast('Actívalos en los ajustes del teléfono');
       return;
     }
-    setPushBusy(true);
-    const next = await enablePush().catch((): PushStatus => 'off');
-    setPushBusy(false);
-    setPushStatus(next);
-    if (next === 'on') showToast('Avisos activados');
-    else if (next === 'denied') showToast('Bloqueaste los avisos');
+    if (pushStatus === 'needs-install' && getPlatformContext().os !== 'ios') {
+      triggerInstall();
+      showToast('Primero agrega Zafi a tu pantalla de inicio');
+      return;
+    }
+    openPushOffer();
   }
 
   /** "Envíanos tu idea": abre la hoja de feedback. */
@@ -401,13 +430,36 @@ function CuentaContent() {
                 <button
                   type="button"
                   onClick={handleEnablePush}
-                  disabled={pushBusy || pushStatus === null}
+                  disabled={pushStatus === null}
                   className="flex h-8 flex-none items-center gap-1.5 rounded-full bg-electric px-3.5 text-[13.5px] font-bold text-white transition-transform active:scale-95 disabled:opacity-60"
                 >
-                  {pushBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
                   Activar
                 </button>
               )
+            }
+          />
+          <AccountRow
+            emoji="📅"
+            title="Pagos por vencer"
+            hint="Un día antes de cada pago fijo"
+            right={
+              <Switch
+                checked={notifPrefs.due_enabled}
+                label="Pagos por vencer"
+                onChange={(v) => updateNotifPref({ due_enabled: v }, v ? 'Te avisaremos antes de cada pago fijo' : 'Aviso de pagos apagado')}
+              />
+            }
+          />
+          <AccountRow
+            emoji="⚠️"
+            title="Cerca de mi tope"
+            hint="Cuando una categoría llega al 85%"
+            right={
+              <Switch
+                checked={notifPrefs.cap_enabled}
+                label="Cerca de mi tope"
+                onChange={(v) => updateNotifPref({ cap_enabled: v }, v ? 'Te avisaremos cerca de tus topes' : 'Aviso de topes apagado')}
+              />
             }
           />
           <AccountRow
@@ -433,7 +485,7 @@ function CuentaContent() {
           <AccountRow
             emoji="✅"
             title="Cierre de mes"
-            hint="Recordarme cerrar el mes"
+            hint="Tu resumen y dónde ahorrar"
             right={
               <Switch
                 checked={notifPrefs.month_close_enabled}
@@ -450,6 +502,18 @@ function CuentaContent() {
                 de cada mes
               </div>
             )}
+          />
+          <AccountRow
+            emoji="💼"
+            title="Ingresos recibidos"
+            hint="Cuando registras un ingreso"
+            right={
+              <Switch
+                checked={notifPrefs.income_enabled}
+                label="Ingresos recibidos"
+                onChange={(v) => updateNotifPref({ income_enabled: v }, v ? 'Te avisaremos de tus ingresos' : 'Aviso de ingresos apagado')}
+              />
+            }
           />
           <AccountRow
             emoji="📬"

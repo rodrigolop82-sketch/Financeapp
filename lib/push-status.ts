@@ -4,7 +4,7 @@
 export type PushStatus =
   /** El navegador no tiene service worker / Push API o falta la llave VAPID. */
   | 'unsupported'
-  /** Solo se piden permisos con Zafi instalada (ver lib/push-gate.ts). */
+  /** En iPhone solo se piden permisos con Zafi instalada (ver lib/push-gate.ts). */
   | 'needs-install'
   /** El usuario los bloqueó en el sistema. */
   | 'denied'
@@ -17,7 +17,7 @@ export interface PushEnv {
   hasServiceWorker: boolean;
   hasPushManager: boolean;
   hasVapidKey: boolean;
-  /** canRequestPush(): app instalada (standalone). */
+  /** canRequestPush(): instalada, o un navegador que no sea de iPhone (lib/push-gate.ts). */
   standalone: boolean;
   permission: NotificationPermission | 'unknown';
   subscribed: boolean;

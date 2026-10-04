@@ -1,23 +1,16 @@
 'use client'
 
 import { useEffect } from 'react'
-import { canRequestPush } from '@/lib/push-gate'
-import { enablePush } from '@/lib/push-client'
 
+/**
+ * Solo registra el service worker. Los avisos NO se piden al cargar: la hoja
+ * "¿Te avisamos lo importante?" (components/avisos/PushOfferSheet.tsx) los
+ * ofrece tras el primer gasto guardado o desde Mi cuenta.
+ */
 export function ServiceWorkerRegistration() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
-
-    navigator.serviceWorker.register('/sw.js').then(async (registration) => {
-      if (!canRequestPush()) return
-      if (!('PushManager' in window)) return
-
-      const existing = await registration.pushManager.getSubscription()
-      if (existing) return
-
-      // Pide permiso y guarda la suscripción (mismo flujo que "Activar" en Mi cuenta).
-      await enablePush()
-    }).catch(() => {})
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
   }, [])
 
   return null

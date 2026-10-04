@@ -1,7 +1,7 @@
-// Suscripción a avisos push desde el navegador. Lo usan el registro del
-// service worker (components/ServiceWorkerRegistration.tsx) y el botón
-// "Activar" de Mi cuenta. La hoja de permisos de la fase 13 debe llamar
-// a enablePush() cuando el usuario acepte.
+// Suscripción a avisos push desde el navegador. Solo la usa la hoja
+// "¿Te avisamos lo importante?" (components/avisos/PushOfferSheet.tsx), que
+// llama a enablePush() cuando el usuario toca "Activar avisos". Nunca se
+// pide permiso al cargar la app.
 
 import { canRequestPush } from '@/lib/push-gate'
 import { createClient } from '@/lib/supabase'

@@ -18,6 +18,7 @@ import { DateSheet, OptionSheet } from '@/components/movimientos/OptionSheet'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
 import { UndoToast } from '@/components/transactions/UndoToast'
 import { SuccessCheck } from '@/components/motion/SuccessCheck'
+import { EXPENSE_SAVED_EVENT } from '@/components/avisos/PushOfferSheet'
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
 import { SubItemPicker, type SubItemOption } from '@/components/movimientos/SubItemPicker'
 import { suggestSubItem } from '@/lib/plan-del-mes'
@@ -375,6 +376,8 @@ export function AddSheet() {
       // La hoja termina de bajar antes de volver al formulario.
       setTimeout(() => { setSuccess(null); resetAll() }, 320)
       notifyTransactionsChanged({ id: data?.[0]?.id, date: data?.[0]?.date ?? first.date })
+      // Momento justo para ofrecer los avisos (components/avisos/PushOfferSheet.tsx).
+      if (rows.some((r) => r.type === 'expense')) window.dispatchEvent(new Event(EXPENSE_SAVED_EVENT))
       void joinedPromise.then((joined) => {
         setSaved({
           ids,

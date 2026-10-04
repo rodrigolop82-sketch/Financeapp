@@ -9,6 +9,7 @@ import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav, openAddSheet } from '@/components/dashboard/BottomNav'
 import { AddSheet } from '@/components/add/AddSheet'
+import { PushOfferSheet } from '@/components/avisos/PushOfferSheet'
 import { signalAppReady } from '@/components/motion/Splash'
 import {
   Home, List, Target, Wallet, CreditCard, TrendingUp, ClipboardCheck,
@@ -300,6 +301,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
 
       {/* Hoja global de agregar (botón + y ?action=) */}
       <AddSheet />
+      <PushOfferSheet />
     </div>
   )
 }

@@ -178,6 +178,13 @@ const config: Config = {
           "0%, 80%, 100%": { opacity: "0.25", transform: "scale(0.8)" },
           "40%": { opacity: "1", transform: "scale(1)" },
         },
+        bell: {
+          "0%, 100%": { transform: "rotate(0)" },
+          "20%": { transform: "rotate(14deg)" },
+          "40%": { transform: "rotate(-12deg)" },
+          "60%": { transform: "rotate(8deg)" },
+          "80%": { transform: "rotate(-4deg)" },
+        },
       },
       animation: {
         "score-fill": "score-fill 1.5s ease-out forwards",
@@ -195,6 +202,7 @@ const config: Config = {
         confetti: "confetti 2s cubic-bezier(.2,.6,.4,1) both",
         breath: "breath 1.6s ease-in-out .5s infinite",
         dot: "dot 1s ease-in-out infinite",
+        bell: "bell 1s ease-in-out .4s both",
       },
       transitionTimingFunction: {
         spring: "cubic-bezier(.3,1.5,.5,1)",
