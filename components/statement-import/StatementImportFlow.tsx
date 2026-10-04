@@ -1,5 +1,6 @@
 'use client'
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useStatementImport } from '@/hooks/useStatementImport'
 import { UploadScreen } from './UploadScreen'
 import { ProcessingScreen } from './ProcessingScreen'
@@ -8,6 +9,10 @@ import { ReviewScreen } from './ReviewScreen'
 import { ImportSuccessScreen } from './ImportSuccessScreen'
 import { UndoToast } from '@/components/transactions/UndoToast'
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
+import { importBannerQuery, type ImportBanner } from '@/lib/motion'
+
+/** Ya en Movimientos: se pide el banner por evento (no cambia la ruta). */
+export const IMPORT_BANNER_EVENT = 'zafi:import-banner'
 
 interface StatementImportFlowProps {
   householdId: string
@@ -19,13 +24,14 @@ interface StatementImportFlowProps {
 
 export function StatementImportFlow({ householdId, onDone, onChanged }: StatementImportFlowProps) {
   const imp = useStatementImport(householdId)
+  const router = useRouter()
 
   useEffect(() => {
     if (imp.step === 'idle') imp.startImport()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Al confirmar, las listas se recargan ya; el toast queda con "Deshacer".
-  const confirmed = imp.step === 'done'
+  // Al confirmar, las listas se recargan ya; "Deshacer" queda en el éxito y luego en el toast.
+  const confirmed = imp.step === 'success' || imp.step === 'done'
   useEffect(() => {
     if (confirmed) onChanged?.()
   }, [confirmed]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -36,6 +42,24 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
     imp.closeImport()
     onDone()
   }
+
+  /** "Ver movimientos": Movimientos con el banner verde de lo importado. */
+  const seeMovements = () => {
+    const banner: ImportBanner = {
+      count: imp.stats?.imported ?? 0,
+      bank: imp.bankDetected,
+      month: imp.stats?.month ?? null,
+    }
+    handleDone()
+    if (window.location.pathname === '/transacciones') {
+      window.dispatchEvent(new CustomEvent<ImportBanner>(IMPORT_BANNER_EVENT, { detail: banner }))
+    } else {
+      router.push(`/transacciones?${importBannerQuery(banner)}`)
+    }
+  }
+
+  // Cerrar el panel en la pantalla de éxito deja el toast con "Deshacer".
+  const closePanel = imp.step === 'success' ? imp.showUndoToast : imp.closeImport
 
   if (imp.step === 'done' && imp.outcome) {
     return (
@@ -57,7 +81,7 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
     <>
       {/* Overlay */}
       <div
-        onClick={imp.closeImport}
+        onClick={closePanel}
         style={{
           position: 'fixed', inset: 0, zIndex: 52,
           background: 'rgba(15,23,42,0.5)',
@@ -181,6 +205,7 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
           <ProcessingScreen
             bankDetected={imp.bankDetected}
             isLoading={imp.isLoading}
+            source={imp.importMode === 'photos' ? 'photo' : 'pdf'}
           />
         )
       case 'review':
@@ -203,7 +228,15 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
         )
       case 'success':
         return imp.stats ? (
-          <ImportSuccessScreen stats={imp.stats} onDone={handleDone} />
+          <ImportSuccessScreen
+            stats={imp.stats}
+            onSeeMovements={seeMovements}
+            onUndo={async () => {
+              await imp.undoImport()
+              onChanged?.()
+              handleDone()
+            }}
+          />
         ) : null
       default:
         return null

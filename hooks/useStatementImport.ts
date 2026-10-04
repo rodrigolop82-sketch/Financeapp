@@ -8,6 +8,7 @@ import { mergeBatchResults, type ApiExtractedTx, type ExtractedTx } from '@/lib/
 import { classifyStatement, confirmStatement, importToast, undoStatement, type ClassifyResult, type ImportUndo, type MatchedTx } from '@/lib/import/import-data'
 import type { BudgetCategory, BudgetSubItem } from '@/types'
 import { IMPORT_CONCURRENCY, MAX_IMPORT_IMAGES } from '@/lib/import/constants'
+import { dominantMonth } from '@/lib/motion'
 
 export type ImportStep = 'idle' | 'upload' | 'processing' | 'review' | 'success' | 'done'
 
@@ -54,7 +55,12 @@ export interface ImportStats {
   total: number
   imported: number
   duplicatesSkipped: number
+  /** Suma de los gastos del estado (sin los repetidos). */
   totalAmount: number
+  /** Suma de los ingresos recibidos del estado (sin los repetidos). */
+  incomeAmount: number
+  /** Mes ('YYYY-MM') de la mayoría de los movimientos. */
+  month: string | null
 }
 
 export type PhotoStatus = 'queued' | 'analyzing' | 'done' | 'error'
@@ -766,19 +772,33 @@ export function useStatementImport(householdId: string) {
       // Auto-detect source (best-effort, never blocks)
       if (current.bankDetected) upsertDetectedSource(user.id, current.bankDetected).catch(() => {})
 
-      const totalAmount = chosen.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+      // Los marcados como "ya lo tenía" no suman: no se agregaron.
+      const kept = chosen.filter(t => !(t.kind === 'duplicate' && t.same === true))
+      const sum = (type: 'expense' | 'income') => kept.filter(t => t.type === type).reduce((s, t) => s + t.amount, 0)
       setState(s => ({
         ...s,
-        step: 'done',
+        step: 'success',
         isLoading: false,
         outcome: { text: importToast(outcome.inserted, outcome.avoided), undo: outcome.undo },
-        stats: { total: chosen.length, imported: outcome.inserted, duplicatesSkipped: outcome.avoided, totalAmount },
+        stats: {
+          total: chosen.length,
+          imported: outcome.inserted,
+          duplicatesSkipped: outcome.avoided,
+          totalAmount: sum('expense'),
+          incomeAmount: sum('income'),
+          month: dominantMonth(chosen.map(t => t.date)),
+        },
       }))
     } catch (err) {
       console.error('Statement import confirm error:', err)
       setState(s => ({ ...s, isLoading: false, error: 'Error al guardar los movimientos. Inténtalo de nuevo.' }))
     }
   }, [householdId, closeImport])
+
+  /** De la pantalla de éxito al toast con "Deshacer" (se cerró el panel sin elegir). */
+  const showUndoToast = useCallback(() => {
+    setState(s => (s.step === 'success' ? { ...s, step: 'done' } : s))
+  }, [])
 
   /** Revierte la importación confirmada (inserciones, actualizaciones y reglas). */
   const undoImport = useCallback(async () => {
@@ -802,6 +822,7 @@ export function useStatementImport(householdId: string) {
     toggleTransaction,
     deselectTransaction,
     confirmImport,
+    showUndoToast,
     undoImport,
     setSame,
     setCategory,

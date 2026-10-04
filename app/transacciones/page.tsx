@@ -20,7 +20,10 @@ import { SwipeRow, txRowData } from '@/components/movimientos/SwipeRow';
 import { OptionSheet } from '@/components/movimientos/OptionSheet';
 import { useTxSheets } from '@/components/movimientos/useTxSheets';
 import { BORDER, CARD_BG, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
-import { Loader2, Receipt, ChevronDown } from 'lucide-react';
+import { Receipt, ChevronDown, X } from 'lucide-react';
+import { PageSkeleton, SkeletonRows } from '@/components/motion/PageSkeleton';
+import { IMPORT_BANNER_EVENT } from '@/components/statement-import/StatementImportFlow';
+import { importBannerText, parseImportBanner, type ImportBanner } from '@/lib/motion';
 
 const PAGE_SIZE = 50;
 const SWIPE_HINT_KEY = 'zafi:swipe-hint';
@@ -72,6 +75,25 @@ export default function MovimientosPage() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('q');
     if (q) { setQuery(q); setDebouncedQuery(q); }
+  }, []);
+
+  // Banner verde después de importar un estado de cuenta (?importados=&banco=&mes=).
+  const [banner, setBanner] = useState<ImportBanner | null>(null);
+  useEffect(() => {
+    function show(b: ImportBanner) {
+      setBanner(b);
+      if (b.month) setMonth(b.month);
+    }
+    const url = new URL(window.location.href);
+    const fromUrl = parseImportBanner(url.searchParams);
+    if (fromUrl) {
+      show(fromUrl);
+      for (const k of ['importados', 'banco', 'mes']) url.searchParams.delete(k);
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    }
+    const onBanner = (e: Event) => show((e as CustomEvent<ImportBanner>).detail);
+    window.addEventListener(IMPORT_BANNER_EVENT, onBanner);
+    return () => window.removeEventListener(IMPORT_BANNER_EVENT, onBanner);
   }, []);
 
   // Hogar y categorías
@@ -190,7 +212,7 @@ export default function MovimientosPage() {
     function onChanged(e: Event) {
       const detail = (e as CustomEvent<TxChangedDetail | undefined>).detail;
       if (detail?.date) setMonth(detail.date.slice(0, 7));
-      if (detail?.id) flash(detail.id);
+      if (detail?.id) flash(detail.id, true);
       reload();
     }
     window.addEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged);
@@ -234,15 +256,36 @@ export default function MovimientosPage() {
     </div>
   );
 
+  if (!ready) return <PageSkeleton variant="list" />;
+
+  const bannerText = banner ? importBannerText(banner, today) : null;
+
   return (
     <AppShell title="Movimientos" currentPath="/transacciones" titleRight={headerActions} headerRight={headerActions}>
-      <div className="max-w-3xl flex flex-col">
+      <div className="max-w-3xl flex flex-col zafi-stagger">
         <div className="mt-3.5">
           <MonthSummary
             spent={summary ? fmt(summary.spent) : null}
             received={summary ? fmt(summary.received) : null}
           />
         </div>
+
+        {bannerText && (
+          <div role="status" className="mt-3 flex items-center gap-2.5 rounded-[14px] bg-success-light dark:bg-[var(--zafi-success-bg)] px-3.5 py-3 animate-fade-up">
+            <span aria-hidden className="text-lg leading-none">✅</span>
+            <span className="flex-1 text-sm text-success-text dark:text-[var(--zafi-success-text)]">
+              <b>{bannerText.strong}</b> {bannerText.rest}
+            </span>
+            <button
+              type="button"
+              onClick={() => setBanner(null)}
+              aria-label="Cerrar aviso"
+              className="flex-none -my-2 -mr-2 flex h-11 w-11 items-center justify-center text-success-text dark:text-[var(--zafi-success-text)]"
+            >
+              <X size={16} aria-hidden />
+            </button>
+          </div>
+        )}
 
         <div className="mt-3">
           <MovimientosSearch
@@ -261,9 +304,7 @@ export default function MovimientosPage() {
 
         <div className="pt-3.5 flex flex-col gap-3.5">
           {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-7 h-7 text-electric animate-spin" aria-label="Cargando" />
-            </div>
+            <SkeletonRows count={6} />
           ) : rows.length === 0 ? (
             <div className={`rounded-2xl px-6 py-10 text-center ${CARD_BG}`}>
               {filtered ? (
@@ -294,7 +335,7 @@ export default function MovimientosPage() {
                       row={txRowData(tx, fmt)}
                       isOpen={openRowId === tx.id}
                       anyOpen={openRowId !== null}
-                      flash={sheets.flashId === tx.id}
+                      flash={sheets.flashFor(tx.id)}
                       onOpenChange={(open) => setOpenRowId(open ? tx.id : null)}
                       onSelect={() => { setOpenRowId(null); sheets.openDetail(tx.id); }}
                       onChange={() => { setOpenRowId(null); sheets.openCategory(tx.id); }}
@@ -306,9 +347,7 @@ export default function MovimientosPage() {
               ))}
               <div ref={sentinel} />
               {loadingMore && (
-                <div className="flex justify-center py-3">
-                  <Loader2 className="w-5 h-5 text-electric animate-spin" aria-label="Cargando más" />
-                </div>
+                <SkeletonRows count={2} />
               )}
               {swipeCount < 3 && (
                 <p className="lg:hidden text-center text-[13px] px-4 text-ink-400">

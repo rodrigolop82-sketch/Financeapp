@@ -1,94 +1,85 @@
 'use client'
+import { useEffect, useState } from 'react'
 import { formatMoney } from '@/lib/format'
 import type { ImportStats } from '@/hooks/useStatementImport'
+import { SuccessCheck } from '@/components/motion/SuccessCheck'
+import { CountUp } from '@/components/motion/CountUp'
+import { Confetti } from '@/components/motion/Confetti'
 
 interface ImportSuccessScreenProps {
   stats: ImportStats
-  onDone: () => void
+  /** "Ver movimientos": abre Movimientos con el banner de lo importado. */
+  onSeeMovements: () => void
+  /** Revierte la importación. */
+  onUndo: () => Promise<void> | void
 }
 
-export function ImportSuccessScreen({ stats, onDone }: ImportSuccessScreenProps) {
+const money = (n: number) => formatMoney(n)
+
+/**
+ * ¡Listo!: check grande sobre navy, confeti breve, cuatro cifras que cuentan
+ * hacia arriba y "Ver movimientos". Vibra una vez al llegar.
+ */
+export function ImportSuccessScreen({ stats, onSeeMovements, onUndo }: ImportSuccessScreenProps) {
+  const [undoing, setUndoing] = useState(false)
+
+  useEffect(() => {
+    navigator.vibrate?.([12, 40, 12])
+  }, [])
+
+  const cards = [
+    { label: 'Movimientos nuevos', value: stats.imported, format: undefined, duration: 1000, size: 'text-[28px]', color: 'text-ink-900' },
+    { label: 'Duplicados evitados', value: stats.duplicatesSkipped, format: undefined, duration: 700, size: 'text-[28px]', color: 'text-[#B45309]' },
+    { label: 'Gastos', value: stats.totalAmount, format: money, duration: 1200, size: 'text-[22px]', color: 'text-ink-900' },
+    { label: 'Ingresos recibidos', value: stats.incomeAmount, format: money, duration: 1200, size: 'text-[22px]', color: 'text-[#15803D]' },
+  ]
+
   return (
-    <div style={{
-      padding: '48px 24px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      textAlign: 'center',
-      animation: 'zafiFadeIn 0.4s ease',
-    }}>
-      {/* Success icon */}
-      <div style={{
-        width: 88, height: 88, borderRadius: '50%',
-        background: 'linear-gradient(145deg, #10B981, #059669)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        marginBottom: 24,
-        boxShadow: '0 8px 24px rgba(16,185,129,0.3)',
-      }}>
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
+    <div className="relative overflow-hidden px-4 pt-3.5 pb-8">
+      <Confetti top={60} />
+      <div className="flex flex-col gap-3.5">
+        <div className="flex flex-col items-center gap-2.5 rounded-[20px] bg-navy px-[18px] py-6 text-center text-white">
+          <SuccessCheck
+            size={84}
+            delay={0.05}
+            title="¡Listo! Importamos tu estado"
+            subtitle="Revisa en Movimientos si algo quedó en otra categoría."
+            titleClassName="text-xl font-bold text-white"
+            subtitleClassName="text-sm text-[#CBD8E8]"
+            className="!gap-2.5"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          {cards.map((c, i) => (
+            <div
+              key={c.label}
+              className="flex flex-col gap-0.5 rounded-2xl border border-navy/[0.08] bg-white p-3.5 animate-fade-up"
+              style={{ animationDelay: `${0.5 + i * 0.1}s` }}
+            >
+              <span className="text-[13px] text-ink-700">{c.label}</span>
+              <span className={`font-outfit font-extrabold ${c.size} ${c.color}`}>
+                <CountUp value={c.value} from={0} delay={500} duration={c.duration} format={c.format} />
+              </span>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onSeeMovements}
+          className="h-[52px] rounded-full bg-electric text-base font-bold text-white transition duration-150 hover:bg-electric-dark active:scale-[0.96] animate-fade-up"
+          style={{ animationDelay: '.9s' }}
+        >
+          Ver movimientos
+        </button>
+        <button
+          type="button"
+          disabled={undoing}
+          onClick={async () => { setUndoing(true); await onUndo() }}
+          className="h-11 text-[14.5px] font-semibold text-ink-500 disabled:opacity-60"
+        >
+          {undoing ? 'Deshaciendo…' : 'Deshacer la importación'}
+        </button>
       </div>
-
-      <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1E3A5F', margin: '0 0 8px', fontFamily: 'DM Serif Display, serif' }}>
-        ¡Importación exitosa!
-      </h2>
-      <p style={{ fontSize: 14, color: '#64748B', margin: '0 0 28px' }}>
-        Tu análisis financiero es ahora más preciso.
-      </p>
-
-      {/* Stats grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr 1fr',
-        gap: 12,
-        width: '100%',
-        maxWidth: 340,
-        marginBottom: 32,
-      }}>
-        <div style={{ padding: 14, background: '#EFF6FF', borderRadius: 12, textAlign: 'center' }}>
-          <span style={{ fontSize: 24, fontWeight: 800, color: '#2563EB', fontFamily: 'Outfit, sans-serif', display: 'block' }}>
-            {stats.imported}
-          </span>
-          <span style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>importadas</span>
-        </div>
-        <div style={{ padding: 14, background: '#F0FDF4', borderRadius: 12, textAlign: 'center' }}>
-          <span style={{ fontSize: 24, fontWeight: 800, color: '#059669', fontFamily: 'Outfit, sans-serif', display: 'block' }}>
-            {formatMoney(stats.totalAmount)}
-          </span>
-          <span style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>en gastos</span>
-        </div>
-        <div style={{ padding: 14, background: '#FFFBEB', borderRadius: 12, textAlign: 'center' }}>
-          <span style={{ fontSize: 24, fontWeight: 800, color: '#D97706', fontFamily: 'Outfit, sans-serif', display: 'block' }}>
-            {stats.duplicatesSkipped}
-          </span>
-          <span style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>omitidos</span>
-        </div>
-      </div>
-
-      <button
-        onClick={onDone}
-        style={{
-          padding: '14px 40px',
-          background: '#2563EB',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 12,
-          fontSize: 15,
-          fontWeight: 600,
-          cursor: 'pointer',
-          boxShadow: '0 4px 14px rgba(37,99,235,0.25)',
-        }}
-      >
-        Ver mi dashboard →
-      </button>
-
-      <style>{`
-        @keyframes zafiFadeIn {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   )
 }
