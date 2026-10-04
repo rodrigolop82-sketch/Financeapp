@@ -1,37 +1,41 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useCallback, useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { AppShell } from '@/components/layout/AppShell';
+import { BottomSheet } from '@/components/transactions/BottomSheet';
 import {
-  Loader2,
-  Crown,
-  CheckCircle2,
-  LogOut,
-  User,
-  CreditCard,
-  Shield,
-  Eye,
-  Coins,
-  ShieldCheck,
-  History,
-  Download,
-  Lock,
-  UserX,
-  ChevronRight,
-  Bell,
-  Sun,
-  Moon,
-  Monitor,
-  Tags,
-} from 'lucide-react';
+  AccountGroup,
+  AccountRow,
+  OptionsSheet,
+  PickerPill,
+  SavedToast,
+  Switch,
+} from '@/components/cuenta/AccountUI';
+import { useInstallTrigger } from '@/components/install/InstallPromptManager';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useAppearance, type Appearance } from '@/hooks/useAppearance';
-import { isEffectivelyPremium, isTrialActive } from '@/lib/plans';
+import { isTrialActive } from '@/lib/plans';
+import { logAuditEvent } from '@/lib/audit';
+import {
+  CURRENCY_OPTIONS,
+  INACTIVITY_DAY_OPTIONS,
+  MONTH_CLOSE_DAY_OPTIONS,
+  accountDeletionMailto,
+  currencyOption,
+  decimalsHint,
+  feedbackMailto,
+  initialsFrom,
+  planPill,
+  shortDate,
+  trialDaysLeft,
+  usageMeter,
+  type MeterTone,
+} from '@/lib/cuenta';
+import { pushHint, type PushStatus } from '@/lib/push-status';
+import { enablePush, getPushStatus } from '@/lib/push-client';
 
 export default function CuentaPage() {
   return (
@@ -45,6 +49,17 @@ interface UsageInfo {
   ai: { used: number; limit: number; remaining: number };
   imports: { used: number; limit: number; remaining: number };
 }
+
+type Sheet = null | 'currency' | 'inactivity' | 'monthClose' | 'delete';
+
+const TEXT_STRONG = 'text-ink-900 dark:text-ink-100';
+const TEXT_SECONDARY = 'text-[var(--zafi-text-secondary)]';
+
+const METER_COLOR: Record<MeterTone, string> = {
+  ok: 'bg-electric dark:bg-electric-light',
+  warn: 'bg-warning',
+  full: 'bg-danger',
+};
 
 function CuentaContent() {
   const [loading, setLoading] = useState(true);
@@ -60,11 +75,20 @@ function CuentaContent() {
     month_close_enabled: true,
     month_close_day: 2,
   });
+  const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [sheet, setSheet] = useState<Sheet>(null);
+  const [toast, setToast] = useState<{ text: string; key: number } | null>(null);
   const { appearance, setAppearance } = useAppearance();
+  const triggerInstall = useInstallTrigger();
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
   const justUpgraded = searchParams.get('success') === 'true';
+
+  const showToast = useCallback((text: string) => setToast({ text, key: Date.now() }), []);
+  const clearToast = useCallback(() => setToast(null), []);
+  const closeSheet = useCallback(() => setSheet(null), []);
 
   useEffect(() => {
     async function load() {
@@ -90,7 +114,7 @@ function CuentaContent() {
       }
       setLoading(false);
 
-      if (!profile || !isEffectivelyPremium(profile)) {
+      if (!profile || !(profile.plan === 'premium' || isTrialActive(profile.trial_ends_at))) {
         try {
           const usageRes = await fetch('/api/usage');
           if (usageRes.ok) {
@@ -101,18 +125,22 @@ function CuentaContent() {
       }
     }
     load();
+    getPushStatus().then(setPushStatus).catch(() => setPushStatus('unsupported'));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleUpgrade(plan: 'monthly' | 'annual') {
     setUpgrading(true);
-    const res = await fetch('/api/stripe/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan }),
-    });
-    const { url } = await res.json();
-    if (url) window.location.href = url;
-    else setUpgrading(false);
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      const { url } = await res.json();
+      if (url) { window.location.href = url; return; }
+    } catch { /* se informa abajo */ }
+    setUpgrading(false);
+    showToast('No pudimos abrir el pago');
   }
 
   async function toggleDecimals(val: boolean) {
@@ -121,14 +149,22 @@ function CuentaContent() {
     if (authUser) {
       await supabase.from('users').update({ show_decimals: val }).eq('id', authUser.id);
     }
+    showToast(val ? 'Mostrando centavos' : 'Sin centavos');
   }
 
   async function changeCurrency(val: string) {
+    setSheet(null);
     setUser(prev => prev ? { ...prev, currency: val } : prev);
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (authUser) {
       await supabase.from('users').update({ currency: val }).eq('id', authUser.id);
     }
+    showToast(`Moneda: ${currencyOption(val).name}`);
+  }
+
+  function changeAppearance(val: Appearance) {
+    setAppearance(val);
+    showToast(val === 'light' ? 'Apariencia: Claro' : val === 'dark' ? 'Apariencia: Oscuro' : 'Apariencia: Sistema');
   }
 
   async function handleLogout() {
@@ -147,6 +183,7 @@ function CuentaContent() {
 
   async function handleExport() {
     setExporting(true);
+    showToast('Exportando tus datos…');
     try {
       const res = await fetch('/api/user/export');
       if (!res.ok) throw new Error();
@@ -157,14 +194,15 @@ function CuentaContent() {
       a.download = `zafi-export-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      showToast('Listo, revisa tus descargas');
     } catch {
-      // export failed silently
+      showToast('No pudimos exportar, intenta de nuevo');
     } finally {
       setExporting(false);
     }
   }
 
-  async function updateNotifPref(updates: Partial<typeof notifPrefs>) {
+  async function updateNotifPref(updates: Partial<typeof notifPrefs>, message?: string) {
     const next = { ...notifPrefs, ...updates };
     setNotifPrefs(next);
     const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -174,475 +212,382 @@ function CuentaContent() {
         ...next,
       });
     }
+    if (message) showToast(message);
+  }
+
+  /**
+   * "Activar" de Avisos en el teléfono. Usa el mismo flujo de suscripción que
+   * el registro del service worker (lib/push-client.ts).
+   * Fase 13: aquí se abrirá la hoja de permisos antes de llamar a enablePush().
+   */
+  async function handleEnablePush() {
+    if (pushStatus === 'needs-install') {
+      triggerInstall();
+      showToast('Primero agrega Zafi a tu pantalla de inicio');
+      return;
+    }
+    if (pushStatus === 'denied') {
+      showToast('Actívalos en los ajustes del teléfono');
+      return;
+    }
+    setPushBusy(true);
+    const next = await enablePush().catch((): PushStatus => 'off');
+    setPushBusy(false);
+    setPushStatus(next);
+    if (next === 'on') showToast('Avisos activados');
+    else if (next === 'denied') showToast('Bloqueaste los avisos');
+  }
+
+  /**
+   * "Envíanos tu idea". Fase 11: reemplazar por abrir <FeedbackSheet />
+   * (p. ej. setFeedbackOpen(true)); mientras tanto abre el correo.
+   */
+  function openFeedback() {
+    window.location.href = feedbackMailto();
+  }
+
+  async function requestAccountDeletion() {
+    setSheet(null);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      await logAuditEvent(supabase, authUser.id, 'account_deletion_requested', { via: 'mi_cuenta' });
+    }
+    window.location.href = accountDeletionMailto(user?.email);
+    showToast('Te escribiremos para confirmar');
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--zafi-bg)] flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-electric-light animate-spin" />
       </div>
     );
   }
 
-  const isPremium = !!user && isEffectivelyPremium(user);
-  // "Prueba" badge: either an actual Stripe trial, or the automatic
-  // 14-day signup trial (user.plan is still 'free' but trial_ends_at
-  // hasn't passed yet).
+  const paidPremium = user?.plan === 'premium';
+  // "Prueba": una prueba de Stripe o la prueba automática de 14 días
+  // (users.plan sigue en 'free' pero trial_ends_at no ha pasado).
   const isTrialing = subscription?.status === 'trialing' ||
-    (!!user && user.plan !== 'premium' && isTrialActive(user.trial_ends_at));
-  const trialEnd = user?.trial_ends_at ? new Date(user.trial_ends_at) : null;
-  const trialDaysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+    (!!user && !paidPremium && isTrialActive(user.trial_ends_at));
+  const isPremium = paidPremium || isTrialing;
+  const daysLeft = trialDaysLeft(user?.trial_ends_at);
+  const pill = planPill({ isPremium, isTrialing, daysLeft });
+  const currency = currencyOption(user?.currency);
+  const showUpgrade = !paidPremium;
+
+  const planTitle = isTrialing ? 'Prueba Premium' : isPremium ? 'Premium' : 'Gratis';
+  const planNote = isTrialing && subscription?.status !== 'trialing' && user?.trial_ends_at
+    ? `termina el ${shortDate(user.trial_ends_at)}`
+    : subscription?.current_period_end
+      ? `próximo cobro el ${shortDate(subscription.current_period_end)}`
+      : usage ? 'Límites de cada mes' : '';
+
+  const pillClass =
+    pill.tone === 'trial' ? 'bg-[#FDE68A] text-[#78350F]'
+      : pill.tone === 'premium' ? 'bg-electric-ghost text-navy'
+        : 'bg-white/15 text-white';
+
+  const appearanceOptions: { value: Appearance; label: string }[] = [
+    { value: 'light', label: '☀️ Claro' },
+    { value: 'dark', label: '🌙 Oscuro' },
+    { value: 'system', label: 'Sistema' },
+  ];
 
   return (
-    <AppShell title="Mi cuenta" currentPath="/cuenta">
+    <AppShell title="Mi cuenta" currentPath="/cuenta" hideMobileBar>
+      <div className="mx-auto flex max-w-2xl flex-col pb-6 lg:mx-0">
+        {/* Encabezado móvil */}
+        <div className="-mx-4 flex flex-col items-start gap-0.5 px-5 pt-[env(safe-area-inset-top)] lg:hidden">
+          <Link href="/mas" className="flex h-11 items-center text-[15px] font-semibold text-electric-dark dark:text-electric-soft">
+            ‹ Más
+          </Link>
+          <h1 className={`font-serif text-[30px] leading-[1.15] ${TEXT_STRONG}`}>Mi cuenta</h1>
+        </div>
+
         {justUpgraded && (
-          <div className="mb-4 p-4 bg-surface-tint border border-electric-soft rounded-lg flex gap-2">
-            <CheckCircle2 className="w-5 h-5 text-electric flex-shrink-0" />
-            <p className="text-sm text-electric-dark">Tu plan Premium se ha activado correctamente.</p>
+          <div className="mt-3 flex gap-2 rounded-2xl border border-[var(--zafi-success-border)] bg-[var(--zafi-success-bg)] p-4">
+            <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-[var(--zafi-success-text)]" />
+            <p className="text-sm text-[var(--zafi-success-text)]">Tu plan Premium se activó.</p>
           </div>
         )}
 
-        {/* Profile */}
-        <Card className="mb-4">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <User className="w-5 h-5 text-ink-500" />
-              <CardTitle className="text-base">Perfil</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-sm text-ink-500">Nombre</span>
-              <span className="text-sm font-medium">{user?.full_name || '-'}</span>
-            </div>
-            <Separator />
-            <div className="flex justify-between">
-              <span className="text-sm text-ink-500">Correo</span>
-              <span className="text-sm font-medium">{user?.email}</span>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Perfil */}
+        <div className="mt-3.5 flex items-center gap-3.5 rounded-[20px] bg-navy p-[18px] text-white">
+          <div className="flex h-[54px] w-[54px] flex-none items-center justify-center rounded-full bg-electric text-lg font-bold" aria-hidden>
+            {initialsFrom(user?.full_name, user?.email)}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="truncate text-[17px] font-bold">{user?.full_name || 'Tu cuenta'}</span>
+            <span className="truncate text-[13.5px] text-[#CBD8E8]">{user?.email}</span>
+          </div>
+          <span className={`flex-none whitespace-nowrap rounded-full px-2.5 py-[5px] text-[12.5px] font-bold ${pillClass}`}>
+            {pill.label}
+          </span>
+        </div>
 
-        {/* Display preferences */}
-        <Card className="mb-4">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Eye className="w-5 h-5 text-ink-500" />
-              <CardTitle className="text-base">Preferencias de visualización</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Mostrar centavos</p>
-                <p className="text-xs text-muted-foreground">
-                  {showDecimals ? 'Q 8,500.75 — precisión total' : 'Q 8,501 — más limpio y fácil de leer'}
-                </p>
+        {/* Preferencias */}
+        <AccountGroup title="Preferencias">
+          <AccountRow
+            emoji="🪙"
+            title="Mostrar centavos"
+            hint={decimalsHint(showDecimals, currency.code)}
+            right={<Switch checked={showDecimals} onChange={toggleDecimals} label="Mostrar centavos" />}
+          />
+          <AccountRow
+            emoji="💱"
+            title="Moneda"
+            hint="Para todos los montos de la app"
+            onClick={() => setSheet('currency')}
+            right={
+              <span className={`flex h-8 flex-none items-center gap-1.5 rounded-full border border-[var(--zafi-border)] bg-[var(--zafi-card-alt)] px-3 text-[13.5px] font-semibold ${TEXT_STRONG}`}>
+                {currency.symbol} {currency.code} <span aria-hidden className={TEXT_SECONDARY}>▾</span>
+              </span>
+            }
+          />
+          <AccountRow
+            emoji="🌗"
+            title="Apariencia"
+            below={
+              <div role="radiogroup" aria-label="Apariencia" className="grid grid-cols-3 rounded-xl bg-[var(--zafi-tab-bg)] p-[3px]">
+                {appearanceOptions.map((o) => {
+                  const active = appearance === o.value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => changeAppearance(o.value)}
+                      className={`flex h-[34px] items-center justify-center rounded-[9px] text-[13.5px] font-semibold transition-colors ${
+                        active
+                          ? `bg-[var(--zafi-tab-active)] shadow-[var(--zafi-tab-shadow)] ${TEXT_STRONG}`
+                          : TEXT_SECONDARY
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
               </div>
-              <button
-                onClick={() => toggleDecimals(!showDecimals)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  showDecimals ? 'bg-electric' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    showDecimals ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Categories */}
-        <Card className="mb-4">
-          <Link href="/cuenta/categorias" style={{ textDecoration: 'none', color: 'inherit' }}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Tags className="w-5 h-5 text-ink-500" />
-                  <CardTitle className="text-base">Categorías</CardTitle>
-                </div>
-                <ChevronRight className="w-4 h-4 text-ink-500" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-ink-500">
-                Crea, edita y organiza tus categorías personalizadas de gastos.
-              </p>
-            </CardContent>
-          </Link>
-        </Card>
-
-        {/* Currency */}
-        <Card className="mb-4">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Coins className="w-5 h-5 text-ink-500" />
-              <CardTitle className="text-base">Moneda</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Moneda principal</p>
-                <p className="text-xs text-muted-foreground">
-                  Se usa para mostrar todos los montos en la app
-                </p>
-              </div>
-              <select
-                value={user?.currency || 'GTQ'}
-                onChange={(e) => changeCurrency(e.target.value)}
-                className="border rounded-md px-3 py-2 text-sm bg-white"
-              >
-                <option value="GTQ">Q - Quetzal (GTQ)</option>
-                <option value="USD">$ - Dólar (USD)</option>
-                <option value="MXN">$ - Peso MX (MXN)</option>
-                <option value="COP">$ - Peso CO (COP)</option>
-                <option value="HNL">L - Lempira (HNL)</option>
-                <option value="NIO">C$ - Córdoba (NIO)</option>
-                <option value="CRC">₡ - Colón (CRC)</option>
-              </select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Apariencia */}
-        <Card className="mb-4">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Moon className="w-5 h-5" style={{ color: 'var(--zafi-text-muted)' }} />
-              <CardTitle className="text-base">Apariencia</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-3">
-              {([
-                { value: 'light' as Appearance, label: 'Claro', Icon: Sun },
-                { value: 'dark' as Appearance, label: 'Oscuro', Icon: Moon },
-                { value: 'system' as Appearance, label: 'Sistema', Icon: Monitor },
-              ]).map(({ value, label, Icon }) => (
-                <button
-                  key={value}
-                  onClick={() => setAppearance(value)}
-                  style={{
-                    flex: 1,
-                    padding: '12px 8px',
-                    borderRadius: 12,
-                    border: appearance === value ? '2px solid var(--zafi-sidebar-active)' : '1px solid var(--zafi-border)',
-                    background: appearance === value ? 'var(--zafi-card-alt)' : 'var(--zafi-card)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <Icon size={20} style={{ color: appearance === value ? 'var(--zafi-sidebar-active)' : 'var(--zafi-text-muted)' }} />
-                  <span style={{
-                    fontSize: 13,
-                    fontWeight: appearance === value ? 700 : 500,
-                    color: appearance === value ? 'var(--zafi-sidebar-active)' : 'var(--zafi-text-muted)',
-                  }}>
-                    {label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Subscription */}
-        <Card className="mb-4">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <CreditCard className="w-5 h-5 text-ink-500" />
-              <CardTitle className="text-base">Plan y facturación</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">
-                    {isPremium ? 'Premium' : 'Gratis'}
-                  </span>
-                  {isPremium && <Crown className="w-4 h-4 text-yellow-500" />}
-                  {isTrialing && (
-                    <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
-                      Prueba
-                    </span>
-                  )}
-                </div>
-                {isTrialing && trialDaysLeft > 0 && (
-                  <p className="text-xs text-ink-500 mt-1">
-                    Tu prueba termina en {trialDaysLeft} día{trialDaysLeft !== 1 ? 's' : ''}
-                  </p>
-                )}
-                {subscription?.current_period_end && (
-                  <p className="text-xs text-ink-500 mt-1">
-                    Próximo cobro: {new Date(subscription.current_period_end).toLocaleDateString('es-GT')}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {!isPremium && (
-              <div className="space-y-3">
-                <Separator />
-
-                {usage && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider">Tu uso este mes</p>
-                    <div className="flex gap-3">
-                      <div className="flex-1 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-xs text-ink-500">Mensajes IA</p>
-                        <p className="text-sm font-semibold" style={{ color: usage.ai.remaining <= 2 ? '#EF4444' : '#1E3A5F' }}>
-                          {usage.ai.used} de {usage.ai.limit}
-                        </p>
-                      </div>
-                      <div className="flex-1 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-xs text-ink-500">Importaciones</p>
-                        <p className="text-sm font-semibold" style={{ color: usage.imports.remaining === 0 ? '#EF4444' : '#1E3A5F' }}>
-                          {usage.imports.used} de {usage.imports.limit}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <p className="text-sm text-ink-700">Mejora tu plan para desbloquear todo:</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button variant="outline" onClick={() => handleUpgrade('monthly')} disabled={upgrading}>
-                    $4.99/mes
-                  </Button>
-                  <Button onClick={() => handleUpgrade('annual')} disabled={upgrading}>
-                    {upgrading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    $39.99/año (ahorra 33%)
-                  </Button>
-                </div>
-                <ul className="text-xs text-ink-500 space-y-1">
-                  <li>&#10003; Zafi AI sin límite de mensajes</li>
-                  <li>&#10003; Importaciones ilimitadas</li>
-                  <li>&#10003; Insights y tendencias en Resumen</li>
-                  <li>&#10003; Cápsulas educativas premium</li>
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            }
+          />
+          <AccountRow emoji="🏷️" title="Categorías" hint="Crea y organiza las tuyas" href="/cuenta/categorias" last />
+        </AccountGroup>
 
         {/* Recordatorios */}
-        <Card className="mb-4">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Bell className="w-5 h-5 text-[#2563EB]" />
-              <CardTitle className="text-base">Recordatorios</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Inactivity toggle */}
-            <div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Inactividad de captura</p>
-                  <p className="text-xs text-muted-foreground">
-                    Avísame si llevo días sin registrar gastos
-                  </p>
-                </div>
+        <AccountGroup title="Recordatorios">
+          <AccountRow
+            emoji="🔔"
+            title="Avisos en el teléfono"
+            hint={pushStatus ? pushHint(pushStatus) : 'Para recordatorios y alertas de topes'}
+            right={
+              pushStatus === 'on' ? (
+                <span className="flex h-8 flex-none items-center rounded-full bg-success-light px-3.5 text-[13.5px] font-bold text-success-text dark:bg-[var(--zafi-success-bg)] dark:text-[var(--zafi-success-text)]">
+                  ✓ Activos
+                </span>
+              ) : pushStatus === 'unsupported' ? undefined : (
                 <button
-                  onClick={() => updateNotifPref({ inactivity_enabled: !notifPrefs.inactivity_enabled })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    notifPrefs.inactivity_enabled ? 'bg-electric' : 'bg-gray-200'
-                  }`}
+                  type="button"
+                  onClick={handleEnablePush}
+                  disabled={pushBusy || pushStatus === null}
+                  className="flex h-8 flex-none items-center gap-1.5 rounded-full bg-electric px-3.5 text-[13.5px] font-bold text-white transition-transform active:scale-95 disabled:opacity-60"
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    notifPrefs.inactivity_enabled ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
+                  {pushBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+                  Activar
                 </button>
+              )
+            }
+          />
+          <AccountRow
+            emoji="⏰"
+            title="Si dejo de registrar"
+            hint="Avísame cuando pasen días sin gastos"
+            right={
+              <Switch
+                checked={notifPrefs.inactivity_enabled}
+                label="Si dejo de registrar"
+                onChange={(v) => updateNotifPref({ inactivity_enabled: v }, v ? 'Te avisaremos si dejas de registrar' : 'Aviso de inactividad apagado')}
+              />
+            }
+            below={notifPrefs.inactivity_enabled && (
+              <div className={`flex items-center gap-2 pl-12 text-[13.5px] ${TEXT_SECONDARY}`}>
+                Después de
+                <PickerPill onClick={() => setSheet('inactivity')} label="Cambiar días sin registrar">
+                  {notifPrefs.inactivity_threshold_days} días
+                </PickerPill>
               </div>
-              {notifPrefs.inactivity_enabled && (
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs text-ink-500">Después de</span>
-                  <select
-                    value={notifPrefs.inactivity_threshold_days}
-                    onChange={(e) => updateNotifPref({ inactivity_threshold_days: Number(e.target.value) })}
-                    className="border rounded-md px-2 py-1 text-sm bg-white"
-                  >
-                    <option value={3}>3 días</option>
-                    <option value={5}>5 días</option>
-                    <option value={7}>7 días</option>
-                    <option value={10}>10 días</option>
-                    <option value={14}>14 días</option>
-                  </select>
-                </div>
-              )}
+            )}
+          />
+          <AccountRow
+            emoji="✅"
+            title="Cierre de mes"
+            hint="Recordarme cerrar el mes"
+            last
+            right={
+              <Switch
+                checked={notifPrefs.month_close_enabled}
+                label="Cierre de mes"
+                onChange={(v) => updateNotifPref({ month_close_enabled: v }, v ? 'Te recordaremos cerrar el mes' : 'Recordatorio de cierre apagado')}
+              />
+            }
+            below={notifPrefs.month_close_enabled && (
+              <div className={`flex items-center gap-2 pl-12 text-[13.5px] ${TEXT_SECONDARY}`}>
+                El día
+                <PickerPill onClick={() => setSheet('monthClose')} label="Cambiar día del recordatorio">
+                  {notifPrefs.month_close_day}
+                </PickerPill>
+                de cada mes
+              </div>
+            )}
+          />
+        </AccountGroup>
+
+        {/* Tu plan */}
+        <AccountGroup title="Tu plan" padded>
+          <div className="flex items-center justify-between gap-3">
+            <span className={`text-[15px] font-bold ${TEXT_STRONG}`}>{planTitle}</span>
+            {planNote && <span className={`text-[13px] ${TEXT_SECONDARY}`}>{planNote}</span>}
+          </div>
+
+          {usage && (
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { label: 'Mensajes a Zafi', u: usage.ai },
+                { label: 'Importaciones', u: usage.imports },
+              ]).map(({ label, u }) => {
+                const m = usageMeter(u.used, u.limit);
+                return (
+                  <div key={label} className="flex flex-col gap-1.5 rounded-xl bg-[var(--zafi-card-alt)] px-3 py-2.5">
+                    <span className={`text-[12.5px] ${TEXT_SECONDARY}`}>{label}</span>
+                    <span className={`font-outfit text-base font-bold ${TEXT_STRONG}`}>{u.used} de {u.limit}</span>
+                    <div
+                      className="h-[5px] overflow-hidden rounded-[3px] bg-[var(--zafi-border-light)]"
+                      role="progressbar"
+                      aria-label={label}
+                      aria-valuenow={m.pct}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div className={`h-full ${METER_COLOR[m.tone]}`} style={{ width: `${m.pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          )}
 
-            <Separator />
-
-            {/* Month close toggle */}
-            <div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Cierre de mes</p>
-                  <p className="text-xs text-muted-foreground">
-                    Recordarme cerrar el mes si tengo fuentes pendientes
-                  </p>
-                </div>
-                <button
-                  onClick={() => updateNotifPref({ month_close_enabled: !notifPrefs.month_close_enabled })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    notifPrefs.month_close_enabled ? 'bg-electric' : 'bg-gray-200'
-                  }`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    notifPrefs.month_close_enabled ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-              </div>
-              {notifPrefs.month_close_enabled && (
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs text-ink-500">Enviar el día</span>
-                  <select
-                    value={notifPrefs.month_close_day}
-                    onChange={(e) => updateNotifPref({ month_close_day: Number(e.target.value) })}
-                    className="border rounded-md px-2 py-1 text-sm bg-white"
-                  >
-                    <option value={1}>1</option>
-                    <option value={2}>2</option>
-                    <option value={3}>3</option>
-                    <option value={5}>5</option>
-                    <option value={7}>7</option>
-                  </select>
-                  <span className="text-xs text-ink-500">de cada mes</span>
-                </div>
-              )}
+          {showUpgrade && (
+            <div className="grid grid-cols-[1fr_1.3fr] gap-2">
+              <button
+                type="button"
+                onClick={() => handleUpgrade('monthly')}
+                disabled={upgrading}
+                className={`h-[46px] rounded-full border border-[var(--zafi-border)] bg-[var(--zafi-card)] text-sm font-semibold transition-transform active:scale-[0.96] disabled:opacity-60 ${TEXT_STRONG}`}
+              >
+                $4.99 / mes
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUpgrade('annual')}
+                disabled={upgrading}
+                className="flex h-[46px] items-center justify-center gap-2 rounded-full bg-electric text-sm font-bold text-white transition-transform active:scale-[0.96] disabled:opacity-60"
+              >
+                {upgrading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                $39.99 / año · −33%
+              </button>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </AccountGroup>
 
-        {/* Tu privacidad — Tus datos */}
-        <Card className="mb-4">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 text-[#2563EB]" />
-              <CardTitle className="text-base">Tu privacidad</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-3">Tus datos</p>
+        {/* Ayuda */}
+        <AccountGroup title="Ayuda">
+          <AccountRow emoji="💡" title="Envíanos tu idea" hint="Sugerencias, errores o lo que quieras" onClick={openFeedback} accentTile />
+          <AccountRow emoji="💬" title="Pregúntale a Zafi" hint="Resuelve dudas de tu dinero" href="/chat" last />
+        </AccountGroup>
 
-            <button
-              onClick={() => router.push('/cuenta/privacidad')}
-              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
-            >
-              <ShieldCheck className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[#1E3A5F]">Cómo protegemos tu info</p>
-                <p className="text-xs text-ink-500">Encriptación, RLS y acceso exclusivo</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-ink-500 flex-shrink-0" />
-            </button>
+        {/* Privacidad y seguridad */}
+        <AccountGroup title="Privacidad y seguridad">
+          <AccountRow emoji="🛡️" title="Cómo protegemos tu info" hint="Encriptación y acceso exclusivo" href="/cuenta/privacidad" />
+          <AccountRow emoji="🕑" title="Historial de acceso" hint="Últimos inicios de sesión" href="/cuenta/historial-acceso" />
+          <AccountRow
+            emoji="⬇️"
+            title={exporting ? 'Exportando…' : 'Exportar mis datos'}
+            hint="Descarga toda tu información"
+            onClick={handleExport}
+            busy={exporting}
+          />
+          <AccountRow emoji="📄" title="Política de privacidad" href="/privacidad" />
+          <AccountRow emoji="📄" title="Términos de servicio" href="/terminos" last />
+        </AccountGroup>
 
-            <Separator />
+        {/* Al final */}
+        <div className="mt-[22px] flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="h-12 rounded-full border border-[var(--zafi-border)] bg-[var(--zafi-card)] text-[15px] font-bold text-[var(--zafi-error-text)] transition-transform active:scale-[0.98]"
+          >
+            Cerrar sesión
+          </button>
+          <button
+            type="button"
+            onClick={() => setSheet('delete')}
+            className={`h-11 text-[13.5px] font-semibold ${TEXT_SECONDARY}`}
+          >
+            Eliminar mi cuenta
+          </button>
+        </div>
+      </div>
 
-            <button
-              onClick={() => router.push('/cuenta/historial-acceso')}
-              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
-            >
-              <History className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[#1E3A5F]">Historial de acceso</p>
-                <p className="text-xs text-ink-500">Últimos accesos a tu cuenta</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-ink-500 flex-shrink-0" />
-            </button>
+      <OptionsSheet
+        open={sheet === 'currency'}
+        title="Moneda principal"
+        options={CURRENCY_OPTIONS.map((c) => ({ value: c.code as string, label: `${c.name} (${c.code})`, lead: c.symbol }))}
+        value={currency.code}
+        onPick={changeCurrency}
+        onClose={closeSheet}
+      />
+      <OptionsSheet
+        open={sheet === 'inactivity'}
+        title="Avísame después de"
+        options={INACTIVITY_DAY_OPTIONS.map((d) => ({ value: d, label: `${d} días sin registrar` }))}
+        value={notifPrefs.inactivity_threshold_days}
+        onPick={(d) => { setSheet(null); updateNotifPref({ inactivity_threshold_days: d }, `Después de ${d} días`); }}
+        onClose={closeSheet}
+      />
+      <OptionsSheet
+        open={sheet === 'monthClose'}
+        title="Recordarme el día"
+        options={MONTH_CLOSE_DAY_OPTIONS.map((d) => ({ value: d, label: `El día ${d} de cada mes` }))}
+        value={notifPrefs.month_close_day}
+        onPick={(d) => { setSheet(null); updateNotifPref({ month_close_day: d }, `Cierre de mes: día ${d}`); }}
+        onClose={closeSheet}
+      />
 
-            <Separator />
+      <BottomSheet open={sheet === 'delete'} onClose={closeSheet} label="Eliminar mi cuenta" themed>
+        <div className="flex flex-col gap-3 px-5 pb-[calc(28px+env(safe-area-inset-bottom))] pt-2">
+          <h2 tabIndex={-1} className={`font-serif text-[24px] leading-tight outline-none ${TEXT_STRONG}`}>¿Eliminar tu cuenta?</h2>
+          <p className={`text-[15px] leading-normal ${TEXT_SECONDARY}`}>
+            Borraremos tu cuenta y todos tus movimientos, planes y metas. No se puede deshacer.
+            Te recomendamos exportar tus datos antes.
+          </p>
+          <p className={`text-[14px] leading-normal ${TEXT_SECONDARY}`}>
+            Para confirmar que eres tú, nos escribes desde tu correo a hola@zafiapp.com y la eliminamos en menos de 48 horas.
+          </p>
+          <button
+            type="button"
+            onClick={requestAccountDeletion}
+            className="mt-1 h-[50px] rounded-full bg-danger-text text-[15px] font-bold text-white transition-transform active:scale-[0.98]"
+          >
+            Pedir que eliminen mi cuenta
+          </button>
+          <button type="button" onClick={closeSheet} className={`h-11 text-[15px] font-semibold ${TEXT_STRONG}`}>
+            Cancelar
+          </button>
+        </div>
+      </BottomSheet>
 
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
-            >
-              <Download className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[#1E3A5F]">
-                  {exporting ? 'Exportando…' : 'Exportar mis datos'}
-                </p>
-                <p className="text-xs text-ink-500">Descarga toda tu información</p>
-              </div>
-              {!exporting && <ChevronRight className="w-4 h-4 text-ink-500 flex-shrink-0" />}
-              {exporting && <Loader2 className="w-4 h-4 text-ink-500 flex-shrink-0 animate-spin" />}
-            </button>
-
-            <Separator className="my-3" />
-
-            <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-3">Seguridad</p>
-
-            {/* TODO: Link to TOTP settings when implemented */}
-            <div className="flex items-center gap-3 p-3 rounded-lg opacity-60">
-              <Lock className="w-5 h-5 text-[#2563EB] flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[#1E3A5F]">Verificación en dos pasos</p>
-                <p className="text-xs text-ink-500">Próximamente</p>
-              </div>
-            </div>
-
-            <Separator className="my-3" />
-
-            <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">Zona de riesgo</p>
-
-            {/* TODO: Implement account deletion flow */}
-            <div className="flex items-center gap-3 p-3 rounded-lg opacity-60">
-              <UserX className="w-5 h-5 text-red-500 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-red-600">Eliminar mi cuenta</p>
-                <p className="text-xs text-ink-500">Borra todos tus datos permanentemente</p>
-              </div>
-            </div>
-
-            <Separator className="my-3" />
-
-            <p className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-3">Legal</p>
-
-            <button
-              onClick={() => router.push('/privacidad')}
-              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
-            >
-              <Shield className="w-5 h-5 text-ink-500 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[#1E3A5F]">Política de privacidad</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-ink-500 flex-shrink-0" />
-            </button>
-
-            <Separator />
-
-            <button
-              onClick={() => router.push('/terminos')}
-              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
-            >
-              <Shield className="w-5 h-5 text-ink-500 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[#1E3A5F]">Términos de servicio</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-ink-500 flex-shrink-0" />
-            </button>
-          </CardContent>
-        </Card>
-
-        {/* Logout */}
-        <Card className="mb-4">
-          <CardContent className="pt-6">
-            <Button variant="destructive" className="w-full" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Cerrar sesión
-            </Button>
-          </CardContent>
-        </Card>
+      <SavedToast message={toast} onDone={clearToast} />
     </AppShell>
   );
 }
