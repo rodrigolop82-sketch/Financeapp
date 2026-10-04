@@ -57,7 +57,7 @@ function matches(pathname: string, prefix: string): boolean {
 /** Pestaña de la barra inferior que se marca como activa para `pathname`. */
 export function activeTabFor(pathname: string): TabKey | null {
   if (['/dashboard', '/resumen', '/health-score', '/score'].some((p) => matches(pathname, p))) return 'inicio';
-  if (['/transacciones', '/importar', '/capture', '/notificacion'].some((p) => matches(pathname, p))) return 'movimientos';
+  if (['/transacciones', '/importar', '/notificacion'].some((p) => matches(pathname, p))) return 'movimientos';
   if (matches(pathname, '/metas')) return 'metas';
   const moreRoutes = ['/mas', '/plan', '/admin', ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href] : [])))];
   if (moreRoutes.some((p) => matches(pathname, p))) return 'mas';
@@ -83,7 +83,6 @@ const PARENTS: [string, ParentLink][] = [
   ['/score', { label: 'Cómo te fue', href: '/resumen' }],
   ['/plan', { label: 'Plan del mes', href: '/presupuesto' }],
   ['/importar', { label: 'Movimientos', href: '/transacciones' }],
-  ['/capture', { label: 'Movimientos', href: '/transacciones' }],
   ['/notificacion', { label: 'Movimientos', href: '/transacciones' }],
   ['/metas', { label: 'Metas', href: '/metas' }],
   ['/cuenta', { label: 'Cuenta', href: '/cuenta' }],

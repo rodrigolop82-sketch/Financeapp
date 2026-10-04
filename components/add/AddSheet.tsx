@@ -1,6 +1,5 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { ArrowRight, FileUp, Mic } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { getUserHousehold } from '@/lib/household'
@@ -127,7 +126,6 @@ function notifyTransactionsChanged(detail?: TxChangedDetail) {
  * con `?shared_text=` (Web Share Target), en cualquier ruta.
  */
 export function AddSheet() {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [subView, setSubView] = useState<{ view: SubView; target: Target } | null>(null)
   const [ctx, setCtx] = useState<AddContext | null>(null)
@@ -771,23 +769,15 @@ export function AddSheet() {
               {saving ? <span className="inline-block w-[22px] h-[22px] border-[2.5px] border-white/40 border-t-white rounded-full animate-spin align-middle" role="status" aria-label="Guardando" /> : manual.type === 'income' ? 'Guardar ingreso' : 'Guardar gasto'}
             </button>
 
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: 'Foto', hint: 'de un recibo', emoji: '📷', onClick: () => { closeSheet(); router.push('/capture') } },
-                { label: 'Mensaje', hint: 'del banco', emoji: '💬', onClick: () => { void pasteFromClipboard() } },
-              ].map((o) => (
-                <button
-                  key={o.label}
-                  type="button"
-                  onClick={o.onClick}
-                  className={`h-[72px] rounded-[14px] flex flex-col items-center justify-center gap-0.5 ${SOFT_BG}`}
-                >
-                  <span aria-hidden className="text-lg leading-none">{o.emoji}</span>
-                  <span className={`text-[13px] font-semibold ${TEXT_STRONG}`}>{o.label}</span>
-                  <span className={`text-[11.5px] ${TEXT_MUTED}`}>{o.hint}</span>
-                </button>
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => { void pasteFromClipboard() }}
+              className={`h-[72px] w-full rounded-[14px] flex flex-col items-center justify-center gap-0.5 ${SOFT_BG}`}
+            >
+              <span aria-hidden className="text-lg leading-none">💬</span>
+              <span className={`text-[13px] font-semibold ${TEXT_STRONG}`}>Mensaje</span>
+              <span className={`text-[11.5px] ${TEXT_MUTED}`}>del banco</span>
+            </button>
           </div>
         )}
       </BottomSheet>
