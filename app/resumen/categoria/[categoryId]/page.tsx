@@ -1,720 +1,235 @@
-'use client'
-import { useEffect, useState } from 'react'
-import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
-import { formatMoney } from '@/lib/format'
-import { cleanTransactionName } from '@/lib/format'
-import { AppShell } from '@/components/layout/AppShell'
-import { ArrowLeft, Pencil } from 'lucide-react'
+'use client';
+
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
+import { localToday } from '@/lib/dates';
+import { cleanTransactionName } from '@/lib/format';
+import { getEmoji } from '@/lib/categories-ui';
+import { monthRange } from '@/lib/movimientos';
 import {
-  computeCategoryPace,
-  type MonthContext,
-  type CategoryPace,
-} from '@/lib/resumen/pace'
-import { EditSheet } from '@/components/transactions/EditSheet'
-import { ReclassifySheet } from '@/components/transactions/ReclassifySheet'
-import { UndoToast } from '@/components/transactions/UndoToast'
-import { useReclassifyFlow } from '@/lib/transactions/useReclassifyFlow'
-import type { BudgetCategory, SearchTransaction } from '@/types'
-import { PageSkeleton } from '@/components/motion/PageSkeleton'
-
-type SortMode = 'monto' | 'fecha' | 'comercio'
-
-interface TxRow {
-  id: string
-  amount: number
-  description: string
-  date: string
-  payment_method: string
-  source: string
-}
-
-interface MerchantGroup {
-  merchant: string
-  total: number
-  count: number
-  txs: TxRow[]
-}
-
-interface HistMonth {
-  month: string
-  label: string
-  total: number
-}
+  analyzeMonth, longMonth, merchantGroups, timesText, vsPlanText,
+} from '@/lib/como-te-fue';
+import { AppShell } from '@/components/layout/AppShell';
+import { PageSkeleton, SkeletonRows } from '@/components/motion/PageSkeleton';
+import { TxRow, type SwipeRowData } from '@/components/movimientos/SwipeRow';
+import { useTxSheets } from '@/components/movimientos/useTxSheets';
+import { BORDER, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
+import { useComoTeFue } from '@/components/resumen/useComoTeFue';
+import { CARD } from '@/components/resumen/ctf-ui';
+import type { BudgetCategory, SearchTransaction } from '@/types';
 
 export default function CategoriaDetallePage() {
-  const router = useRouter()
-  const params = useParams()
-  const searchParams = useSearchParams()
-  const categoryId = params.categoryId as string
-  const mes = searchParams.get('mes') || ''
+  return (
+    <Suspense fallback={<PageSkeleton variant="detail" />}>
+      <CategoriaDetalle />
+    </Suspense>
+  );
+}
 
-  const [loading, setLoading] = useState(true)
-  const [categoryName, setCategoryName] = useState('')
-  const [pace, setPace] = useState<CategoryPace | null>(null)
-  const [monthCtx, setMonthCtx] = useState<MonthContext | null>(null)
-  const [txs, setTxs] = useState<TxRow[]>([])
-  const [sort, setSort] = useState<SortMode>('monto')
-  const [expandedMerchants, setExpandedMerchants] = useState<Set<string>>(new Set())
-  const [history, setHistory] = useState<HistMonth[]>([])
-  const [budget, setBudget] = useState(0)
-  const [isClosed, setIsClosed] = useState(false)
-  const [allCategories, setAllCategories] = useState<BudgetCategory[]>([])
-  const [txById, setTxById] = useState<Record<string, SearchTransaction>>({})
+const SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const OTHERS = '__otros__';
 
-  const flow = useReclassifyFlow(allCategories, () => reload())
+function dayLabel(date: string): string {
+  const [, m, d] = date.split('-').map(Number);
+  return `${d} ${SHORT[m - 1]}`;
+}
 
-  async function reload() {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const hh = await supabase.from('households').select('id').eq('owner_id', user.id).limit(1).single()
-    if (!hh.data) return
-    await loadTxs(supabase, hh.data.id as string)
-  }
+function CategoriaDetalle() {
+  const fmt = useFormatMoney();
+  const router = useRouter();
+  const params = useParams();
+  const categoryId = params.categoryId as string;
+  const today = localToday();
+  const { supabase, data, reload, month } = useComoTeFue();
 
-  async function loadTxs(supabase: ReturnType<typeof createClient>, hid: string) {
-    const now = new Date()
-    let year = now.getFullYear()
-    let month = now.getMonth()
-    if (mes) {
-      const [y, m] = mes.split('-').map(Number)
-      if (y && m) { year = y; month = m - 1 }
-    }
-    const monthStart = new Date(year, month, 1).toISOString().slice(0, 10)
-    const monthEnd = new Date(year, month + 1, 0).toISOString().slice(0, 10)
+  const [rows, setRows] = useState<SearchTransaction[]>([]);
+  const [rowsFor, setRowsFor] = useState<string | null>(null);
+  const [rowsGen, setRowsGen] = useState(0);
+  const [subFilter, setSubFilter] = useState<string | null>(null);
 
-    const { data: monthTxs } = await supabase
+  const categories = useMemo(
+    () => ((data?.categories ?? []) as unknown as BudgetCategory[]).filter((c) => !c.archived_at),
+    [data],
+  );
+  const onChanged = useCallback(() => { reload(); setRowsGen((g) => g + 1); }, [reload]);
+  const sheets = useTxSheets({ rows, setRows, categories, fmt, today, onChanged, loading: rowsFor !== `${month}:${rowsGen}` });
+  const { getPendingDeleteId } = sheets;
+
+  // Movimientos completos del mes en esta categoría (para el detalle y "Cambiar categoría").
+  useEffect(() => {
+    let cancelled = false;
+    const { from, to } = monthRange(month);
+    supabase
       .from('transactions')
       .select('*, budget_categories(name, bucket, icon)')
-      .eq('household_id', hid)
       .eq('category_id', categoryId)
       .eq('type', 'expense')
-      .gte('date', monthStart)
-      .lte('date', monthEnd)
-      .order('amount', { ascending: false })
+      .gte('date', from)
+      .lte('date', to)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .then(({ data: txs }: { data: unknown[] | null }) => {
+        if (cancelled) return;
+        const pending = getPendingDeleteId();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setRows(((txs ?? []) as any[]).filter((t) => t.id !== pending).map((t) => ({
+          ...t,
+          category_name: t.budget_categories?.name ?? 'Sin categoría',
+          category_bucket: t.budget_categories?.bucket ?? 'needs',
+          category_icon: t.budget_categories?.icon ?? null,
+        })));
+        setRowsFor(`${month}:${rowsGen}`);
+      });
+    return () => { cancelled = true; };
+  }, [supabase, categoryId, month, rowsGen, getPendingDeleteId]);
 
-    const transactions: TxRow[] = (monthTxs ?? []).map((t: Record<string, unknown>) => ({
-      id: t.id as string,
-      amount: Number(t.amount),
-      description: (t.description as string) || '',
-      date: t.date as string,
-      payment_method: (t.payment_method as string) || 'efectivo',
-      source: (t.source as string) || 'manual',
-    }))
-    setTxs(transactions)
+  useEffect(() => { setSubFilter(null); }, [categoryId, month]);
 
-    const byId: Record<string, SearchTransaction> = {}
-    for (const t of (monthTxs ?? []) as Record<string, unknown>[]) {
-      const bc = t.budget_categories as { name: string; bucket: string; icon: string | null } | null
-      byId[t.id as string] = {
-        ...(t as unknown as SearchTransaction),
-        category_name: bc?.name || 'Sin categoría',
-        category_bucket: (bc?.bucket as 'needs' | 'wants' | 'savings') || 'needs',
-        category_icon: bc?.icon ?? null,
-      }
-    }
-    setTxById(byId)
-
-    return transactions
-  }
+  const a = useMemo(() => (data ? analyzeMonth(data, month, data.caps, fmt) : null), [data, month, fmt]);
+  const cat = data?.categories.find((c) => c.id === categoryId) ?? null;
 
   useEffect(() => {
-    async function load() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
+    if (data && !cat) router.push(`/resumen/categoria?mes=${month}`);
+  }, [data, cat, router, month]);
 
-      const { data: household } = await supabase
-        .from('households').select('id').eq('owner_id', user.id).limit(1).single()
-      if (!household) { router.push('/onboarding'); return }
-      const hid = household.id as string
+  if (!data || !a || !cat) return <PageSkeleton variant="detail" />;
 
-      const { data: cat } = await supabase
-        .from('budget_categories').select('*').eq('id', categoryId).single()
-      if (!cat) { router.push('/resumen'); return }
+  const emoji = getEmoji(cat);
+  const subName = new Map(data.subs.filter((s) => s.category_id === cat.id).map((s) => [s.id, s.name]));
+  const partOf = (t: SearchTransaction) => (t.budget_sub_item_id && subName.has(t.budget_sub_item_id) ? t.budget_sub_item_id : OTHERS);
+  const loaded = rowsFor !== null;
+  const spent = rows.reduce((s, t) => s + Number(t.amount), 0);
+  const total = a.current.spent;
+  const income = a.current.income;
+  const key = a.capKeyOf[cat.id];
+  const cap = key ? data.caps[key] : null;
+  const pctInc = income > 0 ? (spent / income) * 100 : null;
+  // Ámbar si su tope (el grupo, p. ej. alimentación + restaurantes) se pasó.
+  const capOver = !!key && a.recs.over.some((r) => r.key === key);
+  const plan = a.planOf[cat.id] ?? 0;
+  const vs = vsPlanText(spent, plan, fmt);
+  const fixed = a.kindOf[cat.id] === 'fijo';
 
-      const { data: hhCats } = await supabase
-        .from('budget_categories').select('*').eq('household_id', hid).order('bucket')
-      setAllCategories((hhCats || []) as BudgetCategory[])
+  // Subcategorías: las partes del Plan del mes con gasto (y "Otros" sin parte).
+  const bySub = new Map<string, number>();
+  for (const t of rows) bySub.set(partOf(t), (bySub.get(partOf(t)) ?? 0) + Number(t.amount));
+  const chips = Array.from(bySub.entries())
+    .sort((x, y) => y[1] - x[1])
+    .map(([id, amount]) => ({ id, name: id === OTHERS ? 'Otros' : subName.get(id)!, amount }));
+  const shown = subFilter ? rows.filter((t) => partOf(t) === subFilter) : rows;
+  const merchants = merchantGroups(shown, cleanTransactionName);
+  const maxM = Math.max(1, ...merchants.map((m) => m.total));
 
-      setCategoryName(cat.name)
+  const rowData = (t: SearchTransaction): SwipeRowData => ({
+    id: t.id,
+    emoji,
+    name: t.description || cat.name,
+    sub: `${dayLabel(t.date)} · ${partOf(t) === OTHERS ? cat.name : subName.get(partOf(t))}`,
+    amountLabel: fmt(Number(t.amount)),
+    isIncome: false,
+  });
 
-      const now = new Date()
-      let year = now.getFullYear()
-      let month = now.getMonth()
-      if (mes) {
-        const [y, m] = mes.split('-').map(Number)
-        if (y && m) { year = y; month = m - 1 }
-      }
-
-      const monthStart = new Date(year, month, 1).toISOString().slice(0, 10)
-      const daysInMonth = new Date(year, month + 1, 0).getDate()
-      const isCurrentMonth = year === now.getFullYear() && month === now.getMonth()
-      const dayOfMonth = isCurrentMonth ? now.getDate() : daysInMonth
-
-      // For closed months, try to get the budget from snapshots
-      let effectiveBudget = Number(cat.budgeted_amount)
-      if (!isCurrentMonth) {
-        const { data: snap } = await supabase
-          .from('budget_snapshots')
-          .select('amount')
-          .eq('household_id', hid)
-          .eq('category_id', categoryId)
-          .eq('month', monthStart)
-          .single()
-        if (snap) {
-          effectiveBudget = Number(snap.amount)
-        }
-      }
-      setBudget(effectiveBudget)
-
-      setIsClosed(!isCurrentMonth)
-      const mCtx: MonthContext = { today: now, daysInMonth, dayOfMonth }
-      setMonthCtx(mCtx)
-
-      const transactions = (await loadTxs(supabase, hid)) ?? []
-
-      const spent = transactions.reduce((s, t) => s + t.amount, 0)
-      const paceResult = computeCategoryPace({
-        categoryId,
-        name: cat.name,
-        budget: effectiveBudget,
-        spent,
-        paceMode: cat.pace_mode || 'linear',
-        expectedDay: cat.expected_day,
-      }, mCtx)
-      setPace(paceResult)
-
-      // History: last 3 complete months
-      const histMonths: HistMonth[] = []
-      for (let i = 1; i <= 3; i++) {
-        const hm = new Date(year, month - i, 1)
-        const hmEnd = new Date(year, month - i + 1, 0)
-        const { data: hTxs } = await supabase
-          .from('transactions')
-          .select('amount')
-          .eq('household_id', hid)
-          .eq('category_id', categoryId)
-          .eq('type', 'expense')
-          .gte('date', hm.toISOString().slice(0, 10))
-          .lte('date', hmEnd.toISOString().slice(0, 10))
-
-        const total = (hTxs ?? []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)
-        const label = hm.toLocaleDateString('es-GT', { month: 'short', year: 'numeric' })
-        histMonths.push({ month: hm.toISOString().slice(0, 7), label, total })
-      }
-      setHistory(histMonths)
-
-      setLoading(false)
-    }
-    load()
-  }, [router, categoryId, mes])
-
-  if (loading || !pace || !monthCtx) {
-    return <PageSkeleton variant="detail" />
-  }
-
-  const monthLabel = (() => {
-    if (!mes) return new Date().toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })
-    const [y, m] = mes.split('-').map(Number)
-    return new Date(y, m - 1).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })
-  })()
-
-  const barPct = pace.budget > 0 ? Math.min(1, pace.spent / pace.budget) : (pace.spent > 0 ? 1 : 0)
-  const expectedPct = pace.budget > 0 ? Math.min(1, pace.expected / pace.budget) : 0
-  const barColor = pace.status === 'sobregiro' ? '#EF4444' : (!isClosed && pace.status === 'riesgo') ? '#F59E0B' : '#2563EB'
-
-  // Overrun explanation
-  let overrunExplanation: string | null = null
-  if (pace.status === 'sobregiro' && pace.overrun > 0) {
-    const sorted = [...txs].sort((a, b) => b.amount - a.amount)
-    const largest = sorted[0]
-    if (largest && largest.amount >= 0.6 * pace.overrun) {
-      const pct = Math.round((largest.amount / pace.overrun) * 100)
-      const remaining = pace.spent - largest.amount
-      const withinBudget = remaining <= pace.budget
-      const merchant = cleanTransactionName(largest.description) || 'una compra'
-      const dateStr = new Date(largest.date).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' })
-      overrunExplanation = `La compra en ${merchant} (${formatMoney(largest.amount)}) del ${dateStr} es el ${pct}% del sobregiro. Sin ella, estarías en ${formatMoney(remaining)} — ${withinBudget ? 'dentro del presupuesto' : `aún ${formatMoney(remaining - pace.budget)} arriba`}.`
-    } else {
-      // Group by merchant
-      const merchantMap: Record<string, number> = {}
-      txs.forEach(t => {
-        const m = cleanTransactionName(t.description) || 'Sin nombre'
-        merchantMap[m] = (merchantMap[m] ?? 0) + t.amount
-      })
-      const merchantEntries = Object.entries(merchantMap).sort((a, b) => b[1] - a[1])
-      const topMerchant = merchantEntries[0]
-      if (topMerchant && topMerchant[1] >= 0.6 * pace.overrun) {
-        const count = txs.filter(t => (cleanTransactionName(t.description) || 'Sin nombre') === topMerchant[0]).length
-        const pct = Math.round((topMerchant[1] / pace.overrun) * 100)
-        overrunExplanation = `${count} compras en ${topMerchant[0]} suman ${formatMoney(topMerchant[1])}, el ${pct}% del sobregiro.`
-      } else {
-        overrunExplanation = `No hay una compra dominante: el sobregiro viene de ${txs.length} transacciones de tamaño similar.`
-      }
-    }
-  }
-
-  // Dominant transaction for highlighting
-  const dominantTxId = (() => {
-    if (pace.status !== 'sobregiro' || pace.overrun <= 0) return null
-    const sorted = [...txs].sort((a, b) => b.amount - a.amount)
-    const largest = sorted[0]
-    if (largest && largest.amount >= 0.6 * pace.overrun) return largest.id
-    return null
-  })()
-
-  // Sort/group
-  const sortedTxs = [...txs].sort((a, b) => {
-    if (sort === 'monto') return b.amount - a.amount
-    if (sort === 'fecha') return new Date(b.date).getTime() - new Date(a.date).getTime()
-    return (cleanTransactionName(a.description)).localeCompare(cleanTransactionName(b.description))
-  })
-
-  const merchantGroups: MerchantGroup[] = (() => {
-    if (sort !== 'comercio') return []
-    const map: Record<string, MerchantGroup> = {}
-    txs.forEach(t => {
-      const m = cleanTransactionName(t.description) || 'Sin nombre'
-      if (!map[m]) map[m] = { merchant: m, total: 0, count: 0, txs: [] }
-      map[m].total += t.amount
-      map[m].count++
-      map[m].txs.push(t)
-    })
-    return Object.values(map).sort((a, b) => b.total - a.total)
-  })()
-
-  const sourceLabel = (pm: string) => {
-    if (pm === 'tarjeta') return 'Tarjeta'
-    if (pm === 'transferencia') return 'Transferencia'
-    if (pm === 'cheque') return 'Cheque'
-    return 'Efectivo'
-  }
-
-  // History
-  const histAvg = history.length > 0 ? history.reduce((s, h) => s + h.total, 0) / history.length : 0
-  const histAvgLabel = history.length >= 2 ? `${history[history.length - 1].label} – ${history[0].label}` : ''
-  const budgetBelowAvg = budget > 0 && histAvg > 0 && budget < histAvg * 0.9
-  const suggestedBudget = Math.ceil(histAvg / 100) * 100
+  const chip = (on: boolean) => `flex h-[34px] items-center gap-1.5 rounded-full border-[1.5px] px-3.5 text-[13.5px] font-semibold transition-colors duration-200 ${
+    on ? 'border-electric bg-electric-ghost text-ink-900 dark:bg-electric/20 dark:text-ink-100' : `${BORDER} bg-[var(--zafi-card)] ${TEXT_STRONG}`
+  }`;
 
   return (
-    <AppShell title={categoryName} currentPath="/resumen">
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        {/* Back button */}
-        <button
-          onClick={() => router.push(mes ? `/resumen?mes=${mes}` : '/resumen')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 14, color: '#64748B', fontWeight: 600,
-            marginBottom: 16, fontFamily: 'inherit',
-          }}
-        >
-          <ArrowLeft style={{ width: 16, height: 16 }} />
-          Resumen
-        </button>
-
-        {/* 4.1 Header card */}
-        <div style={{
-          background: '#1E3A5F', borderRadius: 20,
-          padding: '28px 32px', color: '#fff', marginBottom: 20,
-        }}>
-          <div style={{ fontSize: 13, color: '#9FB3CB', marginBottom: 4 }}>
-            {isClosed ? `${monthLabel} · Mes cerrado` : `${monthLabel} · día ${monthCtx.dayOfMonth} de ${monthCtx.daysInMonth}`}
-          </div>
-          <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 40, marginBottom: 4 }}>
-            {formatMoney(pace.spent)}
-          </div>
-          <div style={{ fontSize: 14, color: '#9FB3CB', marginBottom: 16 }}>
-            de {formatMoney(pace.budget)} presupuestados
-          </div>
-
-          {/* Bar */}
-          <div style={{ position: 'relative', height: 10, background: 'rgba(255,255,255,0.12)', borderRadius: 5, marginBottom: 16 }}>
-            <div style={{
-              width: `${barPct * 100}%`, height: '100%', borderRadius: 5, background: barColor,
-            }} />
-            {!isClosed && pace.budget > 0 && (
-              <div style={{
-                position: 'absolute', top: -3, left: `${expectedPct * 100}%`,
-                width: 2, height: 16, background: '#fff', borderRadius: 1, opacity: 0.7,
-              }} />
-            )}
-          </div>
-
-          {/* KPIs */}
-          <div style={{ display: 'flex', gap: 32 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: pace.overrun > 0 ? '#FCA5A5' : '#9FB3CB', textTransform: 'uppercase' }}>
-                {pace.overrun > 0 ? 'Sobregiro' : 'Sobrante'}
-              </div>
-              <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 4, color: pace.overrun > 0 ? '#FCA5A5' : '#4ADE80' }}>
-                {formatMoney(pace.overrun > 0 ? pace.overrun : pace.remaining)}
-              </div>
-            </div>
-            {isClosed ? (
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Uso</div>
-                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 4 }}>
-                  {pace.budget > 0 ? `${Math.round(pace.pctOfBudget * 100)}%` : '—'}
-                </div>
-              </div>
-            ) : (
-              <>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Ritmo esperado</div>
-                  <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 4 }}>
-                    {formatMoney(pace.expected)}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#9FB3CB', textTransform: 'uppercase' }}>Proyección</div>
-                  <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, marginTop: 4 }}>
-                    {formatMoney(pace.projection)}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+    <AppShell title={cat.name} currentPath="/resumen" hideMobileBar userName={data.userName} householdName={data.householdName}>
+      <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
+        <div className="-mx-4 flex flex-col items-start gap-0.5 px-5 pt-[env(safe-area-inset-top)]">
+          <Link href={`/resumen/categoria?mes=${month}`} className="flex h-11 items-center text-[15px] font-semibold text-electric">‹ Por categoría</Link>
+          <h1 className="font-serif text-[30px] leading-[1.15] text-ink-900 dark:text-ink-100 lg:hidden">{emoji} {cat.name}</h1>
         </div>
 
-        {/* 4.2 Overrun explanation */}
-        {pace.status === 'sobregiro' && overrunExplanation && (
-          <div style={{
-            background: '#FEE2E2', borderRadius: 16, padding: '20px 24px',
-            marginBottom: 20, border: '1px solid #FECACA',
-          }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: '#991B1B', textTransform: 'uppercase', marginBottom: 8 }}>
-              Qué explica el sobregiro
+        <div className="flex flex-col zafi-stagger">
+          {/* Hero */}
+          <section
+            aria-label={`Gasto en ${cat.name}`}
+            className="mt-3.5 flex flex-col gap-2.5 rounded-[20px] px-5 py-[18px] text-white"
+            style={{ background: 'var(--zafi-hero)' }}
+          >
+            <div className="flex items-end justify-between gap-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm text-[#9FB3CB]">Gastaste en {longMonth(month)}</span>
+                <span className="font-outfit text-[40px] font-extrabold leading-none">{loaded ? fmt(spent) : '—'}</span>
+              </div>
+              <span className="flex-none rounded-full bg-white/10 px-[11px] py-[5px] text-[13px] font-semibold">
+                {fixed ? 'Gasto fijo' : 'Gasto variable'}
+              </span>
             </div>
-            <div style={{ fontSize: 14, color: '#991B1B', lineHeight: 1.5 }}>
-              {overrunExplanation}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col gap-px">
+                <span className="text-xs text-[#9FB3CB]">De tus gastos</span>
+                <span className="font-outfit text-[17px] font-bold">{total > 0 ? `${Math.round((spent / total) * 100)}%` : '—'}</span>
+              </div>
+              <div className="flex flex-col gap-px">
+                <span className="text-xs text-[#9FB3CB]">De tus ingresos</span>
+                <span className={`font-outfit text-[17px] font-bold ${capOver ? 'text-warning' : ''}`}>
+                  {pctInc === null ? '—' : `${Math.round(pctInc)}%${cap !== null ? ` / ${cap}%` : ''}`}
+                </span>
+              </div>
+              <div className="flex flex-col gap-px">
+                <span className="text-xs text-[#9FB3CB]">Vs plan</span>
+                <span className={`font-outfit text-[17px] font-bold ${plan > 0 ? (vs.over ? 'text-warning' : 'text-success') : ''}`}>
+                  {plan > 0 ? vs.text : 'Sin plan'}
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          </section>
 
-        {/* 4.3 Transactions */}
-        <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
-          <div style={{
-            fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-            color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 12,
-          }}>
-            {txs.length} transacciones
-          </div>
-
-          {/* Sort tabs */}
-          <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-            {([['monto', 'Por monto'], ['fecha', 'Por fecha'], ['comercio', 'Por comercio']] as const).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setSort(key)}
-                style={{
-                  padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                  fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-                  background: sort === key ? '#2563EB' : '#F3F5F9',
-                  color: sort === key ? '#fff' : '#64748B',
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Transaction list */}
-          {sort !== 'comercio' ? (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {sortedTxs.map((tx, i) => {
-                const isDominant = tx.id === dominantTxId
-                const pct = pace!.spent > 0 ? Math.round((tx.amount / pace!.spent) * 100) : 0
-                const dateStr = new Date(tx.date).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' })
-                const initial = (cleanTransactionName(tx.description) || '?')[0].toUpperCase()
-                return (
-                  <div key={tx.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '14px 0', borderTop: i > 0 ? '1px solid #EEF1F6' : 'none',
-                  }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 10,
-                      background: isDominant ? '#FEE2E2' : '#F3F5F9',
-                      color: isDominant ? '#EF4444' : '#1E3A5F',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontWeight: 700, fontSize: 15, flexShrink: 0,
-                    }}>
-                      {initial}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {cleanTransactionName(tx.description) || 'Sin descripción'}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#8B9AAE' }}>
-                        {dateStr} · {sourceLabel(tx.payment_method)}
-                      </div>
-                    </div>
-                    {/* Participation bar */}
-                    <div style={{ width: 60, height: 6, background: '#F3F5F9', borderRadius: 3, flexShrink: 0 }}>
-                      <div style={{ width: `${Math.max(pct, 3)}%`, height: '100%', borderRadius: 3, background: isDominant ? '#EF4444' : '#2563EB' }} />
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: '#1E3A5F' }}>
-                        {formatMoney(tx.amount)}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#8B9AAE' }}>{pct}%</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { const full = txById[tx.id]; if (full) flow.openEdit(full) }}
-                      aria-label="Editar transacción"
-                      style={{
-                        flexShrink: 0, width: 30, height: 30, borderRadius: 8,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: 'none', border: 'none', cursor: 'pointer', color: '#8B9AAE',
-                      }}
-                    >
-                      <Pencil style={{ width: 14, height: 14 }} />
+          {/* ¿En qué exactamente? */}
+          {loaded && rows.length > 0 && (
+            <section aria-label="¿En qué exactamente?" className="mt-[18px] flex flex-col gap-2">
+              <h2 className={`px-1 text-[15px] font-bold ${TEXT_STRONG}`}>¿En qué exactamente?</h2>
+              {chips.length > 1 && (
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" aria-pressed={!subFilter} onClick={() => setSubFilter(null)} className={chip(!subFilter)}>Todo</button>
+                  {chips.map((c) => (
+                    <button key={c.id} type="button" aria-pressed={subFilter === c.id} onClick={() => setSubFilter(c.id)} className={chip(subFilter === c.id)}>
+                      {c.name} <span className={`font-outfit ${TEXT_MUTED}`}>{fmt(c.amount)}</span>
                     </button>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {merchantGroups.map((g, i) => {
-                const isExpanded = expandedMerchants.has(g.merchant)
-                const pct = pace!.spent > 0 ? Math.round((g.total / pace!.spent) * 100) : 0
-                return (
-                  <div key={g.merchant}>
-                    <div
-                      onClick={() => {
-                        setExpandedMerchants(prev => {
-                          const next = new Set(prev)
-                          if (next.has(g.merchant)) next.delete(g.merchant)
-                          else next.add(g.merchant)
-                          return next
-                        })
-                      }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
-                        padding: '14px 0', borderTop: i > 0 ? '1px solid #EEF1F6' : 'none',
-                      }}
-                    >
-                      <div style={{
-                        width: 36, height: 36, borderRadius: 10, background: '#F3F5F9',
-                        color: '#1E3A5F', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontWeight: 700, fontSize: 15, flexShrink: 0,
-                      }}>
-                        {g.merchant[0].toUpperCase()}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F' }}>{g.merchant}</div>
-                        <div style={{ fontSize: 12, color: '#8B9AAE' }}>{g.count} transacciones</div>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: '#1E3A5F' }}>
-                          {formatMoney(g.total)}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#8B9AAE' }}>{pct}%</div>
-                      </div>
+                  ))}
+                </div>
+              )}
+              <div className={`flex flex-col gap-2.5 px-4 py-3 ${CARD}`}>
+                {merchants.map((m) => (
+                  <div key={m.name} className="flex flex-col gap-[5px]">
+                    <div className="flex justify-between gap-2 text-sm">
+                      <span className={`truncate font-semibold ${TEXT_STRONG}`}>{m.name}</span>
+                      <span className={`flex-none ${TEXT_MUTED}`}>
+                        <b className={`font-outfit ${TEXT_STRONG}`}>{fmt(m.total)}</b> · {timesText(m.count)}
+                      </span>
                     </div>
-                    {isExpanded && g.txs.map(tx => {
-                      const dateStr = new Date(tx.date).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' })
-                      return (
-                        <div key={tx.id} style={{
-                          display: 'flex', alignItems: 'center', gap: 12,
-                          padding: '10px 0 10px 48px', borderTop: '1px solid #F3F5F9',
-                        }}>
-                          <div style={{ flex: 1, fontSize: 13, color: '#64748B' }}>
-                            {dateStr} · {sourceLabel(tx.payment_method)}
-                          </div>
-                          <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 13, color: '#1E3A5F' }}>
-                            {formatMoney(tx.amount)}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => { const full = txById[tx.id]; if (full) flow.openEdit(full) }}
-                            aria-label="Editar transacción"
-                            style={{
-                              flexShrink: 0, width: 26, height: 26, borderRadius: 7,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              background: 'none', border: 'none', cursor: 'pointer', color: '#8B9AAE',
-                            }}
-                          >
-                            <Pencil style={{ width: 13, height: 13 }} />
-                          </button>
-                        </div>
-                      )
-                    })}
+                    <div className="h-1.5 overflow-hidden rounded bg-[var(--zafi-border-light)]">
+                      <div className="h-full rounded bg-electric" style={{ width: `${(m.total / maxM) * 100}%` }} />
+                    </div>
                   </div>
-                )
-              })}
-            </div>
+                ))}
+              </div>
+            </section>
           )}
 
-          {txs.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '24px 0', color: '#8B9AAE', fontSize: 14 }}>
-              Sin transacciones este mes
-            </div>
-          )}
+          {/* Movimientos */}
+          <section aria-label="Movimientos" className="mt-[18px] flex flex-col gap-2">
+            <h2 className={`px-1 text-[15px] font-bold ${TEXT_STRONG}`}>Movimientos{loaded ? ` (${shown.length})` : ''}</h2>
+            {!loaded ? (
+              <SkeletonRows count={4} />
+            ) : shown.length === 0 ? (
+              <div className={`p-5 text-sm ${CARD} ${TEXT_MUTED}`}>No hay movimientos de esta categoría en {longMonth(month)}.</div>
+            ) : (
+              <div className="flex flex-col gap-[5px]">
+                {shown.map((t) => (
+                  <TxRow key={t.id} row={rowData(t)} flash={sheets.flashFor(t.id)} onSelect={() => sheets.openDetail(t.id)} />
+                ))}
+              </div>
+            )}
+          </section>
         </div>
-
-        {/* 4.4 Comparado con tu promedio (closed months) */}
-        {isClosed && histAvg > 0 && (() => {
-          const diffVsAvg = pace.spent - histAvg
-          const diffPct = histAvg > 0 ? Math.round(Math.abs(diffVsAvg) / histAvg * 100) : 0
-          const maxBar = Math.max(pace.spent, histAvg, budget)
-          const spentBarW = maxBar > 0 ? (pace.spent / maxBar) * 100 : 0
-          const avgBarW = maxBar > 0 ? (histAvg / maxBar) * 100 : 0
-          const budgetBarW = maxBar > 0 ? (budget / maxBar) * 100 : 0
-
-          return (
-            <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
-              <div style={{
-                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
-              }}>
-                Comparado con tu promedio
-              </div>
-
-              {/* Mini bar chart */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1E3A5F', marginBottom: 4 }}>
-                    <span style={{ fontWeight: 600 }}>Este mes</span>
-                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(pace.spent)}</span>
-                  </div>
-                  <div style={{ height: 12, background: '#F3F5F9', borderRadius: 6 }}>
-                    <div style={{
-                      width: `${spentBarW}%`, height: '100%', borderRadius: 6,
-                      background: pace.spent > budget ? '#EF4444' : '#2563EB',
-                    }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1E3A5F', marginBottom: 4 }}>
-                    <span style={{ fontWeight: 600 }}>Promedio ({history.filter(h => h.total > 0).length} meses)</span>
-                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(histAvg)}</span>
-                  </div>
-                  <div style={{ height: 12, background: '#F3F5F9', borderRadius: 6 }}>
-                    <div style={{ width: `${avgBarW}%`, height: '100%', borderRadius: 6, background: '#64748B' }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1E3A5F', marginBottom: 4 }}>
-                    <span style={{ fontWeight: 600 }}>Presupuesto</span>
-                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>{formatMoney(budget)}</span>
-                  </div>
-                  <div style={{ height: 12, background: '#F3F5F9', borderRadius: 6 }}>
-                    <div style={{ width: `${budgetBarW}%`, height: '100%', borderRadius: 6, background: '#22C55E' }} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Diff summary */}
-              <div style={{
-                marginTop: 16, padding: '12px 16px', borderRadius: 10,
-                background: diffVsAvg <= 0 ? '#D1FAE5' : '#FEE2E2',
-                fontSize: 14, color: diffVsAvg <= 0 ? '#065F46' : '#991B1B', lineHeight: 1.5,
-              }}>
-                {diffVsAvg <= 0
-                  ? `Gastaste ${diffPct}% menos que tu promedio. ${formatMoney(Math.abs(diffVsAvg))} de ahorro relativo.`
-                  : `Gastaste ${diffPct}% más que tu promedio. ${formatMoney(diffVsAvg)} por encima de lo habitual.`
-                }
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* 4.4 Historic */}
-        {history.some(h => h.total > 0) && (
-          <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20 }}>
-            <div style={{
-              fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-              color: '#8B9AAE', textTransform: 'uppercase', marginBottom: 16,
-            }}>
-              {isClosed ? 'Meses anteriores' : 'Este mismo mes, antes'}
-            </div>
-
-            {history.map(h => (
-              <div key={h.month} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '10px 0', borderTop: '1px solid #EEF1F6',
-              }}>
-                <span style={{ fontSize: 14, color: '#1E3A5F', textTransform: 'capitalize' }}>{h.label}</span>
-                <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: '#1E3A5F' }}>
-                  {formatMoney(h.total)}
-                </span>
-              </div>
-            ))}
-
-            {history.length >= 2 && (
-              <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '12px 0', borderTop: '2px solid #EEF1F6',
-              }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F' }}>Promedio {histAvgLabel}</span>
-                <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 15, color: '#2563EB' }}>
-                  {formatMoney(histAvg)}
-                </span>
-              </div>
-            )}
-
-            {!isClosed && budgetBelowAvg && (
-              <div style={{
-                background: '#FEF3C7', borderRadius: 12, padding: '14px 18px',
-                marginTop: 12, fontSize: 14, color: '#92400E', lineHeight: 1.5,
-              }}>
-                Tu presupuesto de {formatMoney(budget)} está por debajo de tu promedio real. ¿Ajustarlo a {formatMoney(suggestedBudget)}?
-                <button
-                  onClick={() => router.push('/presupuesto')}
-                  style={{
-                    display: 'block', marginTop: 8,
-                    background: '#F59E0B', color: '#fff', border: 'none',
-                    padding: '8px 16px', borderRadius: 8, cursor: 'pointer',
-                    fontWeight: 600, fontSize: 13, fontFamily: 'inherit',
-                  }}
-                >
-                  Ajustar presupuesto
-                </button>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      <EditSheet
-        open={flow.step === 'editing'}
-        transaction={flow.editingTx}
-        categories={allCategories}
-        onSave={flow.saveCategory}
-        onClose={flow.closeEdit}
-        saving={flow.saving}
-        error={flow.error}
-        fmt={formatMoney}
-      />
-
-      <ReclassifySheet
-        open={flow.step === 'reclassifying'}
-        merchantName={flow.merchantName}
-        newCategoryName={flow.newCategoryName}
-        matches={flow.matches}
-        defaultSelectedIds={flow.defaultSelectedIds}
-        truncated={flow.truncated}
-        saving={flow.saving}
-        onConfirm={flow.confirmBulk}
-        onSingleOnly={flow.singleOnly}
-        onClose={flow.closeEdit}
-        fmt={formatMoney}
-      />
-
-      <UndoToast
-        visible={flow.undoVisible}
-        title={flow.undoTitle}
-        subtitle={flow.undoSubtitle}
-        onUndo={flow.doUndo}
-        onDismiss={flow.dismissUndo}
-      />
+      {sheets.element}
     </AppShell>
-  )
+  );
 }
