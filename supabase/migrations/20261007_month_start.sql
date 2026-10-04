@@ -56,7 +56,14 @@ CREATE POLICY "household members can manage month_start_items" ON month_start_it
   );
 
 -- Recordatorio del día 1 ("Empieza {mes}") en el log de notificaciones.
-ALTER TABLE notification_log DROP CONSTRAINT IF EXISTS notification_log_type_check;
-ALTER TABLE notification_log
-  ADD CONSTRAINT notification_log_type_check
-  CHECK (type IN ('inactivity', 'month_close', 'month_start'));
+-- notification_log viene de 20260803_push_subscriptions.sql; si esa
+-- migración no se aplicó, este paso se salta.
+DO $$
+BEGIN
+  IF to_regclass('public.notification_log') IS NOT NULL THEN
+    ALTER TABLE notification_log DROP CONSTRAINT IF EXISTS notification_log_type_check;
+    ALTER TABLE notification_log
+      ADD CONSTRAINT notification_log_type_check
+      CHECK (type IN ('inactivity', 'month_close', 'month_start'));
+  END IF;
+END $$;
