@@ -12,16 +12,19 @@ import { AddSheet } from '@/components/add/AddSheet'
 import { PushOfferSheet } from '@/components/avisos/PushOfferSheet'
 import { ScoreWatcher } from '@/components/score/ScoreWatcher'
 import { signalAppReady } from '@/components/motion/Splash'
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet'
 import {
   Home, List, Wallet, TrendingUp, HeartPulse, ClipboardCheck,
   MessageCircle, BookOpen, Landmark, Users, Settings, ShieldCheck,
-  ChevronRight, ChevronLeft, Plus,
+  ChevronLeft, Plus, Lightbulb, LogOut,
 } from 'lucide-react'
 
 interface NavItem {
   href: string
   icon: typeof Home
   label: string
+  /** Acción en la misma página en vez de navegar (p. ej. la hoja de feedback). */
+  action?: 'feedback'
 }
 
 interface NavGroup {
@@ -52,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/chat', icon: MessageCircle, label: 'Pregúntale a Zafi' },
       { href: '/aprende', icon: BookOpen, label: 'Aprende' },
+      { href: '#feedback', icon: Lightbulb, label: 'Envíanos tu idea', action: 'feedback' },
     ],
   },
   {
@@ -84,6 +88,10 @@ interface AppShellProps {
 
 export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight, titleRight, mobileHeader, hideMobileBar = false }: AppShellProps) {
   const [isMaster, setIsMaster] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  // Nombre del pie del sidebar: el de la página o, si no lo pasa, el del perfil.
+  const [loadedName, setLoadedName] = useState('')
+  const displayName = userName || loadedName
   const router = useRouter()
   const pathname = usePathname() ?? currentPath
   const isRoot = isRootPath(pathname)
@@ -93,15 +101,18 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
   useEffect(() => { signalAppReady() }, [])
 
   useEffect(() => {
-    if (userEmail) {
-      setIsMaster(isMasterUser(userEmail))
-    } else {
-      const supabase = createClient()
-      supabase.auth.getUser().then(({ data: { user } }: { data: { user: { email?: string } | null } }) => {
-        if (user?.email) setIsMaster(isMasterUser(user.email))
-      })
-    }
-  }, [userEmail])
+    if (userEmail) setIsMaster(isMasterUser(userEmail))
+    if (userEmail && userName) return
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }: { data: { user: { id: string; email?: string } | null } }) => {
+      if (!user) return
+      if (user.email) setIsMaster(isMasterUser(user.email))
+      if (userName) return
+      const { data } = await supabase.from('users').select('full_name').eq('id', user.id).maybeSingle()
+      const full = ((data?.full_name as string | undefined) ?? '').trim()
+      setLoadedName(full ? full.split(/\s+/)[0] : (user.email ?? '').split('@')[0])
+    })
+  }, [userEmail, userName])
 
   const navGroups = isMaster
     ? NAV_GROUPS.map((g, i) =>
@@ -164,11 +175,11 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
             flexShrink: 0,
           }}
         >
-          <div style={{ padding: '28px 18px 20px', display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+          <div style={{ padding: '22px 18px 12px', display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
             {/* Logo */}
             <Link href="/dashboard" style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              padding: '6px 10px 20px', textDecoration: 'none',
+              padding: '4px 10px 16px', textDecoration: 'none',
             }}>
               <AppIcon size="sm" variant="electric" />
               <Wordmark variant="dark" size="sm" />
@@ -178,52 +189,60 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
               type="button"
               onClick={() => openAddSheet()}
               className="btn-primary w-full"
-              style={{ marginBottom: 22, borderRadius: 14 }}
+              style={{ marginBottom: 16, borderRadius: 14 }}
             >
               <Plus className="w-4 h-4" aria-hidden />
               Agregar
             </button>
 
             {/* Nav groups */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 22, overflowY: 'auto', flex: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
               {navGroups.map((group) => (
                 <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <div style={{
                     fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
-                    color: 'var(--zafi-sidebar-group)', padding: '0 12px 8px', textTransform: 'uppercase',
+                    color: 'var(--zafi-sidebar-group)', padding: '0 12px 4px', textTransform: 'uppercase',
                   }}>
                     {group.label}
                   </div>
                   {group.items.map((item) => {
                     const isActive = item.href === currentPath
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 11,
-                          padding: '10px 12px', borderRadius: 10,
-                          background: isActive ? 'var(--zafi-sidebar-active)' : 'transparent',
-                          color: isActive ? '#fff' : 'var(--zafi-sidebar-text)',
-                          fontWeight: isActive ? 600 : 500,
-                          fontSize: '14.5px', textDecoration: 'none',
-                          transition: 'background 0.15s, color 0.15s',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isActive) {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                            e.currentTarget.style.color = '#E2E8F0'
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isActive) {
-                            e.currentTarget.style.background = 'transparent'
-                            e.currentTarget.style.color = 'var(--zafi-sidebar-text)'
-                          }
-                        }}
-                      >
+                    const style: React.CSSProperties = {
+                      display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+                      padding: '8px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                      background: isActive ? 'var(--zafi-sidebar-active)' : 'transparent',
+                      color: isActive ? '#fff' : 'var(--zafi-sidebar-text)',
+                      fontWeight: isActive ? 600 : 500,
+                      fontSize: '14.5px', textDecoration: 'none', textAlign: 'left',
+                      transition: 'background 0.15s, color 0.15s',
+                    }
+                    const hover = {
+                      onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+                        if (!isActive) {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                          e.currentTarget.style.color = '#E2E8F0'
+                        }
+                      },
+                      onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
+                        if (!isActive) {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.color = 'var(--zafi-sidebar-text)'
+                        }
+                      },
+                    }
+                    const body = (
+                      <>
                         <item.icon style={{ width: 17, height: 17, flexShrink: 0 }} />
                         {item.label}
+                      </>
+                    )
+                    return item.action === 'feedback' ? (
+                      <button key={item.href} type="button" onClick={() => setFeedbackOpen(true)} style={style} {...hover}>
+                        {body}
+                      </button>
+                    ) : (
+                      <Link key={item.href} href={item.href} aria-current={isActive ? 'page' : undefined} style={style} {...hover}>
+                        {body}
                       </Link>
                     )
                   })}
@@ -232,36 +251,41 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
             </div>
           </div>
 
-          {/* User footer */}
-          {userName && (
+          {/* Pie: quién está conectado y cerrar sesión */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 11,
+            padding: '10px 18px 12px 28px', borderTop: `1px solid var(--zafi-sidebar-border)`,
+          }}>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 11,
-              padding: '12px 28px', borderTop: `1px solid var(--zafi-sidebar-border)`,
+              width: 32, height: 32, borderRadius: '50%',
+              background: 'var(--zafi-sidebar-active)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              fontWeight: 700, fontSize: 13, color: '#fff',
+              flexShrink: 0,
             }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: 'var(--zafi-sidebar-active)', display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-                fontWeight: 700, fontSize: 13, color: '#fff',
-                flexShrink: 0,
-              }}>
-                {userName[0]?.toUpperCase()}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {userName}
-                </div>
-                {householdName && (
-                  <div style={{ fontSize: '11.5px', color: 'var(--zafi-sidebar-group)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {householdName}
-                  </div>
-                )}
-              </div>
-              <button onClick={handleLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                <ChevronRight style={{ width: 16, height: 16, color: 'var(--zafi-sidebar-group)' }} />
-              </button>
+              {displayName ? displayName[0]?.toUpperCase() : ''}
             </div>
-          )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {displayName}
+              </div>
+              {householdName && (
+                <div style={{ fontSize: '11.5px', color: 'var(--zafi-sidebar-group)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {householdName}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Cerrar sesión"
+              className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold transition-colors hover:bg-white/5"
+              style={{ color: 'var(--zafi-sidebar-text)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <LogOut style={{ width: 15, height: 15 }} aria-hidden />
+              Salir
+            </button>
+          </div>
         </aside>
 
         {/* Main content */}
@@ -302,6 +326,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
       {/* Hoja global de agregar (botón + y ?action=) */}
       <AddSheet />
       <PushOfferSheet />
+      <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <ScoreWatcher />
     </div>
   )
