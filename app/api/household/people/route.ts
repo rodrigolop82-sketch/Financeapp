@@ -29,11 +29,12 @@ export async function GET() {
       owner,
       access: owner ? 'full' : family && r.access !== 'view' ? 'full' : 'view',
       monthlyIncome: r.monthly_income ?? null,
+      email: u?.email ?? null,
     }
   })
   if (hh && !people.some((p) => p.id === hh.owner_id)) {
     const { data: o } = await admin.from('users').select('full_name, email').eq('id', hh.owner_id).single()
-    people.push({ id: hh.owner_id, name: firstName(o?.full_name, o?.email), fullName: o?.full_name || o?.email || 'Usuario', owner: true, access: 'full' })
+    people.push({ id: hh.owner_id, name: firstName(o?.full_name, o?.email), fullName: o?.full_name || o?.email || 'Usuario', owner: true, access: 'full', email: o?.email ?? null })
   }
   people.sort((a, b) => Number(b.owner) - Number(a.owner))
   return NextResponse.json({ householdId: plan.householdId, me: user.id, people })

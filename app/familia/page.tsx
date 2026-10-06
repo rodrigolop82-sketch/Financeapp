@@ -8,117 +8,108 @@ import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
 import { fetchEffectivePlan } from '@/lib/plan-client';
 import type { Access, Plan } from '@/lib/plans';
-import { PremiumInline } from '@/components/premium/PremiumInline';
-import { PremiumSheet } from '@/components/premium/PremiumSheet';
-import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet';
 import { localMonth } from '@/lib/dates';
 import { monthRange } from '@/lib/movimientos';
-import { initials } from '@/lib/inicio';
+import { longMonth } from '@/lib/como-te-fue';
+import { getEmoji } from '@/lib/categories-ui';
+import { firstName, isSharedHousehold, type Person } from '@/lib/hogar';
+import { refreshHouseholdPeople } from '@/lib/hooks/useHouseholdPeople';
+import {
+  SPLIT_MODES, balanceHelp, balanceOf, splitLabel, summarizeMonth,
+  type HomeTx, type Settlement, type SplitMode,
+} from '@/lib/cuentas-claras';
 import { PageSkeleton } from '@/components/motion/PageSkeleton';
 import {
-  BADGE_INFO, BADGE_NEUTRAL, ErrorBox, FieldLabel, GroupTitle, INPUT_48, ListCard, PageHeader,
-  PILL_OUTLINE, PillButton, ROW_DIVIDER, SheetHeader,
+  BADGE_INFO, BADGE_NEUTRAL, ErrorBox, FieldLabel, GroupTitle, HERO, HERO_MUTED, HERO_STYLE, INPUT_48, LINK_TEXT, ListCard, PageHeader,
+  PILL_OUTLINE, PillButton, ROW_DIVIDER, RowBody, Segmented, SheetHeader, Tile,
 } from '@/components/layout/Pantalla';
-import { CARD } from '@/components/resumen/ctf-ui';
-import { DIVIDER, PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
-import { Note, ProgressBar } from '@/components/plan/ui';
+import { DIVIDER, PRIMARY_BUTTON, TEXT_MUTED } from '@/components/movimientos/ui';
+import { Note, RowAmount } from '@/components/plan/ui';
 import { BottomSheet } from '@/components/transactions/BottomSheet';
 import { UndoToast } from '@/components/transactions/UndoToast';
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast';
+import { PremiumInline } from '@/components/premium/PremiumInline';
+import { PremiumSheet } from '@/components/premium/PremiumSheet';
+import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet';
+import { PersonAvatar, SplitBar, personClass } from '@/components/hogar/PersonUI';
 
-interface Member {
-  user_id: string;
-  role: string;
-  access?: string;
-  joined_at: string;
-  users: { email: string; full_name: string | null } | null;
-}
+interface Cat { id: string; name: string; bucket: string; icon?: string | null }
 
-function memberName(m: Member): string {
-  return m.users?.full_name || m.users?.email?.split('@')[0] || 'Usuario';
-}
-
-function Avatar({ name, owner, size = 40 }: { name: string; owner: boolean; size?: number }) {
-  return (
-    <span
-      aria-hidden
-      className={`flex flex-none items-center justify-center rounded-full font-bold ${
-        owner ? 'bg-navy text-white dark:bg-electric' : 'bg-electric-ghost text-electric-dark dark:bg-[#1B2B4D] dark:text-electric-soft'
-      }`}
-      style={{ width: size, height: size, fontSize: size >= 40 ? 14 : 10 }}
-    >
-      {initials(name)}
-    </span>
-  );
-}
+type Who = 'all' | string;
 
 export default function FamiliaPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const fmt = useFormatMoney();
+  const month = localMonth();
 
   const [loading, setLoading] = useState(true);
-  const [members, setMembers] = useState<Member[]>([]);
   const [householdId, setHouseholdId] = useState('');
   const [householdName, setHouseholdName] = useState('');
+  const [me, setMe] = useState('');
   const [isOwner, setIsOwner] = useState(false);
   const [plan, setPlan] = useState<Plan>('free');
   const [myAccess, setMyAccess] = useState<Access>('full');
-  const [familySheet, setFamilySheet] = useState<string | null>(null);
-  const [spendingByMember, setSpendingByMember] = useState<Record<string, number>>({});
-  const [txCountByMember, setTxCountByMember] = useState<Record<string, number>>({});
+  const [people, setPeople] = useState<Person[]>([]);
+  const [mode, setMode] = useState<SplitMode>('pool');
+  const [txs, setTxs] = useState<HomeTx[]>([]);
+  const [cats, setCats] = useState<Cat[]>([]);
+  const [settled, setSettled] = useState<Settlement[]>([]);
+  const [justSettled, setJustSettled] = useState<{ from: string; to: string; amount: number } | null>(null);
+  const [who, setWho] = useState<Who>('all');
+  const [splitOpen, setSplitOpen] = useState(false);
   const [inviteKey, setInviteKey] = useState<number | null>(null);
-  const [removed, setRemoved] = useState<Member | null>(null);
+  const [removed, setRemoved] = useState<Person | null>(null);
   const [message, setMessage] = useState<StatusMessage | null>(null);
+  const [familySheet, setFamilySheet] = useState<string | null>(null);
 
-  const loadMembers = useCallback(async (hhId: string) => {
-    const res = await fetch(`/api/familia?householdId=${hhId}`);
-    if (res.ok) setMembers((await res.json()).members);
+  const loadPeople = useCallback(async () => {
+    const res = await fetch('/api/household/people', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    setPeople(data.people ?? []);
+    void refreshHouseholdPeople();
   }, []);
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push('/login'); return; }
+  const load = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { router.push('/login'); return; }
+    setMe(user.id);
 
-      const effective = await fetchEffectivePlan();
-      setPlan(effective?.plan ?? 'free');
-      setMyAccess(effective?.access ?? 'full');
+    const [effective, hh] = await Promise.all([fetchEffectivePlan(), getUserHousehold(supabase, user.id)]);
+    if (!hh) { router.push('/onboarding'); return; }
+    setPlan(effective?.plan ?? 'free');
+    setMyAccess(effective?.access ?? 'full');
+    setHouseholdId(hh.id);
+    setHouseholdName(hh.name ?? '');
+    setIsOwner(hh.owner_id === user.id);
 
-      const hh = await getUserHousehold(supabase, user.id);
-      if (!hh) { router.push('/onboarding'); return; }
+    const { from, to } = monthRange(month);
+    const [, { data: hhRow }, { data: txData }, { data: catData }, { data: setData }] = await Promise.all([
+      loadPeople(),
+      supabase.from('households').select('*').eq('id', hh.id).single(),
+      supabase
+        .from('transactions')
+        .select('amount, paid_by, scope, category_id, date')
+        .eq('household_id', hh.id)
+        .eq('type', 'expense')
+        .gte('date', from)
+        .lte('date', to),
+      supabase.from('budget_categories').select('id, name, bucket, icon').eq('household_id', hh.id),
+      supabase.from('settlements').select('from_user, to_user, amount').eq('household_id', hh.id).eq('month', `${month}-01`),
+    ]);
+    const row = hhRow as { split_mode?: string; family_since?: string | null } | null;
+    setMode(row?.split_mode === 'half' || row?.split_mode === 'income' ? row.split_mode : 'pool');
+    // Cuentas claras y "Este mes en casa" cuentan desde que son hogar (PR de unir cuentas).
+    const since = row?.family_since ? row.family_since.slice(0, 10) : null;
+    const list = ((txData ?? []) as (HomeTx & { date: string })[]).filter((t) => !since || t.date >= since);
+    setTxs(list);
+    setCats((catData ?? []) as Cat[]);
+    setSettled((setData ?? []) as Settlement[]);
+    setLoading(false);
+  }, [supabase, router, month, loadPeople]);
 
-      const hhId = hh.id;
-      setHouseholdId(hhId);
-      setHouseholdName(hh.name ?? '');
-      setIsOwner(hh.owner_id === user.id);
-
-      // "Quién gastó este mes": solo los gastos del mes en curso.
-      const { from, to } = monthRange(localMonth());
-      const [, { data: txData }] = await Promise.all([
-        loadMembers(hhId),
-        supabase
-          .from('transactions')
-          .select('paid_by, amount')
-          .eq('household_id', hhId)
-          .eq('type', 'expense')
-          .gte('date', from)
-          .lte('date', to),
-      ]);
-
-      const byMember: Record<string, number> = {};
-      const countByMember: Record<string, number> = {};
-      (txData || []).forEach((tx: { paid_by: string | null; amount: number }) => {
-        if (!tx.paid_by) return;
-        byMember[tx.paid_by] = (byMember[tx.paid_by] || 0) + Number(tx.amount);
-        countByMember[tx.paid_by] = (countByMember[tx.paid_by] || 0) + 1;
-      });
-      setSpendingByMember(byMember);
-      setTxCountByMember(countByMember);
-      setLoading(false);
-    }
-    load();
-  }, [supabase, router, loadMembers]);
+  useEffect(() => { void load(); }, [load]);
 
   async function addByEmail(email: string): Promise<string | null> {
     const res = await fetch('/api/familia', {
@@ -128,142 +119,269 @@ export default function FamiliaPage() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return data.error || 'No se pudo agregar. Intenta de nuevo.';
-    await loadMembers(householdId);
+    await loadPeople();
     // Entró en solo ver: se le cuenta al dueño qué cambia con Familiar.
     if (data.access === 'view') setFamilySheet(data.name || email.split('@')[0]);
     return null;
   }
 
-  async function removeMember(member: Member) {
+  async function removeMember(p: Person) {
     const res = await fetch('/api/familia', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ householdId, userId: member.user_id }),
+      body: JSON.stringify({ householdId, userId: p.id }),
     });
     if (!res.ok) { setMessage({ text: 'No se pudo quitar. Intenta de nuevo.', tone: 'error' }); return; }
-    setMembers((list) => list.filter((m) => m.user_id !== member.user_id));
-    setRemoved(member);
+    setPeople((list) => list.filter((x) => x.id !== p.id));
+    setRemoved(p);
   }
 
   async function undoRemove() {
-    const m = removed;
+    const p = removed;
     setRemoved(null);
-    if (!m?.users?.email) return;
-    const error = await addByEmail(m.users.email);
+    if (!p?.email) return;
+    const error = await addByEmail(p.email);
     if (error) setMessage({ text: error, tone: 'error' });
   }
-
   const dismissRemoved = useCallback(() => setRemoved(null), []);
 
-  if (loading) {
-    return <PageSkeleton variant="list" />;
+  async function settle(fromId: string, toId: string, amount: number) {
+    const rounded = Math.round(amount * 100) / 100;
+    const { error } = await supabase.from('settlements').insert({
+      household_id: householdId, month: `${month}-01`, from_user: fromId, to_user: toId, amount: rounded,
+    });
+    if (error) { setMessage({ text: 'No se pudo registrar. Intenta de nuevo.', tone: 'error' }); return; }
+    setSettled((s) => [...s, { from_user: fromId, to_user: toId, amount: rounded }]);
+    setJustSettled({ from: fromId, to: toId, amount: rounded });
   }
 
-  const canInvite = isOwner;
-  const viewer = members.find((m) => m.role !== 'owner' && m.access === 'view');
-  const viewerName = viewer ? memberName(viewer).split(/\s+/)[0] : null;
-  const invite = canInvite ? <PillButton onClick={() => setInviteKey(Date.now())}>Invitar</PillButton> : undefined;
-  const subtitle = [householdName, `${members.length} ${members.length === 1 ? 'miembro' : 'miembros'}`].filter(Boolean).join(' · ');
-  const totalSpending = Object.values(spendingByMember).reduce((s, v) => s + v, 0);
+  async function saveSplit(next: SplitMode, incomes: Record<string, number>) {
+    const res = await fetch('/api/household/split', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: next, incomes }),
+    });
+    if (!res.ok) { setMessage({ text: 'No se pudo guardar. Intenta de nuevo.', tone: 'error' }); return false; }
+    setMode(next);
+    setJustSettled(null);
+    setPeople((list) => list.map((p) => (incomes[p.id] !== undefined ? { ...p, monthlyIncome: incomes[p.id] } : p)));
+    void refreshHouseholdPeople();
+    return true;
+  }
 
-  const spendRow = (key: string, avatar: React.ReactNode, name: string, amount: number) => {
-    const ratio = totalSpending > 0 ? amount / totalSpending : 0;
-    return (
-      <div key={key} className={`flex flex-col gap-[7px] py-3 border-b ${DIVIDER} last:border-b-0`}>
-        <span className="flex items-center gap-2">
-          {avatar}
-          <span className={`min-w-0 flex-1 truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{name}</span>
-          <span className={`flex-none text-[13px] font-semibold ${TEXT_MUTED}`}>{fmt(amount)} · {Math.round(ratio * 100)}%</span>
-        </span>
-        <ProgressBar ratio={ratio} />
-      </div>
-    );
+  if (loading) return <PageSkeleton variant="list" />;
+
+  const owner = people.find((p) => p.owner) ?? null;
+  const other = people.find((p) => !p.owner) ?? null;
+  const shared = isSharedHousehold(people);
+  const readOnly = myAccess === 'view';
+  const viewer = people.find((p) => !p.owner && p.access === 'view');
+  const fallback = owner?.id ?? me;
+  const m = summarizeMonth(txs, fallback);
+  const monthName = longMonth(month);
+  const canInvite = isOwner && people.length < 2;
+  const invite = canInvite && !readOnly ? <PillButton onClick={() => setInviteKey(Date.now())}>Invitar</PillButton> : undefined;
+  const subtitle = [householdName, `${people.length} ${people.length === 1 ? 'persona' : 'personas'}`].filter(Boolean).join(' · ');
+
+  const catOf = (id: string | null) => cats.find((c) => c.id === id) ?? null;
+  const catLabel = (id: string | null) => {
+    const c = catOf(id);
+    return { emoji: c ? getEmoji(c) : '❔', name: c?.name ?? 'Sin categoría' };
   };
+
+  const pair = shared && owner && other ? [owner, other] : null;
+  const ids = who === 'all' ? people.map((p) => p.id) : [who];
+  const sumOf = (o: Record<string, number>) => ids.reduce((s, id) => s + (o[id] ?? 0), 0);
+  const heroTotal = who === 'all' ? m.total : sumOf(m.paidShared) + sumOf(m.personalBy);
+  const balance = pair ? balanceOf(m, mode, pair[0], pair[1], settled) : null;
+  const catRows = m.categories
+    .map((c) => ({ ...c, mine: sumOf(c.by) }))
+    .filter((c) => c.mine > 0)
+    .sort((a, b) => b.mine - a.mine);
+  const maxCat = catRows[0]?.mine || 1;
+  const personOf = (id: string) => people.find((p) => p.id === id) ?? null;
+  const memberBadge = (p: Person) =>
+    p.owner ? (plan !== 'free' ? 'Paga el plan' : 'Dueño') : p.access === 'view' ? 'Solo ver' : 'Miembro';
 
   return (
     <AppShell title="Familia" currentPath="/familia" hideMobileBar headerRight={invite}>
-      <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
-        <PageHeader back={{ href: '/mas', label: 'Más' }} title="Familia" subtitle={subtitle} right={invite} />
+      <div className="mx-auto flex max-w-2xl flex-col pb-8 lg:mx-0">
+        <PageHeader back={{ href: '/mas', label: 'Más' }} title="Este mes en casa" subtitle={subtitle} right={invite} />
         <p className={`hidden text-sm lg:block ${TEXT_MUTED}`}>{subtitle}</p>
 
-        <div className="flex flex-col zafi-stagger">
-          {isOwner && plan !== 'family' && viewer && (
-            <PremiumInline className="mt-3.5" action="Ver Familiar ›" onClick={() => setFamilySheet(viewerName)}>
-              <b>{viewerName} solo puede ver tu plan.</b> Con Familiar también registra y recibe sus avisos.
+        <div className="mt-3.5 flex flex-col gap-[18px] zafi-stagger">
+          {readOnly && (
+            <PremiumInline action="Avisarle ›" onClick={openViewOnlySheet}>
+              <b>Estás en modo solo ver.</b> Ves el plan y los movimientos del hogar, pero no puedes registrar.
             </PremiumInline>
           )}
-          {!isOwner && myAccess === 'view' && (
-            <div className="mt-3.5 flex items-center gap-3 rounded-2xl bg-electric-ghost px-4 py-3.5 dark:bg-[#1B2B4D]">
-              <span aria-hidden className="text-[22px] leading-none">👀</span>
-              <span className="flex-1 text-sm leading-[1.45] text-electric-dark dark:text-electric-soft">
-                <b>Estás en modo solo ver.</b> Ves el plan y los movimientos del hogar, pero no registras.
-              </span>
-              <button type="button" onClick={openViewOnlySheet} className="flex-none text-sm font-semibold text-electric-dark dark:text-electric-soft">Avisarle ›</button>
-            </div>
+          {isOwner && plan !== 'family' && viewer && (
+            <PremiumInline action="Ver Familiar ›" onClick={() => setFamilySheet(viewer.name)}>
+              <b>{viewer.name} solo puede ver tu plan.</b> Con Familiar también registra y recibe sus avisos.
+            </PremiumInline>
+          )}
+
+          {pair && (
+            <Segmented
+              label="De quién"
+              options={[{ value: 'all', label: 'Hogar' }, ...pair.map((p) => ({ value: p.id, label: p.name }))]}
+              value={who}
+              onChange={setWho}
+            />
+          )}
+
+          <section className={`flex flex-col gap-1.5 ${HERO}`} style={{ ...HERO_STYLE, padding: '22px 22px 20px' }}>
+            <span className={`text-[15px] ${HERO_MUTED}`}>
+              {who !== 'all' ? `${personOf(who)?.name ?? ''} pagó en ${monthName}` : pair ? `Gastaron en ${monthName}` : `Gastaste en ${monthName}`}
+            </span>
+            <p className="font-outfit text-[46px] font-extrabold leading-none tracking-[-0.02em]">{fmt(heroTotal)}</p>
+            {pair && (
+              <p className="text-sm text-[#9FB3CB]">{fmt(sumOf(m.paidShared))} compartido · {fmt(sumOf(m.personalBy))} personal</p>
+            )}
+            {pair && who === 'all' && m.total > 0 && (
+              <>
+                <div className="mt-2.5">
+                  <SplitBar onHero track="#2A4A6E" parts={pair.map((p) => ({ person: p, value: (m.paidShared[p.id] ?? 0) + (m.personalBy[p.id] ?? 0) }))} />
+                </div>
+                <div className={`flex justify-between gap-2 text-[13.5px] ${HERO_MUTED}`}>
+                  {pair.map((p) => (
+                    <span key={p.id} className="flex items-center gap-1.5">
+                      <span aria-hidden className={`h-2 w-2 rounded-full ${personClass(p, true)}`} />
+                      {p.name}{' '}
+                      <b className="font-outfit text-white">
+                        {Math.round((((m.paidShared[p.id] ?? 0) + (m.personalBy[p.id] ?? 0)) / m.total) * 100)}%
+                      </b>
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+
+          {pair && who === 'all' && (
+            balance && !justSettled ? (
+              <ListCard>
+                <div className="flex items-center gap-3 py-3">
+                  <RowBody
+                    tile={<Tile>⚖️</Tile>}
+                    name={<span className="whitespace-normal [text-wrap:pretty]">{balance.from.name} le pone {fmt(balance.amount)} a {balance.to.name}</span>}
+                    help={balanceHelp(mode, balance, fmt(m.shared))}
+                  />
+                  {!readOnly && <PillButton onClick={() => void settle(balance.from.id, balance.to.id, balance.amount)}>Saldar</PillButton>}
+                </div>
+              </ListCard>
+            ) : justSettled ? (
+              <Note tone="ok" className="">
+                <b>Cuentas claras.</b> Registramos que {personOf(justSettled.from)?.name} le pasó {fmt(justSettled.amount)} a {personOf(justSettled.to)?.name}.
+              </Note>
+            ) : mode === 'pool' ? (
+              <Note tone="info" className="">
+                <b>Bolsa común:</b> todo sale de lo mismo, así que no llevamos cuentas entre ustedes.
+              </Note>
+            ) : mode === 'income' && pair.some((p) => !(Number(p.monthlyIncome) > 0)) ? (
+              <Note tone="info" className="">
+                <b>Falta un ingreso.</b> Para repartir según lo que gana cada uno, agrega los ingresos en “Cómo reparten”.
+              </Note>
+            ) : (
+              <Note tone="ok" className=""><b>Están a mano.</b> Este mes nadie le debe al otro.</Note>
+            )
           )}
 
           <section>
-            <GroupTitle>Miembros del hogar</GroupTitle>
-            {members.length > 0 ? (
+            <div className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
+              <GroupTitle className="">En qué se va</GroupTitle>
+              {pair && who === 'all' && !readOnly && (
+                <button type="button" onClick={() => setSplitOpen(true)} className={`text-[13px] font-semibold ${LINK_TEXT}`}>Cómo reparten ›</button>
+              )}
+            </div>
+            {catRows.length > 0 ? (
               <ListCard>
-                {members.map((m) => {
-                  const owner = m.role === 'owner';
-                  const name = memberName(m);
+                {catRows.map((c) => {
+                  const l = catLabel(c.categoryId);
+                  const help = !pair
+                    ? undefined
+                    : who === 'all'
+                      ? pair.filter((p) => c.by[p.id]).map((p) => `${p.name} ${Math.round(((c.by[p.id] ?? 0) / c.mine) * 100)}%`).join(' · ')
+                      : `${Math.round((c.mine / (m.paidShared[who] || 1)) * 100)}% de lo que pagó ${personOf(who)?.name ?? ''}`;
                   return (
-                    <div key={m.user_id} className={`flex items-center gap-3 py-3 ${ROW_DIVIDER}`}>
-                      <Avatar name={name} owner={owner} />
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{name}</span>
-                          <span className={owner ? BADGE_INFO : BADGE_NEUTRAL}>{owner ? 'Dueño' : m.access === 'view' ? 'Solo ver' : 'Miembro'}</span>
-                        </span>
-                        {m.users?.email && <span className={`truncate text-[13px] ${TEXT_MUTED}`}>{m.users.email}</span>}
+                    <div key={c.categoryId ?? 'none'} className={`flex flex-col gap-2 py-3 ${ROW_DIVIDER}`}>
+                      <span className="flex items-center gap-3">
+                        <RowBody tile={<Tile>{l.emoji}</Tile>} name={l.name} help={help} />
+                        <RowAmount>{fmt(c.mine)}</RowAmount>
                       </span>
-                      {isOwner && !owner && (
-                        <PillButton className={PILL_OUTLINE} onClick={() => void removeMember(m)}>Quitar</PillButton>
-                      )}
+                      <div style={{ width: `${(c.mine / maxCat) * 100}%` }}>
+                        <SplitBar height={6} parts={(pair ?? people).filter((p) => ids.includes(p.id)).map((p) => ({ person: p, value: c.by[p.id] ?? 0 }))} />
+                      </div>
                     </div>
                   );
                 })}
               </ListCard>
             ) : (
-              <p className={`px-1 text-sm ${TEXT_MUTED}`}>
-                {isOwner ? 'Invita a tu familia para compartir el presupuesto.' : 'No hay otros miembros en este hogar.'}
-              </p>
+              <p className={`px-1 text-sm ${TEXT_MUTED}`}>Todavía no hay gastos este mes.</p>
             )}
           </section>
 
-          {members.length > 1 && (
-            <Note tone="info">
-              {viewer
-                ? 'Quien está en solo ver ve el plan y los movimientos del hogar, pero no registra.'
-                : 'Los miembros pueden ver el plan, registrar movimientos y ver cómo va el hogar.'}
-            </Note>
-          )}
-
-          {members.length > 0 && totalSpending > 0 && (
+          {pair && (
             <section>
-              <GroupTitle>Quién gastó este mes</GroupTitle>
-              <div className={`px-3.5 py-0.5 ${CARD}`}>
-                {members.map((m) => {
-                  const name = memberName(m);
-                  const count = txCountByMember[m.user_id] || 0;
-                  return spendRow(
-                    m.user_id,
-                    <Avatar name={name} owner={m.role === 'owner'} size={24} />,
-                    `${name.split(/\s+/)[0]} · ${count} mov.`,
-                    spendingByMember[m.user_id] || 0,
+              <div className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
+                <GroupTitle className="">Personal</GroupTitle>
+                <span className={`text-[13px] ${TEXT_MUTED}`}>no entra en la cuenta</span>
+              </div>
+              <ListCard>
+                {pair.filter((p) => ids.includes(p.id)).map((p) => {
+                  const list = m.personalCats[p.id] ?? [];
+                  return (
+                    <div key={p.id} className={`flex items-center gap-3 py-3 ${ROW_DIVIDER}`}>
+                      <RowBody
+                        tile={<PersonAvatar person={p} />}
+                        name={p.name}
+                        help={list.length ? list.slice(0, 3).map((x) => { const l = catLabel(x.categoryId); return `${l.emoji} ${l.name} ${fmt(x.total)}`; }).join(' · ') : 'Nada personal este mes'}
+                      />
+                      <RowAmount>{fmt(m.personalBy[p.id] ?? 0)}</RowAmount>
+                    </div>
                   );
                 })}
-              </div>
-              <p className={`mx-1 mt-2 flex items-center justify-between text-[13px] ${TEXT_MUTED}`}>
-                <span>Total del hogar</span>
-                <b className={`font-outfit text-[15px] ${TEXT_STRONG}`}>{fmt(totalSpending)}</b>
-              </p>
+              </ListCard>
             </section>
           )}
+
+          <section>
+            <div className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
+              <GroupTitle className="">Miembros</GroupTitle>
+            </div>
+            <ListCard>
+              {people.map((p) => (
+                <div key={p.id} className={`flex items-center gap-3 py-3 ${ROW_DIVIDER}`}>
+                  <RowBody
+                    tile={<PersonAvatar person={p} />}
+                    name={p.fullName}
+                    badge={<span className={p.owner ? BADGE_INFO : BADGE_NEUTRAL}>{memberBadge(p)}</span>}
+                    help={Number(p.monthlyIncome) > 0 ? `Ingreso ${fmt(Number(p.monthlyIncome))} al mes` : p.email ?? undefined}
+                  />
+                  {isOwner && !p.owner && (
+                    <PillButton className={PILL_OUTLINE} onClick={() => void removeMember(p)}>Quitar</PillButton>
+                  )}
+                </div>
+              ))}
+            </ListCard>
+            {people.length < 2 && (
+              <p className={`mx-1 mt-2 text-sm ${TEXT_MUTED}`}>
+                {isOwner ? 'Invita a tu pareja para llevar las cuentas de la casa entre los dos.' : 'No hay otros miembros en este hogar.'}
+              </p>
+            )}
+          </section>
         </div>
       </div>
+
+      {pair && (
+        <SplitSheet
+          open={splitOpen}
+          onClose={() => setSplitOpen(false)}
+          value={mode}
+          people={pair}
+          onSave={saveSplit}
+        />
+      )}
 
       <BottomSheet themed open={inviteKey !== null} onClose={() => setInviteKey(null)} label="Invitar a tu hogar">
         {inviteKey !== null && (
@@ -283,9 +401,9 @@ export default function FamiliaPage() {
       </BottomSheet>
 
       <UndoToast
-        key={removed?.user_id}
+        key={removed?.id}
         visible={!!removed}
-        title={`Quitamos a ${removed ? memberName(removed) : ''}`}
+        title={`Quitamos a ${removed?.name ?? ''}`}
         subtitle="Ya no ve el plan del hogar"
         onUndo={() => void undoRemove()}
         onDismiss={dismissRemoved}
@@ -293,6 +411,91 @@ export default function FamiliaPage() {
       <StatusToast message={message} onDone={() => setMessage(null)} />
       <PremiumSheet reason="familia" open={familySheet !== null} onClose={() => setFamilySheet(null)} memberName={familySheet} family />
     </AppShell>
+  );
+}
+
+function SplitSheet({ open, onClose, value, people, onSave }: {
+  open: boolean;
+  onClose: () => void;
+  value: SplitMode;
+  people: Person[];
+  onSave: (mode: SplitMode, incomes: Record<string, number>) => Promise<boolean>;
+}) {
+  const [v, setV] = useState<SplitMode>(value);
+  const [incomes, setIncomes] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setV(value);
+    setError('');
+    setIncomes(Object.fromEntries(people.map((p) => [p.id, Number(p.monthlyIncome) > 0 ? String(p.monthlyIncome) : ''])));
+  }, [open, value, people]);
+
+  const [a, b] = people;
+  const preview = people.map((p) => ({ ...p, monthlyIncome: Number(incomes[p.id]) || null }));
+
+  async function save() {
+    const parsed: Record<string, number> = {};
+    if (v === 'income') {
+      for (const p of people) {
+        const n = Number(incomes[p.id]);
+        if (!(n > 0)) { setError(`Falta el ingreso de ${firstName(p.name)}.`); return; }
+        parsed[p.id] = n;
+      }
+    }
+    setBusy(true);
+    const ok = await onSave(v, parsed);
+    setBusy(false);
+    if (ok) onClose();
+  }
+
+  return (
+    <BottomSheet open={open} onClose={onClose} label="Cómo reparten" themed>
+      <div className="flex flex-col gap-3.5 overflow-y-auto px-5 pb-[calc(26px+env(safe-area-inset-bottom))] pt-2 [&>*]:shrink-0">
+        <SheetHeader emoji="⚖️" title="¿Cómo reparten lo compartido?" subtitle="Lo personal nunca entra en la cuenta." />
+        {SPLIT_MODES.map((k) => {
+          const l = splitLabel(k);
+          const on = v === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setV(k)}
+              aria-pressed={on}
+              className={`flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left transition duration-150 active:scale-[0.98] ${
+                on ? 'border-2 border-electric bg-electric-ghost dark:bg-[#1B2B4D]' : 'border border-[var(--zafi-border)] bg-[var(--zafi-card)]'
+              }`}
+            >
+              <RowBody tile={<Tile>{l.emoji}</Tile>} name={l.title} help={l.help(preview[0], preview[1])} />
+            </button>
+          );
+        })}
+        {v === 'income' && a && b && (
+          <div className={`flex flex-col gap-3 border-t pt-3.5 ${DIVIDER}`}>
+            {people.map((p) => (
+              <div key={p.id} className="flex flex-col gap-1.5">
+                <FieldLabel htmlFor={`ingreso-${p.id}`}>Ingreso de {p.name} al mes</FieldLabel>
+                <input
+                  id={`ingreso-${p.id}`}
+                  inputMode="decimal"
+                  value={incomes[p.id] ?? ''}
+                  onChange={(e) => setIncomes((s) => ({ ...s, [p.id]: e.target.value.replace(/[^\d.]/g, '') }))}
+                  placeholder="0"
+                  className={`${INPUT_48} font-outfit`}
+                />
+              </div>
+            ))}
+            <p className={`text-[13px] ${TEXT_MUTED}`}>Solo lo ven ustedes dos.</p>
+          </div>
+        )}
+        {error && <ErrorBox>{error}</ErrorBox>}
+        <button type="button" onClick={() => void save()} disabled={busy} className={PRIMARY_BUTTON}>
+          {busy ? 'Guardando…' : 'Guardar'}
+        </button>
+      </div>
+    </BottomSheet>
   );
 }
 

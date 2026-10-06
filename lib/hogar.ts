@@ -7,6 +7,7 @@ export interface Person {
   owner: boolean
   access: 'full' | 'view'
   monthlyIncome?: number | null
+  email?: string | null
 }
 
 /** La UI de quién pagó / compartido solo aparece con 2+ personas con acceso completo. */
