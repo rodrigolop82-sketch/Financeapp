@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { BookOpen, Check, Lock } from 'lucide-react'
+import { BADGE_OK, BADGE_WARN, Chevron, ROW_DIVIDER, RowBody, Tile } from '@/components/layout/Pantalla'
 
 interface CapsuleCardProps {
   moduleSlug: string
@@ -14,48 +14,26 @@ interface CapsuleCardProps {
   isRead: boolean
 }
 
+/** Fila de lección (va dentro de un ListCard). */
 export function CapsuleCard({
   moduleSlug, slug, title, subtitle,
   readTimeMinutes, isPremium, isLocked, isRead,
 }: CapsuleCardProps) {
+  const badge = isLocked && isPremium
+    ? <span className={BADGE_WARN}>Premium</span>
+    : isRead ? <span className={BADGE_OK}>Leída</span> : undefined
   return (
     <Link
       href={isLocked ? '/cuenta?upgrade=true' : `/aprende/${moduleSlug}/${slug}`}
-      className={`block p-4 border rounded-xl transition-colors hover:border-electric-soft
-        ${isRead ? 'bg-surface-tint/50 border-[#DBEAFE]' : 'bg-background'}`}
+      className={`flex min-h-16 items-center gap-3 py-2.5 transition duration-150 active:scale-[0.98] ${ROW_DIVIDER}`}
     >
-      <div className="flex items-start gap-3">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5
-          ${isRead ? 'bg-blue-100' : 'bg-gray-100'}`}>
-          {isLocked ? (
-            <Lock className="w-4 h-4 text-amber-600" />
-          ) : isRead ? (
-            <Check className="w-4 h-4 text-electric" />
-          ) : (
-            <BookOpen className="w-4 h-4 text-ink-500" />
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className={`text-sm font-medium ${isRead ? 'text-electric-dark' : 'text-foreground'}`}>
-              {title}
-            </p>
-            {isPremium && isLocked && (
-              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                Premium
-              </span>
-            )}
-          </div>
-          {subtitle && (
-            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{subtitle}</p>
-          )}
-          <p className="text-xs text-muted-foreground mt-1">{readTimeMinutes} min de lectura</p>
-        </div>
-        <svg className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1"
-          fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
-        </svg>
-      </div>
+      <RowBody
+        tile={<Tile>{isLocked ? '🔒' : isRead ? '✅' : '📖'}</Tile>}
+        name={title}
+        badge={badge}
+        help={[subtitle, `${readTimeMinutes} min`].filter(Boolean).join(' · ')}
+      />
+      <Chevron />
     </Link>
   )
 }

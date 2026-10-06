@@ -4,9 +4,19 @@ import { useEffect, useState } from 'react'
 import { useParams, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { isEffectivelyPremium } from '@/lib/plans'
-import { ArrowLeft, Clock, Bookmark, BookmarkCheck } from 'lucide-react'
-import Link from 'next/link'
 import { PageSkeleton } from '@/components/motion/PageSkeleton'
+import { AppShell } from '@/components/layout/AppShell'
+import { GroupTitle, HERO, HERO_STYLE, PageHeader, PILL_OUTLINE, PillButton } from '@/components/layout/Pantalla'
+import { NavCard, NavRow } from '@/components/layout/NavRow'
+import { PRIMARY_BUTTON, TEXT_MUTED } from '@/components/movimientos/ui'
+import { Note } from '@/components/plan/ui'
+
+interface Sibling {
+  id: string
+  slug: string
+  title: string
+  read_time_minutes: number
+}
 
 interface CapsuleData {
   id: string
@@ -28,6 +38,8 @@ export default function CapsulePage() {
   const moduleSlug = params.module as string
   const [capsule, setCapsule] = useState<CapsuleData | null>(null)
   const [bookmarked, setBookmarked] = useState(false)
+  const [read, setRead] = useState(false)
+  const [siblings, setSiblings] = useState<Sibling[]>([])
   const [loading, setLoading] = useState(true)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ReactMarkdown, setReactMarkdown] = useState<any>(null)
@@ -46,7 +58,7 @@ export default function CapsulePage() {
 
       const { data } = await supabase
         .from('capsules')
-        .select('*, capsule_modules!inner(title, slug, color)')
+        .select('*, capsule_modules!inner(id, title, slug, color)')
         .eq('slug', slug)
         .single()
 
@@ -78,21 +90,22 @@ export default function CapsulePage() {
         locked,
       })
 
-      // Mark as read + check bookmark
-      if (user) {
-        await supabase.from('user_capsule_progress')
-          .upsert(
-            { user_id: user.id, capsule_id: data.id },
-            { onConflict: 'user_id,capsule_id' }
-          )
+      // Lecciones del módulo: "Lección N de M" y "Siguiente".
+      const { data: list } = await supabase.from('capsules')
+        .select('id, slug, title, read_time_minutes, order_index')
+        .eq('module_id', mod.id).order('order_index')
+      setSiblings((list ?? []) as Sibling[])
 
+      // Leída = tiene fila de progreso (se crea con "Marcar como leída").
+      if (user) {
         const { data: progress } = await supabase
           .from('user_capsule_progress')
           .select('bookmarked')
           .eq('user_id', user.id)
           .eq('capsule_id', data.id)
-          .single()
+          .maybeSingle()
 
+        setRead(!!progress)
         setBookmarked(progress?.bookmarked ?? false)
       }
 
@@ -110,9 +123,17 @@ export default function CapsulePage() {
     const newVal = !bookmarked
     setBookmarked(newVal)
     await supabase.from('user_capsule_progress')
-      .update({ bookmarked: newVal })
-      .eq('user_id', user.id)
-      .eq('capsule_id', capsule.id)
+      .upsert({ user_id: user.id, capsule_id: capsule.id, bookmarked: newVal }, { onConflict: 'user_id,capsule_id' })
+  }
+
+  const markRead = async () => {
+    if (!capsule || read) return
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    setRead(true)
+    await supabase.from('user_capsule_progress')
+      .upsert({ user_id: user.id, capsule_id: capsule.id }, { onConflict: 'user_id,capsule_id' })
   }
 
   if (loading) {
@@ -121,130 +142,135 @@ export default function CapsulePage() {
 
   if (!capsule) return notFound()
 
+  const index = siblings.findIndex((c) => c.id === capsule.id)
+  const next = index >= 0 ? siblings.slice(index + 1, index + 3) : []
+  const back = { href: `/aprende/${moduleSlug}`, label: capsule.module_title }
+  // Guardar usa la misma fila de progreso que "leída": solo después de leerla.
+  const bookmark = !capsule.locked && read && (
+    <PillButton className={bookmarked ? undefined : PILL_OUTLINE} onClick={() => void toggleBookmark()}>
+      {bookmarked ? 'Guardada' : 'Guardar'}
+    </PillButton>
+  )
+
   return (
-    <div className="max-w-2xl mx-auto p-4">
-      {/* Navigation */}
-      <div className="mb-2 flex items-center justify-between">
-        <Link
-          href={`/aprende/${moduleSlug}`}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {capsule.module_title}
-        </Link>
-        <button
-          onClick={toggleBookmark}
-          className="text-muted-foreground hover:text-electric transition-colors"
-          title={bookmarked ? 'Quitar marcador' : 'Guardar'}
-        >
-          {bookmarked ? (
-            <BookmarkCheck className="w-5 h-5 text-electric" />
-          ) : (
-            <Bookmark className="w-5 h-5" />
-          )}
-        </button>
-      </div>
+    <AppShell title="Lección" currentPath="/aprende" hideMobileBar headerRight={bookmark || undefined}>
+      <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
+        <PageHeader back={back} title="Lección" right={bookmark || undefined} />
 
-      {/* Header */}
-      <div className="mb-6">
-        <p className="text-xs font-medium mb-2" style={{ color: capsule.module_color }}>
-          {capsule.module_title}
-        </p>
-        <h1 className="text-xl font-medium text-foreground leading-snug">{capsule.title}</h1>
-        {capsule.subtitle && (
-          <p className="text-sm text-muted-foreground mt-1">{capsule.subtitle}</p>
-        )}
-        <p className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
-          <Clock className="w-3 h-3" />
-          {capsule.read_time_minutes} min de lectura
-        </p>
-      </div>
-
-      {capsule.locked ? (
-        <div style={{
-          background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)',
-          borderRadius: 20, padding: '32px 24px', color: '#fff',
-          textAlign: 'center', marginTop: 8,
-        }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-          <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, fontFamily: "'DM Serif Display', Georgia, serif" }}>
-            Contenido Premium
-          </p>
-          <p style={{ fontSize: 14, opacity: 0.9, lineHeight: 1.5, marginBottom: 24 }}>
-            Esta cápsula es exclusiva para usuarios Premium. Desbloquea todo el contenido educativo de Zafi.
-          </p>
-          <button
-            onClick={async () => {
-              const res = await fetch('/api/stripe/checkout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plan: 'monthly' }),
-              })
-              const { url } = await res.json()
-              if (url) window.location.href = url
-            }}
-            style={{
-              background: '#fff', color: '#1E3A5F',
-              border: 'none', borderRadius: 10, padding: '12px 24px',
-              fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%',
-              maxWidth: 280,
-            }}
-          >
-            Desbloquear con Premium
-          </button>
-        </div>
-      ) : (
-        <>
-          {/* Key takeaway */}
-          {capsule.key_takeaway && (
-            <div className="mb-6 p-4 bg-surface-tint border border-electric-soft rounded-xl">
-              <p className="text-xs font-medium text-electric-dark mb-1">Lo mas importante</p>
-              <p className="text-sm font-medium text-navy">{capsule.key_takeaway}</p>
-            </div>
-          )}
-
-          {/* Markdown content — article style */}
-          <article className="prose prose-sm max-w-none
-            prose-headings:text-navy prose-headings:font-semibold
-            prose-h2:text-lg prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:border-gray-200 prose-h2:pb-2
-            prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2
-            prose-p:text-ink-700 prose-p:leading-relaxed prose-p:mb-4
-            prose-strong:text-navy
-            prose-ul:my-3 prose-li:text-ink-700 prose-li:leading-relaxed
-            prose-ol:my-3
-            prose-table:border-collapse prose-table:w-full prose-table:text-sm prose-table:my-4
-            prose-thead:bg-surface-tint prose-thead:border-b-2 prose-thead:border-electric-soft
-            prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-navy prose-th:font-semibold prose-th:text-xs prose-th:uppercase prose-th:tracking-wide
-            prose-td:px-3 prose-td:py-2 prose-td:border-b prose-td:border-gray-100
-            prose-tr:even:bg-gray-50/50
-            prose-blockquote:border-l-[#2563EB] prose-blockquote:bg-surface-tint prose-blockquote:py-1 prose-blockquote:rounded-r-lg
-            prose-a:text-electric prose-a:no-underline hover:prose-a:underline
-          ">
-            {ReactMarkdown && remarkGfm ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{capsule.content_md}</ReactMarkdown>
-            ) : (
-              <div className="whitespace-pre-wrap text-ink-700">{capsule.content_md}</div>
+        <div className="flex flex-col zafi-stagger">
+          <section className={`mt-3.5 flex flex-col gap-2 p-[22px] ${HERO}`} style={HERO_STYLE}>
+            <span className="flex items-center justify-between gap-3">
+              <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-electric-pale">
+                {capsule.module_title}{index >= 0 ? ` · Lección ${index + 1} de ${siblings.length}` : ''}
+              </span>
+              <span className="flex-none text-[13px] text-[#9FB3CB]">{capsule.read_time_minutes} min</span>
+            </span>
+            <h1 className="font-serif text-[28px] leading-[1.15]">{capsule.title}</h1>
+            {capsule.subtitle && <p className="text-sm text-[#9FB3CB]">{capsule.subtitle}</p>}
+            {index >= 0 && siblings.length > 0 && (
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#2A4A6E]" aria-hidden>
+                <div className="h-full rounded-full bg-electric-pale transition-[width] duration-[600ms]" style={{ width: `${((index + (read ? 1 : 0)) / siblings.length) * 100}%` }} />
+              </div>
             )}
-          </article>
+          </section>
 
-          {/* CTA: ask Zafi */}
-          <div className="mt-8 p-4 bg-secondary rounded-xl">
-            <p className="text-sm font-medium text-foreground mb-1">
-              ¿Quieres aplicar esto a tu situación?
-            </p>
-            <p className="text-xs text-muted-foreground mb-3">
-              Pregúntale a Zafi cómo se aplica esto a tus finanzas reales.
-            </p>
-            <Link
-              href={`/chat?q=Leí sobre ${encodeURIComponent(capsule.title)} — ¿cómo aplica esto a mi situación?`}
-              className="inline-block text-sm font-medium text-white bg-electric
-                         px-4 py-2 rounded-lg hover:bg-navy transition-colors"
-            >
-              Preguntarle a Zafi →
-            </Link>
-          </div>
-        </>
-      )}
-    </div>
+          {capsule.locked ? (
+            <>
+              <Note tone="warn">
+                <b>Lección Premium.</b> Activa tu plan para leer todo el contenido de Aprende.
+              </Note>
+              <button
+                type="button"
+                onClick={async () => {
+                  const res = await fetch('/api/stripe/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan: 'monthly' }),
+                  })
+                  const { url } = await res.json()
+                  if (url) window.location.href = url
+                }}
+                className={`mt-3.5 ${PRIMARY_BUTTON}`}
+              >
+                Desbloquear con Premium
+              </button>
+            </>
+          ) : (
+            <>
+              {capsule.key_takeaway && (
+                <Note tone="info" className="mt-[18px]">
+                  <b>Lo más importante:</b> {capsule.key_takeaway}
+                </Note>
+              )}
+
+              <article className="prose mt-[18px] max-w-none text-[16px] leading-[1.65]
+                text-ink-700 dark:text-ink-200
+                prose-headings:text-ink-900 dark:prose-headings:text-ink-100 prose-headings:font-sans
+                prose-h2:text-[17px] prose-h2:font-bold prose-h2:mt-6 prose-h2:mb-2
+                prose-h3:text-[16px] prose-h3:font-bold prose-h3:mt-5 prose-h3:mb-2
+                prose-p:text-ink-700 dark:prose-p:text-ink-200 prose-p:leading-[1.65] prose-p:my-3
+                prose-strong:text-ink-900 dark:prose-strong:text-ink-100
+                prose-li:text-ink-700 dark:prose-li:text-ink-200 prose-li:leading-[1.6]
+                prose-table:text-sm prose-table:my-4
+                prose-thead:bg-[var(--zafi-card-alt)] prose-thead:border-b prose-thead:border-[var(--zafi-border)]
+                prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-ink-900 dark:prose-th:text-ink-100 prose-th:text-[12px] prose-th:uppercase prose-th:tracking-[0.04em]
+                prose-td:px-3 prose-td:py-2 prose-td:border-b prose-td:border-[var(--zafi-border-light)]
+                prose-blockquote:border-l-electric prose-blockquote:bg-[var(--zafi-card-alt)] prose-blockquote:py-1 prose-blockquote:rounded-r-lg prose-blockquote:not-italic
+                prose-a:text-electric-dark dark:prose-a:text-electric-soft prose-a:font-semibold prose-a:no-underline
+              ">
+                {ReactMarkdown && remarkGfm ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{capsule.content_md}</ReactMarkdown>
+                ) : (
+                  <div className="whitespace-pre-wrap">{capsule.content_md}</div>
+                )}
+              </article>
+
+              <button
+                type="button"
+                onClick={() => void markRead()}
+                disabled={read}
+                className={read
+                  ? 'mt-3.5 h-[54px] w-full rounded-[14px] border-[1.5px] border-electric text-base font-semibold text-electric-dark dark:text-electric-soft'
+                  : `mt-3.5 ${PRIMARY_BUTTON}`}
+              >
+                {read ? '✓ Lección completada' : 'Marcar como leída'}
+              </button>
+
+              <section>
+                <GroupTitle>Aplícalo</GroupTitle>
+                <NavCard>
+                  <NavRow
+                    href={`/chat?q=Leí sobre ${encodeURIComponent(capsule.title)} — ¿cómo aplica esto a mi situación?`}
+                    emoji="💬"
+                    name="Pregúntale a Zafi"
+                    description="Cómo se aplica esto a tus finanzas"
+                    last
+                  />
+                </NavCard>
+              </section>
+            </>
+          )}
+
+          {next.length > 0 && (
+            <section>
+              <GroupTitle>Siguiente</GroupTitle>
+              <NavCard>
+                {next.map((c, i) => (
+                  <NavRow
+                    key={c.id}
+                    href={`/aprende/${moduleSlug}/${c.slug}`}
+                    emoji="📖"
+                    name={c.title}
+                    description={`Lección ${index + 2 + i} · ${c.read_time_minutes} min`}
+                    last={i === next.length - 1}
+                  />
+                ))}
+              </NavCard>
+            </section>
+          )}
+          {next.length === 0 && <p className={`mt-4 text-center text-[13px] ${TEXT_MUTED}`}>Es la última lección de este tema.</p>}
+        </div>
+      </div>
+    </AppShell>
   )
 }

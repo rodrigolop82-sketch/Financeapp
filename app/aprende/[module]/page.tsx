@@ -5,8 +5,10 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { isEffectivelyPremium } from '@/lib/plans'
 import { CapsuleCard } from '@/components/education/CapsuleCard'
-import { ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
+import { AppShell } from '@/components/layout/AppShell'
+import { GroupTitle, ListCard, PageHeader } from '@/components/layout/Pantalla'
+import { TEXT_MUTED } from '@/components/movimientos/ui'
+import { ProgressBar } from '@/components/plan/ui'
 import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
 interface CapsuleData {
@@ -24,7 +26,6 @@ export default function ModulePage() {
   const moduleSlug = params.module as string
   const [moduleTitle, setModuleTitle] = useState('')
   const [moduleDescription, setModuleDescription] = useState('')
-  const [moduleColor, setModuleColor] = useState('#2563EB')
   const [capsules, setCapsules] = useState<CapsuleData[]>([])
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [userPlan, setUserPlan] = useState<'free' | 'premium'>('free')
@@ -49,7 +50,6 @@ export default function ModulePage() {
       if (moduleRes.data) {
         setModuleTitle(moduleRes.data.title)
         setModuleDescription(moduleRes.data.description)
-        setModuleColor(moduleRes.data.color)
       }
       setCapsules(capsulesRes.data ?? [])
       setUserPlan(userRes.data && isEffectivelyPremium(userRes.data) ? 'premium' : 'free')
@@ -67,50 +67,39 @@ export default function ModulePage() {
   const progressPct = capsules.length > 0 ? Math.round(readCount / capsules.length * 100) : 0
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
-      <div className="mb-2">
-        <Link href="/aprende" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="w-4 h-4" />
-          Aprende
-        </Link>
-      </div>
-
-      <div className="mb-6">
-        <h1 className="text-xl font-medium text-foreground" style={{ color: moduleColor }}>
-          {moduleTitle}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">{moduleDescription}</p>
-        {readCount > 0 && (
-          <div className="mt-3">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1">
-              <span>{readCount} de {capsules.length} completadas</span>
-              <span>{progressPct}%</span>
+    <AppShell title={moduleTitle || 'Aprende'} currentPath="/aprende" hideMobileBar>
+      <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
+        <PageHeader back={{ href: '/aprende', label: 'Aprende' }} title={moduleTitle} subtitle={moduleDescription} />
+        <div className="flex flex-col zafi-stagger">
+          {readCount > 0 && (
+            <div className="mt-3.5 flex flex-col gap-1.5">
+              <span className={`flex justify-between px-1 text-[13px] ${TEXT_MUTED}`}>
+                <span>{readCount} de {capsules.length} leídas</span>
+                <span className="font-outfit font-semibold">{progressPct}%</span>
+              </span>
+              <ProgressBar ratio={progressPct / 100} />
             </div>
-            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${progressPct}%`, backgroundColor: moduleColor }}
-              />
-            </div>
-          </div>
-        )}
+          )}
+          <section>
+            <GroupTitle>Lecciones</GroupTitle>
+            <ListCard>
+              {capsules.map(cap => (
+                <CapsuleCard
+                  key={cap.id}
+                  moduleSlug={moduleSlug}
+                  slug={cap.slug}
+                  title={cap.title}
+                  subtitle={cap.subtitle}
+                  readTimeMinutes={cap.read_time_minutes}
+                  isPremium={cap.is_premium}
+                  isLocked={cap.is_premium && userPlan === 'free'}
+                  isRead={readIds.has(cap.id)}
+                />
+              ))}
+            </ListCard>
+          </section>
+        </div>
       </div>
-
-      <div className="space-y-2">
-        {capsules.map(cap => (
-          <CapsuleCard
-            key={cap.id}
-            moduleSlug={moduleSlug}
-            slug={cap.slug}
-            title={cap.title}
-            subtitle={cap.subtitle}
-            readTimeMinutes={cap.read_time_minutes}
-            isPremium={cap.is_premium}
-            isLocked={cap.is_premium && userPlan === 'free'}
-            isRead={readIds.has(cap.id)}
-          />
-        ))}
-      </div>
-    </div>
+    </AppShell>
   )
 }

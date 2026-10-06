@@ -1,77 +1,27 @@
 'use client'
 
-import Link from 'next/link'
-import { BookOpen, ArrowRight, Clock } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { NavCard, NavRow } from '@/components/layout/NavRow'
 import type { CapsuleRecommendation } from '@/types'
 
 interface CapsuleRecommendationsProps {
   recommendations: CapsuleRecommendation[]
-  title?: string
-  /** Muestra el enlace "Ver todo" a /aprende. */
-  showSeeAll?: boolean
 }
 
-export function CapsuleRecommendations({ recommendations, title = 'Aprende', showSeeAll = true }: CapsuleRecommendationsProps) {
+/** Lecciones recomendadas como filas (el título lo pone la pantalla). */
+export function CapsuleRecommendations({ recommendations }: CapsuleRecommendationsProps) {
   if (recommendations.length === 0) return null
-
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-electric-light" />
-            <CardTitle className="text-lg">{title}</CardTitle>
-          </div>
-          {showSeeAll && (
-            <Link
-              href="/aprende"
-              className="text-sm text-electric hover:text-electric-dark flex items-center gap-1"
-            >
-              Ver todo <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          )}
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Cápsulas recomendadas para mejorar tu puntaje
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {recommendations.map((rec) => (
-            <Link
-              key={rec.capsule_id}
-              href={`/aprende/${rec.module_slug}/${rec.slug}`}
-              className="block p-3 bg-surface-tint border border-[#DBEAFE] rounded-xl
-                         hover:border-electric-soft transition-colors"
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <BookOpen className="w-4 h-4 text-electric" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">{rec.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                    {rec.subtitle}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <span className="text-xs text-electric font-medium">
-                      {rec.module_title}
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="w-3 h-3" />
-                      {rec.read_time_minutes} min
-                    </span>
-                  </div>
-                  <p className="text-xs text-electric-dark mt-1 italic">
-                    {rec.reason}
-                  </p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <NavCard>
+      {recommendations.map((rec, i) => (
+        <NavRow
+          key={rec.capsule_id}
+          href={`/aprende/${rec.module_slug}/${rec.slug}`}
+          emoji="📖"
+          name={rec.title}
+          description={`${rec.module_title} · ${rec.read_time_minutes} min · ${rec.reason}`}
+          last={i === recommendations.length - 1}
+        />
+      ))}
+    </NavCard>
   )
 }
