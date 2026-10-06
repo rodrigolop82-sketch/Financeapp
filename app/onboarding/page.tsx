@@ -1,31 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Home,
-  Users,
-  User,
-  Wallet,
-  PiggyBank,
-  AlertCircle,
-  Sparkles,
-  Plus,
-  Trash2,
-  Loader2,
-} from 'lucide-react';
-import { Wordmark } from '@/components/brand/Wordmark';
-import { AppIcon } from '@/components/brand/AppIcon';
 import { PrivacyGateScreen } from '@/components/onboarding/PrivacyGateScreen';
+import {
+  BADGE_NEUTRAL, BADGE_WARN, DANGER_TEXT_BUTTON, ErrorBox, FieldLabel, GroupTitle, INPUT_48, ListCard, ROW_DIVIDER,
+  RowBody, Segmented, Tile,
+} from '@/components/layout/Pantalla';
+import { CARD } from '@/components/resumen/ctf-ui';
+import { BORDER, CARD_BG, PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
+import { AddRow, Note } from '@/components/plan/ui';
+import { ScoreHero, ScoreParts } from '@/components/score/ScoreUI';
 import { OnboardingData } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { scoreFromProfile, type HealthScoreResult } from '@/lib/score-calculator';
@@ -59,14 +44,14 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [data, setData] = useState<OnboardingData>(defaultData);
   const [score, setScore] = useState<HealthScoreResult | null>(null);
-  const [animatedScore, setAnimatedScore] = useState(0);
   const [plan, setPlan] = useState<ActionStep[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const router = useRouter();
   const fmt = useFormatMoney();
 
-  const progress = (step / TOTAL_STEPS) * 100;
+  // Pareja y familia guardan el mismo tipo; se recuerda cuál se tocó.
+  const [householdChoice, setHouseholdChoice] = useState<string>('Individual');
 
   const totalFixedExpenses = Object.values(data.fixedExpenses).reduce((a, b) => a + b, 0);
   const totalDebt = data.debts.reduce((a, b) => a + b.balance, 0);
@@ -85,27 +70,6 @@ export default function OnboardingPage() {
     setScore(result);
     setPlan(generateInitialPlan(profile, result));
   }
-
-  // Animate score counter
-  useEffect(() => {
-    if (step === 7 && score) {
-      setAnimatedScore(0);
-      const target = score.total;
-      const duration = 1500;
-      const increment = target / (duration / 16);
-      let current = 0;
-      const timer = setInterval(() => {
-        current += increment;
-        if (current >= target) {
-          setAnimatedScore(target);
-          clearInterval(timer);
-        } else {
-          setAnimatedScore(Math.round(current));
-        }
-      }, 16);
-      return () => clearInterval(timer);
-    }
-  }, [step, score]);
 
   async function saveOnboarding() {
     setSaving(true);
@@ -166,663 +130,308 @@ export default function OnboardingPage() {
     setData({ ...data, debts: updated });
   }
 
+  const setAmount = (v: string) => parseFloat(v.replace(/[^0-9.]/g, '')) || 0;
+  const amountInput = (value: number, onChange: (n: number) => void, id: string, label: string) => (
+    <label htmlFor={id} className="flex items-center justify-center gap-1 py-1.5">
+      <span aria-hidden className="font-outfit text-[44px] font-extrabold text-ink-400">Q</span>
+      <input
+        id={id}
+        aria-label={label}
+        inputMode="decimal"
+        placeholder="0"
+        value={value ? String(value) : ''}
+        onChange={(e) => onChange(setAmount(e.target.value))}
+        style={{ width: `${Math.max(1, String(value || '').length) + 0.6}ch` }}
+        className={`max-w-[260px] bg-transparent font-outfit text-[48px] font-extrabold tracking-[-0.03em] outline-none placeholder:text-ink-200 dark:placeholder:text-white/20 ${TEXT_STRONG}`}
+      />
+    </label>
+  );
+  const sumRow = (label: string, value: string) => (
+    <p className={`mx-1 flex items-center justify-between text-sm ${TEXT_MUTED}`}>
+      <span>{label}</span>
+      <b className={`font-outfit text-[17px] ${TEXT_STRONG}`}>{value}</b>
+    </p>
+  );
+  const PRIORITY = {
+    high: { label: 'Prioridad alta', badge: 'flex-none rounded-full px-2 py-0.5 text-[11.5px] font-bold bg-danger-light text-danger-text dark:bg-[var(--zafi-error-bg)] dark:text-[var(--zafi-error-text)]' },
+    medium: { label: 'Prioridad media', badge: BADGE_WARN },
+    low: { label: 'Prioridad baja', badge: BADGE_NEUTRAL },
+  } as const;
+
   return (
-    <div className="min-h-screen bg-surface-bg">
-      {/* Top bar */}
-      <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b z-40">
-        <div className="max-w-2xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <AppIcon size="xs" variant="electric" />
-              <Wordmark size="xs" />
-            </div>
-            <span className="text-sm text-ink-500">
-              Paso {step} de {TOTAL_STEPS}
-            </span>
+    <div className="min-h-screen bg-[var(--zafi-bg)]">
+      <div className="mx-auto flex min-h-screen max-w-md flex-col gap-[22px] px-5 pb-6 pt-[calc(20px+env(safe-area-inset-top))]">
+        {/* Avance */}
+        <div className="flex flex-col gap-2.5">
+          <span className={`text-[13px] font-semibold ${TEXT_MUTED}`}>Paso {step} de {TOTAL_STEPS}</span>
+          <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${TOTAL_STEPS}, minmax(0, 1fr))` }} aria-hidden>
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+              <span key={i} className={`h-1 rounded-full transition-colors duration-300 ${i < step ? 'bg-electric' : 'bg-[var(--zafi-border)]'}`} />
+            ))}
           </div>
-          <Progress value={progress} className="h-2" />
         </div>
-      </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        {/* Step 1: Welcome */}
-        {step === 1 && (
-          <div className="animate-fade-in">
-            <Card>
-              <CardHeader className="text-center">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-electric" />
-                </div>
-                <CardTitle className="text-2xl">Hola, soy Zafi</CardTitle>
-                <CardDescription className="text-base">
-                  En 5 minutos voy a conocer tus finanzas y darte un plan.
-                  Empecemos con lo básico.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="householdName">Nombre de tu hogar</Label>
-                  <Input
-                    id="householdName"
-                    placeholder="Ej: Casa García, Mi presupuesto"
-                    value={data.householdName}
-                    onChange={(e) => setData({ ...data, householdName: e.target.value })}
-                    className="mt-1"
+        <div key={step} className="flex flex-col gap-[22px] zafi-stagger">
+          {step === 1 && (
+            <>
+              <Title title="Hola, soy Zafi" sub="En 5 minutos conozco tus finanzas y te doy un plan. Empecemos por tu hogar." />
+              <div className="flex flex-col gap-1.5">
+                <FieldLabel htmlFor="householdName">Nombre de tu hogar</FieldLabel>
+                <input
+                  id="householdName"
+                  placeholder="Ej. Casa García, Mi presupuesto"
+                  value={data.householdName}
+                  onChange={(e) => setData({ ...data, householdName: e.target.value })}
+                  className={INPUT_48}
+                />
+                <span className={`text-[13px] ${TEXT_MUTED}`}>Así identificas este presupuesto.</span>
+              </div>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <Title title="¿Cómo administras tus finanzas?" sub="Así personalizamos tu plan." />
+              <div role="radiogroup" aria-label="Tipo de hogar" className="flex flex-col gap-2">
+                {([
+                  { value: 'individual', emoji: '🙋', name: 'Individual', help: 'Manejo mis finanzas por mi cuenta' },
+                  { value: 'family', emoji: '💑', name: 'En pareja', help: 'Compartimos gastos con mi pareja' },
+                  { value: 'family', emoji: '👪', name: 'Familia', help: 'Administramos las finanzas del hogar' },
+                ] as const).map((o) => (
+                  <Choice
+                    key={o.name}
+                    selected={householdChoice === o.name}
+                    emoji={o.emoji}
+                    name={o.name}
+                    help={o.help}
+                    onClick={() => { setHouseholdChoice(o.name); setData({ ...data, householdType: o.value }); }}
                   />
-                  <p className="text-sm text-ink-500 mt-1">
-                    Ponle un nombre para identificar este presupuesto.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Step 2: Household type */}
-        {step === 2 && (
-          <div className="animate-fade-in">
-            <Card>
-              <CardHeader>
-                <CardTitle>¿Cómo administras tus finanzas?</CardTitle>
-                <CardDescription>
-                  Esto nos ayuda a personalizar tu experiencia.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {[
-                  { value: 'individual' as const, icon: User, label: 'Individual', desc: 'Manejo mis finanzas solo/a' },
-                  { value: 'family' as const, icon: Users, label: 'En pareja', desc: 'Compartimos gastos con mi pareja' },
-                  { value: 'family' as const, icon: Home, label: 'Familia', desc: 'Administramos las finanzas del hogar' },
-                ].map((opt) => (
-                  <button
-                    key={opt.label}
-                    onClick={() => setData({ ...data, householdType: opt.value })}
-                    className={`w-full flex items-center gap-4 p-4 rounded-lg border-2 transition-all text-left ${
-                      data.householdType === opt.value && (opt.label !== 'Familia' || data.householdType === 'family')
-                        ? 'border-electric-light bg-surface-tint'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <opt.icon className="w-5 h-5 text-electric" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{opt.label}</p>
-                      <p className="text-sm text-ink-500">{opt.desc}</p>
-                    </div>
-                  </button>
                 ))}
-              </CardContent>
-            </Card>
-          </div>
-        )}
+              </div>
+            </>
+          )}
 
-        {/* Step 3: Income */}
-        {step === 3 && (
-          <div className="animate-fade-in">
-            <Card>
-              <CardHeader>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
-                  <Wallet className="w-6 h-6 text-electric" />
-                </div>
-                <CardTitle>¿Cuál es tu ingreso mensual?</CardTitle>
-                <CardDescription>
-                  Si tu ingreso varía, pon el promedio de los últimos 3 meses.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <Label htmlFor="income">Ingreso mensual total (GTQ)</Label>
-                  <div className="relative mt-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">
-                      Q
-                    </span>
-                    <Input
-                      id="income"
-                      type="number"
-                      placeholder="0.00"
-                      className="pl-8"
-                      value={data.totalIncome || ''}
-                      onChange={(e) =>
-                        setData({ ...data, totalIncome: parseFloat(e.target.value) || 0 })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Tipo de ingreso</Label>
-                  <div className="grid grid-cols-3 gap-3 mt-2">
-                    {[
-                      { value: 'fixed' as const, label: 'Fijo', desc: 'Salario mensual' },
-                      { value: 'variable' as const, label: 'Variable', desc: 'Comisiones, ventas' },
-                      { value: 'mixed' as const, label: 'Mixto', desc: 'Base + variable' },
-                    ].map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setData({ ...data, incomeType: opt.value })}
-                        className={`p-3 rounded-lg border-2 text-center transition-all ${
-                          data.incomeType === opt.value
-                            ? 'border-electric-light bg-surface-tint'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <p className="font-medium text-sm">{opt.label}</p>
-                        <p className="text-xs text-ink-500">{opt.desc}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {data.incomeType === 'variable' && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2">
-                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-amber-800">
-                      Con ingreso variable, es aún más importante tener un fondo de emergencia.
-                      Te ayudaremos a construir uno.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Step 4: Fixed expenses */}
-        {step === 4 && (
-          <div className="animate-fade-in">
-            <Card>
-              <CardHeader>
-                <CardTitle>¿Cuáles son tus gastos fijos mensuales?</CardTitle>
-                <CardDescription>
-                  Incluye los gastos que pagas todos los meses. Si no aplica, déjalo en 0.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {[
-                  { key: 'vivienda' as const, label: 'Vivienda / Alquiler', icon: '🏠' },
-                  { key: 'alimentacion' as const, label: 'Alimentación', icon: '🛒' },
-                  { key: 'transporte' as const, label: 'Transporte', icon: '🚗' },
-                  { key: 'servicios' as const, label: 'Servicios (agua, luz, internet)', icon: '💡' },
-                  { key: 'salud' as const, label: 'Salud / Medicinas', icon: '🏥' },
-                  { key: 'educacion' as const, label: 'Educación', icon: '📚' },
-                ].map((expense) => (
-                  <div key={expense.key} className="flex items-center gap-3">
-                    <span className="text-xl w-8 text-center">{expense.icon}</span>
-                    <div className="flex-1">
-                      <Label htmlFor={expense.key} className="text-sm">
-                        {expense.label}
-                      </Label>
-                      <div className="relative mt-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 text-sm">
-                          Q
-                        </span>
-                        <Input
-                          id={expense.key}
-                          type="number"
-                          placeholder="0"
-                          className="pl-8"
-                          value={data.fixedExpenses[expense.key] || ''}
-                          onChange={(e) =>
-                            setData({
-                              ...data,
-                              fixedExpenses: {
-                                ...data.fixedExpenses,
-                                [expense.key]: parseFloat(e.target.value) || 0,
-                              },
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                <Separator />
-                <div className="flex justify-between items-center font-medium">
-                  <span>Total gastos fijos</span>
-                  <span className="text-lg">{fmt(totalFixedExpenses)}</span>
-                </div>
-                {data.totalIncome > 0 && (
-                  <p className="text-sm text-ink-500">
-                    Esto es el {Math.round((totalFixedExpenses / data.totalIncome) * 100)}% de tu
-                    ingreso mensual.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Step 5: Debts */}
-        {step === 5 && (
-          <div className="animate-fade-in">
-            <Card>
-              <CardHeader>
-                <CardTitle>¿Tienes deudas?</CardTitle>
-                <CardDescription>
-                  Incluye tarjetas de crédito, préstamos, y también deudas informales (familiares,
-                  tandas, etc.)
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setData({ ...data, hasDebts: true })}
-                    className={`p-4 rounded-lg border-2 text-center transition-all ${
-                      data.hasDebts
-                        ? 'border-electric-light bg-surface-tint'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <p className="font-medium">Sí, tengo deudas</p>
-                  </button>
-                  <button
-                    onClick={() => setData({ ...data, hasDebts: false, debts: [] })}
-                    className={`p-4 rounded-lg border-2 text-center transition-all ${
-                      !data.hasDebts
-                        ? 'border-electric-light bg-surface-tint'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <p className="font-medium">No tengo deudas</p>
-                  </button>
-                </div>
-
-                {data.hasDebts && (
-                  <>
-                    <Separator />
-                    {data.debts.map((debt, i) => (
-                      <div key={i} className="border rounded-lg p-4 space-y-3 relative">
-                        <button
-                          onClick={() => removeDebt(i)}
-                          className="absolute top-2 right-2 text-ink-500 hover:text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <div>
-                          <Label>Nombre de la deuda</Label>
-                          <Input
-                            placeholder="Ej: Tarjeta Visa, Préstamo del tío"
-                            className="mt-1"
-                            value={debt.name}
-                            onChange={(e) => updateDebt(i, 'name', e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <Label>Tipo</Label>
-                          <div className="grid grid-cols-3 gap-2 mt-1">
-                            {[
-                              { value: 'credit', label: 'Tarjeta' },
-                              { value: 'loan', label: 'Préstamo' },
-                              { value: 'informal', label: 'Informal' },
-                            ].map((t) => (
-                              <button
-                                key={t.value}
-                                onClick={() => updateDebt(i, 'type', t.value)}
-                                className={`py-1.5 px-2 rounded border text-sm transition-all ${
-                                  debt.type === t.value
-                                    ? 'border-electric-light bg-surface-tint'
-                                    : 'border-gray-200'
-                                }`}
-                              >
-                                {t.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label>Saldo actual (Q)</Label>
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              className="mt-1"
-                              value={debt.balance || ''}
-                              onChange={(e) =>
-                                updateDebt(i, 'balance', parseFloat(e.target.value) || 0)
-                              }
-                            />
-                          </div>
-                          <div>
-                            <Label>Pago mínimo (Q)</Label>
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              className="mt-1"
-                              value={debt.minPayment || ''}
-                              onChange={(e) =>
-                                updateDebt(i, 'minPayment', parseFloat(e.target.value) || 0)
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <Label>Tasa de interés anual (%)</Label>
-                          <Input
-                            type="number"
-                            placeholder="0"
-                            className="mt-1"
-                            value={debt.interestRate || ''}
-                            onChange={(e) =>
-                              updateDebt(i, 'interestRate', parseFloat(e.target.value) || 0)
-                            }
-                          />
-                        </div>
-                      </div>
-                    ))}
-                    <Button variant="outline" className="w-full" onClick={addDebt}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Agregar deuda
-                    </Button>
-                    {data.debts.length > 0 && (
-                      <div className="flex justify-between items-center font-medium pt-2">
-                        <span>Total deudas</span>
-                        <span className="text-lg">{fmt(totalDebt)}</span>
-                      </div>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Step 6: Savings */}
-        {step === 6 && (
-          <div className="animate-fade-in">
-            <Card>
-              <CardHeader>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
-                  <PiggyBank className="w-6 h-6 text-electric" />
-                </div>
-                <CardTitle>¿Tienes ahorros?</CardTitle>
-                <CardDescription>
-                  Incluye todo el dinero que tienes guardado: cuentas de ahorro, debajo del
-                  colchón, inversiones, etc.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <Label>Efectivo disponible (cuentas de ahorro, efectivo)</Label>
-                  <p className="text-xs text-ink-500 mb-1">
-                    Dinero que puedes usar de inmediato si lo necesitas.
-                  </p>
-                  <div className="relative mt-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">
-                      Q
-                    </span>
-                    <Input
-                      type="number"
-                      placeholder="0"
-                      className="pl-8"
-                      value={data.savingsCash || ''}
-                      onChange={(e) => {
-                        const cash = parseFloat(e.target.value) || 0;
-                        setData({ ...data, savingsCash: cash, totalSavings: cash + data.savingsInvestments });
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Inversiones (plazos fijos, fondos, acciones)</Label>
-                  <p className="text-xs text-ink-500 mb-1">
-                    Dinero invertido que no tiene disponibilidad inmediata.
-                  </p>
-                  <div className="relative mt-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 font-medium">
-                      Q
-                    </span>
-                    <Input
-                      type="number"
-                      placeholder="0"
-                      className="pl-8"
-                      value={data.savingsInvestments || ''}
-                      onChange={(e) => {
-                        const inv = parseFloat(e.target.value) || 0;
-                        setData({ ...data, savingsInvestments: inv, totalSavings: data.savingsCash + inv });
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {(data.savingsCash > 0 || data.savingsInvestments > 0) && (
-                  <div className="bg-gray-50 rounded-lg p-3 flex justify-between text-sm">
-                    <span className="text-ink-700">Total ahorros</span>
-                    <span className="font-semibold">{fmt(data.totalSavings)}</span>
-                  </div>
-                )}
-
-                <div>
-                  <Label>¿Tienes un fondo de emergencia separado?</Label>
-                  <p className="text-sm text-ink-500 mb-2">
-                    Un fondo de emergencia es dinero reservado exclusivamente para imprevistos
-                    (enfermedades, reparaciones, pérdida de empleo).
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setData({ ...data, hasEmergencyFund: true })}
-                      className={`p-3 rounded-lg border-2 text-center transition-all ${
-                        data.hasEmergencyFund
-                          ? 'border-electric-light bg-surface-tint'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <p className="font-medium">Sí</p>
-                    </button>
-                    <button
-                      onClick={() => setData({ ...data, hasEmergencyFund: false })}
-                      className={`p-3 rounded-lg border-2 text-center transition-all ${
-                        !data.hasEmergencyFund
-                          ? 'border-electric-light bg-surface-tint'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <p className="font-medium">No</p>
-                    </button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Step 7: Score result */}
-        {step === 7 && score && (
-          <div className="animate-fade-in">
-            <Card>
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Tu salud financiera</CardTitle>
-                <CardDescription>
-                  Basado en la información que nos diste, este es tu diagnóstico.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Animated score */}
-                <div className="text-center">
-                  <div
-                    className="inline-flex items-center justify-center w-32 h-32 rounded-full"
-                    style={{ background: `${score.color}1A` }}
-                  >
-                    <span className="text-5xl font-bold" style={{ color: score.color }}>
-                      {animatedScore}
-                    </span>
-                  </div>
-                  <p className="text-xl font-semibold mt-3" style={{ color: score.color }}>
-                    {score.label}
-                  </p>
-                  <p className="text-sm text-ink-500">de 100 puntos posibles</p>
-                </div>
-
-                <Separator />
-
-                {/* Score breakdown */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-sm text-ink-700">Desglose del puntaje</h4>
-                  {score.components.map((c) => ({ label: c.label, value: c.score, max: c.max })).map((comp) => (
-                    <div key={comp.label}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-ink-700">{comp.label}</span>
-                        <span className="font-medium">
-                          {comp.value}/{comp.max}
-                        </span>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-electric-light rounded-full transition-all duration-1000"
-                          style={{ width: `${(comp.value / comp.max) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <Separator />
-
-                {/* Insights */}
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm text-ink-700">Observaciones</h4>
-                  {score.components.filter((c) => c.score < c.max * 0.5).map((c) => c.tip).map((insight, i) => (
-                    <div key={i} className="flex gap-2 text-sm">
-                      <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                      <p className="text-ink-700">{insight}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Summary */}
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-ink-500">Ingreso mensual</span>
-                    <span className="font-medium">{fmt(data.totalIncome)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-ink-500">Gastos fijos</span>
-                    <span className="font-medium">{fmt(totalFixedExpenses)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-ink-500">Deuda total</span>
-                    <span className="font-medium">{fmt(totalDebt)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-ink-500">Ahorros</span>
-                    <span className="font-medium">{fmt(data.totalSavings)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Step 8: Privacy gate */}
-        {step === 8 && (
-          <div className="animate-fade-in">
-            <PrivacyGateScreen onContinue={next} />
-          </div>
-        )}
-
-        {/* Step 9: Action plan */}
-        {step === 9 && (
-          <div className="animate-fade-in">
-            <Card>
-              <CardHeader className="text-center">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-electric" />
-                </div>
-                <CardTitle className="text-2xl">Tu plan de acción</CardTitle>
-                <CardDescription>
-                  Estos son los pasos que te recomendamos para este mes. Puedes marcar cada uno
-                  como completado.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {plan.map((item, i) => (
-                  <div
-                    key={item.id}
-                    className="flex gap-3 p-4 rounded-lg border hover:bg-gray-50 transition-colors"
-                    style={{ animationDelay: `${i * 100}ms` }}
-                  >
-                    <div
-                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                        item.priority === 'high'
-                          ? 'border-red-400'
-                          : item.priority === 'medium'
-                          ? 'border-yellow-400'
-                          : 'border-gray-300'
-                      }`}
-                    >
-                      <span className="text-xs font-bold text-ink-500">{i + 1}</span>
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{item.title}</p>
-                      <p className="text-sm text-ink-500 mt-0.5">{item.description}</p>
-                      <span
-                        className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${
-                          item.priority === 'high'
-                            ? 'bg-red-100 text-red-700'
-                            : item.priority === 'medium'
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-gray-100 text-ink-700'
-                        }`}
-                      >
-                        {item.priority === 'high'
-                          ? 'Prioridad alta'
-                          : item.priority === 'medium'
-                          ? 'Prioridad media'
-                          : 'Prioridad baja'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-
-                <Separator className="my-4" />
-
-                {saveError && (
-                  <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
-                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                    <p className="text-sm text-red-700">{saveError}</p>
-                  </div>
-                )}
-
-                <Button size="lg" className="w-full" onClick={saveOnboarding} disabled={saving}>
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-5 h-5 mr-2" />
-                      Guardar e ir a mi dashboard
-                    </>
-                  )}
-                </Button>
-                <p className="text-center text-sm text-ink-500">
-                  Puedes ajustar tu plan en cualquier momento desde la sección de Plan.
+          {step === 3 && (
+            <>
+              <Title title="¿Cuál es tu ingreso mensual?" sub="Lo que entra a tu casa cada mes. Si varía, pon el promedio de los últimos 3 meses." />
+              {amountInput(data.totalIncome, (n) => setData({ ...data, totalIncome: n }), 'income', 'Ingreso mensual')}
+              <div className="flex flex-col gap-1.5">
+                <FieldLabel>Tipo de ingreso</FieldLabel>
+                <Segmented
+                  label="Tipo de ingreso"
+                  options={[{ value: 'fixed', label: 'Fijo' }, { value: 'variable', label: 'Variable' }, { value: 'mixed', label: 'Mixto' }]}
+                  value={data.incomeType}
+                  onChange={(v) => setData({ ...data, incomeType: v })}
+                />
+                <p className={`text-[13.5px] ${TEXT_MUTED}`}>
+                  {data.incomeType === 'fixed' ? 'Recibes lo mismo cada mes (salario).'
+                    : data.incomeType === 'variable' ? 'Cambia mes a mes (comisiones, negocio, freelance).'
+                    : 'Una parte fija y otra que cambia.'}
                 </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+              </div>
+              {data.incomeType === 'variable' && (
+                <Note tone="warn" className="">Con ingreso variable, un fondo de emergencia es aún más importante. Te ayudamos a construirlo.</Note>
+              )}
+            </>
+          )}
 
-        {/* Navigation */}
-        {step < 8 && (
-          <div className="flex justify-between mt-6">
-            <Button variant="ghost" onClick={back} disabled={step === 1}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Anterior
-            </Button>
-            <Button
-              onClick={next}
-              disabled={step === 1 && !data.householdName.trim()}
-            >
-              {step === 6 ? 'Ver mi diagnóstico' : step === 7 ? 'Continuar' : step === 8 ? 'Ver mi plan' : 'Siguiente'}
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
+          {step === 4 && (
+            <>
+              <Title title="¿Cuáles son tus gastos fijos mensuales?" sub="Lo que pagas todos los meses. Si no aplica, déjalo en blanco." />
+              <ListCard>
+                {([
+                  { key: 'vivienda', label: 'Vivienda / alquiler', icon: '🏠' },
+                  { key: 'alimentacion', label: 'Alimentación', icon: '🛒' },
+                  { key: 'transporte', label: 'Transporte', icon: '🚗' },
+                  { key: 'servicios', label: 'Servicios (agua, luz, internet)', icon: '💡' },
+                  { key: 'salud', label: 'Salud / medicinas', icon: '🏥' },
+                  { key: 'educacion', label: 'Educación', icon: '📚' },
+                ] as const).map((x) => (
+                  <label key={x.key} htmlFor={x.key} className={`flex min-h-16 items-center gap-3 py-2 ${ROW_DIVIDER}`}>
+                    <RowBody tile={<Tile>{x.icon}</Tile>} name={x.label} />
+                    <input
+                      id={x.key}
+                      inputMode="decimal"
+                      placeholder="Q 0"
+                      value={data.fixedExpenses[x.key] || ''}
+                      onChange={(e) => setData({ ...data, fixedExpenses: { ...data.fixedExpenses, [x.key]: setAmount(e.target.value) } })}
+                      className={`h-11 w-28 flex-none rounded-xl border border-[var(--zafi-border)] bg-[var(--zafi-bg)] px-3 text-right font-outfit text-[15px] font-bold outline-none focus:border-electric ${TEXT_STRONG}`}
+                    />
+                  </label>
+                ))}
+              </ListCard>
+              {sumRow('Total gastos fijos', fmt(totalFixedExpenses))}
+              {data.totalIncome > 0 && totalFixedExpenses > 0 && (
+                <p className={`-mt-3 mx-1 text-[13px] ${TEXT_MUTED}`}>Es el {Math.round((totalFixedExpenses / data.totalIncome) * 100)}% de tu ingreso.</p>
+              )}
+            </>
+          )}
+
+          {step === 5 && (
+            <>
+              <Title title="¿Tienes deudas?" sub="Tarjetas, préstamos o lo que le debas a alguien (familia, tandas). Lo usamos para tu plan." />
+              <div role="radiogroup" aria-label="¿Tienes deudas?" className="flex flex-col gap-2">
+                <Choice selected={data.hasDebts} emoji="💳" name="Sí, tengo deudas" help="Agrégalas aquí abajo" onClick={() => setData({ ...data, hasDebts: true, debts: data.debts.length ? data.debts : [{ name: '', type: 'credit', balance: 0, interestRate: 0, minPayment: 0 }] })} />
+                <Choice selected={!data.hasDebts} emoji="🙌" name="No tengo deudas" help="¡Excelente!" onClick={() => setData({ ...data, hasDebts: false, debts: [] })} />
+              </div>
+              {data.hasDebts && (
+                <>
+                  {data.debts.map((debt, i) => (
+                    <div key={i} className={`flex flex-col gap-3 p-3.5 ${CARD}`}>
+                      <div className="flex flex-col gap-1.5">
+                        <FieldLabel htmlFor={`debt-name-${i}`}>Nombre</FieldLabel>
+                        <input id={`debt-name-${i}`} placeholder="Ej. Tarjeta Visa, Préstamo del tío" value={debt.name} onChange={(e) => updateDebt(i, 'name', e.target.value)} className={INPUT_48} />
+                      </div>
+                      <Segmented
+                        label="Tipo de deuda"
+                        options={[{ value: 'credit', label: 'Tarjeta' }, { value: 'loan', label: 'Préstamo' }, { value: 'informal', label: 'Informal' }]}
+                        value={debt.type as 'credit' | 'loan' | 'informal'}
+                        onChange={(v) => updateDebt(i, 'type', v)}
+                      />
+                      <div className="flex gap-3">
+                        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                          <FieldLabel htmlFor={`debt-balance-${i}`}>Saldo</FieldLabel>
+                          <input id={`debt-balance-${i}`} inputMode="decimal" placeholder="Q 0" value={debt.balance || ''} onChange={(e) => updateDebt(i, 'balance', setAmount(e.target.value))} className={INPUT_48} />
+                        </div>
+                        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                          <FieldLabel htmlFor={`debt-min-${i}`}>Pago mínimo</FieldLabel>
+                          <input id={`debt-min-${i}`} inputMode="decimal" placeholder="Q 0" value={debt.minPayment || ''} onChange={(e) => updateDebt(i, 'minPayment', setAmount(e.target.value))} className={INPUT_48} />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <FieldLabel htmlFor={`debt-rate-${i}`}>Interés anual (%)</FieldLabel>
+                        <input id={`debt-rate-${i}`} inputMode="decimal" placeholder="0" value={debt.interestRate || ''} onChange={(e) => updateDebt(i, 'interestRate', setAmount(e.target.value))} className={INPUT_48} />
+                      </div>
+                      <button type="button" onClick={() => removeDebt(i)} className={DANGER_TEXT_BUTTON}>Quitar esta deuda</button>
+                    </div>
+                  ))}
+                  <ListCard><AddRow label="Agregar otra deuda" onClick={addDebt} /></ListCard>
+                  {data.debts.length > 0 && sumRow('Total deudas', fmt(totalDebt))}
+                </>
+              )}
+            </>
+          )}
+
+          {step === 6 && (
+            <>
+              <Title title="¿Tienes ahorros?" sub="Todo lo que tienes guardado: cuentas de ahorro, efectivo, inversiones." />
+              <div className="flex flex-col gap-1.5">
+                <FieldLabel htmlFor="savingsCash">Disponible ya</FieldLabel>
+                <input
+                  id="savingsCash"
+                  inputMode="decimal"
+                  placeholder="Q 0"
+                  value={data.savingsCash || ''}
+                  onChange={(e) => { const cash = setAmount(e.target.value); setData({ ...data, savingsCash: cash, totalSavings: cash + data.savingsInvestments }); }}
+                  className={INPUT_48}
+                />
+                <span className={`text-[13px] ${TEXT_MUTED}`}>Cuentas de ahorro o efectivo que puedes usar de inmediato.</span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <FieldLabel htmlFor="savingsInv">Inversiones</FieldLabel>
+                <input
+                  id="savingsInv"
+                  inputMode="decimal"
+                  placeholder="Q 0"
+                  value={data.savingsInvestments || ''}
+                  onChange={(e) => { const inv = setAmount(e.target.value); setData({ ...data, savingsInvestments: inv, totalSavings: data.savingsCash + inv }); }}
+                  className={INPUT_48}
+                />
+                <span className={`text-[13px] ${TEXT_MUTED}`}>Plazos fijos, fondos o acciones.</span>
+              </div>
+              {data.totalSavings > 0 && sumRow('Total ahorros', fmt(data.totalSavings))}
+              <div className="flex flex-col gap-2">
+                <FieldLabel>¿Tienes un fondo de emergencia aparte?</FieldLabel>
+                <div role="radiogroup" aria-label="Fondo de emergencia" className="flex flex-col gap-2">
+                  <Choice selected={data.hasEmergencyFund} emoji="🛡️" name="Sí" help="Dinero solo para imprevistos" onClick={() => setData({ ...data, hasEmergencyFund: true })} />
+                  <Choice selected={!data.hasEmergencyFund} emoji="⏳" name="Todavía no" help="Te ayudamos a empezarlo" onClick={() => setData({ ...data, hasEmergencyFund: false })} />
+                </div>
+              </div>
+            </>
+          )}
+
+          {step === 7 && score && (
+            <>
+              <Title title="Tu salud financiera" sub="Con lo que nos contaste, así empiezas." />
+              <div className="-mt-3.5">
+                <ScoreHero score={score} sub="Se actualiza sola con lo que registres en Zafi." />
+              </div>
+              <section className="-mt-[22px]">
+                <GroupTitle>Qué lo compone</GroupTitle>
+                <ScoreParts score={score} actions={false} />
+              </section>
+            </>
+          )}
+
+          {step === 8 && <PrivacyGateScreen onContinue={next} />}
+
+          {step === 9 && (
+            <>
+              <Title title="Tu plan de acción" sub="Los pasos que te recomendamos para este mes." />
+              <ListCard>
+                {plan.map((item, i) => (
+                  <div key={item.id} className={`flex items-start gap-3 py-3 ${ROW_DIVIDER}`}>
+                    <span className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-electric-ghost text-xs font-bold text-electric-dark dark:bg-[#1B2B4D] dark:text-electric-soft">
+                      {i + 1}
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className={`text-[15px] font-semibold ${TEXT_STRONG}`}>{item.title}</span>
+                      <span className={`text-[13px] leading-[1.4] ${TEXT_MUTED}`}>{item.description}</span>
+                      <span className={`self-start ${PRIORITY[item.priority as keyof typeof PRIORITY]?.badge ?? BADGE_NEUTRAL}`}>
+                        {PRIORITY[item.priority as keyof typeof PRIORITY]?.label ?? 'Prioridad'}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </ListCard>
+              {saveError && <ErrorBox>{saveError}</ErrorBox>}
+              <p className={`-mt-2 text-center text-[13px] ${TEXT_MUTED}`}>Puedes ajustarlo cuando quieras desde Plan.</p>
+            </>
+          )}
+        </div>
+
+        {/* Pie */}
+        {step !== 8 && (
+          <div className="sticky bottom-0 mt-auto flex flex-col gap-1.5 bg-[var(--zafi-bg)] pb-[env(safe-area-inset-bottom)] pt-2">
+            {step === 9 ? (
+              <button type="button" onClick={saveOnboarding} disabled={saving} className={PRIMARY_BUTTON}>
+                {saving ? 'Guardando…' : 'Guardar e ir a Inicio'}
+              </button>
+            ) : (
+              <button type="button" onClick={next} disabled={step === 1 && !data.householdName.trim()} className={PRIMARY_BUTTON}>
+                {step === 6 ? 'Ver mi diagnóstico' : 'Continuar'}
+              </button>
+            )}
+            {step > 1 && (
+              <button type="button" onClick={back} className={`h-11 text-[15px] font-semibold ${TEXT_MUTED}`}>Atrás</button>
+            )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+const choice = (selected: boolean) =>
+  `flex w-full items-center gap-3 rounded-[14px] p-3.5 text-left transition duration-150 active:scale-[0.98] ${
+    selected ? 'border-2 border-electric bg-electric-ghost dark:bg-[#1B2B4D]' : `border-[1.5px] ${BORDER} ${CARD_BG}`
+  }`;
+
+/** Opción tocable (tile + nombre + ayuda); la elegida lleva borde azul. */
+function Choice({ selected, emoji, name, help, onClick }: { selected: boolean; emoji: string; name: string; help?: string; onClick: () => void }) {
+  return (
+    <button type="button" role="radio" aria-checked={selected} onClick={onClick} className={choice(selected)}>
+      <RowBody tile={<Tile>{emoji}</Tile>} name={name} help={help} />
+    </button>
+  );
+}
+
+/** Pregunta del paso: DM Serif 30 y explicación. */
+function Title({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <h1 className={`font-serif text-[30px] leading-[1.15] [text-wrap:pretty] ${TEXT_STRONG}`}>{title}</h1>
+      {sub && <p className={`text-[15px] leading-[1.45] [text-wrap:pretty] ${TEXT_MUTED}`}>{sub}</p>}
     </div>
   );
 }

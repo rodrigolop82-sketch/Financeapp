@@ -88,7 +88,7 @@ export function ScorePill({ score, href }: { score: HealthScoreResult; href: str
 }
 
 /** "Qué lo compone": cada parte con su detalle, barra, consejo y acción. */
-export function ScoreParts({ score }: { score: HealthScoreResult }) {
+export function ScoreParts({ score, actions = true }: { score: HealthScoreResult; actions?: boolean }) {
   return (
     <ListCard>
       {score.components.map((p) => {
@@ -108,7 +108,7 @@ export function ScoreParts({ score }: { score: HealthScoreResult }) {
             <ProgressBar ratio={p.score / p.max} color={color} />
             <span className="flex items-center justify-between gap-2">
               <span className={`text-[13px] leading-[1.4] ${TEXT_MUTED}`}>{p.tip}</span>
-              {p.action && (
+              {actions && p.action && (
                 <Link href={p.action.href} className={`flex min-h-8 flex-none items-center text-[13.5px] font-semibold ${LINK_TEXT}`}>
                   {p.action.label} ›
                 </Link>
