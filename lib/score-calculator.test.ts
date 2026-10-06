@@ -50,7 +50,7 @@ describe('calculateScore', () => {
 
   it('la acción del fondo lleva a la meta si existe', () => {
     const r = calculateScore({ ...base, emergencyGoalId: 'g1' })
-    expect(r.components.find((c) => c.key === 'emergency')!.action?.href).toBe('/metas/g1')
+    expect(r.components.find((c) => c.key === 'emergency')!.action?.href).toBe('/metas/g1?from=score')
   })
 
   it('etiquetas y colores', () => {

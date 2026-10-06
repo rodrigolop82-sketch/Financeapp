@@ -108,7 +108,7 @@ export function calculateScore(input: ScoreInput): HealthScoreResult {
       detail: `Cubre ${months.toFixed(1).replace('.', ',')} ${months === 1 ? 'mes' : 'meses'} de gastos fijos`,
       tip: months < 3 ? `Lo recomendado es tener al menos 3 meses (${q(fixedExpenses * 3)}).` : 'Tienes un buen colchón.',
       action: months < 6
-        ? { label: 'Aportar al fondo', href: input.emergencyGoalId ? `/metas/${input.emergencyGoalId}` : '/plan?s=metas' }
+        ? { label: 'Aportar al fondo', href: input.emergencyGoalId ? `/metas/${input.emergencyGoalId}?from=score` : '/plan?s=metas' }
         : null,
     },
     {

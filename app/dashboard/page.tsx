@@ -444,14 +444,10 @@ export default function InicioPage() {
           targetAmount={mainGoal.targetAmount}
           monthlyContribution={mainGoal.monthlyContribution}
           onConfirm={async (amount, note) => {
-            try {
-              await addContribution(mainGoal.id, amount, note)
-              setToast({ text: `Aportaste ${fmt(amount)} a ${mainGoal.name}`, tone: 'ok' })
-              void recalcHealth()
-            } catch (e) {
-              setToast({ text: 'No se pudo guardar el aporte. Intenta de nuevo.', tone: 'error' })
-              throw e
-            }
+            // Si falla, la hoja queda abierta con el error.
+            await addContribution(mainGoal.id, amount, note)
+            setToast({ text: `Aportaste ${fmt(amount)} a ${mainGoal.name}`, tone: 'ok' })
+            void recalcHealth()
           }}
         />
       )}
@@ -479,7 +475,7 @@ function MainGoalCard({ goal, fmt, onContribute }: { goal: Goal; fmt: (n: number
       </div>
       <div className={`p-3.5 ${CARD}`}>
         <div className="flex items-center gap-3">
-          <Link href={`/metas/${goal.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+          <Link href={`/metas/${goal.id}?from=inicio`} className="flex min-w-0 flex-1 items-center gap-3">
             <span aria-hidden className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-[var(--zafi-bg)] text-[22px]">{goal.emoji}</span>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{goal.name}</span>

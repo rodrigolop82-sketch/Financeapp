@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { planSection, type PlanSection } from '@/lib/navigation';
 import { localMonth } from '@/lib/dates';
@@ -62,6 +62,11 @@ function PlanHub() {
     replaceQuery((q) => q.delete('nueva'));
   }, [wantsNew]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // El detalle de meta llega con ?eliminada={id}: MetasView la quita con "Deshacer".
+  const clearDeleted = useCallback(() => {
+    if (params.get('eliminada')) replaceQuery((q) => q.delete('eliminada'));
+  }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Pastilla de la salud financiera: se recalcula con cada cambio de metas o deudas.
   const [householdId, setHouseholdId] = useState<string | null>(null);
   useEffect(() => {
@@ -97,7 +102,9 @@ function PlanHub() {
         <Segmented label="Sección del plan" options={SECTIONS} value={section} onChange={select} />
       </div>
       {section === 'mes' && <PresupuestoView />}
-      {section === 'metas' && <MetasView addRequest={addMeta} />}
+      {section === 'metas' && (
+        <MetasView addRequest={addMeta} deletedId={params.get('eliminada')} onDeletedHandled={clearDeleted} />
+      )}
       {section === 'deudas' && <DeudasView />}
     </AppShell>
   );

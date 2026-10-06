@@ -12,6 +12,7 @@ import { AddRow, PlanHero, ProgressBar, RowAmount } from '@/components/plan/ui'
 import { GoalForm } from '@/components/goals/GoalForm'
 import { BottomSheet } from '@/components/transactions/BottomSheet'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
+import { UndoToast } from '@/components/transactions/UndoToast'
 import { SkeletonRows } from '@/components/motion/PageSkeleton'
 
 type RowState = 'on_track' | 'behind' | 'completed' | 'paused'
@@ -41,11 +42,43 @@ function rowNote(g: Goal, state: RowState): string {
 
 /**
  * Metas: cuerpo de la sección "Metas" en /plan. `addRequest` cambia cuando se
- * llega desde /metas/nueva para abrir la hoja.
+ * llega desde /metas/nueva para abrir la hoja. `deletedId` llega del detalle
+ * de meta ("Sí, eliminar"): la meta sale de la lista y se borra cuando vence
+ * el "Deshacer" (o al salir de la pantalla).
  */
-export function MetasView({ addRequest = 0 }: { addRequest?: number }) {
+export function MetasView({ addRequest = 0, deletedId = null, onDeletedHandled }: {
+  addRequest?: number
+  deletedId?: string | null
+  onDeletedHandled?: () => void
+}) {
   const fmt = useFormatMoney()
-  const { goals, isLoading, error, createGoal, avgMonthlyExpenses } = useGoals()
+  const { goals: allGoals, isLoading, error, createGoal, deleteGoal, avgMonthlyExpenses } = useGoals()
+  const [removed, setRemoved] = useState<Goal | null>(null)
+  const removedRef = useRef<Goal | null>(null)
+  const goals = removed ? allGoals.filter((g) => g.id !== removed.id) : allGoals
+
+  const commitDelete = useCallback(async () => {
+    const g = removedRef.current
+    if (!g) return
+    removedRef.current = null
+    setRemoved(null)
+    try { await deleteGoal(g.id) } catch { setMessage({ text: 'No se pudo eliminar la meta. Intenta de nuevo.', tone: 'error' }) }
+  }, [deleteGoal])
+
+  useEffect(() => {
+    if (!deletedId || isLoading) return
+    const g = allGoals.find((x) => x.id === deletedId)
+    if (g) {
+      removedRef.current = g
+      setRemoved(g)
+    }
+    onDeletedHandled?.()
+  }, [deletedId, isLoading, allGoals, onDeletedHandled])
+
+  // Si se sale de la pantalla con el "Deshacer" abierto, el borrado se confirma.
+  const commitRef = useRef(commitDelete)
+  commitRef.current = commitDelete
+  useEffect(() => () => { void commitRef.current() }, [])
   const [sheetKey, setSheetKey] = useState<number | null>(null)
   const [message, setMessage] = useState<StatusMessage | null>(null)
 
@@ -82,7 +115,7 @@ export function MetasView({ addRequest = 0 }: { addRequest?: number }) {
             return (
               <Link
                 key={g.id}
-                href={`/metas/${g.id}`}
+                href={`/metas/${g.id}?from=plan`}
                 className={`flex flex-col gap-2.5 py-3 transition duration-150 active:scale-[0.98] ${ROW_DIVIDER}`}
               >
                 <span className="flex items-center gap-3">
@@ -150,6 +183,14 @@ export function MetasView({ addRequest = 0 }: { addRequest?: number }) {
           />
         )}
       </BottomSheet>
+      <UndoToast
+        key={removed?.id}
+        visible={!!removed}
+        title="Meta eliminada"
+        subtitle={removed?.name}
+        onUndo={() => { removedRef.current = null; setRemoved(null) }}
+        onDismiss={() => void commitDelete()}
+      />
       <StatusToast message={message} onDone={() => setMessage(null)} />
     </>
   )

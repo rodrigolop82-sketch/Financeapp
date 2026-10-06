@@ -1,6 +1,9 @@
 'use client'
 import { useState } from 'react'
 import { formatMoney } from '@/lib/format'
+import { ErrorBox, FieldLabel, INPUT_48, SheetHeader } from '@/components/layout/Pantalla'
+import { BORDER, PRIMARY_BUTTON, TEXT_BODY, TEXT_STRONG } from '@/components/movimientos/ui'
+import { BottomSheet } from '@/components/transactions/BottomSheet'
 
 interface AddContributionSheetProps {
   open: boolean
@@ -9,195 +12,90 @@ interface AddContributionSheetProps {
   goalEmoji: string
   currentAmount: number
   targetAmount: number
+  /** Si falla, la hoja queda abierta y muestra el error. */
   onConfirm: (amount: number, note: string) => Promise<void>
   monthlyContribution: number | null
 }
 
-export function AddContributionSheet({
-  open, onClose, goalName, goalEmoji,
-  currentAmount, targetAmount,
-  onConfirm, monthlyContribution,
+/** Hoja "Aportar a {meta}": monto grande, montos rápidos y nota. */
+export function AddContributionSheet(props: AddContributionSheetProps) {
+  return (
+    <BottomSheet themed open={props.open} onClose={props.onClose} label={`Aportar a ${props.goalName}`}>
+      {props.open && <ContributionForm {...props} />}
+    </BottomSheet>
+  )
+}
+
+function ContributionForm({
+  onClose, goalName, goalEmoji, currentAmount, targetAmount, onConfirm, monthlyContribution,
 }: AddContributionSheetProps) {
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
+  const [other, setOther] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [showCustom, setShowCustom] = useState(false)
+  const [error, setError] = useState('')
 
-  if (!open) return null
+  const quick = [200, 500]
+  if (monthlyContribution && monthlyContribution > 0 && !quick.includes(monthlyContribution)) quick.push(monthlyContribution)
+  const n = parseFloat(amount) || 0
 
-  const quickAmounts: (number | 'other')[] = [200, 500]
-  if (monthlyContribution && !quickAmounts.includes(monthlyContribution)) {
-    quickAmounts.push(monthlyContribution)
-  }
-  quickAmounts.push('other')
-
-  async function handleConfirm() {
-    const val = parseFloat(amount)
-    if (!val || val <= 0) return
+  async function save() {
+    if (n <= 0) return
     setSaving(true)
+    setError('')
     try {
-      await onConfirm(val, note)
-      setAmount('')
-      setNote('')
-      setShowCustom(false)
+      await onConfirm(n, note.trim())
       onClose()
     } catch {
-      // error handled by parent
-    } finally {
+      setError('No se pudo guardar el aporte. Intenta de nuevo.')
       setSaving(false)
     }
   }
 
-  function handleQuickSelect(q: number | 'other') {
-    if (q === 'other') {
-      setShowCustom(true)
-      setAmount('')
-    } else {
-      setShowCustom(false)
-      setAmount(q.toString())
-    }
-  }
-
-  const displayAmount = amount
-    ? `${parseFloat(amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : '0.00'
+  const choice = (selected: boolean) =>
+    `h-11 flex-1 rounded-xl text-[15px] transition duration-150 active:scale-[0.96] ${
+      selected
+        ? 'border-2 border-electric bg-electric-ghost text-electric-dark dark:bg-[#1B2B4D] dark:text-electric-soft'
+        : `border-[1.5px] bg-[var(--zafi-card)] ${BORDER} ${TEXT_BODY}`
+    }`
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 50,
-          background: 'rgba(0,0,0,0.4)',
-        }}
-      />
+    <div className="flex flex-col gap-4 overflow-y-auto px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 [&>*]:shrink-0">
+      <SheetHeader emoji={goalEmoji} title={`Aportar a ${goalName}`} subtitle={`${formatMoney(currentAmount)} de ${formatMoney(targetAmount)}`} />
 
-      {/* Sheet */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
-        background: 'white',
-        borderTop: '1px solid #E2E8F0',
-        borderRadius: '20px 20px 0 0',
-        padding: '16px 20px calc(20px + env(safe-area-inset-bottom))',
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
-        animation: 'slideUp 0.3s ease',
-      }}>
-        {/* Handle */}
-        <div style={{
-          width: 36, height: 4, borderRadius: 2,
-          background: '#CBD5E1',
-          margin: '0 auto 16px',
-        }} />
-
-        {/* Title */}
-        <p style={{ fontSize: 18, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
-          Abonar a {goalName}
-        </p>
-        <p style={{ fontSize: 13, color: '#64748B', marginBottom: 20 }}>
-          {goalEmoji} {formatMoney(currentAmount)} de {formatMoney(targetAmount)} actual
-        </p>
-
-        {/* Amount display */}
-        <div style={{ textAlign: 'center', marginBottom: 16 }}>
-          <p style={{
-            fontSize: 42, fontWeight: 900, color: '#0F172A',
-            fontFamily: 'var(--font-outfit)',
-          }}>
-            <span style={{ fontSize: 20, color: '#64748B', fontWeight: 700 }}>Q</span>
-            {displayAmount}
-          </p>
-        </div>
-
-        {/* Quick amounts */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          {quickAmounts.map((q) => {
-            const isSelected = q === 'other'
-              ? showCustom
-              : amount === q.toString() && !showCustom
-            return (
-              <button
-                key={q.toString()}
-                onClick={() => handleQuickSelect(q)}
-                style={{
-                  flex: 1, padding: '12px 0',
-                  background: isSelected ? '#DBEAFE' : '#F8FAFF',
-                  border: isSelected ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
-                  borderRadius: 10, color: isSelected ? '#1D4ED8' : '#334155',
-                  fontSize: 14, fontWeight: 600,
-                  fontFamily: 'var(--font-outfit)',
-                  cursor: 'pointer',
-                }}
-              >
-                {q === 'other' ? 'Otro' : `Q${q}`}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Custom amount input */}
-        {showCustom && (
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Ingresa el monto"
-            autoFocus
-            style={{
-              width: '100%', padding: '12px 14px',
-              background: '#F8FAFF',
-              border: '1px solid #CBD5E1',
-              borderRadius: 10, color: '#0F172A',
-              fontSize: 16, fontWeight: 600,
-              fontFamily: 'var(--font-outfit)',
-              textAlign: 'center', outline: 'none',
-              marginBottom: 16,
-            }}
-          />
-        )}
-
-        {/* Note */}
-        <p style={{ fontSize: 13, fontWeight: 600, color: '#2563EB', marginBottom: 6 }}>
-          Nota <span style={{ fontWeight: 400, color: '#64748B' }}>(opcional)</span>
-        </p>
+      <label className="flex items-center justify-center gap-1">
+        <span aria-hidden className="font-outfit text-[40px] font-extrabold text-ink-400">Q</span>
         <input
-          type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Aporte mensual"
-          style={{
-            width: '100%', padding: '12px 14px',
-            background: '#F8FAFF',
-            border: '1px solid #E2E8F0',
-            borderRadius: 10, color: '#0F172A',
-            fontSize: 14, outline: 'none',
-            marginBottom: 20,
-            fontFamily: 'inherit',
-          }}
+          value={amount}
+          onChange={(e) => { setOther(true); setAmount(e.target.value.replace(/[^0-9.]/g, '')) }}
+          inputMode="decimal"
+          placeholder="0"
+          aria-label="Monto"
+          style={{ width: `${Math.max(1, amount.length) + 0.6}ch` }}
+          className={`max-w-[240px] bg-transparent font-outfit text-[46px] font-extrabold tracking-[-0.03em] outline-none placeholder:text-ink-200 dark:placeholder:text-white/20 ${TEXT_STRONG}`}
         />
+      </label>
 
-        <button
-          onClick={handleConfirm}
-          disabled={saving || !amount || parseFloat(amount) <= 0}
-          style={{
-            width: '100%', padding: '16px',
-            background: '#2563EB', border: 'none',
-            borderRadius: 14, color: 'white',
-            fontSize: 16, fontWeight: 700,
-            cursor: saving ? 'not-allowed' : 'pointer',
-            opacity: (saving || !amount || parseFloat(amount) <= 0) ? 0.5 : 1,
-          }}
-        >
-          {saving ? 'Guardando...' : 'Confirmar abono 💰'}
+      <div className="flex gap-2">
+        {quick.map((q) => (
+          <button key={q} type="button" onClick={() => { setOther(false); setAmount(String(q)) }} className={`font-outfit font-bold ${choice(!other && n === q)}`}>
+            {formatMoney(q)}
+          </button>
+        ))}
+        <button type="button" onClick={() => { setOther(true); setAmount('') }} className={`font-semibold ${choice(other && !quick.includes(n))}`}>
+          Otro
         </button>
       </div>
 
-      <style>{`
-        @keyframes slideUp {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-      `}</style>
-    </>
+      <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor="aporte-nota">Nota (opcional)</FieldLabel>
+        <input id="aporte-nota" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Aporte de este mes" className={INPUT_48} />
+      </div>
+
+      {error && <ErrorBox>{error}</ErrorBox>}
+      <button type="button" onClick={() => void save()} disabled={n <= 0 || saving} className={PRIMARY_BUTTON}>
+        {saving ? 'Guardando…' : 'Guardar aporte'}
+      </button>
+    </div>
   )
 }

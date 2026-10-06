@@ -1,416 +1,324 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { AppShell } from '@/components/layout/AppShell'
-import { GoalDetailHero } from '@/components/goals/GoalDetailHero'
+import { GoalDetailHero, type GoalDetailState } from '@/components/goals/GoalDetailHero'
 import { ContributionHistory } from '@/components/goals/ContributionHistory'
 import { AddContributionSheet } from '@/components/goals/AddContributionSheet'
+import { GOAL_TEMPLATES } from '@/components/goals/GoalForm'
 import { useGoals, type Goal, type Contribution } from '@/hooks/useGoals'
 import { formatMoney } from '@/lib/format'
-import { ArrowLeft, Pencil, Trash2, Pause, Play, X, Check } from 'lucide-react'
+import {
+  DANGER_TEXT_BUTTON, ErrorBox, FieldLabel, INPUT_48, LINK_TEXT, PageHeader, PILL_OUTLINE, PillButton, SheetHeader, Tile,
+} from '@/components/layout/Pantalla'
+import { CARD } from '@/components/resumen/ctf-ui'
+import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG, TILE_BG } from '@/components/movimientos/ui'
+import { Note } from '@/components/plan/ui'
+import { BottomSheet } from '@/components/transactions/BottomSheet'
+import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
 import { PageSkeleton } from '@/components/motion/PageSkeleton'
 
+/** A dónde vuelve "‹" según desde dónde se abrió (?from=). */
+const ORIGINS: Record<string, { label: string; href: string }> = {
+  plan: { label: 'Metas', href: '/plan?s=metas' },
+  inicio: { label: 'Inicio', href: '/dashboard' },
+  score: { label: 'Salud financiera', href: '/score' },
+}
+
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+/** "marzo de 2027" de 'YYYY-MM-DD'. */
+function monthYear(date: string): string {
+  return `${MONTHS[Number(date.slice(5, 7)) - 1]} de ${date.slice(0, 4)}`
+}
+
+function goalState(g: Goal): GoalDetailState {
+  if (g.status === 'completed' || g.projection.status === 'completed') return 'completed'
+  if (g.status === 'paused') return 'paused'
+  return g.projection.status === 'behind' ? 'behind' : 'on_track'
+}
+
+type SheetKind = 'contrib' | 'edit' | 'delete'
+
 export default function GoalDetailPage() {
+  return (
+    <Suspense fallback={<PageSkeleton variant="detail" />}>
+      <GoalDetail />
+    </Suspense>
+  )
+}
+
+function GoalDetail() {
   const params = useParams()
+  const search = useSearchParams()
   const router = useRouter()
   const goalId = params.id as string
-  const { goals, addContribution, updateGoal, deleteGoal, togglePause, getContributionHistory, isLoading } = useGoals()
+  const back = ORIGINS[search.get('from') ?? ''] ?? ORIGINS.plan
+  const { goals, addContribution, updateGoal, togglePause, getContributionHistory, isLoading } = useGoals()
   const [contributions, setContributions] = useState<Contribution[]>([])
   const [contribLoading, setContribLoading] = useState(true)
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [actionLoading, setActionLoading] = useState(false)
-
-  // Edit form state
-  const [editName, setEditName] = useState('')
-  const [editEmoji, setEditEmoji] = useState('')
-  const [editTarget, setEditTarget] = useState('')
-  const [editMonthly, setEditMonthly] = useState('')
-  const [editDate, setEditDate] = useState('')
+  const [sheet, setSheet] = useState<SheetKind | null>(null)
+  const [message, setMessage] = useState<StatusMessage | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const goal: Goal | undefined = goals.find((g) => g.id === goalId)
 
-  useEffect(() => {
-    if (goal && !editing) {
-      setEditName(goal.name)
-      setEditEmoji(goal.emoji)
-      setEditTarget(String(goal.targetAmount))
-      setEditMonthly(goal.monthlyContribution ? String(goal.monthlyContribution) : '')
-      setEditDate(goal.targetDate ?? '')
-    }
-  }, [goal, editing])
-
   const loadContributions = useCallback(async () => {
     if (!goalId) return
-    setContribLoading(true)
     try {
-      const data = await getContributionHistory(goalId)
-      setContributions(data)
+      setContributions(await getContributionHistory(goalId))
     } catch {
-      // silently fail
+      // Sin historial: la lista queda vacía.
     } finally {
       setContribLoading(false)
     }
   }, [goalId, getContributionHistory])
 
   useEffect(() => {
-    if (!isLoading && goalId) {
-      loadContributions()
-    }
+    if (!isLoading && goalId) void loadContributions()
   }, [isLoading, goalId, loadContributions])
 
-  if (isLoading) {
-    return <PageSkeleton variant="detail" />
-  }
+  if (isLoading) return <PageSkeleton variant="detail" />
 
   if (!goal) {
     return (
-      <AppShell title="Meta" currentPath="/plan">
-        <p style={{ textAlign: 'center', color: '#64748B', padding: '40px 0' }}>
-          Meta no encontrada
-        </p>
+      <AppShell title="Meta" currentPath="/plan" hideMobileBar>
+        <PageHeader back={back} title="Meta" />
+        <p className={`py-10 text-center text-sm ${TEXT_MUTED}`}>No encontramos esta meta.</p>
       </AppShell>
     )
   }
 
-  async function handleSaveEdit() {
-    setActionLoading(true)
-    try {
-      await updateGoal(goalId, {
-        name: editName,
-        emoji: editEmoji,
-        targetAmount: parseFloat(editTarget) || 0,
-        monthlyContribution: editMonthly ? parseFloat(editMonthly) : null,
-        targetDate: editDate || null,
-      })
-      setEditing(false)
-    } catch {
-      // handle error
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  async function handleDelete() {
-    setActionLoading(true)
-    try {
-      await deleteGoal(goalId)
-      router.push('/plan?s=metas')
-    } catch {
-      setActionLoading(false)
-    }
-  }
+  const state = goalState(goal)
+  const subtitle = goal.targetDate ? `Para ${monthYear(goal.targetDate)}` : undefined
+  // Los toasts esperan a que se cierre la hoja.
+  const say = (m: StatusMessage) => { setSheet(null); setMessage(m) }
 
   async function handleTogglePause() {
-    setActionLoading(true)
+    if (!goal) return
+    setBusy(true)
     try {
-      await togglePause(goalId)
+      await togglePause(goal.id)
+      setMessage({ text: goal.status === 'paused' ? 'Meta reanudada' : 'Meta pausada', tone: 'ok' })
     } catch {
-      // handle error
-    } finally {
-      setActionLoading(false)
+      setMessage({ text: 'No se pudo cambiar la meta. Intenta de nuevo.', tone: 'error' })
     }
+    setBusy(false)
   }
 
-  const monthlyRate = goal.monthlyContribution ?? 0
-
   return (
-    <AppShell title="Detalle de meta" currentPath="/plan">
-      {/* Back button */}
-      <button
-        onClick={() => router.push('/plan?s=metas')}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: '#2563EB', fontSize: 14, fontWeight: 500,
-          padding: 0, marginBottom: 16,
-        }}
-      >
-        <ArrowLeft size={18} />
-        Mis metas
-      </button>
+    <AppShell title={goal.name} currentPath="/plan" hideMobileBar>
+      <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
+        <PageHeader back={back} title={goal.name} subtitle={subtitle} />
+        <Link href={back.href} className={`hidden h-11 items-center text-[15px] font-semibold lg:flex ${LINK_TEXT}`}>‹ {back.label}</Link>
 
-      <GoalDetailHero
-        emoji={goal.emoji}
-        name={goal.name}
-        currentAmount={goal.currentAmount}
-        targetAmount={goal.targetAmount}
-      />
+        <div className="flex flex-col zafi-stagger">
+          <GoalDetailHero emoji={goal.emoji} state={state} currentAmount={goal.currentAmount} targetAmount={goal.targetAmount} />
 
-      {/* Action buttons */}
-      <div style={{
-        display: 'flex', gap: 8, marginBottom: 16,
-      }}>
-        <button
-          onClick={() => setEditing(!editing)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: editing ? '#EFF6FF' : '#F8FAFC',
-            border: `1px solid ${editing ? '#2563EB' : '#E2E8F0'}`,
-            borderRadius: 10, padding: '8px 14px',
-            fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            color: editing ? '#2563EB' : '#64748B',
-          }}
-        >
-          <Pencil size={14} />
-          Editar
-        </button>
-        {goal.status !== 'completed' && (
-          <button
-            onClick={handleTogglePause}
-            disabled={actionLoading}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: '#F8FAFC', border: '1px solid #E2E8F0',
-              borderRadius: 10, padding: '8px 14px',
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              color: '#64748B',
-            }}
-          >
-            {goal.status === 'paused' ? <Play size={14} /> : <Pause size={14} />}
-            {goal.status === 'paused' ? 'Reanudar' : 'Pausar'}
+          {state === 'paused' ? (
+            <div className={`mt-3 rounded-2xl border border-navy/[0.08] bg-[var(--zafi-card-alt)] px-4 py-3.5 text-sm leading-[1.45] dark:border-white/[0.06] ${TEXT_MUTED}`}>
+              <b className={TEXT_STRONG}>Meta en pausa.</b> No cuenta para tu proyección ni tu salud financiera hasta que la reanudes.
+            </div>
+          ) : state === 'completed' ? (
+            <Note tone="ok">
+              <b>¡La completaste! 🎉</b> Juntaste {formatMoney(goal.targetAmount)}. Puedes crear otra meta desde Plan › Metas.
+            </Note>
+          ) : (
+            <Projection goal={goal} />
+          )}
+
+          {state !== 'completed' && (
+            <div className="mt-3.5 flex flex-col gap-2.5">
+              {state === 'paused' ? (
+                <button type="button" onClick={() => void handleTogglePause()} disabled={busy} className="btn-outline h-[54px] w-full !rounded-[14px]">
+                  Reanudar meta
+                </button>
+              ) : (
+                <button type="button" onClick={() => setSheet('contrib')} className={PRIMARY_BUTTON}>Aportar</button>
+              )}
+              <div className="flex gap-1.5">
+                <PillButton onClick={() => setSheet('edit')}>Editar</PillButton>
+                {state !== 'paused' && (
+                  <PillButton className={PILL_OUTLINE} onClick={() => void handleTogglePause()} disabled={busy}>Pausar</PillButton>
+                )}
+              </div>
+            </div>
+          )}
+
+          <ContributionHistory contributions={contributions} isLoading={contribLoading} />
+
+          <button type="button" onClick={() => setSheet('delete')} className={`mt-4 ${DANGER_TEXT_BUTTON}`}>
+            Eliminar meta
           </button>
-        )}
-        <button
-          onClick={() => setConfirmDelete(true)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: '#F8FAFC', border: '1px solid #E2E8F0',
-            borderRadius: 10, padding: '8px 14px',
-            fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            color: '#DC2626',
-          }}
-        >
-          <Trash2 size={14} />
-          Eliminar
-        </button>
+        </div>
       </div>
 
-      {/* Delete confirmation */}
-      {confirmDelete && (
-        <div style={{
-          background: '#FEF2F2', border: '1px solid #FECACA',
-          borderRadius: 14, padding: '16px 18px', marginBottom: 16,
-        }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: '#991B1B', marginBottom: 12 }}>
-            ¿Eliminar &quot;{goal.name}&quot;? Esta acción no se puede deshacer.
-          </p>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={handleDelete}
-              disabled={actionLoading}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: '#DC2626', color: '#fff',
-                border: 'none', borderRadius: 10, padding: '10px 20px',
-                fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              {actionLoading ? 'Eliminando…' : 'Sí, eliminar'}
-            </button>
-            <button
-              onClick={() => setConfirmDelete(false)}
-              style={{
-                background: '#fff', border: '1px solid #E2E8F0',
-                borderRadius: 10, padding: '10px 20px',
-                fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                color: '#64748B',
-              }}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Edit form */}
-      {editing && (
-        <div style={{
-          background: '#fff', border: '1px solid #E2E8F0',
-          borderRadius: 14, padding: '18px 20px', marginBottom: 16,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-        }}>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Emoji</label>
-              <input
-                value={editEmoji}
-                onChange={e => setEditEmoji(e.target.value)}
-                style={{
-                  width: 56, height: 44, textAlign: 'center', fontSize: 24,
-                  border: '1.5px solid var(--zafi-border)', borderRadius: 10, outline: 'none',
-                }}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Nombre</label>
-              <input
-                value={editName}
-                onChange={e => setEditName(e.target.value)}
-                style={{
-                  width: '100%', height: 44, padding: '0 12px',
-                  border: '1.5px solid var(--zafi-border)', borderRadius: 10,
-                  fontSize: 14, color: 'var(--zafi-text)', outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Meta (Q)</label>
-              <input
-                type="number"
-                value={editTarget}
-                onChange={e => setEditTarget(e.target.value)}
-                style={{
-                  width: '100%', height: 44, padding: '0 12px',
-                  border: '1.5px solid var(--zafi-border)', borderRadius: 10,
-                  fontSize: 14, color: 'var(--zafi-text)', outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Aporte mensual (Q)</label>
-              <input
-                type="number"
-                value={editMonthly}
-                onChange={e => setEditMonthly(e.target.value)}
-                placeholder="Opcional"
-                style={{
-                  width: '100%', height: 44, padding: '0 12px',
-                  border: '1.5px solid var(--zafi-border)', borderRadius: 10,
-                  fontSize: 14, color: 'var(--zafi-text)', outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Fecha objetivo</label>
-            <input
-              type="date"
-              value={editDate}
-              onChange={e => setEditDate(e.target.value)}
-              style={{
-                width: '100%', height: 44, padding: '0 12px',
-                border: '1.5px solid var(--zafi-border)', borderRadius: 10,
-                fontSize: 14, color: 'var(--zafi-text)', outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={handleSaveEdit}
-              disabled={actionLoading || !editName.trim() || !editTarget}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: '#2563EB', color: '#fff',
-                border: 'none', borderRadius: 10, padding: '10px 20px',
-                fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                opacity: (!editName.trim() || !editTarget) ? 0.5 : 1,
-              }}
-            >
-              <Check size={16} />
-              {actionLoading ? 'Guardando…' : 'Guardar'}
-            </button>
-            <button
-              onClick={() => setEditing(false)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: '#F1F5F9', color: '#64748B',
-                border: 'none', borderRadius: 10, padding: '10px 20px',
-                fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              <X size={16} />
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Projection banner */}
-      {goal.projection.status !== 'completed' && goal.projection.status !== 'no_data' && (
-        <div style={{
-          background: 'white',
-          border: '1px solid #E2E8F0',
-          borderRadius: 14,
-          padding: '14px 16px',
-          marginBottom: 16,
-          display: 'flex', gap: 12, alignItems: 'flex-start',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-        }}>
-          <span style={{ fontSize: 20 }}>📅</span>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
-              {goal.projection.status === 'on_track'
-                ? `A este ritmo: ${goal.projection.estimatedDate?.toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })}`
-                : goal.projection.message
-              }
-            </p>
-            <p style={{ fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>
-              {monthlyRate > 0 && goal.projection.monthsRemaining
-                ? `Con tu aporte mensual de ${formatMoney(monthlyRate)}, alcanzas tu meta en ${goal.projection.monthsRemaining} meses.`
-                : ''}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {goal.projection.status === 'no_data' && (
-        <div style={{
-          background: 'white',
-          border: '1px solid #E2E8F0',
-          borderRadius: 14,
-          padding: '14px 16px',
-          marginBottom: 16,
-        }}>
-          <p style={{ fontSize: 13, color: '#64748B' }}>
-            {goal.projection.message}
-          </p>
-        </div>
-      )}
-
-      {goal.status === 'active' && (
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          className="btn-primary w-full"
-          style={{ marginBottom: 20, borderRadius: 14, fontSize: 15, fontWeight: 700, minHeight: 48 }}
-        >
-          💰 Abonar
-        </button>
-      )}
-
-      {/* Contribution history */}
-      <p style={{
-        fontSize: 11, fontWeight: 700, color: '#2563EB',
-        textTransform: 'uppercase', letterSpacing: '0.08em',
-        marginBottom: 10,
-      }}>
-        Historial de aportes
-      </p>
-      <ContributionHistory contributions={contributions} isLoading={contribLoading} />
-
-      <div className="h-6" />
-
       <AddContributionSheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
+        open={sheet === 'contrib'}
+        onClose={() => setSheet(null)}
         goalName={goal.name}
         goalEmoji={goal.emoji}
         currentAmount={goal.currentAmount}
         targetAmount={goal.targetAmount}
-        onConfirm={async (amount, note) => {
-          await addContribution(goalId, amount, note)
-          await loadContributions()
-        }}
         monthlyContribution={goal.monthlyContribution}
+        onConfirm={async (amount, note) => {
+          const done = goal.currentAmount + amount >= goal.targetAmount
+          await addContribution(goal.id, amount, note)
+          await loadContributions()
+          say({ text: done ? '¡Meta completada! 🎉' : `Aporte guardado · +${formatMoney(amount)}`, tone: 'ok' })
+        }}
       />
+
+      <BottomSheet themed open={sheet === 'edit'} onClose={() => setSheet(null)} label="Editar meta">
+        {sheet === 'edit' && (
+          <EditGoalForm
+            goal={goal}
+            onSave={async (patch) => {
+              await updateGoal(goal.id, patch)
+              say({ text: 'Meta actualizada', tone: 'ok' })
+            }}
+          />
+        )}
+      </BottomSheet>
+
+      <BottomSheet themed open={sheet === 'delete'} onClose={() => setSheet(null)} label="Eliminar meta">
+        {sheet === 'delete' && (
+          <div className="flex flex-col gap-3.5 overflow-y-auto px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 [&>*]:shrink-0">
+            <SheetHeader emoji="🗑️" title={`¿Eliminar ${goal.name}?`} subtitle="Se borra la meta y su historial de aportes." />
+            <ErrorBox>
+              Esto no se puede deshacer. Si solo quieres dejar de aportar por un tiempo, mejor <b>pausa</b> la meta.
+            </ErrorBox>
+            {/* El borrado se confirma en Plan › Metas, con "Deshacer" (9 s). */}
+            <button
+              type="button"
+              onClick={() => router.push(`/plan?s=metas&eliminada=${goal.id}`)}
+              className="h-[54px] w-full rounded-[14px] bg-danger text-base font-semibold text-white transition duration-150 active:scale-[0.96]"
+            >
+              Sí, eliminar
+            </button>
+            <button type="button" onClick={() => setSheet(null)} className={`h-11 text-[15px] font-semibold ${TEXT_MUTED}`}>
+              Cancelar
+            </button>
+          </div>
+        )}
+      </BottomSheet>
+
+      <StatusToast message={sheet ? null : message} onDone={() => setMessage(null)} />
     </AppShell>
+  )
+}
+
+/** Tarjeta "A este ritmo…" / "No llegas a tiempo". */
+function Projection({ goal }: { goal: Goal }) {
+  const p = goal.projection
+  const monthly = goal.monthlyContribution
+  let title: string
+  let help: string
+  let warn = false
+  if (p.status === 'behind' && goal.targetDate) {
+    title = 'No llegas a tiempo'
+    help = `Para llegar en ${monthYear(goal.targetDate)} necesitas ${formatMoney(p.requiredMonthly ?? 0)} al mes${monthly ? ` (hoy aportas ${formatMoney(monthly)})` : ''}.`
+    warn = true
+  } else if (p.estimatedDate && p.monthsRemaining) {
+    title = `A este ritmo: ${p.estimatedDate.toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })}`
+    const months = `${p.monthsRemaining} ${p.monthsRemaining === 1 ? 'mes' : 'meses'}`
+    help = monthly
+      ? `Con tu aporte de ${formatMoney(monthly)} al mes llegas en ${months}.`
+      : `Al ritmo de tu ahorro promedio llegas en ${months}.`
+  } else {
+    title = 'Define un aporte mensual'
+    help = 'Así Zafi te dice cuándo llegas.'
+  }
+  return (
+    <div className={`mt-3 flex items-center gap-3 p-3.5 ${CARD}`}>
+      <Tile>📅</Tile>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className={`text-[15px] font-semibold ${TEXT_STRONG}`}>{title}</span>
+        <span className={`text-[13px] leading-[1.35] ${warn ? 'text-warning-text dark:text-warning' : TEXT_MUTED}`}>{help}</span>
+      </span>
+    </div>
+  )
+}
+
+function num(v: string): number {
+  return parseFloat(v.replace(/[^0-9.]/g, '')) || 0
+}
+
+/** Hoja "Editar meta": emoji, nombre, meta, aporte al mes y para cuándo. */
+function EditGoalForm({ goal, onSave }: {
+  goal: Goal
+  onSave: (patch: { name: string; emoji: string; targetAmount: number; monthlyContribution: number | null; targetDate: string | null }) => Promise<void>
+}) {
+  const emojis = GOAL_TEMPLATES.map((t) => t.emoji)
+  if (!emojis.includes(goal.emoji)) emojis.unshift(goal.emoji)
+  const [emoji, setEmoji] = useState(goal.emoji)
+  const [name, setName] = useState(goal.name)
+  const [target, setTarget] = useState(String(goal.targetAmount))
+  const [monthly, setMonthly] = useState(goal.monthlyContribution ? String(goal.monthlyContribution) : '')
+  const [when, setWhen] = useState(goal.targetDate ? goal.targetDate.slice(0, 7) : '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function save() {
+    if (!name.trim() || num(target) <= 0) { setError('Ponle nombre y cuánto quieres juntar.'); return }
+    setSaving(true)
+    setError('')
+    try {
+      await onSave({
+        name: name.trim(),
+        emoji,
+        targetAmount: num(target),
+        monthlyContribution: monthly ? num(monthly) : null,
+        targetDate: when ? `${when}-01` : null,
+      })
+    } catch {
+      setError('No se pudo guardar. Intenta de nuevo.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4 overflow-y-auto px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 [&>*]:shrink-0">
+      <SheetHeader emoji={emoji} title="Editar meta" subtitle={goal.name} />
+      <div role="radiogroup" aria-label="Emoji" className="flex flex-wrap gap-2">
+        {emojis.map((e) => (
+          <button
+            key={e}
+            type="button"
+            role="radio"
+            aria-checked={e === emoji}
+            onClick={() => setEmoji(e)}
+            className={`flex h-11 w-11 items-center justify-center rounded-xl border-2 text-[22px] transition duration-150 active:scale-[0.96] ${
+              e === emoji ? 'border-electric bg-electric-ghost dark:bg-[#1B2B4D]' : `border-transparent ${TILE_BG}`
+            }`}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor="meta-editar-nombre">Nombre</FieldLabel>
+        <input id="meta-editar-nombre" value={name} onChange={(e) => setName(e.target.value)} className={INPUT_48} />
+      </div>
+      <div className="flex gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <FieldLabel htmlFor="meta-editar-monto">Meta</FieldLabel>
+          <input id="meta-editar-monto" inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Q 0" className={INPUT_48} />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <FieldLabel htmlFor="meta-editar-aporte">Aporte al mes</FieldLabel>
+          <input id="meta-editar-aporte" inputMode="decimal" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="Opcional" className={INPUT_48} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor="meta-editar-fecha">Para cuándo</FieldLabel>
+        <input id="meta-editar-fecha" type="month" value={when} onChange={(e) => setWhen(e.target.value)} className={INPUT_48} />
+      </div>
+      {error && <ErrorBox>{error}</ErrorBox>}
+      <button type="button" onClick={() => void save()} disabled={saving} className={PRIMARY_BUTTON}>
+        {saving ? 'Guardando…' : 'Guardar cambios'}
+      </button>
+    </div>
   )
 }
