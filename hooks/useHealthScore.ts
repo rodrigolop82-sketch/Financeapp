@@ -1,87 +1,46 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { calculateDynamicScore, type HealthScoreResult } from '@/lib/score-calculator'
-import { localMonthStart } from '@/lib/dates'
+import { calculateScore, type HealthScoreResult, type ScoreInput } from '@/lib/score-calculator'
+import { loadScoreHistory, loadScoreInput, type ScoreHistoryPoint } from '@/lib/health-data'
+import { rememberScore } from '@/lib/score-feedback'
+import { localMonth } from '@/lib/dates'
 
-interface HistoryPoint {
-  month: string
-  score: number
-}
-
-export function useHealthScore(householdId: string | null) {
+/**
+ * Salud financiera en vivo (lib/score-calculator.ts con lib/health-data.ts).
+ * Con `month` de otro mes (Cerrar el mes) calcula ese mes y no guarda nada.
+ */
+export function useHealthScore(householdId: string | null, opts: { month?: string; history?: boolean } = {}) {
+  const month = opts.month ?? localMonth()
+  const withHistory = opts.history ?? false
   const [score, setScore] = useState<HealthScoreResult | null>(null)
-  const [history, setHistory] = useState<HistoryPoint[]>([])
+  const [input, setInput] = useState<ScoreInput | null>(null)
+  const [history, setHistory] = useState<ScoreHistoryPoint[]>([])
   const [loading, setLoading] = useState(true)
 
   const recalculate = useCallback(async () => {
     if (!householdId) return
-    setLoading(true)
-
     const supabase = createClient()
-    const monthStart = localMonthStart()
-    const now = new Date()
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-    const nextMonthStr = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
 
-    const [profileRes, txRes, snapshotRes] = await Promise.all([
-      supabase
-        .from('financial_profiles')
-        .select('*')
-        .eq('household_id', householdId)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single(),
-      supabase
-        .from('transactions')
-        .select('amount')
-        .eq('household_id', householdId)
-        .eq('type', 'expense')
-        .gte('date', monthStart)
-        .lt('date', nextMonthStr),
-      supabase
-        .from('monthly_snapshots')
-        .select('month, health_score')
-        .eq('household_id', householdId)
-        .order('month', { ascending: true })
-        .limit(12),
+    const [{ input: next }, hist] = await Promise.all([
+      loadScoreInput(supabase, { householdId, userId: user.id, month }),
+      withHistory ? loadScoreHistory(supabase, householdId) : Promise.resolve([] as ScoreHistoryPoint[]),
     ])
-
-    const profile = profileRes.data
-    const spentThisMonth = (txRes.data ?? []).reduce((s, t) => s + Number(t.amount), 0)
-
-    if (profile) {
-      const result = calculateDynamicScore({
-        totalIncome: Number(profile.total_income),
-        totalFixedExpenses: Number(profile.total_fixed_expenses),
-        totalDebt: Number(profile.total_debt),
-        totalSavings: Number(profile.total_savings),
-        hasEmergencyFund: profile.has_emergency_fund,
-        incomeType: profile.income_type,
-        spentThisMonth,
-      })
-      setScore(result)
-
-      // Persist updated score
-      await supabase
-        .from('financial_profiles')
-        .update({ health_score: result.total })
-        .eq('household_id', householdId)
-    }
-
-    const historyData: HistoryPoint[] = (snapshotRes.data ?? [])
-      .filter((s) => s.health_score != null)
-      .map((s) => ({
-        month: s.month,
-        score: s.health_score,
-      }))
-    setHistory(historyData)
+    const result = calculateScore(next)
+    setInput(next)
+    setScore(result)
+    setHistory(hist)
     setLoading(false)
-  }, [householdId])
 
-  useEffect(() => {
-    recalculate()
-  }, [recalculate])
+    if (month === localMonth() && result.components.length > 0) {
+      rememberScore(householdId, result.total)
+      await supabase.from('financial_profiles').update({ health_score: result.total }).eq('household_id', householdId)
+    }
+  }, [householdId, month, withHistory])
 
-  return { score, history, loading, recalculate }
+  useEffect(() => { void recalculate() }, [recalculate])
+
+  return { score, input, history, loading, recalculate }
 }

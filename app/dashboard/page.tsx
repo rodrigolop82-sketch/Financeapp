@@ -30,6 +30,8 @@ import { AddContributionSheet } from '@/components/goals/AddContributionSheet'
 import { PillButton } from '@/components/layout/Pantalla'
 import { CARD, GREEN_TEXT } from '@/components/resumen/ctf-ui'
 import { ProgressBar } from '@/components/plan/ui'
+import { useHealthScore } from '@/hooks/useHealthScore'
+import { ScoreHeroLine } from '@/components/score/ScoreUI'
 import type { BudgetCategory, BudgetSubItem, IncomeEntry, SearchTransaction } from '@/types'
 
 interface HomeMonthTx {
@@ -86,6 +88,7 @@ export default function InicioPage() {
   const { goals, addContribution } = useGoals()
   const mainGoal = useMemo(() => pickMainGoal(goals), [goals])
   const [contributing, setContributing] = useState(false)
+  const { score: health, recalculate: recalcHealth } = useHealthScore(data?.householdId ?? null)
 
   useEffect(() => {
     let cancelled = false
@@ -177,10 +180,11 @@ export default function InicioPage() {
       const detail = (e as CustomEvent<TxChangedDetail | undefined>).detail
       if (detail?.id) flash(detail.id, true)
       reload()
+      void recalcHealth()
     }
     window.addEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged)
     return () => window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged)
-  }, [reload, flash])
+  }, [reload, flash, recalcHealth])
 
   // ── Inicio de mes (Fase 6) ──────────────────────
   const plan = useMemo(() => {
@@ -330,6 +334,7 @@ export default function InicioPage() {
               </Link>
             </>
           )}
+          {health && health.components.length > 0 && <ScoreHeroLine score={health} href="/score?from=inicio" />}
         </section>
 
         {/* Inicio de mes pendiente */}
@@ -442,6 +447,7 @@ export default function InicioPage() {
             try {
               await addContribution(mainGoal.id, amount, note)
               setToast({ text: `Aportaste ${fmt(amount)} a ${mainGoal.name}`, tone: 'ok' })
+              void recalcHealth()
             } catch (e) {
               setToast({ text: 'No se pudo guardar el aporte. Intenta de nuevo.', tone: 'error' })
               throw e

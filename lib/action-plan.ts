@@ -1,12 +1,17 @@
-import { FinancialProfile, ScoreBreakdown } from './scoring';
+import type { FinancialProfile, HealthScoreResult, ScoreKey } from './score-calculator';
 import { ActionStep } from '@/types';
 
 export function generateInitialPlan(
   profile: FinancialProfile,
-  score: ScoreBreakdown
+  score: HealthScoreResult
 ): ActionStep[] {
   const steps: ActionStep[] = [];
   let id = 1;
+  // Qué tan llena está cada parte del puntaje (0–1).
+  const part = (key: ScoreKey) => {
+    const c = score.components.find((x) => x.key === key);
+    return c ? c.score / c.max : 1;
+  };
 
   const { total_income: inc, total_debt: debt, total_fixed_expenses: exp } = profile;
 
@@ -19,7 +24,7 @@ export function generateInitialPlan(
   });
 
   // Emergency fund priority
-  if (score.components.emergencyFund < 7) {
+  if (part('emergency') < 0.35) {
     const target = Math.round(exp * 1);
     steps.push({
       id: String(id++),
@@ -30,7 +35,7 @@ export function generateInitialPlan(
   }
 
   // Debt reduction
-  if (score.components.debtBurden < 14 && debt > 0) {
+  if (part('debt') < 0.56 && debt > 0) {
     steps.push({
       id: String(id++),
       title: 'Haz una lista completa de tus deudas',
@@ -46,7 +51,7 @@ export function generateInitialPlan(
   }
 
   // Expense reduction
-  if (score.components.expenseRatio < 10) {
+  if (part('spending') < 0.67) {
     steps.push({
       id: String(id++),
       title: 'Identifica 2 gastos que puedas reducir',
@@ -56,7 +61,7 @@ export function generateInitialPlan(
   }
 
   // Savings improvement
-  if (score.components.savingsRate < 18) {
+  if (part('savings') < 0.6) {
     const targetSaving = Math.round(inc * 0.10);
     steps.push({
       id: String(id++),

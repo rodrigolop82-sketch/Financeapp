@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { getUserHousehold } from '@/lib/household'
 import { projectGoal, type ProjectionResult } from '@/lib/goal-projector'
+import { notifyScoreInputsChanged } from '@/lib/score-feedback'
 
 export type GoalType = 'emergency_fund' | 'travel' | 'vehicle' | 'education' | 'investment' | 'custom'
 export type GoalStatus = 'active' | 'completed' | 'paused'
@@ -147,6 +148,7 @@ export function useGoals(): UseGoalsReturn {
     })
     if (insertError) throw new Error(insertError.message)
     await load()
+    notifyScoreInputsChanged()
   }
 
   const updateGoal = async (goalId: string, updates: Partial<CreateGoalInput>) => {
@@ -169,6 +171,7 @@ export function useGoals(): UseGoalsReturn {
       .eq('user_id', user.id)
     if (updateError) throw new Error(updateError.message)
     await load()
+    notifyScoreInputsChanged()
   }
 
   const deleteGoal = async (goalId: string) => {
@@ -183,6 +186,7 @@ export function useGoals(): UseGoalsReturn {
       .eq('user_id', user.id)
     if (deleteError) throw new Error(deleteError.message)
     await load()
+    notifyScoreInputsChanged()
   }
 
   const togglePause = async (goalId: string) => {
@@ -200,6 +204,7 @@ export function useGoals(): UseGoalsReturn {
       .eq('user_id', user.id)
     if (updateError) throw new Error(updateError.message)
     await load()
+    notifyScoreInputsChanged()
   }
 
   const addContribution = async (goalId: string, amount: number, note?: string) => {
@@ -215,6 +220,7 @@ export function useGoals(): UseGoalsReturn {
     })
     if (insertError) throw new Error(insertError.message)
     await load()
+    notifyScoreInputsChanged()
   }
 
   const getContributionHistory = useCallback(async (goalId: string): Promise<Contribution[]> => {

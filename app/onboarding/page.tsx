@@ -28,7 +28,7 @@ import { AppIcon } from '@/components/brand/AppIcon';
 import { PrivacyGateScreen } from '@/components/onboarding/PrivacyGateScreen';
 import { OnboardingData } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
-import { calculateHealthScore, ScoreBreakdown } from '@/lib/scoring';
+import { scoreFromProfile, type HealthScoreResult } from '@/lib/score-calculator';
 import { generateInitialPlan } from '@/lib/action-plan';
 import { ActionStep } from '@/types';
 
@@ -58,7 +58,7 @@ const defaultData: OnboardingData = {
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [data, setData] = useState<OnboardingData>(defaultData);
-  const [score, setScore] = useState<ScoreBreakdown | null>(null);
+  const [score, setScore] = useState<HealthScoreResult | null>(null);
   const [animatedScore, setAnimatedScore] = useState(0);
   const [plan, setPlan] = useState<ActionStep[]>([]);
   const [saving, setSaving] = useState(false);
@@ -80,7 +80,8 @@ export default function OnboardingPage() {
       has_emergency_fund: data.hasEmergencyFund,
       income_type: data.incomeType,
     };
-    const result = calculateHealthScore(profile);
+    const debtPayments = data.debts.reduce((a, d) => a + (Number(d.minPayment) || 0), 0);
+    const result = scoreFromProfile(profile, debtPayments);
     setScore(result);
     setPlan(generateInitialPlan(profile, result));
   }
@@ -164,26 +165,6 @@ export default function OnboardingPage() {
     updated[index] = { ...updated[index], [field]: value };
     setData({ ...data, debts: updated });
   }
-
-  const scoreColorClass = score
-    ? {
-        red: 'text-red-500',
-        orange: 'text-orange-500',
-        yellow: 'text-yellow-500',
-        green: 'text-green-500',
-        emerald: 'text-electric-light',
-      }[score.color]
-    : '';
-
-  const scoreBgClass = score
-    ? {
-        red: 'bg-red-100',
-        orange: 'bg-orange-100',
-        yellow: 'bg-yellow-100',
-        green: 'bg-green-100',
-        emerald: 'bg-blue-100',
-      }[score.color]
-    : '';
 
   return (
     <div className="min-h-screen bg-surface-bg">
@@ -661,13 +642,14 @@ export default function OnboardingPage() {
                 {/* Animated score */}
                 <div className="text-center">
                   <div
-                    className={`inline-flex items-center justify-center w-32 h-32 rounded-full ${scoreBgClass}`}
+                    className="inline-flex items-center justify-center w-32 h-32 rounded-full"
+                    style={{ background: `${score.color}1A` }}
                   >
-                    <span className={`text-5xl font-bold ${scoreColorClass}`}>
+                    <span className="text-5xl font-bold" style={{ color: score.color }}>
                       {animatedScore}
                     </span>
                   </div>
-                  <p className={`text-xl font-semibold mt-3 capitalize ${scoreColorClass}`}>
+                  <p className="text-xl font-semibold mt-3" style={{ color: score.color }}>
                     {score.label}
                   </p>
                   <p className="text-sm text-ink-500">de 100 puntos posibles</p>
@@ -678,13 +660,7 @@ export default function OnboardingPage() {
                 {/* Score breakdown */}
                 <div className="space-y-3">
                   <h4 className="font-semibold text-sm text-ink-700">Desglose del puntaje</h4>
-                  {[
-                    { label: 'Tasa de ahorro', value: score.components.savingsRate, max: 30 },
-                    { label: 'Carga de deuda', value: score.components.debtBurden, max: 25 },
-                    { label: 'Fondo de emergencia', value: score.components.emergencyFund, max: 20 },
-                    { label: 'Gastos fijos', value: score.components.expenseRatio, max: 15 },
-                    { label: 'Estabilidad de ingreso', value: score.components.incomeStability, max: 10 },
-                  ].map((comp) => (
+                  {score.components.map((c) => ({ label: c.label, value: c.score, max: c.max })).map((comp) => (
                     <div key={comp.label}>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-ink-700">{comp.label}</span>
@@ -707,7 +683,7 @@ export default function OnboardingPage() {
                 {/* Insights */}
                 <div className="space-y-2">
                   <h4 className="font-semibold text-sm text-ink-700">Observaciones</h4>
-                  {score.insights.map((insight, i) => (
+                  {score.components.filter((c) => c.score < c.max * 0.5).map((c) => c.tip).map((insight, i) => (
                     <div key={i} className="flex gap-2 text-sm">
                       <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                       <p className="text-ink-700">{insight}</p>

@@ -10,9 +10,10 @@ import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav, openAddSheet } from '@/components/dashboard/BottomNav'
 import { AddSheet } from '@/components/add/AddSheet'
 import { PushOfferSheet } from '@/components/avisos/PushOfferSheet'
+import { ScoreWatcher } from '@/components/score/ScoreWatcher'
 import { signalAppReady } from '@/components/motion/Splash'
 import {
-  Home, List, Wallet, TrendingUp, ClipboardCheck,
+  Home, List, Wallet, TrendingUp, HeartPulse, ClipboardCheck,
   MessageCircle, BookOpen, Landmark, Users, Settings, ShieldCheck,
   ChevronRight, ChevronLeft, Plus,
 } from 'lucide-react'
@@ -42,6 +43,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Tu dinero',
     items: [
       { href: '/resumen', icon: TrendingUp, label: 'Cómo te fue' },
+      { href: '/score', icon: HeartPulse, label: 'Tu salud financiera' },
       { href: '/cierre-mes', icon: ClipboardCheck, label: 'Cerrar el mes' },
     ],
   },
@@ -300,6 +302,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
       {/* Hoja global de agregar (botón + y ?action=) */}
       <AddSheet />
       <PushOfferSheet />
+      <ScoreWatcher />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { calculateHealthScore } from '@/lib/scoring';
+import { scoreFromProfile } from '@/lib/score-calculator';
 import { generateInitialPlan } from '@/lib/action-plan';
 
 export async function POST(request: Request) {
@@ -60,7 +60,11 @@ export async function POST(request: Request) {
     income_type: fp.income_type as 'fixed' | 'variable' | 'mixed',
   };
 
-  const score = calculateHealthScore(profile);
+  // Cuotas reales de las deudas activas (no el saldo).
+  const { data: debtRows } = await supabase
+    .from('debts').select('min_payment').eq('household_id', householdId).eq('is_paid', false);
+  const debtPayments = debtRows ? debtRows.reduce((s, d) => s + Number(d.min_payment), 0) : undefined;
+  const score = scoreFromProfile(profile, debtPayments);
   const steps = generateInitialPlan(profile, score);
 
   const now = new Date();

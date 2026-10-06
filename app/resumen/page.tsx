@@ -267,7 +267,7 @@ function ComoTeFue() {
             </Link>
             <div className="mt-3">
               <NavCard>
-                <NavRow href="/health-score" emoji="💚" name="Tu salud financiera" description="Tu puntaje Zafi y cómo mejorarlo" last />
+                <NavRow href="/score?from=resumen" emoji="💚" name="Tu salud financiera" description="Tu puntaje Zafi y cómo mejorarlo" last />
               </NavCard>
             </div>
           </div>

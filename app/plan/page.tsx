@@ -12,6 +12,11 @@ import { PageSkeleton } from '@/components/motion/PageSkeleton';
 import { PresupuestoView } from '@/components/presupuesto/PresupuestoView';
 import { MetasView } from '@/components/goals/MetasView';
 import { DeudasView } from '@/components/deudas/DeudasView';
+import { ScorePill } from '@/components/score/ScoreUI';
+import { useHealthScore } from '@/hooks/useHealthScore';
+import { createClient } from '@/lib/supabase';
+import { getUserHousehold } from '@/lib/household';
+import { SCORE_INPUTS_CHANGED } from '@/lib/score-feedback';
 
 const SECTIONS: { value: PlanSection; label: string }[] = [
   { value: 'mes', label: 'Del mes' },
@@ -57,12 +62,34 @@ function PlanHub() {
     replaceQuery((q) => q.delete('nueva'));
   }, [wantsNew]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pastilla de la salud financiera: se recalcula con cada cambio de metas o deudas.
+  const [householdId, setHouseholdId] = useState<string | null>(null);
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }: { data: { user: { id: string } | null } }) => {
+      if (!user) return;
+      const hh = await getUserHousehold(supabase, user.id);
+      if (hh) setHouseholdId(hh.id);
+    });
+  }, []);
+  const { score, recalculate } = useHealthScore(householdId);
+  useEffect(() => {
+    const onChange = () => { void recalculate(); };
+    window.addEventListener(SCORE_INPUTS_CHANGED, onChange);
+    return () => window.removeEventListener(SCORE_INPUTS_CHANGED, onChange);
+  }, [recalculate]);
+
   const month = monthName(localMonth());
-  const right = section === 'mes' ? (
-    <span className={`flex h-11 flex-none items-center rounded-full border bg-[var(--zafi-card)] px-4 text-sm font-semibold capitalize ${BORDER} ${TEXT_STRONG}`}>
-      {month}
-    </span>
-  ) : null;
+  const right = (
+    <div className="flex flex-none items-center gap-2">
+      {score && score.components.length > 0 && <ScorePill score={score} href="/score?from=plan" />}
+      {section === 'mes' && (
+        <span className={`flex h-9 flex-none items-center rounded-full border bg-[var(--zafi-card)] px-3.5 text-sm font-semibold capitalize ${BORDER} ${TEXT_STRONG}`}>
+          {month}
+        </span>
+      )}
+    </div>
+  );
 
   return (
     <AppShell title="Plan" currentPath="/plan" titleRight={right} headerRight={right}>

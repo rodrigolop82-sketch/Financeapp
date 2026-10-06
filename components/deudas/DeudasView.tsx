@@ -18,6 +18,7 @@ import { BottomSheet } from '@/components/transactions/BottomSheet';
 import { UndoToast } from '@/components/transactions/UndoToast';
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast';
 import { SkeletonRows } from '@/components/motion/PageSkeleton';
+import { notifyScoreInputsChanged } from '@/lib/score-feedback';
 
 type DebtType = Debt['type'];
 
@@ -91,12 +92,14 @@ export function DeudasView() {
       if (error) { fail(); return; }
       setDebts((list) => list.map((x) => (x.id === debt.id ? { ...x, ...d } : x)));
       setMessage({ text: 'Deuda actualizada', tone: 'ok' });
+      notifyScoreInputsChanged();
     } else {
       const { data, error } = await supabase.from('debts').insert({ household_id: householdId, ...d }).select().single();
       if (error || !data) { fail(); return; }
       setDebts((list) => [...list, data as Debt]);
       setOpenId((data as Debt).id);
       setMessage({ text: 'Deuda agregada', tone: 'ok' });
+      notifyScoreInputsChanged();
     }
     setSheet(null);
   }
@@ -107,6 +110,7 @@ export function DeudasView() {
     setDebts((list) => list.filter((x) => x.id !== debt.id));
     setSheet(null);
     setMessage({ text: `Quitamos ${debt.name}`, tone: 'ok' });
+    notifyScoreInputsChanged();
   }
 
   async function setPaidFlag(debt: Debt, isPaid: boolean) {
@@ -117,6 +121,7 @@ export function DeudasView() {
       fail();
       return false;
     }
+    notifyScoreInputsChanged();
     return true;
   }
 

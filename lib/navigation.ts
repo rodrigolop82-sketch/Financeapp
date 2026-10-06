@@ -24,6 +24,7 @@ export const MORE_GROUPS: MoreGroup[] = [
     title: 'Tu dinero',
     items: [
       { emoji: '📊', name: 'Cómo te fue', description: 'Cuánto ahorraste y dónde ajustar', href: '/resumen' },
+      { emoji: '💚', name: 'Tu salud financiera', description: 'Tu puntaje Zafi y cómo mejorarlo', href: '/score?from=mas' },
       { emoji: '✅', name: 'Cerrar el mes', description: 'Repasa cómo te fue', href: '/cierre-mes' },
     ],
   },
@@ -58,7 +59,7 @@ export function activeTabFor(pathname: string): TabKey | null {
   if (['/transacciones', '/importar', '/notificacion'].some((p) => matches(pathname, p))) return 'movimientos';
   // Plan agrupa el plan del mes, las metas y las deudas.
   if (['/plan', '/presupuesto', '/metas', '/deudas'].some((p) => matches(pathname, p))) return 'plan';
-  const moreRoutes = ['/mas', '/admin', ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href] : [])))];
+  const moreRoutes = ['/mas', '/admin', ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href.split('?')[0]] : [])))];
   if (moreRoutes.some((p) => matches(pathname, p))) return 'mas';
   return null;
 }

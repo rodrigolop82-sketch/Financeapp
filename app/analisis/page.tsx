@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Lock } from 'lucide-react';
 import { Wordmark } from '@/components/brand/Wordmark';
 import { sessionAnalisis } from '@/lib/session-analisis';
-import { calculateHealthScore } from '@/lib/scoring';
+import { scoreFromProfile } from '@/lib/score-calculator';
 
 const TOTAL_STEPS = 4;
 
@@ -84,7 +84,7 @@ export default function AnalisisPage() {
       const incomeTypeMap: Record<string, 'fixed' | 'variable' | 'mixed'> = {
         fijo: 'fixed', variable: 'variable', mixto: 'mixed',
       };
-      const scoreResult = calculateHealthScore({
+      const scoreResult = scoreFromProfile({
         total_income: data.ingresos,
         total_fixed_expenses: data.gastos,
         total_debt: data.deudas,

@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { calculateHealthScore } from '@/lib/scoring';
+import { scoreFromProfile } from '@/lib/score-calculator';
 import { generateInitialPlan } from '@/lib/action-plan';
 
 export async function POST(request: Request) {
@@ -92,7 +92,8 @@ export async function POST(request: Request) {
     has_emergency_fund: hasEmergencyFund,
     income_type: incomeType,
   };
-  const score = calculateHealthScore(profile);
+  const debtPayments = (debts as { minPayment?: number }[]).reduce((a, d) => a + (Number(d.minPayment) || 0), 0);
+  const score = scoreFromProfile(profile, debtPayments);
   const planSteps = generateInitialPlan(profile, score);
 
   // 1. Create household (trigger auto-creates default budget categories)

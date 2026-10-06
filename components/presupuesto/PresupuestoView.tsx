@@ -32,6 +32,7 @@ import {
 } from '@/lib/recomendaciones';
 import type { BudgetCategory, BudgetSubItem, IncomeEntry } from '@/types';
 import { SkeletonRows } from '@/components/motion/PageSkeleton';
+import { notifyScoreInputsChanged } from '@/lib/score-feedback';
 
 interface MonthTx {
   category_id: string | null;
@@ -308,7 +309,7 @@ export function PresupuestoView() {
     if (saving) return;
     setUndo(null);
     setSaving(true);
-    try { await fn(); } catch { fail(); }
+    try { await fn(); notifyScoreInputsChanged(); } catch { fail(); }
     setSaving(false);
   }
 
