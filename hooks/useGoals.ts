@@ -19,6 +19,11 @@ export interface Goal {
   goalType: GoalType
   status: GoalStatus
   projection: ProjectionResult
+  /** Quien la creó. */
+  ownerId: string
+  householdId: string | null
+  /** Compartida con el hogar (la ven y la mueven los dos). */
+  shared: boolean
 }
 
 export interface Contribution {
@@ -26,6 +31,8 @@ export interface Contribution {
   amount: number
   note: string | null
   createdAt: string
+  /** Quién aportó. */
+  userId: string | null
 }
 
 export interface CreateGoalInput {
@@ -35,6 +42,8 @@ export interface CreateGoalInput {
   monthlyContribution: number | null
   targetDate: string | null
   goalType: GoalType
+  /** Compartida con el hogar o solo de quien la creó. */
+  shared?: boolean
 }
 
 export interface UseGoalsReturn {
@@ -47,7 +56,7 @@ export interface UseGoalsReturn {
   updateGoal: (goalId: string, updates: Partial<CreateGoalInput>) => Promise<void>
   deleteGoal: (goalId: string) => Promise<void>
   togglePause: (goalId: string) => Promise<void>
-  addContribution: (goalId: string, amount: number, note?: string) => Promise<void>
+  addContribution: (goalId: string, amount: number, note?: string, contributorId?: string) => Promise<void>
   getContributionHistory: (goalId: string) => Promise<Contribution[]>
   avgMonthlyExpenses: number
   avgMonthlySavings: number
@@ -79,10 +88,10 @@ export function useGoals(): UseGoalsReturn {
 
       // Fetch goals + monthly averages in parallel
       const [goalsRes, avgRes, profileRes] = await Promise.all([
+        // Las propias y las compartidas del hogar (RLS decide cuáles se ven).
         supabase
           .from('financial_goals')
           .select('*')
-          .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
         householdId ? computeMonthlyAverages(supabase, householdId) : Promise.resolve({ expenses: 0, savings: 0 }),
         householdId
@@ -113,6 +122,9 @@ export function useGoals(): UseGoalsReturn {
         targetDate: g.target_date as string | null,
         goalType: g.goal_type as GoalType,
         status: g.status as GoalStatus,
+        ownerId: g.user_id as string,
+        householdId: (g.household_id as string | null) ?? null,
+        shared: g.shared !== false,
         projection: projectGoal({
           targetAmount: Number(g.target_amount),
           currentAmount: Number(g.current_amount),
@@ -137,7 +149,8 @@ export function useGoals(): UseGoalsReturn {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('No autenticado')
 
-    const { error: insertError } = await supabase.from('financial_goals').insert({
+    const household = await getUserHousehold(supabase, user.id)
+    const row = {
       user_id: user.id,
       name: input.name,
       emoji: input.emoji,
@@ -145,7 +158,12 @@ export function useGoals(): UseGoalsReturn {
       monthly_contribution: input.monthlyContribution,
       target_date: input.targetDate,
       goal_type: input.goalType,
-    })
+    }
+    let { error: insertError } = await supabase.from('financial_goals').insert(household ? { ...row, household_id: household.id } : row)
+    // Sin la migración de metas compartidas, sin household_id.
+    if (insertError && household && /household_id/.test(insertError.message)) {
+      ({ error: insertError } = await supabase.from('financial_goals').insert(row))
+    }
     if (insertError) throw new Error(insertError.message)
     await load()
     notifyScoreInputsChanged()
@@ -163,12 +181,12 @@ export function useGoals(): UseGoalsReturn {
     if (updates.monthlyContribution !== undefined) row.monthly_contribution = updates.monthlyContribution
     if (updates.targetDate !== undefined) row.target_date = updates.targetDate
     if (updates.goalType !== undefined) row.goal_type = updates.goalType
+    if (updates.shared !== undefined) row.shared = updates.shared
 
     const { error: updateError } = await supabase
       .from('financial_goals')
       .update(row)
       .eq('id', goalId)
-      .eq('user_id', user.id)
     if (updateError) throw new Error(updateError.message)
     await load()
     notifyScoreInputsChanged()
@@ -183,7 +201,6 @@ export function useGoals(): UseGoalsReturn {
       .from('financial_goals')
       .delete()
       .eq('id', goalId)
-      .eq('user_id', user.id)
     if (deleteError) throw new Error(deleteError.message)
     await load()
     notifyScoreInputsChanged()
@@ -201,20 +218,19 @@ export function useGoals(): UseGoalsReturn {
       .from('financial_goals')
       .update({ status: newStatus })
       .eq('id', goalId)
-      .eq('user_id', user.id)
     if (updateError) throw new Error(updateError.message)
     await load()
     notifyScoreInputsChanged()
   }
 
-  const addContribution = async (goalId: string, amount: number, note?: string) => {
+  const addContribution = async (goalId: string, amount: number, note?: string, contributorId?: string) => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('No autenticado')
 
     const { error: insertError } = await supabase.from('goal_contributions').insert({
       goal_id: goalId,
-      user_id: user.id,
+      user_id: contributorId ?? user.id,
       amount,
       note: note || null,
     })
@@ -237,6 +253,7 @@ export function useGoals(): UseGoalsReturn {
       amount: Number(c.amount),
       note: c.note as string | null,
       createdAt: c.created_at as string,
+      userId: (c.user_id as string | null) ?? null,
     }))
   }, [])
 

@@ -10,7 +10,7 @@ import { GOAL_TEMPLATES } from '@/components/goals/GoalForm'
 import { useGoals, type Goal, type Contribution } from '@/hooks/useGoals'
 import { formatMoney } from '@/lib/format'
 import {
-  DANGER_TEXT_BUTTON, ErrorBox, FieldLabel, INPUT_48, LINK_TEXT, PageHeader, PILL_OUTLINE, PillButton, SheetHeader, Tile,
+  DANGER_TEXT_BUTTON, ErrorBox, FieldLabel, INPUT_48, LINK_TEXT, PageHeader, PILL_OUTLINE, PillButton, Segmented, SheetHeader, Tile,
 } from '@/components/layout/Pantalla'
 import { CARD } from '@/components/resumen/ctf-ui'
 import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG, TILE_BG } from '@/components/movimientos/ui'
@@ -18,6 +18,11 @@ import { Note } from '@/components/plan/ui'
 import { BottomSheet } from '@/components/transactions/BottomSheet'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
 import { PageSkeleton } from '@/components/motion/PageSkeleton'
+import { useHouseholdPeople } from '@/lib/hooks/useHouseholdPeople'
+import { createClient } from '@/lib/supabase'
+import { contributionsBy, monthlySplit } from '@/lib/metas-hogar'
+import { isSplitMode, type SplitMode } from '@/lib/cuentas-claras'
+import type { Person } from '@/lib/hogar'
 
 /** A dónde vuelve "‹" según desde dónde se abrió (?from=). */
 const ORIGINS: Record<string, { label: string; href: string }> = {
@@ -61,8 +66,17 @@ function GoalDetail() {
   const [sheet, setSheet] = useState<SheetKind | null>(null)
   const [message, setMessage] = useState<StatusMessage | null>(null)
   const [busy, setBusy] = useState(false)
+  const household = useHouseholdPeople()
+  const [splitMode, setSplitMode] = useState<SplitMode>('pool')
 
   const goal: Goal | undefined = goals.find((g) => g.id === goalId)
+
+  // Cómo reparten (para el aporte del mes por persona).
+  useEffect(() => {
+    if (!household.householdId) return
+    createClient().from('households').select('*').eq('id', household.householdId).single()
+      .then(({ data }) => { if (data && isSplitMode(data.split_mode)) setSplitMode(data.split_mode) })
+  }, [household.householdId])
 
   const loadContributions = useCallback(async () => {
     if (!goalId) return
@@ -91,6 +105,10 @@ function GoalDetail() {
   }
 
   const state = goalState(goal)
+  // Meta compartida en un hogar de 2: aportes por persona.
+  const pair = household.shared && goal.shared ? household.people.filter((p) => p.access === 'full').slice(0, 2) : null
+  const by = pair ? contributionsBy(contributions, goal.ownerId) : {}
+  const personOf = (id: string | null) => household.byId(id ?? goal.ownerId)
   const subtitle = goal.targetDate ? `Para ${monthYear(goal.targetDate)}` : undefined
   // Los toasts esperan a que se cierre la hoja.
   const say = (m: StatusMessage) => { setSheet(null); setMessage(m) }
@@ -114,7 +132,13 @@ function GoalDetail() {
         <Link href={back.href} className={`hidden h-11 items-center text-[15px] font-semibold lg:flex ${LINK_TEXT}`}>‹ {back.label}</Link>
 
         <div className="flex flex-col zafi-stagger">
-          <GoalDetailHero emoji={goal.emoji} state={state} currentAmount={goal.currentAmount} targetAmount={goal.targetAmount} />
+          <GoalDetailHero
+            emoji={goal.emoji}
+            state={state}
+            currentAmount={goal.currentAmount}
+            targetAmount={goal.targetAmount}
+            split={pair && pair.length === 2 ? { people: pair, by } : undefined}
+          />
 
           {state === 'paused' ? (
             <div className={`mt-3 rounded-2xl border border-navy/[0.08] bg-[var(--zafi-card-alt)] px-4 py-3.5 text-sm leading-[1.45] dark:border-white/[0.06] ${TEXT_MUTED}`}>
@@ -125,7 +149,7 @@ function GoalDetail() {
               <b>¡La completaste! 🎉</b> Juntaste {formatMoney(goal.targetAmount)}. Puedes crear otra meta desde Plan › Metas.
             </Note>
           ) : (
-            <Projection goal={goal} />
+            <Projection goal={goal} pair={pair && pair.length === 2 ? (pair as [Person, Person]) : null} mode={splitMode} />
           )}
 
           {state !== 'completed' && (
@@ -146,7 +170,7 @@ function GoalDetail() {
             </div>
           )}
 
-          <ContributionHistory contributions={contributions} isLoading={contribLoading} />
+          <ContributionHistory contributions={contributions} isLoading={contribLoading} personOf={pair ? personOf : undefined} />
 
           <button type="button" onClick={() => setSheet('delete')} className={`mt-4 ${DANGER_TEXT_BUTTON}`}>
             Eliminar meta
@@ -162,9 +186,11 @@ function GoalDetail() {
         currentAmount={goal.currentAmount}
         targetAmount={goal.targetAmount}
         monthlyContribution={goal.monthlyContribution}
-        onConfirm={async (amount, note) => {
+        people={pair ?? undefined}
+        defaultPersonId={household.me}
+        onConfirm={async (amount, note, contributorId) => {
           const done = goal.currentAmount + amount >= goal.targetAmount
-          await addContribution(goal.id, amount, note)
+          await addContribution(goal.id, amount, note, contributorId)
           await loadContributions()
           say({ text: done ? '¡Meta completada! 🎉' : `Aporte guardado · +${formatMoney(amount)}`, tone: 'ok' })
         }}
@@ -174,6 +200,8 @@ function GoalDetail() {
         {sheet === 'edit' && (
           <EditGoalForm
             goal={goal}
+            sharedHousehold={household.shared}
+            me={household.me}
             onSave={async (patch) => {
               await updateGoal(goal.id, patch)
               say({ text: 'Meta actualizada', tone: 'ok' })
@@ -210,9 +238,27 @@ function GoalDetail() {
 }
 
 /** Tarjeta "A este ritmo…" / "No llegas a tiempo". */
-function Projection({ goal }: { goal: Goal }) {
+function Projection({ goal, pair, mode }: { goal: Goal; pair: [Person, Person] | null; mode: SplitMode }) {
   const p = goal.projection
   const monthly = goal.monthlyContribution
+  // Hogar de 2: "Para llegar en {mes}: Q X al mes · Ana Q a · Luis Q b".
+  const needed = goal.targetDate && p.requiredMonthly ? p.requiredMonthly : monthly
+  if (pair && needed && needed > 0) {
+    const s = monthlySplit(needed, mode, pair[0], pair[1])
+    const when = goal.targetDate ? `Para llegar en ${MONTHS[Number(goal.targetDate.slice(5, 7)) - 1]}` : 'Su aporte del mes'
+    return (
+      <div className={`mt-3 flex items-center gap-3 p-3.5 ${CARD}`}>
+        <Tile>📅</Tile>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className={`text-[15px] font-semibold ${TEXT_STRONG}`}>{when}</span>
+          <span className={`text-[13px] leading-[1.35] ${p.status === 'behind' ? 'text-warning-text dark:text-warning' : TEXT_MUTED}`}>
+            {formatMoney(s.total)} al mes: {pair[0].name} {formatMoney(s.parts[0])} · {pair[1].name} {formatMoney(s.parts[1])}
+            {s.byIncome ? ', según lo que gana cada uno' : ', mitad y mitad'}
+          </span>
+        </span>
+      </div>
+    )
+  }
   let title: string
   let help: string
   let warn = false
@@ -246,10 +292,15 @@ function num(v: string): number {
 }
 
 /** Hoja "Editar meta": emoji, nombre, meta, aporte al mes y para cuándo. */
-function EditGoalForm({ goal, onSave }: {
+function EditGoalForm({ goal, onSave, sharedHousehold, me }: {
   goal: Goal
-  onSave: (patch: { name: string; emoji: string; targetAmount: number; monthlyContribution: number | null; targetDate: string | null }) => Promise<void>
+  onSave: (patch: { name: string; emoji: string; targetAmount: number; monthlyContribution: number | null; targetDate: string | null; shared?: boolean }) => Promise<void>
+  /** Hogar de 2: se elige si la meta es de la casa o solo de quien la creó. */
+  sharedHousehold?: boolean
+  me?: string | null
 }) {
+  const [shared, setShared] = useState<'house' | 'mine'>(goal.shared ? 'house' : 'mine')
+  const canShare = !!sharedHousehold && goal.ownerId === me
   const emojis = GOAL_TEMPLATES.map((t) => t.emoji)
   if (!emojis.includes(goal.emoji)) emojis.unshift(goal.emoji)
   const [emoji, setEmoji] = useState(goal.emoji)
@@ -271,6 +322,7 @@ function EditGoalForm({ goal, onSave }: {
         targetAmount: num(target),
         monthlyContribution: monthly ? num(monthly) : null,
         targetDate: when ? `${when}-01` : null,
+        ...(canShare ? { shared: shared === 'house' } : {}),
       })
     } catch {
       setError('No se pudo guardar. Intenta de nuevo.')
@@ -315,6 +367,15 @@ function EditGoalForm({ goal, onSave }: {
         <FieldLabel htmlFor="meta-editar-fecha">Para cuándo</FieldLabel>
         <input id="meta-editar-fecha" type="month" value={when} onChange={(e) => setWhen(e.target.value)} className={INPUT_48} />
       </div>
+      {canShare && (
+        <div className="flex flex-col gap-1.5">
+          <FieldLabel>Es de</FieldLabel>
+          <Segmented label="Es de" options={[{ value: 'house', label: 'La casa' }, { value: 'mine', label: 'Solo mía' }]} value={shared} onChange={setShared} />
+          <span className={`px-1 text-[13px] ${TEXT_MUTED}`}>
+            {shared === 'house' ? 'Los dos la ven y aportan, cada aporte con su nombre.' : 'Solo tú la ves.'}
+          </span>
+        </div>
+      )}
       {error && <ErrorBox>{error}</ErrorBox>}
       <button type="button" onClick={() => void save()} disabled={saving} className={PRIMARY_BUTTON}>
         {saving ? 'Guardando…' : 'Guardar cambios'}
