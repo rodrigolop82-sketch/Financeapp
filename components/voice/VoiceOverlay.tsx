@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { Check, Mic, X } from 'lucide-react'
 import type { VoiceExtractionResult } from '@/types'
 
 interface VoiceOverlayProps {
@@ -104,122 +105,59 @@ export function VoiceOverlay({ open, onClose, onResult, onError }: VoiceOverlayP
 
   if (!open) return null
 
+  const processing = state === 'processing'
+
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      background: 'linear-gradient(160deg, #0F2027 0%, #1E3A5F 35%, #2C5282 65%, #3B82F6 100%)',
-    }}>
-      {/* Content */}
-      <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: '40px 32px', textAlign: 'center',
-      }}>
-        {state === 'processing' ? (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Dictar por voz"
+      className="fixed inset-0 z-[100] flex flex-col bg-navy-deep text-white"
+    >
+      <div className="flex flex-1 flex-col items-center justify-center gap-[18px] px-8 py-10 text-center" aria-live="polite">
+        {processing ? (
           <>
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%',
-              border: '3px solid rgba(255,255,255,.4)',
-              borderTopColor: 'white',
-              animation: 'spin 1s linear infinite',
-              marginBottom: 32,
-            }} />
-            <p style={{
-              fontSize: 24, fontWeight: 300, color: 'rgba(255,255,255,.85)',
-              lineHeight: 1.4,
-            }}>
-              Procesando...
-            </p>
+            <span aria-hidden className="h-16 w-16 animate-spin rounded-full border-[3px] border-white/20 border-t-electric-pale" />
+            <h2 className="font-serif text-[28px] leading-[1.2]">Entendiendo lo que dijiste…</h2>
           </>
         ) : (
           <>
-            {/* Animated pulse ring */}
-            <div style={{
-              width: 80, height: 80, borderRadius: '50%',
-              background: 'rgba(59,130,246,.3)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              marginBottom: 40,
-              animation: 'pulse 2s ease-in-out infinite',
-              boxShadow: '0 0 40px rgba(59,130,246,.25)',
-            }}>
-              <div style={{
-                width: 48, height: 48, borderRadius: '50%',
-                background: 'rgba(59,130,246,.45)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" fill="rgba(255,255,255,.9)"/>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="rgba(255,255,255,.7)" strokeWidth="2" strokeLinecap="round"/>
-                  <line x1="12" y1="19" x2="12" y2="23" stroke="rgba(255,255,255,.7)" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
+            <span aria-hidden className="flex h-[92px] w-[92px] animate-breath items-center justify-center rounded-full bg-electric">
+              <Mic size={38} color="#FFFFFF" />
+            </span>
+            <h2 className="mt-3 max-w-[280px] font-serif text-[28px] leading-[1.2]">Cuéntame tu gasto</h2>
+            <p className="max-w-[280px] text-[15px] text-[#9FB3CB]">
+              Dilo como se lo dirías a alguien. Ej. “gasté 200 en el super y 38 de uber”.
+            </p>
+            <div aria-hidden className="mt-1.5 flex gap-[7px]">
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="h-[7px] w-[7px] animate-dot rounded-full bg-electric-pale" style={{ animationDelay: `${i * 0.15}s` }} />
+              ))}
             </div>
-
-            <p style={{
-              fontSize: 26, fontWeight: 300, color: 'rgba(255,255,255,.85)',
-              lineHeight: 1.4, maxWidth: 280,
-            }}>
-              Cuéntame todos los detalles de tu gasto
-            </p>
-
-            <p style={{
-              fontSize: 14, color: 'rgba(255,255,255,.5)',
-              marginTop: 16,
-            }}>
-              Ej: &ldquo;Gasté 200 quetzales en el super&rdquo;
-            </p>
           </>
         )}
       </div>
 
-      {/* Bottom buttons */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', width: '100%',
-        padding: '0 32px 48px',
-        paddingBottom: 'max(48px, calc(env(safe-area-inset-bottom) + 24px))',
-      }}>
-        {/* Cancel */}
+      <div className="flex items-center justify-between px-9 pb-[calc(48px+env(safe-area-inset-bottom))]">
         <button
+          type="button"
           onClick={handleCancel}
-          style={{
-            width: 56, height: 56, borderRadius: '50%',
-            background: 'rgba(255,255,255,.12)',
-            border: '1px solid rgba(255,255,255,.2)',
-            cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
+          aria-label="Cancelar"
+          className="flex h-14 w-14 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.08] transition duration-150 active:scale-[0.92]"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M18 6L6 18M6 6l12 12" stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
+          <X size={24} color="#FFFFFF" />
         </button>
-
-        {/* Confirm / Stop recording */}
+        <span className="text-[13px] text-[#9FB3CB]">{processing ? '' : 'Toca ✓ cuando termines'}</span>
         <button
+          type="button"
           onClick={handleConfirm}
-          disabled={state === 'processing'}
-          style={{
-            width: 64, height: 64, borderRadius: '50%',
-            background: state === 'processing' ? 'rgba(59,130,246,.3)' : 'rgba(59,130,246,.5)',
-            border: '1px solid rgba(255,255,255,.25)',
-            cursor: state === 'processing' ? 'default' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            opacity: state === 'processing' ? 0.5 : 1,
-          }}
+          disabled={processing}
+          aria-label="Listo"
+          className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-navy-deep bg-electric shadow-[0_8px_20px_rgba(37,99,235,0.45)] transition duration-150 active:scale-[0.92] disabled:opacity-50"
         >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-            <path d="M20 6L9 17l-5-5" stroke="rgba(255,255,255,.9)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <Check size={28} strokeWidth={2.6} color="#FFFFFF" />
         </button>
       </div>
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg) } }
-        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1 } 50% { transform: scale(1.15); opacity: .7 } }
-      `}</style>
     </div>
   )
 }
