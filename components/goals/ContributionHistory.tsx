@@ -5,10 +5,14 @@ import { GroupTitle, ListCard, ROW_DIVIDER } from '@/components/layout/Pantalla'
 import { TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
 import { GREEN_TEXT } from '@/components/resumen/ctf-ui'
 import { SkeletonRows } from '@/components/motion/PageSkeleton'
+import { PersonAvatar } from '@/components/hogar/PersonUI'
+import type { Person } from '@/lib/hogar'
 
 interface ContributionHistoryProps {
   contributions: Contribution[]
   isLoading: boolean
+  /** Meta compartida: cada aporte con el avatar y el nombre de quien aportó. */
+  personOf?: (id: string | null) => Person | null
 }
 
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -21,7 +25,7 @@ export function contributionDate(iso: string, now = new Date()): string {
 }
 
 /** "Aportes": encabezado con el conteo y lista estándar. */
-export function ContributionHistory({ contributions, isLoading }: ContributionHistoryProps) {
+export function ContributionHistory({ contributions, isLoading, personOf }: ContributionHistoryProps) {
   const n = contributions.length
   return (
     <section>
@@ -35,18 +39,25 @@ export function ContributionHistory({ contributions, isLoading }: ContributionHi
         <p className={`px-1 py-4 text-sm ${TEXT_MUTED}`}>Aún no hay aportes. El primero es el más importante.</p>
       ) : (
         <ListCard>
-          {contributions.map((c) => (
+          {contributions.map((c) => {
+            const who = personOf ? personOf(c.userId) : null
+            return (
             <div key={c.id} className={`flex h-16 items-center gap-3 ${ROW_DIVIDER}`}>
-              <span aria-hidden className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-success-light text-lg font-bold text-success-text dark:bg-[var(--zafi-success-bg)] dark:text-[var(--zafi-success-text)]">
-                ↑
-              </span>
+              {who ? (
+                <PersonAvatar person={who} />
+              ) : (
+                <span aria-hidden className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-success-light text-lg font-bold text-success-text dark:bg-[var(--zafi-success-bg)] dark:text-[var(--zafi-success-text)]">
+                  ↑
+                </span>
+              )}
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{c.note || 'Aporte'}</span>
-                <span className={`text-[13px] ${TEXT_MUTED}`}>{contributionDate(c.createdAt)}</span>
+                <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{who ? who.name : c.note || 'Aporte'}</span>
+                <span className={`truncate text-[13px] ${TEXT_MUTED}`}>{contributionDate(c.createdAt)}{who && c.note ? ` · ${c.note}` : ''}</span>
               </span>
               <span className={`flex-none font-outfit text-base font-bold ${GREEN_TEXT}`}>+{formatMoney(c.amount)}</span>
             </div>
-          ))}
+            )
+          })}
         </ListCard>
       )}
     </section>

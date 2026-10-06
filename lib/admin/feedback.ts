@@ -73,6 +73,7 @@ const SCREENS: Record<string, string> = {
   '/aprende': 'Aprende',
   '/mis-fuentes': 'Mis bancos',
   '/familia': 'Familia',
+  '/planes': 'Planes',
   '/importar': 'Importar',
   '/score': 'Tu salud financiera',
 };

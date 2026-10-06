@@ -29,6 +29,13 @@ import { PageSkeleton, SkeletonRows } from '@/components/motion/PageSkeleton';
 import { IMPORT_BANNER_EVENT } from '@/components/statement-import/StatementImportFlow';
 import { importBannerText, parseImportBanner, type ImportBanner } from '@/lib/motion';
 import { ApplePaySheet } from '@/components/movimientos/ApplePaySheet';
+import { PremiumInline } from '@/components/premium/PremiumInline';
+import { PremiumSheet } from '@/components/premium/PremiumSheet';
+import { fetchEffectivePlan } from '@/lib/plan-client';
+import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet';
+import { useHouseholdPeople } from '@/lib/hooks/useHouseholdPeople';
+import { freeHistoryStart } from '@/lib/plans';
+import { hiddenHistoryText } from '@/lib/premium';
 
 const PAGE_SIZE = 40;
 const SWIPE_HINT_KEY = 'zafi:swipe-hint';
@@ -70,6 +77,9 @@ export default function MovimientosPage() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  // Hogares de 2: Todos / {persona} / Personal.
+  const household = useHouseholdPeople();
+  const [personFilter, setPersonFilter] = useState<string>('all');
 
   const [rows, setRows] = useState<SearchTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +89,13 @@ export default function MovimientosPage() {
   const cursor = useRef<{ date: string; id: string } | null>(null);
   const [totals, setTotals] = useState<MonthTotal[] | null>(null);
   const [summary, setSummary] = useState<{ spent: number; received: number } | null>(null);
+  // Gratis: primer día visible (null = sin límite) y cuántos quedan ocultos antes.
+  const [historyStart, setHistoryStart] = useState<string | null>(null);
+  const [hidden, setHidden] = useState<{ count: number; before: string } | null>(null);
+  const [premiumOpen, setPremiumOpen] = useState(false);
+  const [viewOnly, setViewOnly] = useState(false);
+  // Desde cuándo son hogar (unir cuentas): separa "Antes del hogar".
+  const [familySince, setFamilySince] = useState<{ date: string; name: string } | null>(null);
 
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [swipeCount, setSwipeCount] = useState(3);
@@ -148,12 +165,19 @@ export default function MovimientosPage() {
       if (!user) { router.push('/login'); return; }
       const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
-      const { data: cats } = await supabase.from('budget_categories').select('*').eq('household_id', hh.id);
+      const [{ data: cats }, effective] = await Promise.all([
+        supabase.from('budget_categories').select('*').eq('household_id', hh.id),
+        fetchEffectivePlan(),
+      ]);
       setCategories((cats ?? []) as BudgetCategory[]);
+      setHistoryStart(effective?.plan === 'free' ? freeHistoryStart(today) : null);
+      setViewOnly(effective?.access === 'view');
       setHouseholdId(hh.id as string);
+      const since = (hh as { family_since?: string | null }).family_since;
+      setFamilySince(since ? { date: since.slice(0, 10), name: hh.name ?? 'el hogar' } : null);
       setReady(true);
     })();
-  }, [supabase, router]);
+  }, [supabase, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (wantsImport && householdId) { setImporting(true); setWantsImport(false); }
@@ -187,6 +211,8 @@ export default function MovimientosPage() {
         from,
         to,
         type: typeFilter === 'all' ? undefined : typeFilter,
+        paidBy: personFilter !== 'all' && personFilter !== 'personal' ? personFilter : undefined,
+        scope: personFilter === 'personal' ? 'personal' : undefined,
         limit: PAGE_SIZE,
         cursorDate: after?.date,
         cursorId: after?.id,
@@ -195,8 +221,12 @@ export default function MovimientosPage() {
     });
     if (!res.ok) throw new Error('search');
     const data = await res.json();
-    return { rows: (data.rows ?? []) as SearchTransaction[], totals: (data.totals ?? null) as MonthTotal[] | null };
-  }, [searchQuery, from, to, typeFilter]);
+    return {
+      rows: (data.rows ?? []) as SearchTransaction[],
+      totals: (data.totals ?? null) as MonthTotal[] | null,
+      hidden: (data.hidden ?? null) as { count: number; before: string } | null,
+    };
+  }, [searchQuery, from, to, typeFilter, personFilter]);
 
   // Primera página: al entrar, al cambiar un filtro y después de cada cambio.
   useEffect(() => {
@@ -204,10 +234,11 @@ export default function MovimientosPage() {
     const controller = new AbortController();
     setLoading((was) => was || rows.length === 0);
     fetchPage(null, controller.signal)
-      .then(({ rows: page, totals: t }) => {
+      .then(({ rows: page, totals: t, hidden: h }) => {
         const pendingId = sheets.getPendingDeleteId();
         setRows(pendingId ? page.filter((r) => r.id !== pendingId) : page);
         setTotals(t);
+        setHidden(h);
         setHasMore(page.length === PAGE_SIZE);
         const last = page[page.length - 1];
         cursor.current = last ? { date: last.date, id: last.id } : null;
@@ -228,13 +259,14 @@ export default function MovimientosPage() {
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
-    supabase.rpc('transactions_month_summary', { p_from: browseRange.from, p_to: browseRange.to }).then(({ data }) => {
+    const summaryFrom = historyStart && browseRange.from < historyStart ? historyStart : browseRange.from;
+    supabase.rpc('transactions_month_summary', { p_from: summaryFrom, p_to: browseRange.to }).then(({ data }) => {
       if (cancelled) return;
       const r = Array.isArray(data) ? data[0] : data;
       setSummary({ spent: Number(r?.sum_expense ?? 0), received: Number(r?.sum_income ?? 0) });
     });
     return () => { cancelled = true; };
-  }, [ready, supabase, browseRange.from, browseRange.to, reloadGen]);
+  }, [ready, supabase, browseRange.from, browseRange.to, reloadGen, historyStart]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore || loading || !cursor.current) return;
@@ -276,15 +308,33 @@ export default function MovimientosPage() {
 
   const byMonth = scope === 'year';
   const monthGroups = groupByMonth(rows, today);
-  const filtered = searching || typeFilter !== 'all';
+  const filtered = searching || typeFilter !== 'all' || personFilter !== 'all';
+  const personOf = household.shared ? household.byId : undefined;
+  const personOptions = household.shared
+    ? [{ value: 'all', label: 'Todos' }, ...household.people.filter((p) => p.access === 'full').map((p) => ({ value: p.id, label: p.name })), { value: 'personal', label: 'Personal' }]
+    : undefined;
   const year = today.slice(0, 4);
   const totalCount = totals ? totals.reduce((n, t) => n + t.count, 0) : null;
   const remaining = totalCount !== null ? Math.max(0, totalCount - rows.length) : null;
   const totalOf = (m: string) => totals?.find((t) => t.month === m);
 
+  // Gratis: los meses antes de los últimos 3 llevan 👑 y abren el aviso.
+  const lockedMonth = (m: Period) => !!historyStart && m !== 'year' && m < historyStart.slice(0, 7);
+  const choosePeriod = (m: Period, apply: (m: Period) => void) => {
+    setPeriodSheet(null);
+    if (lockedMonth(m)) { setPremiumOpen(true); return; }
+    apply(m);
+  };
+  const hiddenText = hidden ? hiddenHistoryText(hidden.count, hidden.before, today) : null;
+  const hiddenNotice = hiddenText && (
+    <PremiumInline action="Ver todo ›" onClick={() => setPremiumOpen(true)}>
+      <b>{hiddenText.strong}</b> {hiddenText.rest}
+    </PremiumInline>
+  );
+
   const periodOptions = (current: Period) => [
     { value: 'year', label: `Todo ${year}` },
-    ...yearMonths(today).map((m, i) => ({ value: m, label: monthLabel(m, today) + (i === 0 ? ' (este mes)' : '') })),
+    ...yearMonths(today).map((m, i) => ({ value: m, label: monthLabel(m, today) + (i === 0 ? ' (este mes)' : '') + (lockedMonth(m) ? ' 👑' : '') })),
     // Un mes de otro año (p. ej. tras importar un estado de cuenta viejo) sigue en la lista.
     ...(current !== 'year' && !current.startsWith(year) ? [{ value: current, label: monthLabel(current, today) }] : []),
   ];
@@ -341,7 +391,7 @@ export default function MovimientosPage() {
     <div className="flex flex-none items-center gap-1.5">
       <button
         type="button"
-        onClick={() => setImporting(true)}
+        onClick={() => (viewOnly ? openViewOnlySheet() : setImporting(true))}
         disabled={!householdId}
         className="flex-none flex items-center h-9 px-3.5 rounded-full bg-navy text-white text-sm font-semibold dark:bg-electric"
       >
@@ -393,6 +443,9 @@ export default function MovimientosPage() {
             onTypeChange={(t) => { setTypeFilter(t); setOpenRowId(null); }}
             placeholder={`Buscar en ${searching ? (searchScope === 'year' ? `todo ${year}` : periodInText(searchScope, today)) : `todo ${year}`}…`}
             scope={scopeChip}
+            personOptions={personOptions}
+            person={personFilter}
+            onPersonChange={(v) => { setPersonFilter(v); setOpenRowId(null); }}
           />
         </div>
 
@@ -405,6 +458,8 @@ export default function MovimientosPage() {
         <div className="pt-3.5 flex flex-col gap-3.5">
           {loading ? (
             <SkeletonRows count={6} />
+          ) : rows.length === 0 && hiddenNotice ? (
+            hiddenNotice
           ) : rows.length === 0 ? (
             <div className={`rounded-2xl px-6 py-10 text-center ${CARD_BG}`}>
               {filtered ? (
@@ -435,6 +490,7 @@ export default function MovimientosPage() {
             <>
               {monthGroups.map((mg) => {
                 const t = totalOf(mg.month);
+                const sinceShort = familySince ? `${Number(familySince.date.slice(8, 10))} ${monthLabel(familySince.date.slice(0, 7), today).split(' ')[0].slice(0, 3).toLowerCase()}` : '';
                 return (
                   <section key={mg.month} className="flex flex-col gap-3.5">
                     {byMonth && (
@@ -447,12 +503,32 @@ export default function MovimientosPage() {
                         )}
                       </div>
                     )}
-                    {mg.days.map((g) => (
-                      <TxDayGroup key={g.date} label={g.label} total={fmt(g.expenseTotal)}>
+                    {mg.days.map((g, gi) => {
+                      // Primer día antes de la unión: separador una sola vez.
+                      const prevDate = gi > 0 ? mg.days[gi - 1].date : monthGroups[monthGroups.indexOf(mg) - 1]?.days.at(-1)?.date;
+                      const cut = !!familySince && g.date < familySince.date && (!prevDate || prevDate >= familySince.date) && rows.some((r) => r.date >= familySince.date);
+                      return (
+                      <div key={g.date} className="flex flex-col gap-3.5">
+                      {cut && (
+                        <>
+                          <div className="flex items-center gap-2.5 px-1 py-1">
+                            <span className="h-px flex-1 bg-[var(--zafi-border)]" />
+                            <span className="flex items-center gap-1.5 text-[13px] font-semibold text-electric-dark dark:text-electric-soft">
+                              <span aria-hidden>👪</span>{sinceShort} · Empieza {familySince!.name}
+                            </span>
+                            <span className="h-px flex-1 bg-[var(--zafi-border)]" />
+                          </div>
+                          <div className="flex items-baseline justify-between px-1">
+                            <GroupTitle className="">Antes del hogar</GroupTitle>
+                            <span className={`text-[13px] ${TEXT_MUTED}`}>no se reparte</span>
+                          </div>
+                        </>
+                      )}
+                      <TxDayGroup label={g.label} total={fmt(g.expenseTotal)}>
                         {g.rows.map((tx) => (
                           <SwipeRow
                             key={tx.id}
-                            row={txRowData(tx, fmt)}
+                            row={txRowData(tx, fmt, personOf)}
                             isOpen={openRowId === tx.id}
                             anyOpen={openRowId !== null}
                             flash={sheets.flashFor(tx.id)}
@@ -464,7 +540,9 @@ export default function MovimientosPage() {
                           />
                         ))}
                       </TxDayGroup>
-                    ))}
+                      </div>
+                      );
+                    })}
                   </section>
                 );
               })}
@@ -475,6 +553,7 @@ export default function MovimientosPage() {
                   Ver más{remaining ? ` (${remaining})` : ''}
                 </button>
               )}
+              {!hasMore && hiddenNotice}
               {swipeCount < 3 && (
                 <p className="lg:hidden text-center text-[13px] px-4 text-ink-400">
                   Toca un movimiento para verlo · desliza a la izquierda para cambiar o borrar
@@ -499,7 +578,7 @@ export default function MovimientosPage() {
             title="¿Qué periodo quieres ver?"
             options={periodOptions(month)}
             selected={month}
-            onSelect={(m) => { setMonth(m); setPeriodSheet(null); }}
+            onSelect={(m) => choosePeriod(m, setMonth)}
           />
         )}
         {periodSheet === 'search' && (
@@ -507,12 +586,14 @@ export default function MovimientosPage() {
             title="¿Dónde buscar?"
             options={periodOptions(searchScope)}
             selected={searchScope}
-            onSelect={(m) => { setSearchScope(m); setPeriodSheet(null); }}
+            onSelect={(m) => choosePeriod(m, setSearchScope)}
           />
         )}
       </BottomSheet>
 
       {sheets.element}
+
+      <PremiumSheet reason="history" open={premiumOpen} onClose={() => setPremiumOpen(false)} />
 
       <ApplePaySheet
         txId={applePayId}

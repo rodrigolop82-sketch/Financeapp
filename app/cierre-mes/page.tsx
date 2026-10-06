@@ -28,6 +28,9 @@ import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { Note } from '@/components/plan/ui'
 import { ScoreHero } from '@/components/score/ScoreUI'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
+import { PremiumSheet } from '@/components/premium/PremiumSheet'
+import { fetchEffectivePlan } from '@/lib/plan-client'
+import { freeHistoryStart } from '@/lib/plans'
 
 const SOURCE_META: Record<string, { emoji: string; label: string }> = {
   tarjeta_credito: { emoji: '💳', label: 'Tarjeta de crédito' },
@@ -62,6 +65,17 @@ function CierreMesContent() {
   const router = useRouter()
   const supabase = createClient()
   const current = localToday().slice(0, 7)
+  // Gratis: los meses antes de los últimos 3 no se abren (siguen guardados).
+  const [firstMonth, setFirstMonth] = useState<string | null>(null)
+  const [premiumOpen, setPremiumOpen] = useState(false)
+  useEffect(() => {
+    fetchEffectivePlan().then((p) => {
+      if (p?.plan !== 'free') return
+      const first = freeHistoryStart(localToday()).slice(0, 7)
+      setFirstMonth(first)
+      setYearMonth((m) => (m < first ? first : m))
+    })
+  }, [])
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -112,7 +126,11 @@ function CierreMesContent() {
       label={monthTitle(yearMonth, current)}
       canPrev
       canNext={yearMonth < current}
-      onPrev={() => setYearMonth(addMonths(yearMonth, -1))}
+      onPrev={() => {
+        const prev = addMonths(yearMonth, -1)
+        if (firstMonth && prev < firstMonth) { setPremiumOpen(true); return }
+        setYearMonth(prev)
+      }}
       onNext={() => setYearMonth(addMonths(yearMonth, 1))}
     />
   )
@@ -192,6 +210,7 @@ function CierreMesContent() {
           </div>
         )}
       </div>
+      <PremiumSheet reason="history" open={premiumOpen} onClose={() => setPremiumOpen(false)} />
     </AppShell>
   )
 }

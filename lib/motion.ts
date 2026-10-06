@@ -29,7 +29,7 @@ export const SPLASH_EXIT_MS = 450;
 export const SPLASH_ROUTES = [
   '/dashboard', '/transacciones', '/metas', '/mas', '/presupuesto', '/resumen',
   '/cuenta', '/importar', '/deudas', '/cierre-mes', '/chat', '/aprende',
-  '/familia', '/mis-fuentes', '/health-score', '/score', '/plan',
+  '/familia', '/mis-fuentes', '/health-score', '/score', '/plan', '/planes',
 ];
 
 /** ¿Abrir la app en `pathname` muestra el splash? */

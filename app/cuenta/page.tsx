@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase';
 import { AppShell } from '@/components/layout/AppShell';
@@ -15,9 +15,9 @@ import {
   Switch,
 } from '@/components/cuenta/AccountUI';
 import { useInstallTrigger } from '@/components/install/InstallPromptManager';
-import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useAppearance, type Appearance } from '@/hooks/useAppearance';
-import { isTrialActive } from '@/lib/plans';
+import { planStatusRow, type Subscription } from '@/lib/planes';
+import type { Plan } from '@/lib/plans';
 import { logAuditEvent } from '@/lib/audit';
 import {
   CURRENCY_OPTIONS,
@@ -28,7 +28,6 @@ import {
   decimalsHint,
   initialsFrom,
   planPill,
-  shortDate,
   trialDaysLeft,
   usageMeter,
   type MeterTone,
@@ -68,8 +67,15 @@ const METER_COLOR: Record<MeterTone, string> = {
 function CuentaContent() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ email: string; full_name: string; plan: string; trial_ends_at: string; show_decimals: boolean; currency: string; marketing_opt_in?: boolean | null } | null>(null);
-  const [subscription, setSubscription] = useState<{ plan: string; status: string; current_period_end: string } | null>(null);
-  const [upgrading, setUpgrading] = useState(false);
+  const [planStatus, setPlanStatus] = useState<{
+    plan: Plan;
+    isOwner: boolean;
+    trialActive: boolean;
+    trialEndsAt: string | null;
+    ownerName: string | null;
+    household: { name: string; members: { name: string }[] } | null;
+    subscription: Subscription | null;
+  } | null>(null);
   const [showDecimals, setShowDecimals] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -90,9 +96,7 @@ function CuentaContent() {
   const { appearance, setAppearance } = useAppearance();
   const triggerInstall = useInstallTrigger();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = createClient();
-  const justUpgraded = searchParams.get('success') === 'true';
 
   const showToast = useCallback((text: string) => setToast({ text, key: Date.now() }), []);
   const clearToast = useCallback(() => setToast(null), []);
@@ -103,16 +107,17 @@ function CuentaContent() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) { router.push('/login'); return; }
 
-      const [{ data: profile }, { data: sub }, { data: nPrefs }] = await Promise.all([
+      const [{ data: profile }, statusRes, { data: nPrefs }] = await Promise.all([
         supabase.from('users').select('*').eq('id', authUser.id).single(),
-        supabase.from('subscriptions').select('*').eq('user_id', authUser.id).limit(1).single(),
+        fetch('/api/billing/status', { cache: 'no-store' }).catch(() => null),
         supabase.from('notification_preferences').select('*').eq('user_id', authUser.id).single(),
       ]);
+      const status = statusRes?.ok ? await statusRes.json() : null;
 
       setUser(profile as typeof user);
       setShowDecimals(profile?.show_decimals ?? false);
       setMarketingOptIn(profile?.marketing_opt_in === true);
-      setSubscription(sub as typeof subscription);
+      setPlanStatus(status);
       if (nPrefs) {
         setNotifPrefs({
           inactivity_enabled: nPrefs.inactivity_enabled ?? true,
@@ -126,7 +131,7 @@ function CuentaContent() {
       }
       setLoading(false);
 
-      if (!profile || !(profile.plan === 'premium' || isTrialActive(profile.trial_ends_at))) {
+      if (!status || status.plan === 'free') {
         try {
           const usageRes = await fetch('/api/usage');
           if (usageRes.ok) {
@@ -163,21 +168,6 @@ function CuentaContent() {
     window.addEventListener(PUSH_STATUS_EVENT, onStatus);
     return () => window.removeEventListener(PUSH_STATUS_EVENT, onStatus);
   }, [supabase, showToast]);
-
-  async function handleUpgrade(plan: 'monthly' | 'annual') {
-    setUpgrading(true);
-    try {
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
-      });
-      const { url } = await res.json();
-      if (url) { window.location.href = url; return; }
-    } catch { /* se informa abajo */ }
-    setUpgrading(false);
-    showToast('No pudimos abrir el pago');
-  }
 
   async function toggleDecimals(val: boolean) {
     setShowDecimals(val);
@@ -305,23 +295,15 @@ function CuentaContent() {
     return <PageSkeleton variant="list" />;
   }
 
-  const paidPremium = user?.plan === 'premium';
-  // "Prueba": una prueba de Stripe o la prueba automática de 14 días
-  // (users.plan sigue en 'free' pero trial_ends_at no ha pasado).
-  const isTrialing = subscription?.status === 'trialing' ||
-    (!!user && !paidPremium && isTrialActive(user.trial_ends_at));
-  const isPremium = paidPremium || isTrialing;
-  const daysLeft = trialDaysLeft(user?.trial_ends_at);
+  const isTrialing = !!planStatus?.trialActive && planStatus.subscription?.status !== 'active';
+  const isPremium = !!planStatus && planStatus.plan !== 'free';
+  const daysLeft = trialDaysLeft(planStatus?.trialEndsAt ?? user?.trial_ends_at);
   const pill = planPill({ isPremium, isTrialing, daysLeft });
   const currency = currencyOption(user?.currency);
-  const showUpgrade = !paidPremium;
-
-  const planTitle = isTrialing ? 'Prueba Premium' : isPremium ? 'Premium' : 'Gratis';
-  const planNote = isTrialing && subscription?.status !== 'trialing' && user?.trial_ends_at
-    ? `termina el ${shortDate(user.trial_ends_at)}`
-    : subscription?.current_period_end
-      ? `próximo cobro el ${shortDate(subscription.current_period_end)}`
-      : usage ? 'Límites de cada mes' : '';
+  const statusRow = planStatus ? planStatusRow(planStatus) : { title: 'Plan Gratis', hint: 'Conoce lo que incluye Premium', tone: 'normal' as const };
+  const statusHintClass = statusRow.tone === 'danger'
+    ? 'text-danger-text dark:text-[var(--zafi-error-text)]'
+    : statusRow.tone === 'warn' ? 'text-warning-text dark:text-warning' : '';
 
   const pillClass =
     pill.tone === 'trial' ? 'bg-[#FDE68A] text-[#78350F]'
@@ -345,12 +327,6 @@ function CuentaContent() {
           <h1 className={`font-serif text-[30px] leading-[1.15] ${TEXT_STRONG}`}>Mi cuenta</h1>
         </div>
 
-        {justUpgraded && (
-          <div className="mt-3 flex gap-2 rounded-2xl border border-[var(--zafi-success-border)] bg-[var(--zafi-success-bg)] p-4">
-            <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-[var(--zafi-success-text)]" />
-            <p className="text-sm text-[var(--zafi-success-text)]">Tu plan Premium se activó.</p>
-          </div>
-        )}
 
         {/* Perfil */}
         <div className="mt-3.5 flex items-center gap-3.5 rounded-[20px] bg-navy p-[18px] text-white">
@@ -525,14 +501,17 @@ function CuentaContent() {
         </AccountGroup>
 
         {/* Tu plan */}
-        <AccountGroup title="Tu plan" padded>
-          <div className="flex items-center justify-between gap-3">
-            <span className={`text-[15px] font-bold ${TEXT_STRONG}`}>{planTitle}</span>
-            {planNote && <span className={`text-[13px] ${TEXT_SECONDARY}`}>{planNote}</span>}
-          </div>
-
+        <AccountGroup title="Tu plan">
+          <AccountRow
+            emoji="👑"
+            accentTile
+            title={statusRow.title}
+            hint={statusHintClass ? <span className={statusHintClass}>{statusRow.hint}</span> : statusRow.hint}
+            href="/planes"
+            last={!usage}
+          />
           {usage && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 pb-3.5 pt-1">
               {([
                 { label: 'Mensajes a Zafi', u: usage.ai },
                 { label: 'Importaciones', u: usage.imports },
@@ -555,28 +534,6 @@ function CuentaContent() {
                   </div>
                 );
               })}
-            </div>
-          )}
-
-          {showUpgrade && (
-            <div className="grid grid-cols-[1fr_1.3fr] gap-2">
-              <button
-                type="button"
-                onClick={() => handleUpgrade('monthly')}
-                disabled={upgrading}
-                className={`h-[46px] rounded-full border border-[var(--zafi-border)] bg-[var(--zafi-card)] text-sm font-semibold transition-transform active:scale-[0.96] disabled:opacity-60 ${TEXT_STRONG}`}
-              >
-                $4.99 / mes
-              </button>
-              <button
-                type="button"
-                onClick={() => handleUpgrade('annual')}
-                disabled={upgrading}
-                className="flex h-[46px] items-center justify-center gap-2 rounded-full bg-electric text-sm font-bold text-white transition-transform active:scale-[0.96] disabled:opacity-60"
-              >
-                {upgrading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-                $39.99 / año · −33%
-              </button>
             </div>
           )}
         </AccountGroup>

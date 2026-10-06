@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { isEffectivelyPremium } from '@/lib/plans';
+import { getEffectivePlan, hasSeatFor, memberAccessFor } from '@/lib/plans';
 
 function createSupabase() {
   const cookieStore = cookies();
@@ -43,10 +43,12 @@ export async function GET(request: Request) {
     .select('id, owner_id')
     .eq('id', householdId)
     .single();
+  // Solo quien es del hogar ve a sus miembros (RLS de households).
+  if (!household) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
 
   const { data: members } = await adminClient
     .from('household_members')
-    .select('user_id, role, joined_at, users(email, full_name)')
+    .select('user_id, role, access, joined_at, users(email, full_name)')
     .eq('household_id', householdId);
 
   const memberList = members || [];
@@ -62,7 +64,7 @@ export async function GET(request: Request) {
         .single();
 
       if (ownerProfile) {
-        const ownerEntry = { user_id: household.owner_id, role: 'owner', joined_at: '', users: { email: ownerProfile.email, display_name: ownerProfile.full_name } };
+        const ownerEntry = { user_id: household.owner_id, role: 'owner', access: 'full', joined_at: '', users: { email: ownerProfile.email, full_name: ownerProfile.full_name } };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         memberList.unshift(ownerEntry as any);
       }
@@ -112,25 +114,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Solo el dueño puede invitar miembros' }, { status: 403 });
   }
 
-  // Verify caller has a premium plan (or is still inside their signup trial)
-  const { data: ownerProfile } = await supabase
-    .from('users')
-    .select('plan, trial_ends_at')
-    .eq('id', user.id)
-    .single();
-
-  if (!ownerProfile || !isEffectivelyPremium(ownerProfile)) {
-    return NextResponse.json({ error: 'Se requiere plan Premium para usar el modo familia' }, { status: 403 });
-  }
+  // Gratis y Premium: 1 persona en solo ver; Familiar (o prueba): 2 adultos completos.
+  const { plan } = await getEffectivePlan(user.id);
 
   // Find the user by email — use service role to bypass RLS on users table
   const adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+
+  const { count: others } = await adminClient
+    .from('household_members')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('household_id', householdId)
+    .eq('role', 'member');
+  if (!hasSeatFor(others ?? 0)) {
+    return NextResponse.json({ error: 'Tu hogar ya tiene a sus 2 personas' }, { status: 409 });
+  }
   const { data: targetUser } = await adminClient
     .from('users')
-    .select('id, email')
+    .select('id, email, full_name')
     .eq('email', email.toLowerCase().trim())
     .single();
 
@@ -161,13 +164,14 @@ export async function POST(request: Request) {
       household_id: householdId,
       user_id: targetUser.id,
       role: 'member',
+      access: memberAccessFor(plan),
     });
 
   if (error) {
     return NextResponse.json({ error: 'Error al agregar miembro' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, userId: targetUser.id });
+  return NextResponse.json({ success: true, userId: targetUser.id, access: memberAccessFor(plan), name: (targetUser.full_name || targetUser.email.split('@')[0]).split(' ')[0] });
 }
 
 // DELETE: remove a member
@@ -191,6 +195,22 @@ export async function DELETE(request: Request) {
 
   if (userId === user.id) {
     return NextResponse.json({ error: 'No puedes eliminarte a ti mismo' }, { status: 400 });
+  }
+
+  // Si entró uniendo su cuenta, quitarlo es deshacer la unión: se lleva lo
+  // suyo y nunca se queda sin hogar.
+  const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  const { data: merges } = await adminClient
+    .from('household_merges')
+    .select('id')
+    .eq('host_household_id', householdId)
+    .eq('guest_user_id', userId)
+    .is('undone_at', null)
+    .limit(1);
+  if (merges && merges.length > 0) {
+    const { error } = await supabase.rpc('unmerge_household', { p_merge_id: merges[0].id });
+    if (error) return NextResponse.json({ error: 'No pudimos deshacer la unión' }, { status: 500 });
+    return NextResponse.json({ success: true, unmerged: true });
   }
 
   await supabase

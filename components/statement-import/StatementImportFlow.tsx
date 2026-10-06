@@ -1,5 +1,5 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useStatementImport } from '@/hooks/useStatementImport'
 import { UploadScreen } from './UploadScreen'
@@ -11,8 +11,10 @@ import { UndoToast } from '@/components/transactions/UndoToast'
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
 import { importBannerQuery, type ImportBanner } from '@/lib/motion'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
-import { HERO, HERO_MUTED, HERO_STYLE } from '@/components/layout/Pantalla'
-import { PRIMARY_BUTTON, TEXT_MUTED } from '@/components/movimientos/ui'
+import { PremiumSheet } from '@/components/premium/PremiumSheet'
+import { CardOwnerSheet } from '@/components/hogar/CardOwnerSheet'
+import { useHouseholdPeople } from '@/lib/hooks/useHouseholdPeople'
+import { createClient } from '@/lib/supabase'
 
 /** Ya en Movimientos: se pide el banner por evento (no cambia la ruta). */
 export const IMPORT_BANNER_EVENT = 'zafi:import-banner'
@@ -35,6 +37,38 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
     if (imp.step === 'idle') imp.startImport()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Hogares de 2: de quién es la tarjeta (se pregunta una vez y se recuerda).
+  const household = useHouseholdPeople()
+  const [askCard, setAskCard] = useState<string | null>(null)
+  const last4 = imp.step === 'review' && household.shared ? imp.accountLast4 : null
+  useEffect(() => {
+    if (!last4) return
+    let alive = true
+    createClient()
+      .from('card_owners')
+      .select('owner_id')
+      .eq('household_id', householdId)
+      .eq('last4', last4)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!alive || error) return
+        if (data) imp.setPaidBy(data.owner_id ?? null)
+        else setAskCard(last4)
+      })
+    return () => { alive = false }
+  }, [last4, householdId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function saveCardOwner(ownerId: string | null) {
+    const card = askCard
+    setAskCard(null)
+    imp.setPaidBy(ownerId)
+    if (!card) return
+    await createClient().from('card_owners').upsert(
+      { household_id: householdId, last4: card, owner_id: ownerId, updated_at: new Date().toISOString() },
+      { onConflict: 'household_id,last4' },
+    )
+  }
+
   // Al confirmar, las listas se recargan ya; "Deshacer" queda en el éxito y luego en el toast.
   const confirmed = imp.step === 'success' || imp.step === 'done'
   useEffect(() => {
@@ -42,6 +76,18 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
   }, [confirmed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (imp.step === 'idle') return null
+
+  if (imp.limitReached && imp.limitData) {
+    return (
+      <PremiumSheet
+        reason="import"
+        open
+        onClose={() => { imp.closeImport(); onDone() }}
+        used={imp.limitData.used}
+        limit={imp.limitData.limit}
+      />
+    )
+  }
 
   const handleDone = () => {
     imp.closeImport()
@@ -119,43 +165,24 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
           {!isMobile && renderStep()}
         </div>
       </div>
+
+      {askCard && (
+        <div className="relative z-[60]">
+          <CardOwnerSheet
+            open
+            last4={askCard}
+            subtitle={[imp.bankDetected, `${imp.transactions.length} movimientos encontrados`].filter(Boolean).join(' · ')}
+            count={imp.transactions.filter((t) => t.type === 'expense').length}
+            people={household.people}
+            defaultId={household.me}
+            onDone={(id) => void saveCardOwner(id)}
+          />
+        </div>
+      )}
     </>
   )
 
   function renderStep() {
-    if (imp.limitReached && imp.limitData) {
-      const limit = imp.limitData
-      return (
-        <div className="flex flex-col gap-3 px-5 pb-8 pt-2">
-          <section className={`flex flex-col gap-1.5 ${HERO}`} style={{ ...HERO_STYLE, padding: '22px 22px 20px' }}>
-            <span className="font-serif text-[24px] leading-tight">Importa sin límites con Premium</span>
-            <span className={`text-sm leading-[1.45] ${HERO_MUTED}`}>
-              Usaste tus {limit.limit} importaciones gratis de este mes. Se renuevan el{' '}
-              {new Date(limit.resetsAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' })}.
-            </span>
-          </section>
-          <button
-            type="button"
-            onClick={async () => {
-              const res = await fetch('/api/stripe/checkout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plan: 'monthly' }),
-              })
-              const { url } = await res.json()
-              if (url) window.location.href = url
-            }}
-            className={PRIMARY_BUTTON}
-          >
-            Pasar a Premium
-          </button>
-          <button type="button" onClick={imp.closeImport} className={`h-11 text-[15px] font-semibold ${TEXT_MUTED}`}>
-            Ahora no
-          </button>
-        </div>
-      )
-    }
-
     switch (imp.step) {
       case 'upload':
         return (

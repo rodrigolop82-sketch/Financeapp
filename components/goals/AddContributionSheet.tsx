@@ -4,6 +4,8 @@ import { formatMoney } from '@/lib/format'
 import { ErrorBox, FieldLabel, INPUT_48, SheetHeader } from '@/components/layout/Pantalla'
 import { BORDER, PRIMARY_BUTTON, TEXT_BODY, TEXT_STRONG } from '@/components/movimientos/ui'
 import { BottomSheet } from '@/components/transactions/BottomSheet'
+import { PersonPick } from '@/components/hogar/PersonUI'
+import type { Person } from '@/lib/hogar'
 
 interface AddContributionSheetProps {
   open: boolean
@@ -13,8 +15,11 @@ interface AddContributionSheetProps {
   currentAmount: number
   targetAmount: number
   /** Si falla, la hoja queda abierta y muestra el error. */
-  onConfirm: (amount: number, note: string) => Promise<void>
+  onConfirm: (amount: number, note: string, contributorId?: string) => Promise<void>
   monthlyContribution: number | null
+  /** Meta compartida: "¿Quién aporta?". */
+  people?: Person[]
+  defaultPersonId?: string | null
 }
 
 /** Hoja "Aportar a {meta}": monto grande, montos rápidos y nota. */
@@ -27,8 +32,9 @@ export function AddContributionSheet(props: AddContributionSheetProps) {
 }
 
 function ContributionForm({
-  onClose, goalName, goalEmoji, currentAmount, targetAmount, onConfirm, monthlyContribution,
+  onClose, goalName, goalEmoji, currentAmount, targetAmount, onConfirm, monthlyContribution, people, defaultPersonId,
 }: AddContributionSheetProps) {
+  const [who, setWho] = useState<string>(defaultPersonId ?? people?.[0]?.id ?? '')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [other, setOther] = useState(false)
@@ -44,7 +50,7 @@ function ContributionForm({
     setSaving(true)
     setError('')
     try {
-      await onConfirm(n, note.trim())
+      await onConfirm(n, note.trim(), people?.length ? who : undefined)
       onClose()
     } catch {
       setError('No se pudo guardar el aporte. Intenta de nuevo.')
@@ -87,6 +93,10 @@ function ContributionForm({
         </button>
       </div>
 
+      {people && people.length >= 2 && (
+        <PersonPick label="¿Quién aporta?" people={people} value={who} onChange={setWho} />
+      )}
+
       <div className="flex flex-col gap-1.5">
         <FieldLabel htmlFor="aporte-nota">Nota (opcional)</FieldLabel>
         <input id="aporte-nota" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Aporte de este mes" className={INPUT_48} />
@@ -94,7 +104,7 @@ function ContributionForm({
 
       {error && <ErrorBox>{error}</ErrorBox>}
       <button type="button" onClick={() => void save()} disabled={n <= 0 || saving} className={PRIMARY_BUTTON}>
-        {saving ? 'Guardando…' : 'Guardar aporte'}
+        {saving ? 'Guardando…' : n > 0 ? `Aportar ${formatMoney(n)}` : 'Guardar aporte'}
       </button>
     </div>
   )

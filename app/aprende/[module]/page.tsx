@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { isEffectivelyPremium } from '@/lib/plans'
+import { fetchEffectivePlan } from '@/lib/plan-client'
 import { CapsuleCard } from '@/components/education/CapsuleCard'
 import { AppShell } from '@/components/layout/AppShell'
 import { GroupTitle, ListCard, PageHeader } from '@/components/layout/Pantalla'
@@ -37,13 +37,13 @@ export default function ModulePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const [moduleRes, capsulesRes, userRes, progressRes] = await Promise.all([
+      const [moduleRes, capsulesRes, effective, progressRes] = await Promise.all([
         supabase.from('capsule_modules').select('*').eq('slug', moduleSlug).single(),
         supabase.from('capsules')
           .select('id, slug, title, subtitle, read_time_minutes, is_premium, order_index')
           .eq('module_id', (await supabase.from('capsule_modules').select('id').eq('slug', moduleSlug).single()).data?.id)
           .order('order_index'),
-        supabase.from('users').select('plan, trial_ends_at').eq('id', user.id).single(),
+        fetchEffectivePlan(),
         supabase.from('user_capsule_progress').select('capsule_id').eq('user_id', user.id),
       ])
 
@@ -52,7 +52,7 @@ export default function ModulePage() {
         setModuleDescription(moduleRes.data.description)
       }
       setCapsules(capsulesRes.data ?? [])
-      setUserPlan(userRes.data && isEffectivelyPremium(userRes.data) ? 'premium' : 'free')
+      setUserPlan(effective && effective.plan !== 'free' ? 'premium' : 'free')
       setReadIds(new Set(progressRes.data?.map(p => p.capsule_id) ?? []))
       setLoading(false)
     }

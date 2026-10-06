@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { isEffectivelyPremium } from '@/lib/plans'
+import { fetchEffectivePlan } from '@/lib/plan-client'
 import { PageSkeleton } from '@/components/motion/PageSkeleton'
 import { AppShell } from '@/components/layout/AppShell'
 import { GroupTitle, HERO, HERO_STYLE, PageHeader, PILL_OUTLINE, PillButton } from '@/components/layout/Pantalla'
@@ -69,8 +69,8 @@ export default function CapsulePage() {
 
       let plan: 'free' | 'premium' = 'free'
       if (user) {
-        const { data: userRow } = await supabase.from('users').select('plan, trial_ends_at').eq('id', user.id).single()
-        plan = userRow && isEffectivelyPremium(userRow) ? 'premium' : 'free'
+        const effective = await fetchEffectivePlan()
+        plan = effective && effective.plan !== 'free' ? 'premium' : 'free'
       }
 
       const isPremiumCapsule = data.is_premium === true
@@ -181,15 +181,7 @@ export default function CapsulePage() {
               </Note>
               <button
                 type="button"
-                onClick={async () => {
-                  const res = await fetch('/api/stripe/checkout', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ plan: 'monthly' }),
-                  })
-                  const { url } = await res.json()
-                  if (url) window.location.href = url
-                }}
+                onClick={() => { window.location.href = '/planes' }}
                 className={`mt-3.5 ${PRIMARY_BUTTON}`}
               >
                 Desbloquear con Premium

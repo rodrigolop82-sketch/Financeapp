@@ -99,6 +99,10 @@ interface ImportState {
   importUsage: { used: number; limit: number } | null
   /** "TARJETA •••• 4821" (o el banco) para el encabezado de la revisión. */
   accountLabel: string | null
+  /** Últimos 4 dígitos de la tarjeta o cuenta, si el estado los trae. */
+  accountLast4: string | null
+  /** Hogares de 2: quién pagó lo de esta tarjeta (null = quien importa). */
+  paidBy: string | null
   /** Cargos que ya se habían importado antes (no se muestran). */
   alreadyImported: number
   review: ImportReviewContext | null
@@ -111,6 +115,12 @@ type PhotoResult = { bank: string | null; account: AccountInfo | null; transacti
 interface AccountInfo { type?: string | null; last4?: string | null }
 
 /** "TARJETA •••• 4821", "CUENTA •••• 1234" o el nombre del banco. */
+/** "4821" de la cuenta leída, o null. */
+export function last4Of(account: AccountInfo | null | undefined): string | null {
+  const d = account?.last4?.replace(/\D/g, '').slice(-4)
+  return d && d.length === 4 ? d : null
+}
+
 export function accountLabel(account: AccountInfo | null | undefined, bank: string | null): string | null {
   const last4 = account?.last4?.replace(/\D/g, '').slice(-4)
   if (last4) return `${account?.type === 'cuenta' ? 'Cuenta' : 'Tarjeta'} •••• ${last4}`
@@ -166,6 +176,8 @@ const EMPTY_STATE: ImportState = {
   limitData: null,
   importUsage: null,
   accountLabel: null,
+  accountLast4: null,
+  paidBy: null,
   alreadyImported: 0,
   review: null,
   outcome: null,
@@ -513,6 +525,7 @@ export function useStatementImport(householdId: string) {
         isLoading: false,
         bankDetected: bank,
         accountLabel: accountLabel(account, bank),
+        accountLast4: last4Of(account),
         period: null,
         transactions,
         alreadyImported: merged.transactions.length - transactions.length,
@@ -655,6 +668,7 @@ export function useStatementImport(householdId: string) {
         isLoading: false,
         bankDetected: data.bank || null,
         accountLabel: accountLabel(data.account, data.bank || null),
+        accountLast4: last4Of(data.account),
         period: data.period || null,
         transactions,
         alreadyImported: rawTx.length - transactions.length,
@@ -767,6 +781,7 @@ export function useStatementImport(householdId: string) {
         categories: review.categories,
         overrideKeys: ((overrides ?? []) as { merchant_key: string }[]).map(o => o.merchant_key),
         paymentMethod: current.accountLabel?.startsWith('Cuenta') ? 'transferencia' : 'tarjeta',
+        paidBy: current.paidBy,
       })
 
       // Auto-detect source (best-effort, never blocks)
@@ -826,5 +841,6 @@ export function useStatementImport(householdId: string) {
     undoImport,
     setSame,
     setCategory,
+    setPaidBy: (paidBy: string | null) => setState(s => ({ ...s, paidBy })),
   }
 }

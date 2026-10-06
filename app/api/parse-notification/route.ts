@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { getEffectivePlan } from '@/lib/plans'
 import { localToday } from '@/lib/dates'
 import { cleanTransactionName, formatMoney } from '@/lib/format'
 import { toGTQ, detectCurrency } from '@/lib/currency'
@@ -236,6 +237,11 @@ async function handleShortcut(req: NextRequest, token: string) {
 
   if (!(await touchShortcutToken(admin, row))) {
     return NextResponse.json({ error: 'Demasiados pagos seguidos con esta clave. Intenta en una hora.' }, { status: 429 })
+  }
+
+  // Solo ver: el atajo tampoco registra (no pasa por RLS: usa service role).
+  if ((await getEffectivePlan(row.user_id)).access === 'view') {
+    return NextResponse.json({ error: 'Estás en modo solo ver: pídele al dueño del hogar que active Familiar.' }, { status: 403 })
   }
 
   const result = await registerApplePayCharge(admin, row.user_id, parsed.value)

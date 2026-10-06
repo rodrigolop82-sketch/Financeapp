@@ -42,7 +42,7 @@ export default function PrivacidadPage() {
               <li><strong>Supabase</strong> — base de datos y autenticación. Tus datos están protegidos con Row Level Security (RLS): cada consulta está vinculada a tu usuario.</li>
               <li><strong>Claude (Anthropic)</strong> — genera recomendaciones financieras. Tu información se envía procesada en el momento y no se almacena en los servidores de IA.</li>
               <li><strong>Whisper (OpenAI)</strong> — transcripción de audio. El audio se procesa y se descarta; no se retiene ni se usa para entrenar modelos.</li>
-              <li><strong>Stripe</strong> — procesamiento de pagos. Zafi no almacena datos de tarjeta; Stripe los gestiona bajo su propia política PCI-DSS.</li>
+              <li><strong>Recurrente</strong> — procesamiento de pagos. Zafi no almacena datos de tarjeta; Recurrente los gestiona bajo su propia política PCI-DSS.</li>
               <li><strong>Vercel</strong> — hosting y despliegue de la aplicación.</li>
             </ul>
           </Section>

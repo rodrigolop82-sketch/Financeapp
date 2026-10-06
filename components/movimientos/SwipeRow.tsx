@@ -4,6 +4,9 @@ import { useRef, useState } from 'react';
 import type { SearchTransaction } from '@/types';
 import { getEmoji } from '@/lib/categories-ui';
 import { CARD_BG, TEXT_MUTED, TEXT_STRONG, TILE_BG } from './ui';
+import { PersonAvatar } from '@/components/hogar/PersonUI';
+import { BADGE_NEUTRAL } from '@/components/layout/Pantalla';
+import type { Person } from '@/lib/hogar';
 
 const OPEN_X = -150;
 const SETTLE = 'transform .22s cubic-bezier(0.32,0.72,0,1)';
@@ -16,10 +19,13 @@ export interface SwipeRowData {
   sub: string;
   amountLabel: string;
   isIncome: boolean;
+  /** Quién pagó (solo en hogares de 2). */
+  payer?: Person | null;
+  personal?: boolean;
 }
 
 /** Datos de fila a partir de un movimiento: emoji, nombre, categoría y monto. */
-export function txRowData(tx: SearchTransaction, fmt: (n: number) => string): SwipeRowData {
+export function txRowData(tx: SearchTransaction, fmt: (n: number) => string, personOf?: (id: string | null | undefined) => Person | null): SwipeRowData {
   const isIncome = tx.type === 'income';
   const symbol = tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : `${tx.original_currency} `;
   const forex = tx.original_currency
@@ -32,6 +38,10 @@ export function txRowData(tx: SearchTransaction, fmt: (n: number) => string): Sw
     sub: (tx.category_name || 'Sin categoría') + (tx.source === 'statement' ? ' · del banco' : '') + forex,
     amountLabel: `${isIncome ? '+' : ''}${fmt(Number(tx.amount))}`,
     isIncome,
+    ...(personOf ? (() => {
+      const payer = personOf(tx.paid_by);
+      return { payer, personal: tx.scope === 'personal', sub: (tx.category_name || 'Sin categoría') + (payer ? ` · ${payer.name}` : '') + forex };
+    })() : {}),
   };
 }
 
@@ -39,11 +49,21 @@ export function txRowData(tx: SearchTransaction, fmt: (n: number) => string): Sw
 function RowContent({ row, amountClassName = '' }: { row: SwipeRowData; amountClassName?: string }) {
   return (
     <>
-      <span aria-hidden className={`flex-none w-10 h-10 rounded-xl flex items-center justify-center text-xl ${TILE_BG}`}>
-        {row.emoji}
+      <span className="relative flex-none">
+        <span aria-hidden className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${TILE_BG}`}>
+          {row.emoji}
+        </span>
+        {row.payer && (
+          <span className="absolute -bottom-1 -right-1">
+            <PersonAvatar person={row.payer} size={20} ring />
+          </span>
+        )}
       </span>
       <span className="flex-1 min-w-0 flex flex-col text-left">
-        <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{row.name}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{row.name}</span>
+          {row.personal && <span className={BADGE_NEUTRAL}>Personal</span>}
+        </span>
         <span className={`truncate text-[13px] ${TEXT_MUTED}`}>{row.sub}</span>
       </span>
       <span className={`flex-none font-outfit font-bold text-base ${row.isIncome ? 'text-success-dark' : TEXT_STRONG} ${amountClassName}`}>
