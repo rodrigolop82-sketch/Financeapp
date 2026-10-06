@@ -120,7 +120,7 @@ export type PlanLabel = 'Premium' | 'Prueba' | 'Gratis';
 
 /** Premium pagado, prueba de 14 días vigente o gratis. */
 export function planLabel(u: Pick<AdminUser, 'plan' | 'trialEndsAt'>, now: number): PlanLabel {
-  if (u.plan === 'premium') return 'Premium';
+  if (u.plan === 'premium' || u.plan === 'family') return 'Premium';
   const end = toMs(u.trialEndsAt);
   if (end !== null && end > now) return 'Prueba';
   return 'Gratis';

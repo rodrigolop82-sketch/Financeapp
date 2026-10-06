@@ -2,7 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
-import { isEffectivelyPremium } from '@/lib/plans';
+import { createClient } from '@supabase/supabase-js';
+import { getEffectivePlan, hasSeatFor, memberAccessFor } from '@/lib/plans';
 
 function createSupabase() {
   const cookieStore = cookies();
@@ -43,13 +44,8 @@ export async function POST(request: Request) {
   }
 
   // Verify caller has a premium plan (or is still inside their signup trial)
-  const { data: ownerProfile } = await supabase
-    .from('users')
-    .select('plan, trial_ends_at')
-    .eq('id', user.id)
-    .single();
-
-  if (!ownerProfile || !isEffectivelyPremium(ownerProfile)) {
+  const { plan } = await getEffectivePlan(user.id);
+  if (plan === 'free') {
     return NextResponse.json({ error: 'Se requiere plan Premium para usar el modo familia' }, { status: 403 });
   }
 
@@ -176,6 +172,19 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Ya eres miembro de este hogar', alreadyMember: true }, { status: 409 });
   }
 
+  // Plan y asientos del dueño: Familiar ⇒ acceso completo; si no, solo ver.
+  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  const { data: hh } = await admin.from('households').select('owner_id').eq('id', invite.household_id).single();
+  const { count: others } = await admin
+    .from('household_members')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('household_id', invite.household_id)
+    .eq('role', 'member');
+  if (!hasSeatFor(others ?? 0)) {
+    return NextResponse.json({ error: 'Este hogar ya tiene a sus 2 personas' }, { status: 409 });
+  }
+  const ownerPlan = hh ? (await getEffectivePlan(hh.owner_id)).plan : 'free';
+
   // Check if user owns a different household — if so, they can still join as member
   // Add user as member
   const { error } = await supabase
@@ -184,6 +193,7 @@ export async function PUT(request: Request) {
       household_id: invite.household_id,
       user_id: user.id,
       role: 'member',
+      access: memberAccessFor(ownerPlan),
     });
 
   if (error) {

@@ -59,7 +59,7 @@ export function activeTabFor(pathname: string): TabKey | null {
   if (['/transacciones', '/importar', '/notificacion'].some((p) => matches(pathname, p))) return 'movimientos';
   // Plan agrupa el plan del mes, las metas y las deudas.
   if (['/plan', '/presupuesto', '/metas', '/deudas'].some((p) => matches(pathname, p))) return 'plan';
-  const moreRoutes = ['/mas', '/admin', ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href.split('?')[0]] : [])))];
+  const moreRoutes = ['/mas', '/admin', '/planes', ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href.split('?')[0]] : [])))];
   if (moreRoutes.some((p) => matches(pathname, p))) return 'mas';
   return null;
 }

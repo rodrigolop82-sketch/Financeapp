@@ -38,14 +38,15 @@ export default function TerminosPage() {
             Zafi ofrece un plan gratuito con funcionalidades básicas y un plan Premium con
             acceso a funciones avanzadas. Los precios del plan Premium se muestran al momento
             de la suscripción y pueden cambiar con aviso previo de 30 días. Los pagos se
-            procesan mediante Stripe.
+            procesan mediante Recurrente.
           </Section>
 
           <Section title="5. Reembolsos">
             Si no estás satisfecho con el plan Premium, puedes cancelar en cualquier momento.
             La cancelación toma efecto al final del período de facturación actual. No se
-            emiten reembolsos parciales por períodos no utilizados, salvo que la ley
-            aplicable lo requiera.
+            emiten reembolsos parciales por períodos no utilizados, salvo cuando cambias de
+            plan o te unes a un hogar Familiar: ahí te devolvemos la parte no usada de tu
+            plan anterior. También cuando la ley aplicable lo requiera.
           </Section>
 
           <Section title="6. Uso aceptable">

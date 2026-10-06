@@ -186,7 +186,7 @@ export function computeFunnel(ctx: Ctx, cohort: AdminUser[]): Funnel {
   const captured = cohort.filter((u) => act(ctx, u)?.hasExpense);
   const w1 = captured.filter((u) => activeInWeek(ctx, u, 1));
   const w2 = w1.filter((u) => activeInWeek(ctx, u, 2));
-  const premium = cohort.filter((u) => u.plan === 'premium');
+  const premium = cohort.filter((u) => u.plan === 'premium' || u.plan === 'family');
   const values = [cohort.length, captured.length, w1.length, w2.length, premium.length];
 
   let worst = -1;
@@ -309,8 +309,8 @@ export function computeResumen(ctx: Ctx, days: PeriodDays): Resumen {
   const lagT = 14 * DAY_MS;
   const trials = usersRegisteredBetween(ctx, now - lagT - P, now - lagT);
   const trialsPrev = usersRegisteredBetween(ctx, now - lagT - 2 * P, now - lagT - P);
-  const paid = trials.filter((u) => u.plan === 'premium').length;
-  const paidPrev = trialsPrev.filter((u) => u.plan === 'premium').length;
+  const paid = trials.filter((u) => u.plan === 'premium' || u.plan === 'family').length;
+  const paidPrev = trialsPrev.filter((u) => u.plan === 'premium' || u.plan === 'family').length;
   const convNow = rate(paid, trials.length);
   const convPrev = rate(paidPrev, trialsPrev.length);
 

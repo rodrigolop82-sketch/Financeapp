@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase';
 import { AppShell } from '@/components/layout/AppShell';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
-import { isEffectivelyPremium } from '@/lib/plans';
+import { fetchEffectivePlan } from '@/lib/plan-client';
 import { localMonth } from '@/lib/dates';
 import { monthRange } from '@/lib/movimientos';
 import { initials } from '@/lib/inicio';
@@ -76,9 +76,8 @@ export default function FamiliaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
-      const { data: profile } = await supabase
-        .from('users').select('plan, trial_ends_at').eq('id', user.id).single();
-      setIsPremium(!!profile && isEffectivelyPremium(profile));
+      const effective = await fetchEffectivePlan();
+      setIsPremium(!!effective && effective.plan !== 'free');
 
       const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
@@ -186,7 +185,7 @@ export default function FamiliaPage() {
 
         <div className="flex flex-col zafi-stagger">
           {isOwner && !isPremium && (
-            <Link href="/cuenta" className="mt-3.5 flex w-full items-center gap-3 rounded-2xl bg-warning-light px-4 py-3.5 text-left dark:bg-warning/15">
+            <Link href="/planes?tier=family" className="mt-3.5 flex w-full items-center gap-3 rounded-2xl bg-warning-light px-4 py-3.5 text-left dark:bg-warning/15">
               <span aria-hidden className="text-[22px] leading-none">👑</span>
               <span className="flex-1 text-sm text-warning-text dark:text-warning">
                 <b>Familia es Premium.</b> Activa tu plan para invitar y compartir el presupuesto.

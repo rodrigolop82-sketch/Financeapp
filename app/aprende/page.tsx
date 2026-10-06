@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import { isEffectivelyPremium } from '@/lib/plans'
+import { fetchEffectivePlan } from '@/lib/plan-client'
 import { AppShell } from '@/components/layout/AppShell'
 import { ParaTi } from '@/components/education/ParaTi'
 import Link from 'next/link'
@@ -54,13 +54,13 @@ export default function AprendePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
 
-      const [modulesRes, userRes, progressRes] = await Promise.all([
+      const [modulesRes, effective, progressRes] = await Promise.all([
         supabase.from('capsule_modules').select('*, capsules(count)').order('order_index'),
-        supabase.from('users').select('plan, trial_ends_at').eq('id', user.id).single(),
+        fetchEffectivePlan(),
         supabase.from('user_capsule_progress').select('capsule_id, capsules!inner(module_id)').eq('user_id', user.id),
       ])
 
-      setUserPlan(userRes.data && isEffectivelyPremium(userRes.data) ? 'premium' : 'free')
+      setUserPlan(effective && effective.plan !== 'free' ? 'premium' : 'free')
 
       const completedByModule: Record<string, number> = {}
       const doneIds = new Set<string>()

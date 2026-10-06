@@ -55,7 +55,7 @@ function timeAgo(dateStr: string): string {
 }
 
 interface UsageData {
-  plan: 'free' | 'premium'
+  plan: 'free' | 'premium' | 'family'
   ai: { used: number; limit: number | null; remaining: number | null }
 }
 
@@ -257,7 +257,7 @@ export default function ChatPage() {
       }
 
       setUsage(prev => {
-        if (!prev || prev.plan === 'premium') return prev
+        if (!prev || prev.plan !== 'free') return prev
         const newUsed = (prev.ai.used ?? 0) + 1
         const limit = prev.ai.limit ?? 0
         return { ...prev, ai: { used: newUsed, limit: prev.ai.limit, remaining: Math.max(0, limit - newUsed) } }
@@ -440,15 +440,7 @@ export default function ChatPage() {
               </p>
               <button
                 type="button"
-                onClick={async () => {
-                  const res = await fetch('/api/stripe/checkout', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ plan: 'monthly' }),
-                  })
-                  const { url } = await res.json()
-                  if (url) window.location.href = url
-                }}
+                onClick={() => { window.location.href = '/planes?from=ia' }}
                 className="mt-2 h-[46px] rounded-full bg-white text-[15px] font-bold text-navy transition-transform duration-150 active:scale-[0.97]"
               >
                 Pasar a Premium

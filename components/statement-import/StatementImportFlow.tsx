@@ -136,15 +136,7 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
           </section>
           <button
             type="button"
-            onClick={async () => {
-              const res = await fetch('/api/stripe/checkout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plan: 'monthly' }),
-              })
-              const { url } = await res.json()
-              if (url) window.location.href = url
-            }}
+            onClick={() => { window.location.href = '/planes?from=import' }}
             className={PRIMARY_BUTTON}
           >
             Pasar a Premium

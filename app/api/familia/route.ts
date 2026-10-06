@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { isEffectivelyPremium } from '@/lib/plans';
+import { getEffectivePlan, hasSeatFor, memberAccessFor } from '@/lib/plans';
 
 function createSupabase() {
   const cookieStore = cookies();
@@ -113,13 +113,8 @@ export async function POST(request: Request) {
   }
 
   // Verify caller has a premium plan (or is still inside their signup trial)
-  const { data: ownerProfile } = await supabase
-    .from('users')
-    .select('plan, trial_ends_at')
-    .eq('id', user.id)
-    .single();
-
-  if (!ownerProfile || !isEffectivelyPremium(ownerProfile)) {
+  const { plan } = await getEffectivePlan(user.id);
+  if (plan === 'free') {
     return NextResponse.json({ error: 'Se requiere plan Premium para usar el modo familia' }, { status: 403 });
   }
 
@@ -128,6 +123,15 @@ export async function POST(request: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+
+  const { count: others } = await adminClient
+    .from('household_members')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('household_id', householdId)
+    .eq('role', 'member');
+  if (!hasSeatFor(others ?? 0)) {
+    return NextResponse.json({ error: 'Tu hogar ya tiene a sus 2 personas' }, { status: 409 });
+  }
   const { data: targetUser } = await adminClient
     .from('users')
     .select('id, email')
@@ -161,6 +165,7 @@ export async function POST(request: Request) {
       household_id: householdId,
       user_id: targetUser.id,
       role: 'member',
+      access: memberAccessFor(plan),
     });
 
   if (error) {

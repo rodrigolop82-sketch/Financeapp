@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { NavCard, NavRow } from '@/components/layout/NavRow'
 import { MORE_GROUPS, type MoreGroup } from '@/lib/navigation'
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet'
+import { PlanStatusCard } from '@/components/premium/PlanStatusCard'
 
 const ADMIN_GROUP: MoreGroup = {
   title: 'Administración',
@@ -27,6 +28,7 @@ export default function MasPage() {
   return (
     <AppShell title="Más" currentPath="/mas">
       <div className="max-w-xl flex flex-col zafi-stagger" style={{ gap: 18 }}>
+        <PlanStatusCard />
         {groups.map((group) => (
           <section key={group.title} className="flex flex-col" style={{ gap: 6 }}>
             <h2
