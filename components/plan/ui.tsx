@@ -94,3 +94,17 @@ export function TwoCells({ cells }: { cells: { label: string; value: React.React
     </div>
   );
 }
+
+/** Última fila de una lista para crear algo nuevo: tile punteado con "+". */
+export function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 border-t border-[var(--zafi-border-light)] py-3 text-left transition duration-150 first:border-t-0 active:scale-[0.98]"
+    >
+      <span aria-hidden className="flex h-10 w-10 flex-none items-center justify-center rounded-xl border-[1.5px] border-dashed border-electric-soft text-[22px] font-semibold text-electric">+</span>
+      <span className="text-[15px] font-semibold text-electric-dark dark:text-electric-soft">{label}</span>
+    </button>
+  );
+}

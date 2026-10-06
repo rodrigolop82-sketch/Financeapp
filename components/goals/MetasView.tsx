@@ -8,7 +8,7 @@ import {
 } from '@/components/layout/Pantalla'
 import { CARD, GREEN_TEXT } from '@/components/resumen/ctf-ui'
 import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
-import { PlanHero, ProgressBar, RowAmount } from '@/components/plan/ui'
+import { AddRow, PlanHero, ProgressBar, RowAmount } from '@/components/plan/ui'
 import { GoalForm } from '@/components/goals/GoalForm'
 import { BottomSheet } from '@/components/transactions/BottomSheet'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
@@ -41,7 +41,7 @@ function rowNote(g: Goal, state: RowState): string {
 
 /**
  * Metas: cuerpo de la sección "Metas" en /plan. `addRequest` cambia cuando se
- * toca "+ Nueva meta" en el encabezado de Plan.
+ * llega desde /metas/nueva para abrir la hoja.
  */
 export function MetasView({ addRequest = 0 }: { addRequest?: number }) {
   const fmt = useFormatMoney()
@@ -66,8 +66,8 @@ export function MetasView({ addRequest = 0 }: { addRequest?: number }) {
   const saved = active.reduce((s, g) => s + g.currentAmount, 0)
   const target = active.reduce((s, g) => s + g.targetAmount, 0)
 
-  const list = (title: string, rows: Goal[]) =>
-    rows.length > 0 && (
+  const list = (title: string, rows: Goal[], withAdd = false) =>
+    (rows.length > 0 || withAdd) && (
       <section>
         <GroupTitle>{title}</GroupTitle>
         <ListCard>
@@ -103,6 +103,7 @@ export function MetasView({ addRequest = 0 }: { addRequest?: number }) {
               </Link>
             )
           })}
+          {withAdd && <AddRow label="Crear una meta" onClick={openNew} />}
         </ListCard>
       </section>
     )
@@ -129,7 +130,7 @@ export function MetasView({ addRequest = 0 }: { addRequest?: number }) {
               sub={`de ${fmt(target)} · ${active.length} ${active.length === 1 ? 'meta' : 'metas'} en curso`}
               pct={target > 0 ? saved / target : 0}
             />
-            {list('En curso', active)}
+            {list('En curso', active, true)}
             {list('En pausa', paused)}
             {list('Completadas', completed)}
           </>

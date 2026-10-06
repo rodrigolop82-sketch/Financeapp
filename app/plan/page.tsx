@@ -6,7 +6,7 @@ import { planSection, type PlanSection } from '@/lib/navigation';
 import { localMonth } from '@/lib/dates';
 import { monthName } from '@/lib/plan-del-mes';
 import { AppShell } from '@/components/layout/AppShell';
-import { PillButton, Segmented } from '@/components/layout/Pantalla';
+import { Segmented } from '@/components/layout/Pantalla';
 import { BORDER, TEXT_STRONG } from '@/components/movimientos/ui';
 import { PageSkeleton } from '@/components/motion/PageSkeleton';
 import { PresupuestoView } from '@/components/presupuesto/PresupuestoView';
@@ -32,9 +32,8 @@ function PlanHub() {
   const router = useRouter();
   const params = useSearchParams();
   const section = planSection(params.get('s'));
-  // Cada toque en "+ Nueva meta" / "+ Agregar" abre la hoja de la sección.
+  // /metas/nueva abre la hoja de nueva meta (crear se hace al final de cada lista).
   const [addMeta, setAddMeta] = useState(0);
-  const [addDeuda, setAddDeuda] = useState(0);
 
   function replaceQuery(edit: (q: URLSearchParams) => void) {
     const q = new URLSearchParams(params.toString());
@@ -59,14 +58,11 @@ function PlanHub() {
   }, [wantsNew]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const month = monthName(localMonth());
-  const right =
-    section === 'metas' ? <PillButton onClick={() => setAddMeta((n) => n + 1)}>+ Nueva meta</PillButton>
-    : section === 'deudas' ? <PillButton onClick={() => setAddDeuda((n) => n + 1)}>+ Agregar</PillButton>
-    : (
-      <span className={`flex h-11 flex-none items-center rounded-full border bg-[var(--zafi-card)] px-4 text-sm font-semibold capitalize ${BORDER} ${TEXT_STRONG}`}>
-        {month}
-      </span>
-    );
+  const right = section === 'mes' ? (
+    <span className={`flex h-11 flex-none items-center rounded-full border bg-[var(--zafi-card)] px-4 text-sm font-semibold capitalize ${BORDER} ${TEXT_STRONG}`}>
+      {month}
+    </span>
+  ) : null;
 
   return (
     <AppShell title="Plan" currentPath="/plan" titleRight={right} headerRight={right}>
@@ -75,7 +71,7 @@ function PlanHub() {
       </div>
       {section === 'mes' && <PresupuestoView />}
       {section === 'metas' && <MetasView addRequest={addMeta} />}
-      {section === 'deudas' && <DeudasView addRequest={addDeuda} />}
+      {section === 'deudas' && <DeudasView />}
     </AppShell>
   );
 }

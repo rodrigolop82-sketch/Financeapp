@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { getUserHousehold } from '@/lib/household';
@@ -13,7 +13,7 @@ import {
 } from '@/components/layout/Pantalla';
 import { CARD, GREEN_TEXT } from '@/components/resumen/ctf-ui';
 import { PRIMARY_BUTTON, SOFT_BG, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
-import { Note, PlanHero, RowAmount, TwoCells } from '@/components/plan/ui';
+import { AddRow, Note, PlanHero, RowAmount, TwoCells } from '@/components/plan/ui';
 import { BottomSheet } from '@/components/transactions/BottomSheet';
 import { UndoToast } from '@/components/transactions/UndoToast';
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast';
@@ -45,11 +45,8 @@ function num(v: string): number {
   return parseFloat(v.replace(/[^0-9.]/g, '')) || 0;
 }
 
-/**
- * Deudas: cuerpo de la sección "Deudas" en /plan. `addRequest` cambia cuando
- * se toca "+ Agregar" en el encabezado de Plan.
- */
-export function DeudasView({ addRequest = 0 }: { addRequest?: number }) {
+/** Deudas: cuerpo de la sección "Deudas" en /plan. */
+export function DeudasView() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const fmt = useFormatMoney();
@@ -85,13 +82,6 @@ export function DeudasView({ addRequest = 0 }: { addRequest?: number }) {
   }, [supabase, router]);
 
   const openNew = useCallback(() => setSheet({ debt: null, key: Date.now() }), []);
-  // Solo los toques nuevos abren la hoja (no el valor con el que se monta).
-  const seenRequest = useRef(addRequest);
-  useEffect(() => {
-    if (addRequest === seenRequest.current) return;
-    seenRequest.current = addRequest;
-    openNew();
-  }, [addRequest, openNew]);
 
   const fail = () => setMessage({ text: 'No se pudo guardar. Intenta de nuevo.', tone: 'error' });
 
@@ -158,9 +148,14 @@ export function DeudasView({ addRequest = 0 }: { addRequest?: number }) {
     <>
       <div className="flex max-w-2xl flex-col zafi-stagger">
         {active.length === 0 ? (
-          <Note tone="ok" className="mt-3.5">
-            <b>No tienes deudas activas.</b> Excelente, sigue así.
-          </Note>
+          <>
+            <Note tone="ok" className="mt-3.5">
+              <b>No tienes deudas activas.</b> Excelente, sigue así.
+            </Note>
+            <ListCard className="mt-3">
+              <AddRow label="Agregar una deuda" onClick={openNew} />
+            </ListCard>
+          </>
         ) : (
           <>
             <PlanHero
@@ -222,6 +217,7 @@ export function DeudasView({ addRequest = 0 }: { addRequest?: number }) {
                     </div>
                   );
                 })}
+                <AddRow label="Agregar una deuda" onClick={openNew} />
               </ListCard>
             </section>
 
