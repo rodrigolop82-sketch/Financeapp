@@ -61,6 +61,7 @@ export function nextStatus(current: FeedbackStatus, action: FeedbackAction | 're
 const SCREENS: Record<string, string> = {
   '/dashboard': 'Inicio',
   '/transacciones': 'Movimientos',
+  '/plan': 'Plan',
   '/presupuesto': 'Plan del mes',
   '/metas': 'Metas',
   '/mas': 'Más',

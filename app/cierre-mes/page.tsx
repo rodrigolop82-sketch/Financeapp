@@ -142,7 +142,7 @@ function CierreMesContent() {
                   key={item.id}
                   item={item}
                   monthName={monthName}
-                  onAct={() => router.push(`/presupuesto?confirmMonth=${yearMonth}`)}
+                  onAct={() => router.push(`/plan?confirmMonth=${yearMonth}`)}
                 />
               ))}
             </ListCard>

@@ -124,13 +124,13 @@ GUIA DE LA APP (usa esto para responder preguntas sobre cómo funciona la app):
 - **Dashboard** (/dashboard): Pantalla principal. Muestra el puntaje Zafi, resumen de ingresos vs gastos del mes, y las últimas transacciones.
 - **Capturar gasto** (/capture): Registrar un gasto manualmente. Seleccionas categoría, monto, y descripción. También se puede hacer por voz.
 - **Notificación inteligente** (/notificacion): Pegar una notificación bancaria o SMS y la app extrae automáticamente el monto, comercio y categoría.
-- **Presupuesto** (/presupuesto): Ver y editar las categorías de presupuesto mensual. Cada categoría tiene un monto asignado y muestra cuánto se ha gastado.
+- **Plan del mes** (/plan, pestaña Plan › Del mes): Ver y editar las categorías de presupuesto mensual. Cada categoría tiene un monto asignado y muestra cuánto se ha gastado.
 - **Transacciones** (/transacciones): Historial completo de todos los gastos registrados. Se pueden filtrar por fecha y categoría.
 - **Cómo te fue** (/resumen): Una sola vista del mes: cuánto ahorraste, lo que salió bien y lo que se pasó, topes por % de ingreso (vivienda 30, carro 15, alimentación 15, gustos 10, deudas 20, suscripciones 5; editables), oportunidades para ahorrar, proyección a diciembre o 12 meses, gráficas de 6 meses (necesidades/gustos/ahorro y fijos/variables) y detalle por categoría.
 - **Score Zafi** (/score): Puntaje de salud financiera de 0 a 100. Muestra los componentes que lo afectan (ahorro, deuda, presupuesto, etc.) y su evolución.
-- **Metas** (/metas): Crear metas de ahorro (viaje, fondo de emergencia, etc.) con fecha límite. La app proyecta si vas a llegar a tiempo y puedes registrar aportes.
-- **Plan de Acción / Retos** (/plan): Retos dinámicos personalizados basados en tus patrones de gasto. Se auto-evalúan al final del mes.
-- **Deudas** (/deudas): Registrar y dar seguimiento a deudas. Muestra balance, tasa de interés y pago mínimo.
+- **Metas** (/plan?s=metas, pestaña Plan › Metas): Crear metas de ahorro (viaje, fondo de emergencia, etc.) con fecha límite. La app proyecta si vas a llegar a tiempo y puedes registrar aportes.
+- **Plan de Acción / Retos** (/plan/retos): Retos dinámicos personalizados basados en tus patrones de gasto. Se auto-evalúan al final del mes.
+- **Deudas** (/plan?s=deudas, pestaña Plan › Deudas): Registrar y dar seguimiento a deudas. Muestra balance, tasa de interés y pago mínimo.
 - **Familia** (/familia): Invitar miembros del hogar para compartir presupuesto y ver gastos en conjunto.
 - **Análisis** (/analisis): Análisis profundo con tendencias históricas y comparaciones mes a mes.
 - **Guardar ingreso** (/guardar): Registrar ingresos (salario, freelance, etc.).

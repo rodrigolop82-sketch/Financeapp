@@ -1,33 +1,27 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { AppShell } from '@/components/layout/AppShell';
-import {
-  Loader2,
-  Users,
-  UserPlus,
-  Crown,
-  User,
-  Trash2,
-  Mail,
-  AlertCircle,
-  CheckCircle2,
-  Link2,
-  Copy,
-  Check,
-  Share2,
-  Receipt,
-  Lock,
-} from 'lucide-react';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
 import { isEffectivelyPremium } from '@/lib/plans';
+import { localMonth } from '@/lib/dates';
+import { monthRange } from '@/lib/movimientos';
+import { initials } from '@/lib/inicio';
 import { PageSkeleton } from '@/components/motion/PageSkeleton';
+import {
+  BADGE_INFO, BADGE_NEUTRAL, ErrorBox, FieldLabel, GroupTitle, INPUT_48, ListCard, PageHeader,
+  PILL_OUTLINE, PillButton, ROW_DIVIDER, SheetHeader,
+} from '@/components/layout/Pantalla';
+import { CARD } from '@/components/resumen/ctf-ui';
+import { DIVIDER, PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
+import { Note, ProgressBar } from '@/components/plan/ui';
+import { BottomSheet } from '@/components/transactions/BottomSheet';
+import { UndoToast } from '@/components/transactions/UndoToast';
+import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast';
 
 interface Member {
   user_id: string;
@@ -36,25 +30,46 @@ interface Member {
   users: { email: string; full_name: string | null } | null;
 }
 
+function memberName(m: Member): string {
+  return m.users?.full_name || m.users?.email?.split('@')[0] || 'Usuario';
+}
+
+function Avatar({ name, owner, size = 40 }: { name: string; owner: boolean; size?: number }) {
+  return (
+    <span
+      aria-hidden
+      className={`flex flex-none items-center justify-center rounded-full font-bold ${
+        owner ? 'bg-navy text-white dark:bg-electric' : 'bg-electric-ghost text-electric-dark dark:bg-[#1B2B4D] dark:text-electric-soft'
+      }`}
+      style={{ width: size, height: size, fontSize: size >= 40 ? 14 : 10 }}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
 export default function FamiliaPage() {
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+  const fmt = useFormatMoney();
+
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Member[]>([]);
   const [householdId, setHouseholdId] = useState('');
+  const [householdName, setHouseholdName] = useState('');
   const [isOwner, setIsOwner] = useState(false);
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviting, setInviting] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [inviteLink, setInviteLink] = useState('');
-  const [generatingLink, setGeneratingLink] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const [spendingByMember, setSpendingByMember] = useState<Record<string, number>>({});
   const [txCountByMember, setTxCountByMember] = useState<Record<string, number>>({});
   const [unattributedSpending, setUnattributedSpending] = useState(0);
-  const [isPremium, setIsPremium] = useState(false);
-  const router = useRouter();
-  const supabase = createClient();
-  const fmt = useFormatMoney();
+  const [inviteKey, setInviteKey] = useState<number | null>(null);
+  const [removed, setRemoved] = useState<Member | null>(null);
+  const [message, setMessage] = useState<StatusMessage | null>(null);
+
+  const loadMembers = useCallback(async (hhId: string) => {
+    const res = await fetch(`/api/familia?householdId=${hhId}`);
+    if (res.ok) setMembers((await res.json()).members);
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -70,399 +85,317 @@ export default function FamiliaPage() {
 
       const hhId = hh.id;
       setHouseholdId(hhId);
+      setHouseholdName(hh.name ?? '');
       setIsOwner(hh.owner_id === user.id);
 
-      if (hhId) {
-        const [membersRes, { data: txData }] = await Promise.all([
-          fetch(`/api/familia?householdId=${hhId}`),
-          supabase
-            .from('transactions')
-            .select('created_by, amount')
-            .eq('household_id', hhId)
-            .eq('type', 'expense'),
-        ]);
+      // "Quién gastó este mes": solo los gastos del mes en curso.
+      const { from, to } = monthRange(localMonth());
+      const [, { data: txData }] = await Promise.all([
+        loadMembers(hhId),
+        supabase
+          .from('transactions')
+          .select('created_by, amount')
+          .eq('household_id', hhId)
+          .eq('type', 'expense')
+          .gte('date', from)
+          .lte('date', to),
+      ]);
 
-        if (membersRes.ok) {
-          const data = await membersRes.json();
-          setMembers(data.members);
+      const byMember: Record<string, number> = {};
+      const countByMember: Record<string, number> = {};
+      let unattributed = 0;
+      (txData || []).forEach((tx: { created_by: string | null; amount: number }) => {
+        if (tx.created_by) {
+          byMember[tx.created_by] = (byMember[tx.created_by] || 0) + Number(tx.amount);
+          countByMember[tx.created_by] = (countByMember[tx.created_by] || 0) + 1;
+        } else {
+          unattributed += Number(tx.amount);
         }
-
-        const byMember: Record<string, number> = {};
-        const countByMember: Record<string, number> = {};
-        let unattributed = 0;
-        (txData || []).forEach((tx: { created_by: string | null; amount: number }) => {
-          if (tx.created_by) {
-            byMember[tx.created_by] = (byMember[tx.created_by] || 0) + Number(tx.amount);
-            countByMember[tx.created_by] = (countByMember[tx.created_by] || 0) + 1;
-          } else {
-            unattributed += Number(tx.amount);
-          }
-        });
-        setSpendingByMember(byMember);
-        setTxCountByMember(countByMember);
-        setUnattributedSpending(unattributed);
-      }
+      });
+      setSpendingByMember(byMember);
+      setTxCountByMember(countByMember);
+      setUnattributedSpending(unattributed);
       setLoading(false);
     }
     load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, router, loadMembers]);
 
-  async function inviteMember() {
-    if (!inviteEmail.trim()) return;
-    setInviting(true);
-    setMessage(null);
-
+  async function addByEmail(email: string): Promise<string | null> {
     const res = await fetch('/api/familia', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ householdId, email: inviteEmail }),
+      body: JSON.stringify({ householdId, email }),
     });
-
-    const data = await res.json();
-
-    if (res.ok) {
-      setMessage({ type: 'success', text: 'Miembro agregado exitosamente' });
-      setInviteEmail('');
-      setShowInvite(false);
-      // Reload members
-      const listRes = await fetch(`/api/familia?householdId=${householdId}`);
-      if (listRes.ok) {
-        const listData = await listRes.json();
-        setMembers(listData.members);
-      }
-    } else {
-      setMessage({ type: 'error', text: data.error || 'Error al invitar' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return data.error || 'No se pudo agregar. Intenta de nuevo.';
     }
-    setInviting(false);
+    await loadMembers(householdId);
+    return null;
   }
 
-  async function removeMember(userId: string) {
+  async function removeMember(member: Member) {
     const res = await fetch('/api/familia', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ householdId, userId }),
+      body: JSON.stringify({ householdId, userId: member.user_id }),
     });
-
-    if (res.ok) {
-      setMembers(members.filter(m => m.user_id !== userId));
-      setMessage({ type: 'success', text: 'Miembro eliminado' });
-    }
+    if (!res.ok) { setMessage({ text: 'No se pudo quitar. Intenta de nuevo.', tone: 'error' }); return; }
+    setMembers((list) => list.filter((m) => m.user_id !== member.user_id));
+    setRemoved(member);
   }
 
-  async function generateInviteLink() {
-    setGeneratingLink(true);
-    setMessage(null);
-
-    const res = await fetch('/api/invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ householdId }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const link = `${window.location.origin}/invite/${data.invite.invite_code}`;
-      setInviteLink(link);
-    } else {
-      setMessage({ type: 'error', text: 'Error al generar el link de invitación' });
-    }
-    setGeneratingLink(false);
+  async function undoRemove() {
+    const m = removed;
+    setRemoved(null);
+    if (!m?.users?.email) return;
+    const error = await addByEmail(m.users.email);
+    if (error) setMessage({ text: error, tone: 'error' });
   }
 
-  async function copyLink() {
-    await navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  async function shareLink() {
-    if (navigator.share) {
-      await navigator.share({
-        title: 'Únete a mi hogar en Zafi',
-        text: 'Te invito a compartir el presupuesto familiar en Zafi',
-        url: inviteLink,
-      });
-    } else {
-      copyLink();
-    }
-  }
+  const dismissRemoved = useCallback(() => setRemoved(null), []);
 
   if (loading) {
     return <PageSkeleton variant="list" />;
   }
 
+  const canInvite = isOwner && isPremium;
+  const invite = canInvite ? <PillButton onClick={() => setInviteKey(Date.now())}>Invitar</PillButton> : undefined;
+  const subtitle = [householdName, `${members.length} ${members.length === 1 ? 'miembro' : 'miembros'}`].filter(Boolean).join(' · ');
+  const totalSpending = Object.values(spendingByMember).reduce((s, v) => s + v, 0) + unattributedSpending;
+
+  const spendRow = (key: string, avatar: React.ReactNode, name: string, amount: number) => {
+    const ratio = totalSpending > 0 ? amount / totalSpending : 0;
+    return (
+      <div key={key} className={`flex flex-col gap-[7px] py-3 border-b ${DIVIDER} last:border-b-0`}>
+        <span className="flex items-center gap-2">
+          {avatar}
+          <span className={`min-w-0 flex-1 truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{name}</span>
+          <span className={`flex-none text-[13px] font-semibold ${TEXT_MUTED}`}>{fmt(amount)} · {Math.round(ratio * 100)}%</span>
+        </span>
+        <ProgressBar ratio={ratio} />
+      </div>
+    );
+  };
+
   return (
-    <AppShell title="Familia" currentPath="/familia">
-        {/* Premium gate for non-premium owners */}
-        {isOwner && !isPremium && (
-          <Card className="mb-6 border-yellow-200 bg-yellow-50">
-            <CardContent className="p-4 flex items-start gap-3">
-              <Lock className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-yellow-800">Función Premium</p>
-                <p className="text-sm text-yellow-700 mt-0.5">
-                  El modo familia requiere un plan Premium. Activa tu suscripción para invitar miembros y compartir el presupuesto.
-                </p>
-                <Button
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => router.push('/cuenta')}
-                >
-                  <Crown className="w-4 h-4 mr-2" />
-                  Ver planes
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+    <AppShell title="Familia" currentPath="/familia" hideMobileBar headerRight={invite}>
+      <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
+        <PageHeader back={{ href: '/mas', label: 'Más' }} title="Familia" subtitle={subtitle} right={invite} />
+        <p className={`hidden text-sm lg:block ${TEXT_MUTED}`}>{subtitle}</p>
 
-        {isOwner && isPremium && (
-          <div className="flex justify-end mb-6">
-            <Button onClick={() => { setShowInvite(true); setMessage(null); }}>
-              <UserPlus className="w-4 h-4 mr-2" />
-              Invitar
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-col zafi-stagger">
+          {isOwner && !isPremium && (
+            <Link href="/cuenta" className="mt-3.5 flex w-full items-center gap-3 rounded-2xl bg-warning-light px-4 py-3.5 text-left dark:bg-warning/15">
+              <span aria-hidden className="text-[22px] leading-none">👑</span>
+              <span className="flex-1 text-sm text-warning-text dark:text-warning">
+                <b>Familia es Premium.</b> Activa tu plan para invitar y compartir el presupuesto.
+              </span>
+              <span className="flex-none text-sm font-semibold text-warning-text dark:text-warning">Ver planes ›</span>
+            </Link>
+          )}
 
-        {/* Status message */}
-        {message && (
-          <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
-            message.type === 'success' ? 'bg-surface-tint text-electric-dark' : 'bg-red-50 text-red-700'
-          }`}>
-            {message.type === 'success'
-              ? <CheckCircle2 className="w-4 h-4" />
-              : <AlertCircle className="w-4 h-4" />
-            }
-            <p className="text-sm">{message.text}</p>
-          </div>
-        )}
-
-        {/* Invite section */}
-        {showInvite && isOwner && (
-          <Card className="mb-6 border-electric-soft">
-            <CardHeader>
-              <CardTitle className="text-base">Invitar miembro</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {/* Option 1: Invite link */}
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Link2 className="w-4 h-4 text-electric" />
-                  <span className="text-sm font-medium text-ink-700">Compartir link de invitación</span>
-                </div>
-                <p className="text-sm text-ink-500 mb-3">
-                  Genera un link y compártelo por WhatsApp o cualquier medio. La persona puede registrarse y unirse directamente.
-                </p>
-                {!inviteLink ? (
-                  <Button onClick={generateInviteLink} disabled={generatingLink} variant="outline" className="w-full">
-                    {generatingLink
-                      ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      : <Link2 className="w-4 h-4 mr-2" />
-                    }
-                    Generar link de invitación
-                  </Button>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border">
-                      <input
-                        readOnly
-                        value={inviteLink}
-                        className="flex-1 text-sm bg-transparent border-none outline-none text-ink-700 truncate"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={copyLink} variant="outline" size="sm" className="flex-1">
-                        {copied ? <Check className="w-4 h-4 mr-1.5 text-green-600" /> : <Copy className="w-4 h-4 mr-1.5" />}
-                        {copied ? 'Copiado' : 'Copiar'}
-                      </Button>
-                      <Button onClick={shareLink} size="sm" className="flex-1">
-                        <Share2 className="w-4 h-4 mr-1.5" />
-                        Compartir
-                      </Button>
-                    </div>
-                    <p className="text-xs text-ink-500 text-center">
-                      Este link es válido por 7 días
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                <div className="relative flex justify-center">
-                  <span className="bg-white px-2 text-xs text-ink-500">o agregar directamente</span>
-                </div>
-              </div>
-
-              {/* Option 2: Direct email */}
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Mail className="w-4 h-4 text-ink-500" />
-                  <span className="text-sm font-medium text-ink-700">Por correo electrónico</span>
-                </div>
-                <p className="text-xs text-ink-500 mb-2">
-                  Solo funciona si la persona ya tiene cuenta en Zafi.
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    type="email"
-                    placeholder="correo@ejemplo.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') inviteMember(); }}
-                  />
-                  <Button onClick={inviteMember} disabled={inviting || !inviteEmail.trim()} size="sm">
-                    {inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Agregar'}
-                  </Button>
-                </div>
-              </div>
-
-              <Button variant="ghost" size="sm" className="w-full text-ink-500" onClick={() => { setShowInvite(false); setInviteLink(''); }}>
-                Cerrar
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Members list */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-ink-500" />
-              <CardTitle className="text-base">Miembros del hogar</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 divide-y">
-            {members.map((member) => (
-              <div key={member.user_id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  member.role === 'owner' ? 'bg-amber-100' : 'bg-gray-100'
-                }`}>
-                  {member.role === 'owner'
-                    ? <Crown className="w-5 h-5 text-amber-600" />
-                    : <User className="w-5 h-5 text-ink-500" />
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {member.users?.full_name || member.users?.email || 'Usuario'}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-ink-500">{member.users?.email}</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded ${
-                      member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-ink-700'
-                    }`}>
-                      {member.role === 'owner' ? 'Dueño' : 'Miembro'}
-                    </span>
-                  </div>
-                </div>
-                {isOwner && member.role !== 'owner' && (
-                  <button
-                    onClick={() => removeMember(member.user_id)}
-                    className="opacity-0 group-hover:opacity-100 text-ink-400 hover:text-red-500 transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            ))}
-            {members.length === 0 && (
-              <div className="p-8 text-center">
-                <Users className="w-12 h-12 text-ink-400 mx-auto mb-3" />
-                <p className="font-medium text-ink-700">Sin miembros</p>
-                <p className="text-sm text-ink-500 mt-1">
-                  {isOwner ? 'Invita a familiares para compartir el presupuesto.' : 'No hay otros miembros en este hogar.'}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Info card */}
-        {isOwner && members.length > 0 && (
-          <Card className="mt-4 bg-blue-50 border-blue-200">
-            <CardContent className="p-4">
-              <p className="text-sm text-blue-700">
-                Los miembros de tu hogar pueden ver el presupuesto, registrar transacciones y consultar el progreso financiero compartido.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Spending breakdown by member */}
-        {members.length > 0 && (() => {
-          const totalSpending = Object.values(spendingByMember).reduce((s, v) => s + v, 0) + unattributedSpending;
-          if (totalSpending === 0) return null;
-          return (
-            <Card className="mt-4">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-ink-500" />
-                  <CardTitle className="text-base">Gastos por miembro</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between text-sm border-b pb-3">
-                  <span className="text-ink-500">Total del hogar</span>
-                  <span className="font-bold text-navy">{fmt(totalSpending)}</span>
-                </div>
-                {members.map(member => {
-                  const amount = spendingByMember[member.user_id] || 0;
-                  const pct = totalSpending > 0 ? Math.round((amount / totalSpending) * 100) : 0;
-                  const count = txCountByMember[member.user_id] || 0;
-                  const name = member.users?.full_name || member.users?.email?.split('@')[0] || 'Usuario';
+          <section>
+            <GroupTitle>Miembros del hogar</GroupTitle>
+            {members.length > 0 ? (
+              <ListCard>
+                {members.map((m) => {
+                  const owner = m.role === 'owner';
+                  const name = memberName(m);
                   return (
-                    <div key={member.user_id}>
-                      <div className="flex items-center justify-between text-sm mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                            member.role === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-ink-700'
-                          }`}>
-                            {name[0]?.toUpperCase()}
-                          </div>
-                          <div>
-                            <span className="font-medium">{name}</span>
-                            <span className="text-xs text-ink-500 ml-1.5">{count} tx</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-semibold">{fmt(amount)}</span>
-                          <span className="text-ink-500 text-xs ml-1.5">{pct}%</span>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-electric"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                    <div key={m.user_id} className={`flex items-center gap-3 py-3 ${ROW_DIVIDER}`}>
+                      <Avatar name={name} owner={owner} />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{name}</span>
+                          <span className={owner ? BADGE_INFO : BADGE_NEUTRAL}>{owner ? 'Dueño' : 'Miembro'}</span>
+                        </span>
+                        {m.users?.email && <span className={`truncate text-[13px] ${TEXT_MUTED}`}>{m.users.email}</span>}
+                      </span>
+                      {isOwner && !owner && (
+                        <PillButton className={PILL_OUTLINE} onClick={() => void removeMember(m)}>Quitar</PillButton>
+                      )}
                     </div>
                   );
                 })}
-                {unattributedSpending > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between text-sm mb-1.5">
-                      <span className="text-ink-500 italic">Sin atribuir</span>
-                      <div className="text-right">
-                        <span className="text-ink-500">{fmt(unattributedSpending)}</span>
-                        <span className="text-ink-500 text-xs ml-1.5">
-                          {Math.round((unattributedSpending / totalSpending) * 100)}%
-                        </span>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gray-300"
-                        style={{ width: `${Math.round((unattributedSpending / totalSpending) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
+              </ListCard>
+            ) : (
+              <p className={`px-1 text-sm ${TEXT_MUTED}`}>
+                {isOwner ? 'Invita a tu familia para compartir el presupuesto.' : 'No hay otros miembros en este hogar.'}
+              </p>
+            )}
+          </section>
+
+          {members.length > 1 && (
+            <Note tone="info">Los miembros pueden ver el plan, registrar movimientos y ver cómo va el hogar.</Note>
+          )}
+
+          {members.length > 0 && totalSpending > 0 && (
+            <section>
+              <GroupTitle>Quién gastó este mes</GroupTitle>
+              <div className={`px-3.5 py-0.5 ${CARD}`}>
+                {members.map((m) => {
+                  const name = memberName(m);
+                  const count = txCountByMember[m.user_id] || 0;
+                  return spendRow(
+                    m.user_id,
+                    <Avatar name={name} owner={m.role === 'owner'} size={24} />,
+                    `${name.split(/\s+/)[0]} · ${count} mov.`,
+                    spendingByMember[m.user_id] || 0,
+                  );
+                })}
+                {unattributedSpending > 0 && spendRow(
+                  'sin-atribuir',
+                  <span aria-hidden className="flex h-6 w-6 flex-none items-center justify-center text-lg leading-none">❔</span>,
+                  'Sin atribuir',
+                  unattributedSpending,
                 )}
-              </CardContent>
-            </Card>
-          );
-        })()}
+              </div>
+              <p className={`mx-1 mt-2 flex items-center justify-between text-[13px] ${TEXT_MUTED}`}>
+                <span>Total del hogar</span>
+                <b className={`font-outfit text-[15px] ${TEXT_STRONG}`}>{fmt(totalSpending)}</b>
+              </p>
+            </section>
+          )}
+        </div>
+      </div>
+
+      <BottomSheet themed open={inviteKey !== null} onClose={() => setInviteKey(null)} label="Invitar a tu hogar">
+        {inviteKey !== null && (
+          <InviteSheet
+            key={inviteKey}
+            householdId={householdId}
+            onAdd={async (email) => {
+              const error = await addByEmail(email);
+              if (!error) {
+                setInviteKey(null);
+                setMessage({ text: 'Agregamos a tu hogar a ' + email, tone: 'ok' });
+              }
+              return error;
+            }}
+          />
+        )}
+      </BottomSheet>
+
+      <UndoToast
+        key={removed?.user_id}
+        visible={!!removed}
+        title={`Quitamos a ${removed ? memberName(removed) : ''}`}
+        subtitle="Ya no ve el plan del hogar"
+        onUndo={() => void undoRemove()}
+        onDismiss={dismissRemoved}
+      />
+      <StatusToast message={message} onDone={() => setMessage(null)} />
     </AppShell>
+  );
+}
+
+function InviteSheet({ householdId, onAdd }: { householdId: string; onAdd: (email: string) => Promise<string | null> }) {
+  const [link, setLink] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [email, setEmail] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState('');
+
+  async function createLink() {
+    setGenerating(true);
+    setError('');
+    const res = await fetch('/api/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ householdId }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setLink(`${window.location.origin}/invite/${data.invite.invite_code}`);
+    } else {
+      setError('No se pudo crear el link. Intenta de nuevo.');
+    }
+    setGenerating(false);
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('No se pudo copiar. Mantén presionado el link para copiarlo.');
+    }
+  }
+
+  async function shareLink() {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Únete a mi hogar en Zafi',
+          text: 'Te invito a compartir el presupuesto familiar en Zafi',
+          url: link,
+        });
+      } catch {
+        // La persona cerró el menú de compartir.
+      }
+    } else {
+      void copyLink();
+    }
+  }
+
+  async function add() {
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError('Revisa el correo.'); return; }
+    setAdding(true);
+    setError('');
+    const err = await onAdd(email.trim());
+    if (err) setError(err);
+    setAdding(false);
+  }
+
+  return (
+    <div className="flex flex-col gap-4 overflow-y-auto px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 [&>*]:shrink-0">
+      <SheetHeader emoji="👪" title="Invitar a tu hogar" subtitle="Comparte el presupuesto con tu pareja o familia" />
+
+      {!link ? (
+        <button type="button" onClick={() => void createLink()} disabled={generating} className={PRIMARY_BUTTON}>
+          {generating ? 'Creando link…' : 'Crear link de invitación'}
+        </button>
+      ) : (
+        <>
+          <input
+            readOnly
+            value={link}
+            aria-label="Link de invitación"
+            onFocus={(e) => e.currentTarget.select()}
+            className={`${INPUT_48} !text-[var(--zafi-text-secondary)]`}
+          />
+          <div className="flex gap-2">
+            <button type="button" onClick={() => void copyLink()} className="btn-outline flex-1">{copied ? 'Copiado' : 'Copiar'}</button>
+            <button type="button" onClick={() => void shareLink()} className="btn-primary flex-1">Compartir</button>
+          </div>
+          <p className={`text-center text-[13px] ${TEXT_MUTED}`}>El link sirve 7 días.</p>
+        </>
+      )}
+
+      <div className={`h-px border-t ${DIVIDER}`} />
+
+      <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor="invitar-correo">O agrégala por correo</FieldLabel>
+        <input
+          id="invitar-correo"
+          type="email"
+          inputMode="email"
+          autoComplete="off"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') void add(); }}
+          placeholder="correo@ejemplo.com"
+          className={INPUT_48}
+        />
+        <span className={`text-[13px] ${TEXT_MUTED}`}>Solo si ya tiene cuenta en Zafi.</span>
+      </div>
+      {error && <ErrorBox>{error}</ErrorBox>}
+      <button type="button" onClick={() => void add()} disabled={adding} className="btn-secondary w-full">
+        {adding ? 'Agregando…' : 'Agregar'}
+      </button>
+    </div>
   );
 }

@@ -1,13 +1,13 @@
 'use client'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Home, List, Plus, Target, MoreHorizontal } from 'lucide-react'
+import { Home, List, Plus, Wallet, MoreHorizontal } from 'lucide-react'
 import { activeTabFor, type TabKey } from '@/lib/navigation'
 
 const TABS: { key: TabKey; href: string; label: string; icon: typeof Home }[] = [
   { key: 'inicio', href: '/dashboard', label: 'Inicio', icon: Home },
   { key: 'movimientos', href: '/transacciones', label: 'Movimientos', icon: List },
-  { key: 'metas', href: '/metas', label: 'Metas', icon: Target },
+  { key: 'plan', href: '/plan', label: 'Plan', icon: Wallet },
   { key: 'mas', href: '/mas', label: 'Más', icon: MoreHorizontal },
 ]
 
@@ -35,7 +35,7 @@ function Tab({ href, label, icon: Icon, active }: { href: string; label: string;
 export function BottomNav() {
   const pathname = usePathname()
   const activeTab = activeTabFor(pathname ?? '')
-  const [inicio, movimientos, metas, mas] = TABS
+  const [inicio, movimientos, plan, mas] = TABS
 
   return (
     <nav
@@ -63,7 +63,7 @@ export function BottomNav() {
       >
         <Plus size={24} strokeWidth={2.4} color="#FFFFFF" aria-hidden />
       </button>
-      <Tab {...metas} active={activeTab === 'metas'} />
+      <Tab {...plan} active={activeTab === 'plan'} />
       <Tab {...mas} active={activeTab === 'mas'} />
     </nav>
   )

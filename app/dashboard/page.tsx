@@ -25,6 +25,11 @@ import { StatusToast, type StatusMessage } from '@/components/movimientos/Status
 import { MonthStartNotice } from '@/components/inicio-de-mes/MonthStartNotice'
 import { useMonthStart } from '@/components/inicio-de-mes/useMonthStart'
 import { incomeCategoryIds, monthName, receivedByIncome } from '@/lib/plan-del-mes'
+import { useGoals, type Goal } from '@/hooks/useGoals'
+import { AddContributionSheet } from '@/components/goals/AddContributionSheet'
+import { PillButton } from '@/components/layout/Pantalla'
+import { CARD, GREEN_TEXT } from '@/components/resumen/ctf-ui'
+import { ProgressBar } from '@/components/plan/ui'
 import type { BudgetCategory, BudgetSubItem, IncomeEntry, SearchTransaction } from '@/types'
 
 interface HomeMonthTx {
@@ -76,6 +81,11 @@ export default function InicioPage() {
     onChanged: reload,
   })
   const { getPendingDeleteId, flash } = sheets
+
+  // Tu meta principal: la activa más avanzada (sin contar las ya completas).
+  const { goals, addContribution } = useGoals()
+  const mainGoal = useMemo(() => pickMainGoal(goals), [goals])
+  const [contributing, setContributing] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -313,7 +323,7 @@ export default function InicioPage() {
                 Dinos cuánto quieres gastar en cada cosa y Zafi te dirá cuánto puedes gastar cada día.
               </p>
               <Link
-                href="/presupuesto?from=home"
+                href="/plan"
                 className="mt-2.5 self-start flex items-center h-[46px] px-6 rounded-full bg-white text-navy font-semibold"
               >
                 Hacer mi plan
@@ -330,11 +340,14 @@ export default function InicioPage() {
         {/* Alerta única */}
         {alert && <HomeAlertCard alert={alert} fmt={fmt} />}
 
+        {/* Tu meta principal */}
+        {mainGoal && <MainGoalCard goal={mainGoal} fmt={fmt} onContribute={() => setContributing(true)} />}
+
         {/* ¿En qué se va? */}
         <section className="mt-[18px] flex flex-col gap-2">
           <div className="flex items-center justify-between px-1">
             <h2 className={`text-[15px] font-bold ${TEXT_STRONG}`}>¿En qué se va?</h2>
-            <Link href="/presupuesto?from=home" className="flex items-center min-h-[44px] text-sm font-semibold text-electric">
+            <Link href="/plan" className="flex items-center min-h-[44px] text-sm font-semibold text-electric">
               Ver plan
             </Link>
           </div>
@@ -416,8 +429,64 @@ export default function InicioPage() {
 
       {sheets.element}
       {monthStart.element}
+      {mainGoal && (
+        <AddContributionSheet
+          open={contributing}
+          onClose={() => setContributing(false)}
+          goalName={mainGoal.name}
+          goalEmoji={mainGoal.emoji}
+          currentAmount={mainGoal.currentAmount}
+          targetAmount={mainGoal.targetAmount}
+          monthlyContribution={mainGoal.monthlyContribution}
+          onConfirm={async (amount, note) => {
+            try {
+              await addContribution(mainGoal.id, amount, note)
+              setToast({ text: `Aportaste ${fmt(amount)} a ${mainGoal.name}`, tone: 'ok' })
+            } catch (e) {
+              setToast({ text: 'No se pudo guardar el aporte. Intenta de nuevo.', tone: 'error' })
+              throw e
+            }
+          }}
+        />
+      )}
       <StatusToast message={toast} onDone={() => setToast(null)} />
     </AppShell>
+  )
+}
+
+function pickMainGoal(goals: Goal[]): Goal | null {
+  const ratio = (g: Goal) => (g.targetAmount > 0 ? g.currentAmount / g.targetAmount : 0)
+  return goals
+    .filter((g) => g.status === 'active' && ratio(g) < 1)
+    .sort((a, b) => ratio(b) - ratio(a))[0] ?? null
+}
+
+function MainGoalCard({ goal, fmt, onContribute }: { goal: Goal; fmt: (n: number) => string; onContribute: () => void }) {
+  const ratio = goal.targetAmount > 0 ? goal.currentAmount / goal.targetAmount : 0
+  return (
+    <section className="mt-[18px] flex flex-col gap-2">
+      <div className="flex items-center justify-between px-1">
+        <h2 className={`text-[15px] font-bold ${TEXT_STRONG}`}>Tu meta principal</h2>
+        <Link href="/plan?s=metas" className="flex items-center min-h-[44px] text-sm font-semibold text-electric">
+          Ver metas
+        </Link>
+      </div>
+      <div className={`p-3.5 ${CARD}`}>
+        <div className="flex items-center gap-3">
+          <Link href={`/metas/${goal.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+            <span aria-hidden className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-[var(--zafi-bg)] text-[22px]">{goal.emoji}</span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{goal.name}</span>
+              <span className={`text-[13px] leading-[1.35] ${TEXT_MUTED}`}>
+                <b className={`font-semibold ${GREEN_TEXT}`}>{fmt(goal.currentAmount)}</b> de {fmt(goal.targetAmount)} · {Math.round(ratio * 100)}%
+              </span>
+            </span>
+          </Link>
+          <PillButton onClick={onContribute}>Aportar</PillButton>
+        </div>
+        <ProgressBar ratio={ratio} className="mt-3" />
+      </div>
+    </section>
   )
 }
 
@@ -446,7 +515,7 @@ function HomeAlertCard({ alert, fmt }: { alert: HomeAlert; fmt: (n: number) => s
     )
   }
   return (
-    <Link href="/presupuesto?from=home" className={`${base} bg-success-light`}>
+    <Link href="/plan" className={`${base} bg-success-light`}>
       <span aria-hidden className="text-[22px] leading-none">🐷</span>
       <span className="flex-1 text-sm text-success-text">
         <b>{alert.title}</b>

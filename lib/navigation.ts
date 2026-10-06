@@ -2,7 +2,7 @@
 // y a qué pantalla "padre" vuelve cada ruta. Sin dependencias de React para
 // poder probarlo con vitest.
 
-export type TabKey = 'inicio' | 'movimientos' | 'metas' | 'mas';
+export type TabKey = 'inicio' | 'movimientos' | 'plan' | 'mas';
 
 export interface MoreItem {
   emoji: string;
@@ -23,8 +23,6 @@ export const MORE_GROUPS: MoreGroup[] = [
   {
     title: 'Tu dinero',
     items: [
-      { emoji: '🧮', name: 'Plan del mes', description: 'Cuánto quieres gastar en cada cosa', href: '/presupuesto' },
-      { emoji: '💳', name: 'Deudas', description: 'Tarjetas y préstamos', href: '/deudas' },
       { emoji: '📊', name: 'Cómo te fue', description: 'Cuánto ahorraste y dónde ajustar', href: '/resumen' },
       { emoji: '✅', name: 'Cerrar el mes', description: 'Repasa cómo te fue', href: '/cierre-mes' },
     ],
@@ -48,7 +46,7 @@ export const MORE_GROUPS: MoreGroup[] = [
 ];
 
 /** Rutas raíz de cada pestaña: en móvil no llevan barra superior. */
-export const ROOT_PATHS = ['/dashboard', '/transacciones', '/metas', '/mas'];
+export const ROOT_PATHS = ['/dashboard', '/transacciones', '/plan', '/mas'];
 
 function matches(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(prefix + '/');
@@ -58,8 +56,9 @@ function matches(pathname: string, prefix: string): boolean {
 export function activeTabFor(pathname: string): TabKey | null {
   if (['/dashboard', '/resumen', '/health-score', '/score'].some((p) => matches(pathname, p))) return 'inicio';
   if (['/transacciones', '/importar', '/notificacion'].some((p) => matches(pathname, p))) return 'movimientos';
-  if (matches(pathname, '/metas')) return 'metas';
-  const moreRoutes = ['/mas', '/plan', '/admin', ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href] : [])))];
+  // Plan agrupa el plan del mes, las metas y las deudas.
+  if (['/plan', '/presupuesto', '/metas', '/deudas'].some((p) => matches(pathname, p))) return 'plan';
+  const moreRoutes = ['/mas', '/admin', ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href] : [])))];
   if (moreRoutes.some((p) => matches(pathname, p))) return 'mas';
   return null;
 }
@@ -81,10 +80,10 @@ const PARENTS: [string, ParentLink][] = [
   ['/resumen/categoria', { label: 'Cómo te fue', href: '/resumen' }],
   ['/health-score', { label: 'Cómo te fue', href: '/resumen' }],
   ['/score', { label: 'Cómo te fue', href: '/resumen' }],
-  ['/plan', { label: 'Plan del mes', href: '/presupuesto' }],
+  ['/plan', { label: 'Plan', href: '/plan' }],
   ['/importar', { label: 'Movimientos', href: '/transacciones' }],
   ['/notificacion', { label: 'Movimientos', href: '/transacciones' }],
-  ['/metas', { label: 'Metas', href: '/metas' }],
+  ['/metas', { label: 'Metas', href: '/plan?s=metas' }],
   ['/cuenta', { label: 'Cuenta', href: '/cuenta' }],
   ['/mis-fuentes', { label: 'Mis bancos', href: '/mis-fuentes' }],
   ['/aprende', { label: 'Aprende', href: '/aprende' }],
@@ -98,4 +97,26 @@ export function parentFor(pathname: string): ParentLink {
     }
   }
   return { label: 'Más', href: '/mas' };
+}
+
+/** Secciones de la pestaña Plan (`/plan?s=…`). */
+export type PlanSection = 'mes' | 'metas' | 'deudas';
+
+export function planSection(value: string | null | undefined): PlanSection {
+  return value === 'metas' || value === 'deudas' ? value : 'mes';
+}
+
+/**
+ * Destino en /plan de las rutas viejas (/presupuesto, /metas, /deudas):
+ * conserva sus parámetros (p. ej. `confirmMonth`) menos `from` y `s`.
+ */
+export function planHref(section: PlanSection, params: Record<string, string | string[] | undefined> = {}): string {
+  const q = new URLSearchParams();
+  if (section !== 'mes') q.set('s', section);
+  for (const [k, v] of Object.entries(params)) {
+    if (k === 's' || k === 'from' || typeof v !== 'string') continue;
+    q.set(k, v);
+  }
+  const qs = q.toString();
+  return qs ? `/plan?${qs}` : '/plan';
 }

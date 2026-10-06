@@ -3,167 +3,130 @@ import { useState } from 'react'
 import { formatMoney } from '@/lib/format'
 import { suggestEmergencyFundTarget } from '@/lib/goal-projector'
 import type { GoalType, CreateGoalInput } from '@/hooks/useGoals'
+import { ErrorBox, FieldLabel, INPUT_48, SheetHeader } from '@/components/layout/Pantalla'
+import { PRIMARY_BUTTON, TEXT_MUTED, TILE_BG } from '@/components/movimientos/ui'
+import { Note } from '@/components/plan/ui'
+
+export interface GoalTemplate {
+  emoji: string
+  name: string
+  type: GoalType
+}
+
+export const GOAL_TEMPLATES: GoalTemplate[] = [
+  { emoji: '🛡️', name: 'Fondo de emergencia', type: 'emergency_fund' },
+  { emoji: '✈️', name: 'Viaje', type: 'travel' },
+  { emoji: '🚗', name: 'Vehículo', type: 'vehicle' },
+  { emoji: '🎓', name: 'Educación', type: 'education' },
+  { emoji: '📈', name: 'Inversión', type: 'investment' },
+  { emoji: '🎯', name: 'Otra meta', type: 'custom' },
+]
 
 interface GoalFormProps {
-  emoji: string
-  templateName: string
-  goalType: GoalType
   avgMonthlyExpenses: number
   onSubmit: (input: CreateGoalInput) => Promise<void>
 }
 
-export function GoalForm({ emoji, templateName, goalType, avgMonthlyExpenses, onSubmit }: GoalFormProps) {
-  const suggestedAmount = goalType === 'emergency_fund' && avgMonthlyExpenses > 0
-    ? suggestEmergencyFundTarget(avgMonthlyExpenses)
-    : 0
+function num(v: string): number {
+  return parseFloat(v.replace(/[^0-9.]/g, '')) || 0
+}
 
-  const [name, setName] = useState(goalType !== 'custom' ? templateName : '')
-  const [targetAmount, setTargetAmount] = useState(suggestedAmount > 0 ? suggestedAmount.toString() : '')
+/** Contenido de la hoja "Nueva meta": tipo (emoji), nombre, monto y fecha. */
+export function GoalForm({ avgMonthlyExpenses, onSubmit }: GoalFormProps) {
+  const suggested = avgMonthlyExpenses > 0 ? suggestEmergencyFundTarget(avgMonthlyExpenses) : 0
+  const [template, setTemplate] = useState<GoalTemplate>(GOAL_TEMPLATES[0])
+  const [name, setName] = useState(GOAL_TEMPLATES[0].name)
+  const [targetAmount, setTargetAmount] = useState(suggested > 0 ? String(suggested) : '')
   const [monthlyContribution, setMonthlyContribution] = useState('')
   const [targetDate, setTargetDate] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const amount = parseFloat(targetAmount)
-    if (!name.trim()) { setError('Ingresa un nombre para tu meta'); return }
-    if (!amount || amount <= 0) { setError('El monto debe ser mayor a 0'); return }
+  function pick(t: GoalTemplate) {
+    // El nombre sugerido solo se cambia si no lo escribió la persona.
+    const isSuggested = !name.trim() || GOAL_TEMPLATES.some((x) => x.name === name)
+    if (isSuggested) setName(t.type === 'custom' ? '' : t.name)
+    if (t.type === 'emergency_fund' && suggested > 0 && !targetAmount) setTargetAmount(String(suggested))
+    setTemplate(t)
+  }
 
+  async function submit() {
+    const amount = num(targetAmount)
+    if (!name.trim() || amount <= 0) { setError('Ponle nombre y cuánto quieres juntar.'); return }
     setSaving(true)
     setError(null)
     try {
       await onSubmit({
         name: name.trim(),
-        emoji,
+        emoji: template.emoji,
         targetAmount: amount,
-        monthlyContribution: monthlyContribution ? parseFloat(monthlyContribution) : null,
+        monthlyContribution: monthlyContribution ? num(monthlyContribution) : null,
         targetDate: targetDate || null,
-        goalType,
+        goalType: template.type,
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar')
+      setError(err instanceof Error ? err.message : 'No se pudo guardar. Intenta de nuevo.')
       setSaving(false)
     }
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '14px 16px',
-    background: 'var(--zafi-input-bg)',
-    border: '1px solid var(--zafi-border)',
-    borderRadius: 12, color: 'var(--zafi-text)',
-    fontSize: 16, outline: 'none',
-    fontFamily: 'inherit',
-  }
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: 13, fontWeight: 600, color: '#2563EB',
-    marginBottom: 8, display: 'block',
-  }
-
   return (
-    <form onSubmit={handleSubmit}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div>
-          <label style={labelStyle}>Nombre de la meta</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ej: Fondo para viaje a Semuc"
-            style={inputStyle}
-          />
+    <div className="flex flex-col gap-4 overflow-y-auto px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 [&>*]:shrink-0">
+      <SheetHeader emoji={template.emoji} title="Nueva meta" subtitle="¿Para qué quieres ahorrar?" />
+
+      <div role="radiogroup" aria-label="Tipo de meta" className="flex flex-wrap gap-2">
+        {GOAL_TEMPLATES.map((t) => {
+          const active = t.type === template.type
+          return (
+            <button
+              key={t.type}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              aria-label={t.name}
+              onClick={() => pick(t)}
+              className={`flex h-11 w-11 items-center justify-center rounded-xl border-2 text-[22px] transition duration-150 active:scale-[0.96] ${
+                active ? 'border-electric bg-electric-ghost dark:bg-[#1B2B4D]' : `border-transparent ${TILE_BG}`
+              }`}
+            >
+              {t.emoji}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor="meta-nombre">Nombre</FieldLabel>
+        <input id="meta-nombre" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Viaje a Semuc" className={INPUT_48} />
+      </div>
+
+      <div className="flex gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <FieldLabel htmlFor="meta-monto">Meta</FieldLabel>
+          <input id="meta-monto" inputMode="decimal" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} placeholder="Q 0.00" className={INPUT_48} />
         </div>
-
-        <div>
-          <label style={labelStyle}>Monto objetivo</label>
-          <div style={{ position: 'relative' }}>
-            <span style={{
-              position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
-              color: '#64748B', fontSize: 16, fontWeight: 700,
-              fontFamily: 'var(--font-outfit)',
-            }}>
-              Q
-            </span>
-            <input
-              type="number"
-              value={targetAmount}
-              onChange={(e) => setTargetAmount(e.target.value)}
-              placeholder="0"
-              min="1"
-              step="0.01"
-              style={{
-                ...inputStyle,
-                paddingLeft: 36,
-                fontFamily: 'var(--font-outfit)',
-                fontWeight: 700,
-                fontSize: 18,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Emergency fund suggestion */}
-        {goalType === 'emergency_fund' && avgMonthlyExpenses > 0 && (
-          <div style={{
-            background: '#EFF6FF',
-            border: '1px solid #BFDBFE',
-            borderRadius: 12,
-            padding: '14px 16px',
-          }}>
-            <p style={{ fontSize: 13, color: '#1E40AF', lineHeight: 1.6 }}>
-              💡 Calculamos esto con 3 meses de tu gasto promedio ({formatMoney(avgMonthlyExpenses)}/mes). Es el colchón mínimo recomendado para emergencias.
-            </p>
-          </div>
-        )}
-
-        <div>
-          <label style={labelStyle}>
-            Fecha deseada <span style={{ fontWeight: 400, color: '#64748B' }}>(opcional)</span>
-          </label>
-          <input
-            type="date"
-            value={targetDate}
-            onChange={(e) => setTargetDate(e.target.value)}
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>
-            Aporte mensual planeado <span style={{ fontWeight: 400, color: '#64748B' }}>(opcional)</span>
-          </label>
-          <input
-            type="number"
-            value={monthlyContribution}
-            onChange={(e) => setMonthlyContribution(e.target.value)}
-            placeholder="Q 0"
-            min="0"
-            step="0.01"
-            style={{ ...inputStyle, fontFamily: 'var(--font-outfit)' }}
-          />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <FieldLabel htmlFor="meta-fecha">Para cuándo</FieldLabel>
+          <input id="meta-fecha" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className={INPUT_48} />
         </div>
       </div>
 
-      {error && (
-        <p style={{ color: '#EF4444', fontSize: 13, marginTop: 12 }}>{error}</p>
+      {template.type === 'emergency_fund' && avgMonthlyExpenses > 0 && (
+        <Note tone="info" className="">
+          Te sugerimos 3 meses de tu gasto promedio ({formatMoney(avgMonthlyExpenses)} al mes): es el colchón mínimo para emergencias.
+        </Note>
       )}
 
-      <button
-        type="submit"
-        disabled={saving}
-        style={{
-          width: '100%', padding: '16px',
-          background: '#2563EB', border: 'none',
-          borderRadius: 14, color: 'white',
-          fontSize: 16, fontWeight: 700,
-          cursor: saving ? 'not-allowed' : 'pointer',
-          opacity: saving ? 0.6 : 1,
-          marginTop: 28,
-        }}
-      >
-        {saving ? 'Guardando...' : 'Crear meta 🎯✨'}
+      <div className="flex flex-col gap-1.5">
+        <FieldLabel htmlFor="meta-aporte">Aporte al mes (opcional)</FieldLabel>
+        <input id="meta-aporte" inputMode="decimal" value={monthlyContribution} onChange={(e) => setMonthlyContribution(e.target.value)} placeholder="Q 0.00" className={INPUT_48} />
+        <span className={`text-[13px] ${TEXT_MUTED}`}>Con esto calculamos cuándo llegas.</span>
+      </div>
+
+      {error && <ErrorBox>{error}</ErrorBox>}
+      <button type="button" onClick={() => void submit()} disabled={saving} className={PRIMARY_BUTTON}>
+        {saving ? 'Guardando…' : 'Crear meta'}
       </button>
-    </form>
+    </div>
   )
 }

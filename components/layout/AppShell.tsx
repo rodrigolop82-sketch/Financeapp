@@ -12,7 +12,7 @@ import { AddSheet } from '@/components/add/AddSheet'
 import { PushOfferSheet } from '@/components/avisos/PushOfferSheet'
 import { signalAppReady } from '@/components/motion/Splash'
 import {
-  Home, List, Target, Wallet, CreditCard, TrendingUp, ClipboardCheck,
+  Home, List, Wallet, TrendingUp, ClipboardCheck,
   MessageCircle, BookOpen, Landmark, Users, Settings, ShieldCheck,
   ChevronRight, ChevronLeft, Plus,
 } from 'lucide-react'
@@ -35,14 +35,12 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/dashboard', icon: Home, label: 'Inicio' },
       { href: '/transacciones', icon: List, label: 'Movimientos' },
-      { href: '/metas', icon: Target, label: 'Metas' },
+      { href: '/plan', icon: Wallet, label: 'Plan' },
     ],
   },
   {
     label: 'Tu dinero',
     items: [
-      { href: '/presupuesto', icon: Wallet, label: 'Plan del mes' },
-      { href: '/deudas', icon: CreditCard, label: 'Deudas' },
       { href: '/resumen', icon: TrendingUp, label: 'Cómo te fue' },
       { href: '/cierre-mes', icon: ClipboardCheck, label: 'Cerrar el mes' },
     ],

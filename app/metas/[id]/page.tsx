@@ -66,7 +66,7 @@ export default function GoalDetailPage() {
 
   if (!goal) {
     return (
-      <AppShell title="Meta" currentPath="/metas">
+      <AppShell title="Meta" currentPath="/plan">
         <p style={{ textAlign: 'center', color: '#64748B', padding: '40px 0' }}>
           Meta no encontrada
         </p>
@@ -96,7 +96,7 @@ export default function GoalDetailPage() {
     setActionLoading(true)
     try {
       await deleteGoal(goalId)
-      router.push('/metas')
+      router.push('/plan?s=metas')
     } catch {
       setActionLoading(false)
     }
@@ -116,10 +116,10 @@ export default function GoalDetailPage() {
   const monthlyRate = goal.monthlyContribution ?? 0
 
   return (
-    <AppShell title="Detalle de meta" currentPath="/metas">
+    <AppShell title="Detalle de meta" currentPath="/plan">
       {/* Back button */}
       <button
-        onClick={() => router.push('/metas')}
+        onClick={() => router.push('/plan?s=metas')}
         style={{
           display: 'flex', alignItems: 'center', gap: 6,
           background: 'none', border: 'none', cursor: 'pointer',
