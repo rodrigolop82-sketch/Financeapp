@@ -3,15 +3,10 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
-import { Wordmark } from '@/components/brand/Wordmark';
-import { AppIcon } from '@/components/brand/AppIcon';
+import { AUTH_LINK, AuthField, AuthPage, AuthTitle, GoogleButton, OrDivider } from '@/components/auth/AuthUI';
+import { ErrorBox, INPUT_48 } from '@/components/layout/Pantalla';
+import { PRIMARY_BUTTON, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
 
 export default function RegistroPage() {
   return (
@@ -79,124 +74,58 @@ function RegistroForm() {
 
   if (emailSent) {
     return (
-      <div className="min-h-screen bg-surface-bg flex items-center justify-center px-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8 text-electric" />
-            </div>
-            <h2 className="text-xl font-bold mb-2">Revisa tu correo</h2>
-            <p className="text-ink-700 mb-4">
-              Enviamos un enlace de confirmación a <strong>{email}</strong>.
-              Haz clic en el enlace para activar tu cuenta.
-            </p>
-            <p className="text-sm text-ink-500">
-              ¿No lo ves? Revisa tu carpeta de spam.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <AuthPage center>
+        <span aria-hidden className="mt-4 flex h-[72px] w-[72px] items-center justify-center rounded-[22px] bg-electric-ghost text-4xl dark:bg-[#1B2B4D]">📬</span>
+        <AuthTitle
+          title="Revisa tu correo"
+          sub={<>Enviamos un enlace de confirmación a <b className={TEXT_STRONG}>{email}</b>. Tócalo para activar tu cuenta.</>}
+        />
+        <p className={`text-sm ${TEXT_MUTED}`}>¿No lo ves? Revisa tu carpeta de spam.</p>
+      </AuthPage>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface-bg flex items-center justify-center px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex items-center justify-center gap-2.5 mb-4">
-            <AppIcon size="sm" variant="electric" />
-            <Wordmark size="sm" />
-          </div>
-          <CardTitle className="font-serif">Crea tu cuenta</CardTitle>
-          <CardDescription>
-            Empieza tu prueba gratuita de 14 días. Sin tarjeta de crédito.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
+    <AuthPage>
+      <AuthTitle title="Crea tu cuenta" sub="Gratis. Tu dinero en orden en 5 minutos." />
+      {error && <ErrorBox>{error}</ErrorBox>}
 
-          <Button variant="outline" className="w-full mb-4" onClick={handleGoogleSignUp}>
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-            </svg>
-            Registrarse con Google
-          </Button>
+      <form onSubmit={handleRegister} className="flex flex-col gap-[22px]">
+        <div className="flex flex-col gap-3.5">
+          <AuthField id="name" label="Tu nombre">
+            <input id="name" autoComplete="name" placeholder="Ana Pérez" value={fullName} onChange={(e) => setFullName(e.target.value)} required className={INPUT_48} />
+          </AuthField>
+          <AuthField id="email" label="Correo">
+            <input id="email" type="email" autoComplete="email" placeholder="tu@correo.com" value={email} onChange={(e) => setEmail(e.target.value)} required className={INPUT_48} />
+          </AuthField>
+          <AuthField id="password" label="Contraseña">
+            <input id="password" type="password" autoComplete="new-password" placeholder="Mínimo 8 caracteres" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required className={INPUT_48} />
+          </AuthField>
+          <label htmlFor="marketing" className={`flex min-h-[44px] cursor-pointer items-start gap-3 text-sm ${TEXT_MUTED}`}>
+            <input
+              id="marketing"
+              type="checkbox"
+              checked={marketingOptIn}
+              onChange={(e) => setMarketingOptIn(e.target.checked)}
+              className="mt-0.5 h-5 w-5 flex-none cursor-pointer rounded accent-electric"
+            />
+            <span>Recibir consejos y novedades por correo</span>
+          </label>
+        </div>
+        <button type="submit" disabled={loading} className={PRIMARY_BUTTON}>{loading ? 'Creando cuenta…' : 'Crear cuenta'}</button>
+      </form>
 
-          <div className="relative my-4">
-            <Separator />
-            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-ink-500">
-              o con correo
-            </span>
-          </div>
+      <OrDivider>o continúa con</OrDivider>
+      <GoogleButton onClick={handleGoogleSignUp} />
 
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div>
-              <Label htmlFor="name">Nombre completo</Label>
-              <Input
-                id="name"
-                placeholder="Tu nombre"
-                className="mt-1"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="email">Correo electrónico</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="tu@correo.com"
-                className="mt-1"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Mínimo 8 caracteres"
-                className="mt-1"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={8}
-                required
-              />
-            </div>
-            <label htmlFor="marketing" className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm">
-              <input
-                id="marketing"
-                type="checkbox"
-                checked={marketingOptIn}
-                onChange={(e) => setMarketingOptIn(e.target.checked)}
-                className="mt-0.5 h-5 w-5 flex-none cursor-pointer rounded accent-electric"
-              />
-              <span>Recibir consejos y novedades por correo</span>
-            </label>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creando cuenta...' : 'Crear cuenta gratis'}
-            </Button>
-          </form>
-
-          <p className="text-center text-sm text-ink-500 mt-6">
-            ¿Ya tienes cuenta?{' '}
-            <Link href={inviteCode ? `/login?invite=${inviteCode}` : '/login'} className="text-electric font-medium hover:underline">
-              Inicia sesión
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+      <p className={`text-center text-sm ${TEXT_MUTED}`}>
+        ¿Ya tienes cuenta?{' '}
+        <Link href={inviteCode ? `/login?invite=${inviteCode}` : '/login'} className={AUTH_LINK}>Inicia sesión</Link>
+      </p>
+      <p className={`-mt-2.5 text-center text-[12.5px] ${TEXT_FAINT}`}>
+        Al crear tu cuenta aceptas los <Link href="/terminos" className="underline">Términos</Link> y la{' '}
+        <Link href="/privacidad" className="underline">Política de privacidad</Link>.
+      </p>
+    </AuthPage>
   );
 }

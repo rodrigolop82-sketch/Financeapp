@@ -3,10 +3,17 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Users, CheckCircle2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { AuthPage, AuthTitle } from '@/components/auth/AuthUI';
+import { ErrorBox, ListCard, ROW_DIVIDER } from '@/components/layout/Pantalla';
+import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
+import { SkeletonBlock } from '@/components/motion/PageSkeleton';
+
+const PERKS: [string, string][] = [
+  ['📊', 'Ver el plan del mes'],
+  ['✍️', 'Registrar gastos e ingresos'],
+  ['🎯', 'Aportar a las metas del hogar'],
+];
 
 type InviteState = 'loading' | 'valid' | 'invalid' | 'joining' | 'joined' | 'already_member' | 'needs_auth';
 
@@ -72,121 +79,76 @@ export default function InvitePage() {
     setTimeout(() => router.push('/dashboard'), 2000);
   }
 
+  const tile = (emoji: string) => (
+    <span aria-hidden className="mt-4 flex h-[72px] w-[72px] items-center justify-center rounded-[22px] bg-electric-ghost text-4xl dark:bg-[#1B2B4D]">{emoji}</span>
+  );
+  const invitedBy = (
+    <><b className={TEXT_STRONG}>{ownerName}</b> te invitó a compartir el presupuesto de <b className={TEXT_STRONG}>{householdName}</b>.</>
+  );
+  const perks = (
+    <ListCard className="w-full text-left">
+      {PERKS.map(([emoji, text]) => (
+        <div key={text} className={`flex h-[52px] items-center gap-3 ${ROW_DIVIDER}`}>
+          <span aria-hidden className="w-6 text-center text-[19px]">{emoji}</span>
+          <span className={`text-[15px] font-semibold ${TEXT_STRONG}`}>{text}</span>
+        </div>
+      ))}
+    </ListCard>
+  );
+
   return (
-    <div className="min-h-screen bg-surface-bg flex items-center justify-center px-4">
-      <Card className="w-full max-w-md">
-        <CardContent className="p-8 text-center">
-          {/* Logo */}
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <div className="w-10 h-10 bg-electric rounded-xl flex items-center justify-center">
-              <span className="text-white text-lg font-bold">Z</span>
-            </div>
-            <span className="text-2xl font-bold text-navy">Zafi</span>
+    <AuthPage center>
+      {(state === 'loading' || state === 'joining') && (
+        <div role="status" className="flex w-full flex-col items-center gap-3">
+          <SkeletonBlock className="mt-4 h-[72px] w-[72px] !rounded-[22px]" />
+          <SkeletonBlock className="h-8 w-56" />
+          <SkeletonBlock className="h-4 w-64" />
+          <span className={`text-sm ${TEXT_MUTED}`}>{state === 'loading' ? 'Verificando la invitación…' : 'Uniéndote al hogar…'}</span>
+        </div>
+      )}
+
+      {state === 'invalid' && (
+        <>
+          {tile('🔗')}
+          <AuthTitle title="Esta invitación no sirve" />
+          <div className="w-full text-left"><ErrorBox>{errorMsg}</ErrorBox></div>
+          <Link href="/login" className={`w-full ${PRIMARY_BUTTON} flex items-center justify-center`}>Ir a iniciar sesión</Link>
+        </>
+      )}
+
+      {(state === 'needs_auth' || state === 'valid') && (
+        <>
+          {tile('👪')}
+          <AuthTitle title="Te invitaron a un hogar" sub={invitedBy} />
+          {perks}
+          <div className="flex w-full flex-col gap-2.5">
+            {state === 'needs_auth' ? (
+              <>
+                <Link href={`/registro?invite=${code}`} className={`${PRIMARY_BUTTON} flex items-center justify-center`}>Crear cuenta y unirme</Link>
+                <Link href={`/login?invite=${code}`} className={`flex h-11 items-center justify-center text-[15px] font-semibold ${TEXT_MUTED}`}>Ya tengo cuenta</Link>
+              </>
+            ) : (
+              <button type="button" onClick={handleJoin} className={PRIMARY_BUTTON}>Unirme al hogar</button>
+            )}
           </div>
+        </>
+      )}
 
-          {state === 'loading' && (
-            <div className="py-8">
-              <Loader2 className="w-8 h-8 text-electric-light animate-spin mx-auto" />
-              <p className="text-ink-500 mt-3">Verificando invitación...</p>
-            </div>
-          )}
+      {state === 'joined' && (
+        <>
+          {tile('🎉')}
+          <AuthTitle title="¡Te uniste!" sub={<>Ya compartes el plan de <b className={TEXT_STRONG}>{householdName}</b>.</>} />
+          <Link href="/dashboard" className={`w-full ${PRIMARY_BUTTON} flex items-center justify-center`}>Ir a Inicio</Link>
+        </>
+      )}
 
-          {state === 'invalid' && (
-            <div className="py-4">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-8 h-8 text-red-500" />
-              </div>
-              <h2 className="text-xl font-bold text-ink-900 mb-2">Invitación inválida</h2>
-              <p className="text-ink-700 mb-6">{errorMsg}</p>
-              <Link href="/login">
-                <Button variant="outline">Ir al inicio</Button>
-              </Link>
-            </div>
-          )}
-
-          {state === 'needs_auth' && (
-            <div className="py-4">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-electric" />
-              </div>
-              <h2 className="text-xl font-bold text-ink-900 mb-2">Te invitaron a un hogar</h2>
-              <p className="text-ink-700 mb-1">
-                <strong>{ownerName}</strong> te invita a unirte al hogar
-              </p>
-              <p className="text-lg font-semibold text-navy mb-6">
-                &ldquo;{householdName}&rdquo;
-              </p>
-              <p className="text-sm text-ink-500 mb-6">
-                Podrán compartir presupuesto, registrar gastos y ver el progreso financiero juntos.
-              </p>
-              <div className="space-y-3">
-                <Link href={`/registro?invite=${code}`} className="block">
-                  <Button className="w-full">Crear cuenta y unirme</Button>
-                </Link>
-                <Link href={`/login?invite=${code}`} className="block">
-                  <Button variant="outline" className="w-full">Ya tengo cuenta</Button>
-                </Link>
-              </div>
-            </div>
-          )}
-
-          {state === 'valid' && (
-            <div className="py-4">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-electric" />
-              </div>
-              <h2 className="text-xl font-bold text-ink-900 mb-2">Te invitaron a un hogar</h2>
-              <p className="text-ink-700 mb-1">
-                <strong>{ownerName}</strong> te invita a unirte al hogar
-              </p>
-              <p className="text-lg font-semibold text-navy mb-6">
-                &ldquo;{householdName}&rdquo;
-              </p>
-              <p className="text-sm text-ink-500 mb-6">
-                Podrán compartir presupuesto, registrar gastos y ver el progreso financiero juntos.
-              </p>
-              <Button className="w-full" onClick={handleJoin}>
-                Unirme al hogar
-              </Button>
-            </div>
-          )}
-
-          {state === 'joining' && (
-            <div className="py-8">
-              <Loader2 className="w-8 h-8 text-electric-light animate-spin mx-auto" />
-              <p className="text-ink-500 mt-3">Uniéndote al hogar...</p>
-            </div>
-          )}
-
-          {state === 'joined' && (
-            <div className="py-4">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8 text-green-600" />
-              </div>
-              <h2 className="text-xl font-bold text-ink-900 mb-2">¡Te uniste exitosamente!</h2>
-              <p className="text-ink-700 mb-2">
-                Ahora eres parte del hogar &ldquo;{householdName}&rdquo;
-              </p>
-              <p className="text-sm text-ink-500">Redirigiendo al dashboard...</p>
-            </div>
-          )}
-
-          {state === 'already_member' && (
-            <div className="py-4">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8 text-electric" />
-              </div>
-              <h2 className="text-xl font-bold text-ink-900 mb-2">Ya eres miembro</h2>
-              <p className="text-ink-700 mb-6">
-                Ya formas parte del hogar &ldquo;{householdName}&rdquo;
-              </p>
-              <Link href="/dashboard">
-                <Button className="w-full">Ir al dashboard</Button>
-              </Link>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      {state === 'already_member' && (
+        <>
+          {tile('👪')}
+          <AuthTitle title="Ya eres miembro" sub={<>Ya formas parte de <b className={TEXT_STRONG}>{householdName}</b>.</>} />
+          <Link href="/dashboard" className={`w-full ${PRIMARY_BUTTON} flex items-center justify-center`}>Ir a Inicio</Link>
+        </>
+      )}
+    </AuthPage>
   );
 }
