@@ -35,7 +35,7 @@ import { PersonAvatar, SplitBar, personClass } from '@/components/hogar/PersonUI
 import Link from 'next/link';
 import { Chevron } from '@/components/layout/Pantalla';
 import { loadPagos } from '@/lib/pagos-data';
-import { dueWeekday, pagosSummary, sortPending, type Pago } from '@/lib/pagos';
+import { dueWeekday, pagoStatus, pagosSummary, sortPending, type Pago } from '@/lib/pagos';
 
 interface Cat { id: string; name: string; bucket: string; icon?: string | null }
 
@@ -67,6 +67,10 @@ export default function FamiliaPage() {
   const [message, setMessage] = useState<StatusMessage | null>(null);
   const [familySheet, setFamilySheet] = useState<string | null>(null);
   const [pagos, setPagos] = useState<Pago[]>([]);
+  // Unión de cuentas activa (para deshacerla en 30 días o salir del hogar).
+  const [merge, setMerge] = useState<{ id: string; guest_user_id: string; undo_until: string } | null>(null);
+  const [undoOpen, setUndoOpen] = useState(false);
+  const [undoing, setUndoing] = useState(false);
 
   const loadPeople = useCallback(async () => {
     const res = await fetch('/api/household/people', { cache: 'no-store' });
@@ -113,6 +117,14 @@ export default function FamiliaPage() {
     setSettled((setData ?? []) as Settlement[]);
     setLoading(false);
     loadPagos(supabase, hh.id, month).then(setPagos).catch(() => setPagos([]));
+    supabase
+      .from('household_merges')
+      .select('id, guest_user_id, undo_until')
+      .eq('host_household_id', hh.id)
+      .is('undone_at', null)
+      .order('merged_at', { ascending: false })
+      .limit(1)
+      .then(({ data, error }) => setMerge(!error && data?.[0] ? data[0] : null));
   }, [supabase, router, month, loadPeople]);
 
   useEffect(() => { void load(); }, [load]);
@@ -131,7 +143,28 @@ export default function FamiliaPage() {
     return null;
   }
 
+  async function undoMerge() {
+    if (!merge) return;
+    setUndoing(true);
+    const res = await fetch('/api/household/unmerge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mergeId: merge.id }),
+    });
+    setUndoing(false);
+    setUndoOpen(false);
+    if (!res.ok) { setMessage({ text: (await res.json().catch(() => ({}))).error || 'No pudimos deshacer la unión.', tone: 'error' }); return; }
+    void refreshHouseholdPeople();
+    // Quien se fue vuelve a su hogar; quien se queda ve su hogar sin la otra persona.
+    if (merge.guest_user_id === me) { window.location.href = '/dashboard'; return; }
+    setMerge(null);
+    setMessage({ text: 'Deshicimos la unión. Cada quien tiene lo suyo.', tone: 'ok' });
+    void load();
+  }
+
   async function removeMember(p: Person) {
+    // Si entró uniendo su cuenta, quitarlo es deshacer la unión (se lleva lo suyo).
+    if (merge?.guest_user_id === p.id) { setUndoOpen(true); return; }
     const res = await fetch('/api/familia', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -186,7 +219,12 @@ export default function FamiliaPage() {
   const m = summarizeMonth(txs, fallback);
   const monthName = longMonth(month);
   const canInvite = isOwner && people.length < 2;
-  const invite = canInvite && !readOnly ? <PillButton onClick={() => setInviteKey(Date.now())}>Invitar</PillButton> : undefined;
+  // Con Familiar se invita desde /familia/invitar (link + WhatsApp); si no, la hoja de siempre (solo ver).
+  const invite = canInvite && !readOnly
+    ? <PillButton onClick={() => (plan === 'family' ? router.push('/familia/invitar') : setInviteKey(Date.now()))}>Invitar</PillButton>
+    : undefined;
+  const withinUndo = !!merge && new Date(merge.undo_until).getTime() > Date.now();
+  const undoDate = merge ? new Date(merge.undo_until).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' }) : '';
   const subtitle = [householdName, `${people.length} ${people.length === 1 ? 'persona' : 'personas'}`].filter(Boolean).join(' · ');
 
   const catOf = (id: string | null) => cats.find((c) => c.id === id) ?? null;
@@ -364,7 +402,7 @@ export default function FamiliaPage() {
                       tile={<Tile>🔔</Tile>}
                       name={s.total ? `${s.paid} de ${s.total} pagados` : 'Agrega sus pagos fijos'}
                       help={next
-                        ? ['Próximo: ' + next.name, who, dueWeekday(next, localToday())].filter(Boolean).join(' · ')
+                        ? [(pagoStatus(next, localToday()).status === 'late' ? 'Atrasado: ' : 'Próximo: ') + next.name, who, dueWeekday(next, localToday())].filter(Boolean).join(' · ')
                         : s.total ? 'Todo pagado este mes' : 'Renta, luz, colegio… con quién se encarga'}
                     />
                   );
@@ -393,6 +431,11 @@ export default function FamiliaPage() {
                 </div>
               ))}
             </ListCard>
+            {merge && !readOnly && (withinUndo || merge.guest_user_id === me) && (
+              <button type="button" onClick={() => setUndoOpen(true)} className={`mx-1 mt-2 flex h-11 items-center text-[15px] font-semibold ${LINK_TEXT}`}>
+                {withinUndo ? `Deshacer la unión · hasta el ${undoDate}` : 'Salir del hogar'}
+              </button>
+            )}
             {people.length < 2 && (
               <p className={`mx-1 mt-2 text-sm ${TEXT_MUTED}`}>
                 {isOwner ? 'Invita a tu pareja para llevar las cuentas de la casa entre los dos.' : 'No hay otros miembros en este hogar.'}
@@ -438,6 +481,26 @@ export default function FamiliaPage() {
         onDismiss={dismissRemoved}
       />
       <StatusToast message={message} onDone={() => setMessage(null)} />
+      <BottomSheet themed open={undoOpen} onClose={() => setUndoOpen(false)} label="Deshacer la unión">
+        {undoOpen && (
+          <div className="flex flex-col gap-3.5 px-5 pb-[calc(26px+env(safe-area-inset-bottom))] pt-2">
+            <SheetHeader
+              emoji="↩️"
+              title={withinUndo ? '¿Deshacer la unión?' : '¿Salir del hogar?'}
+              subtitle={withinUndo ? 'Cada quien se lleva lo suyo.' : 'Te llevas lo que pagaste tú, tus metas y tus deudas.'}
+            />
+            <p className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>
+              {withinUndo
+                ? 'Lo que trajo cada uno vuelve a su cuenta, y lo nuevo se reparte según quién lo pagó. No se borra nada.'
+                : 'Lo que registraste desde que se unieron se va contigo según quién lo pagó. No se borra nada.'}
+            </p>
+            <button type="button" onClick={() => void undoMerge()} disabled={undoing} className={PRIMARY_BUTTON}>
+              {undoing ? 'Deshaciendo…' : withinUndo ? 'Sí, deshacer' : 'Sí, salir'}
+            </button>
+            <button type="button" onClick={() => setUndoOpen(false)} className={`h-11 text-[15px] font-semibold ${TEXT_MUTED}`}>Cancelar</button>
+          </div>
+        )}
+      </BottomSheet>
       <PremiumSheet reason="familia" open={familySheet !== null} onClose={() => setFamilySheet(null)} memberName={familySheet} family />
     </AppShell>
   );

@@ -64,7 +64,12 @@ export default function InvitePage() {
 
     const data = await res.json();
 
-    if (res.status === 409) {
+    // Trae su propia historia: se une con el flujo de 4 pasos.
+    if (res.status === 409 && data.needsMerge) {
+      router.push(`/unir?code=${encodeURIComponent(code)}`);
+      return;
+    }
+    if (res.status === 409 && data.alreadyMember) {
       setState('already_member');
       return;
     }

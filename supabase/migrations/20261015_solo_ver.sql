@@ -35,7 +35,7 @@ GRANT EXECUTE ON FUNCTION get_my_writable_household_ids() TO authenticated;
 DO $$
 DECLARE
   p RECORD;
-  roles TEXT;
+  role_sql TEXT;
   using_sql TEXT;
   check_sql TEXT;
 BEGIN
@@ -46,23 +46,73 @@ BEGIN
       AND cmd IN ('ALL', 'INSERT', 'UPDATE', 'DELETE')
       AND (COALESCE(qual, '') LIKE '%get_my_household_ids()%' OR COALESCE(with_check, '') LIKE '%get_my_household_ids()%')
   LOOP
-    roles := array_to_string(ARRAY(SELECT quote_ident(r) FROM unnest(p.role_list) r), ', ');
+    role_sql := array_to_string(ARRAY(SELECT quote_ident(r) FROM unnest(p.role_list) r), ', ');
     using_sql := replace(p.qual, 'get_my_household_ids()', 'get_my_writable_household_ids()');
     check_sql := replace(p.with_check, 'get_my_household_ids()', 'get_my_writable_household_ids()');
 
     IF p.cmd = 'ALL' AND p.qual IS NOT NULL THEN
       EXECUTE format(
         'CREATE POLICY %I ON %I.%I AS %s FOR SELECT TO %s USING (%s)',
-        left(p.policyname || ' (ver)', 63), p.schemaname, p.tablename, p.permissive, roles, p.qual
+        left(p.policyname || ' (ver)', 63), p.schemaname, p.tablename, p.permissive, role_sql, p.qual
       );
     END IF;
 
     EXECUTE format('DROP POLICY %I ON %I.%I', p.policyname, p.schemaname, p.tablename);
     EXECUTE format(
       'CREATE POLICY %I ON %I.%I AS %s FOR %s TO %s%s%s',
-      p.policyname, p.schemaname, p.tablename, p.permissive, p.cmd, roles,
+      p.policyname, p.schemaname, p.tablename, p.permissive, p.cmd, role_sql,
       CASE WHEN using_sql IS NOT NULL AND p.cmd <> 'INSERT' THEN format(' USING (%s)', using_sql) ELSE '' END,
       CASE WHEN check_sql IS NOT NULL THEN format(' WITH CHECK (%s)', check_sql) ELSE '' END
+    );
+  END LOOP;
+END $$;
+
+-- Tablas con políticas escritas a mano (sin get_my_household_ids()): lectura
+-- para todo el hogar y escritura solo para quien puede escribir.
+DO $$
+DECLARE
+  t TEXT;
+  p RECORD;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['budget_sub_items', 'income_entries', 'income_month_confirmations', 'month_start_items', 'month_starts', 'spending_caps', 'saving_goals']
+  LOOP
+    IF to_regclass('public.' || t) IS NULL THEN CONTINUE; END IF;
+    FOR p IN
+      SELECT policyname FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = t AND cmd IN ('ALL', 'INSERT', 'UPDATE', 'DELETE')
+        AND COALESCE(qual, '') || COALESCE(with_check, '') NOT LIKE '%writable%'
+        AND COALESCE(qual, '') || COALESCE(with_check, '') LIKE '%household_members%'
+    LOOP
+      EXECUTE format('DROP POLICY %I ON public.%I', p.policyname, t);
+    END LOOP;
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Household can view ' || t, t);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT USING (household_id IN (SELECT get_my_household_ids()))', 'Household can view ' || t, t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Writers can manage ' || t, t);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL USING (household_id IN (SELECT get_my_writable_household_ids())) WITH CHECK (household_id IN (SELECT get_my_writable_household_ids()))',
+      'Writers can manage ' || t, t
+    );
+  END LOOP;
+
+  FOREACH t IN ARRAY ARRAY['saving_goal_items', 'saving_goal_contributions']
+  LOOP
+    IF to_regclass('public.' || t) IS NULL THEN CONTINUE; END IF;
+    FOR p IN
+      SELECT policyname FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = t AND cmd IN ('ALL', 'INSERT', 'UPDATE', 'DELETE')
+        AND COALESCE(qual, '') || COALESCE(with_check, '') NOT LIKE '%writable%'
+    LOOP
+      EXECUTE format('DROP POLICY %I ON public.%I', p.policyname, t);
+    END LOOP;
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Household can view ' || t, t);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR SELECT USING (EXISTS (SELECT 1 FROM saving_goals sg WHERE sg.id = %I.goal_id AND sg.household_id IN (SELECT get_my_household_ids())))',
+      'Household can view ' || t, t, t
+    );
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Writers can manage ' || t, t);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL USING (EXISTS (SELECT 1 FROM saving_goals sg WHERE sg.id = %I.goal_id AND sg.household_id IN (SELECT get_my_writable_household_ids())))',
+      'Writers can manage ' || t, t, t
     );
   END LOOP;
 END $$;

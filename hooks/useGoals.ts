@@ -112,7 +112,8 @@ export function useGoals(): UseGoalsReturn {
       setAvgMonthlyExpenses(expenses)
       setAvgMonthlySavings(savings)
 
-      const mapped: Goal[] = (goalsRes.data ?? []).map((g) => ({
+      // Las metas que se unieron a otra (al unir cuentas) ya no se muestran.
+      const mapped: Goal[] = (goalsRes.data ?? []).filter((g) => !g.merged_into).map((g) => ({
         id: g.id as string,
         name: g.name as string,
         emoji: (g.emoji as string) || '🎯',

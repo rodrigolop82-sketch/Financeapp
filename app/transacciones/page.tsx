@@ -94,6 +94,8 @@ export default function MovimientosPage() {
   const [hidden, setHidden] = useState<{ count: number; before: string } | null>(null);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [viewOnly, setViewOnly] = useState(false);
+  // Desde cuándo son hogar (unir cuentas): separa "Antes del hogar".
+  const [familySince, setFamilySince] = useState<{ date: string; name: string } | null>(null);
 
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [swipeCount, setSwipeCount] = useState(3);
@@ -171,6 +173,8 @@ export default function MovimientosPage() {
       setHistoryStart(effective?.plan === 'free' ? freeHistoryStart(today) : null);
       setViewOnly(effective?.access === 'view');
       setHouseholdId(hh.id as string);
+      const since = (hh as { family_since?: string | null }).family_since;
+      setFamilySince(since ? { date: since.slice(0, 10), name: hh.name ?? 'el hogar' } : null);
       setReady(true);
     })();
   }, [supabase, router]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -486,6 +490,7 @@ export default function MovimientosPage() {
             <>
               {monthGroups.map((mg) => {
                 const t = totalOf(mg.month);
+                const sinceShort = familySince ? `${Number(familySince.date.slice(8, 10))} ${monthLabel(familySince.date.slice(0, 7), today).split(' ')[0].slice(0, 3).toLowerCase()}` : '';
                 return (
                   <section key={mg.month} className="flex flex-col gap-3.5">
                     {byMonth && (
@@ -498,8 +503,28 @@ export default function MovimientosPage() {
                         )}
                       </div>
                     )}
-                    {mg.days.map((g) => (
-                      <TxDayGroup key={g.date} label={g.label} total={fmt(g.expenseTotal)}>
+                    {mg.days.map((g, gi) => {
+                      // Primer día antes de la unión: separador una sola vez.
+                      const prevDate = gi > 0 ? mg.days[gi - 1].date : monthGroups[monthGroups.indexOf(mg) - 1]?.days.at(-1)?.date;
+                      const cut = !!familySince && g.date < familySince.date && (!prevDate || prevDate >= familySince.date) && rows.some((r) => r.date >= familySince.date);
+                      return (
+                      <div key={g.date} className="flex flex-col gap-3.5">
+                      {cut && (
+                        <>
+                          <div className="flex items-center gap-2.5 px-1 py-1">
+                            <span className="h-px flex-1 bg-[var(--zafi-border)]" />
+                            <span className="flex items-center gap-1.5 text-[13px] font-semibold text-electric-dark dark:text-electric-soft">
+                              <span aria-hidden>👪</span>{sinceShort} · Empieza {familySince!.name}
+                            </span>
+                            <span className="h-px flex-1 bg-[var(--zafi-border)]" />
+                          </div>
+                          <div className="flex items-baseline justify-between px-1">
+                            <GroupTitle className="">Antes del hogar</GroupTitle>
+                            <span className={`text-[13px] ${TEXT_MUTED}`}>no se reparte</span>
+                          </div>
+                        </>
+                      )}
+                      <TxDayGroup label={g.label} total={fmt(g.expenseTotal)}>
                         {g.rows.map((tx) => (
                           <SwipeRow
                             key={tx.id}
@@ -515,7 +540,9 @@ export default function MovimientosPage() {
                           />
                         ))}
                       </TxDayGroup>
-                    ))}
+                      </div>
+                      );
+                    })}
                   </section>
                 );
               })}

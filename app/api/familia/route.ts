@@ -197,6 +197,22 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'No puedes eliminarte a ti mismo' }, { status: 400 });
   }
 
+  // Si entró uniendo su cuenta, quitarlo es deshacer la unión: se lleva lo
+  // suyo y nunca se queda sin hogar.
+  const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  const { data: merges } = await adminClient
+    .from('household_merges')
+    .select('id')
+    .eq('host_household_id', householdId)
+    .eq('guest_user_id', userId)
+    .is('undone_at', null)
+    .limit(1);
+  if (merges && merges.length > 0) {
+    const { error } = await supabase.rpc('unmerge_household', { p_merge_id: merges[0].id });
+    if (error) return NextResponse.json({ error: 'No pudimos deshacer la unión' }, { status: 500 });
+    return NextResponse.json({ success: true, unmerged: true });
+  }
+
   await supabase
     .from('household_members')
     .delete()

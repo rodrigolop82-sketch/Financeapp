@@ -121,13 +121,18 @@ export async function getEffectivePlan(userId: string): Promise<EffectivePlan> {
     supabase.from('users').select('plan, trial_ends_at').eq('id', userId).single(),
     supabase
       .from('household_members')
-      .select('household_id, role, access, households(owner_id)')
+      .select('household_id, role, access, households(owner_id, archived_at)')
       .eq('user_id', userId),
   ])
 
   const selfRow: UserRow = self ?? { plan: 'free', trial_ends_at: null }
-  type Row = { household_id: string; role: string; access: string | null; households: { owner_id: string } | { owner_id: string }[] | null }
-  const rows = (memberships ?? []) as Row[]
+  type House = { owner_id: string; archived_at?: string | null }
+  type Row = { household_id: string; role: string; access: string | null; households: House | House[] | null }
+  // Los hogares archivados (al unir cuentas) no cuentan.
+  const rows = ((memberships ?? []) as Row[]).filter((r) => {
+    const h = Array.isArray(r.households) ? r.households[0] : r.households
+    return !h?.archived_at
+  })
   const ownerOf = (r: Row) => (Array.isArray(r.households) ? r.households[0]?.owner_id : r.households?.owner_id) ?? null
   // Igual que getUserHousehold: primero el hogar al que se unió.
   const joined = rows.find((r) => r.role === 'member' && ownerOf(r))
