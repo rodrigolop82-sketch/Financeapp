@@ -24,6 +24,8 @@ import { suggestSubItem } from '@/lib/plan-del-mes'
 import { isReservedLeaf } from '@/lib/month-start-data'
 import { useViewOnly } from '@/lib/hooks/useEffectivePlan'
 import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet'
+import { useHouseholdPeople } from '@/lib/hooks/useHouseholdPeople'
+import { WhoPaidFields, type Scope } from '@/components/hogar/WhoPaidFields'
 import {
   BORDER, PRIMARY_BUTTON, SHEET_TITLE, SOFT_BG, TEXT_BODY, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG,
 } from '@/components/movimientos/ui'
@@ -51,6 +53,9 @@ interface Draft {
   pay: PaymentMethod
   originalAmount: number | null
   originalCurrency: string | null
+  /** Quién pagó (null = quien registra). */
+  paidBy: string | null
+  scope: Scope
 }
 
 interface AddContext {
@@ -91,7 +96,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 type Target = 'manual' | number
 
 function blankDraft(): Draft {
-  return { type: 'expense', amount: '', name: '', categoryId: null, subItemId: null, date: localToday(), pay: 'efectivo', originalAmount: null, originalCurrency: null }
+  return { type: 'expense', amount: '', name: '', categoryId: null, subItemId: null, date: localToday(), pay: 'efectivo', originalAmount: null, originalCurrency: null, paidBy: null, scope: 'shared' }
 }
 
 function draftFromExtracted(t: ExtractedTransaction): Draft {
@@ -105,6 +110,8 @@ function draftFromExtracted(t: ExtractedTransaction): Draft {
     pay: t.payment_method ?? 'efectivo',
     originalAmount: t.original_amount ?? null,
     originalCurrency: t.original_currency ?? null,
+    paidBy: null,
+    scope: 'shared',
   }
 }
 
@@ -131,6 +138,7 @@ export function AddSheet() {
   const viewOnly = useViewOnly()
   const viewOnlyRef = useRef(viewOnly)
   viewOnlyRef.current = viewOnly
+  const household = useHouseholdPeople()
   const [open, setOpen] = useState(false)
   const [subView, setSubView] = useState<{ view: SubView; target: Target } | null>(null)
   const [ctx, setCtx] = useState<AddContext | null>(null)
@@ -360,6 +368,8 @@ export function AddSheet() {
         created_by: context.userId,
         original_amount: d.originalAmount,
         original_currency: d.originalCurrency,
+        // Quién pagó y para qué: solo en hogares de 2 (si no, el trigger pone a quien registra).
+        ...(household.shared && d.type === 'expense' ? { paid_by: d.paidBy ?? context.userId, scope: d.scope } : {}),
         // Solo se manda con parte: así funciona aunque falte la migración del Plan del mes.
         ...(d.subItemId ? { budget_sub_item_id: d.subItemId } : {}),
       }
@@ -587,6 +597,14 @@ export function AddSheet() {
                     selectedId={d.subItemId}
                     onSelect={(id) => patchDraft(i, { subItemId: id })}
                   />
+                  {household.shared && !isIncome && (
+                    <WhoPaidFields
+                      people={household.people}
+                      paidBy={d.paidBy ?? household.me ?? ''}
+                      scope={d.scope}
+                      onChange={(patch) => patchDraft(i, patch)}
+                    />
+                  )}
                 </div>
               )
             })}
@@ -762,6 +780,15 @@ export function AddSheet() {
                 {paymentLabel(manual.pay)} ▾
               </button>
             </div>
+
+            {household.shared && manual.type === 'expense' && (
+              <WhoPaidFields
+                people={household.people}
+                paidBy={manual.paidBy ?? household.me ?? ''}
+                scope={manual.scope}
+                onChange={(patch) => setManual((d) => ({ ...d, ...patch }))}
+              />
+            )}
 
             <button
               type="button"

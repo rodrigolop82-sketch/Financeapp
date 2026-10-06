@@ -33,6 +33,7 @@ import { PremiumInline } from '@/components/premium/PremiumInline';
 import { PremiumSheet } from '@/components/premium/PremiumSheet';
 import { fetchEffectivePlan } from '@/lib/plan-client';
 import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet';
+import { useHouseholdPeople } from '@/lib/hooks/useHouseholdPeople';
 import { freeHistoryStart } from '@/lib/plans';
 import { hiddenHistoryText } from '@/lib/premium';
 
@@ -76,6 +77,9 @@ export default function MovimientosPage() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  // Hogares de 2: Todos / {persona} / Personal.
+  const household = useHouseholdPeople();
+  const [personFilter, setPersonFilter] = useState<string>('all');
 
   const [rows, setRows] = useState<SearchTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -203,6 +207,8 @@ export default function MovimientosPage() {
         from,
         to,
         type: typeFilter === 'all' ? undefined : typeFilter,
+        paidBy: personFilter !== 'all' && personFilter !== 'personal' ? personFilter : undefined,
+        scope: personFilter === 'personal' ? 'personal' : undefined,
         limit: PAGE_SIZE,
         cursorDate: after?.date,
         cursorId: after?.id,
@@ -216,7 +222,7 @@ export default function MovimientosPage() {
       totals: (data.totals ?? null) as MonthTotal[] | null,
       hidden: (data.hidden ?? null) as { count: number; before: string } | null,
     };
-  }, [searchQuery, from, to, typeFilter]);
+  }, [searchQuery, from, to, typeFilter, personFilter]);
 
   // Primera página: al entrar, al cambiar un filtro y después de cada cambio.
   useEffect(() => {
@@ -298,7 +304,11 @@ export default function MovimientosPage() {
 
   const byMonth = scope === 'year';
   const monthGroups = groupByMonth(rows, today);
-  const filtered = searching || typeFilter !== 'all';
+  const filtered = searching || typeFilter !== 'all' || personFilter !== 'all';
+  const personOf = household.shared ? household.byId : undefined;
+  const personOptions = household.shared
+    ? [{ value: 'all', label: 'Todos' }, ...household.people.filter((p) => p.access === 'full').map((p) => ({ value: p.id, label: p.name })), { value: 'personal', label: 'Personal' }]
+    : undefined;
   const year = today.slice(0, 4);
   const totalCount = totals ? totals.reduce((n, t) => n + t.count, 0) : null;
   const remaining = totalCount !== null ? Math.max(0, totalCount - rows.length) : null;
@@ -429,6 +439,9 @@ export default function MovimientosPage() {
             onTypeChange={(t) => { setTypeFilter(t); setOpenRowId(null); }}
             placeholder={`Buscar en ${searching ? (searchScope === 'year' ? `todo ${year}` : periodInText(searchScope, today)) : `todo ${year}`}…`}
             scope={scopeChip}
+            personOptions={personOptions}
+            person={personFilter}
+            onPersonChange={(v) => { setPersonFilter(v); setOpenRowId(null); }}
           />
         </div>
 
@@ -490,7 +503,7 @@ export default function MovimientosPage() {
                         {g.rows.map((tx) => (
                           <SwipeRow
                             key={tx.id}
-                            row={txRowData(tx, fmt)}
+                            row={txRowData(tx, fmt, personOf)}
                             isOpen={openRowId === tx.id}
                             anyOpen={openRowId !== null}
                             flash={sheets.flashFor(tx.id)}

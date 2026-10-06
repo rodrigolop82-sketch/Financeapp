@@ -118,6 +118,10 @@ export interface Transaction {
   transaction_type: 'gasto' | 'ingreso' | 'ahorro';
   /** Parte (budget_sub_items) de la categoría a la que pertenece. */
   budget_sub_item_id?: string | null;
+  /** Quién pagó (hogares de 2). */
+  paid_by?: string | null;
+  /** 'personal' no entra en las cuentas del hogar. */
+  scope?: 'shared' | 'personal';
   created_at: string;
 }
 

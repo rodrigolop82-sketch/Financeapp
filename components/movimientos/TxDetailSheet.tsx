@@ -5,6 +5,8 @@ import type { SearchTransaction } from '@/types';
 import { getEmoji, paymentLabel } from '@/lib/categories-ui';
 import { dayLabel, longDate } from '@/lib/movimientos';
 import { BORDER, DIVIDER, TEXT_BODY, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG } from './ui';
+import { WhoPaidFields } from '@/components/hogar/WhoPaidFields';
+import type { Person } from '@/lib/hogar';
 
 interface TxDetailSheetProps {
   tx: SearchTransaction;
@@ -19,12 +21,15 @@ interface TxDetailSheetProps {
   onDone: () => void;
   /** Nombre de la parte del Plan del mes, si tiene. */
   subItemName?: string | null;
+  /** Hogares de 2: quién pagó y para qué se cambian aquí. */
+  people?: Person[];
+  onSaveHousehold?: (id: string, patch: { paid_by?: string; scope?: 'shared' | 'personal' }) => void;
 }
 
 const NOTE_DEBOUNCE_MS = 600;
 
 /** Contenido de hoja: detalle de un movimiento; cada dato se toca para cambiarlo. */
-export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOpenPayment, onSaveText, onDelete, onDone, subItemName }: TxDetailSheetProps) {
+export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOpenPayment, onSaveText, onDelete, onDone, subItemName, people, onSaveHousehold }: TxDetailSheetProps) {
   const isIncome = tx.type === 'income';
   const [name, setName] = useState(tx.description ?? '');
   const [note, setNote] = useState(tx.note ?? '');
@@ -122,6 +127,18 @@ export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOp
           />
         </label>
       </div>
+
+      {people && onSaveHousehold && !isIncome && (
+        <WhoPaidFields
+          people={people}
+          paidBy={tx.paid_by ?? people[0]?.id ?? ''}
+          scope={tx.scope ?? 'shared'}
+          onChange={(p) => onSaveHousehold(tx.id, {
+            ...(p.paidBy ? { paid_by: p.paidBy } : {}),
+            ...(p.scope ? { scope: p.scope } : {}),
+          })}
+        />
+      )}
 
       <div className="flex gap-2.5">
         <button

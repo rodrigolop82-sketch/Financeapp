@@ -137,6 +137,8 @@ export async function confirmStatement(
     categories: BudgetCategory[]
     overrideKeys: string[]
     paymentMethod: 'tarjeta' | 'transferencia'
+    /** Quién pagó con esta tarjeta (hogares de 2); sin él, quien importa. */
+    paidBy?: string | null
   },
 ): Promise<ImportOutcome> {
   const { householdId, userId, importId, charges, matches, categories } = params
@@ -177,6 +179,7 @@ export async function confirmStatement(
         original_amount: c.original_amount ?? null,
         original_currency: c.original_currency ?? null,
         ...(c.subItemId ? { budget_sub_item_id: c.subItemId } : {}),
+        ...(params.paidBy && c.type === 'expense' ? { paid_by: params.paidBy } : {}),
       }
     })
     const { data, error } = await supabase.from('transactions').insert(rows).select('id')

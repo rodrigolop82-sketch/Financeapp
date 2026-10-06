@@ -12,6 +12,7 @@ import { sameMerchantOthers } from '@/lib/movimientos';
 import { UndoToast } from '@/components/transactions/UndoToast';
 import { BottomSheet } from '@/components/transactions/BottomSheet';
 import { TxDetailSheet } from './TxDetailSheet';
+import { useHouseholdPeople } from '@/lib/hooks/useHouseholdPeople';
 import { CategorySheet } from './CategorySheet';
 import { DateSheet, OptionSheet } from './OptionSheet';
 import { StatusToast, type StatusMessage } from './StatusToast';
@@ -123,7 +124,9 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
   }
 
   /** Cambio optimista de un campo; si Supabase falla, se revierte. */
-  async function updateTx(id: string, patch: Partial<Pick<SearchTransaction, 'date' | 'payment_method' | 'description' | 'note'>>) {
+  const household = useHouseholdPeople();
+
+  async function updateTx(id: string, patch: Partial<Pick<SearchTransaction, 'date' | 'payment_method' | 'description' | 'note' | 'paid_by' | 'scope'>>) {
     const prev = rows.find((r) => r.id === id);
     if (!prev) return;
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)).sort(byDateDesc));
@@ -180,6 +183,8 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
             onDelete={() => deleteTx(selected)}
             onDone={() => setSheet(null)}
             subItemName={subItems.find((p) => p.id === selected.budget_sub_item_id)?.name}
+            people={household.shared ? household.people : undefined}
+            onSaveHousehold={(id, patch) => { void updateTx(id, patch); }}
           />
         )}
         {sheet?.view === 'category' && selected && (

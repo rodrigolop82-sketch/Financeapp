@@ -67,7 +67,6 @@ export default function FamiliaPage() {
   const [familySheet, setFamilySheet] = useState<string | null>(null);
   const [spendingByMember, setSpendingByMember] = useState<Record<string, number>>({});
   const [txCountByMember, setTxCountByMember] = useState<Record<string, number>>({});
-  const [unattributedSpending, setUnattributedSpending] = useState(0);
   const [inviteKey, setInviteKey] = useState<number | null>(null);
   const [removed, setRemoved] = useState<Member | null>(null);
   const [message, setMessage] = useState<StatusMessage | null>(null);
@@ -100,7 +99,7 @@ export default function FamiliaPage() {
         loadMembers(hhId),
         supabase
           .from('transactions')
-          .select('created_by, amount')
+          .select('paid_by, amount')
           .eq('household_id', hhId)
           .eq('type', 'expense')
           .gte('date', from)
@@ -109,18 +108,13 @@ export default function FamiliaPage() {
 
       const byMember: Record<string, number> = {};
       const countByMember: Record<string, number> = {};
-      let unattributed = 0;
-      (txData || []).forEach((tx: { created_by: string | null; amount: number }) => {
-        if (tx.created_by) {
-          byMember[tx.created_by] = (byMember[tx.created_by] || 0) + Number(tx.amount);
-          countByMember[tx.created_by] = (countByMember[tx.created_by] || 0) + 1;
-        } else {
-          unattributed += Number(tx.amount);
-        }
+      (txData || []).forEach((tx: { paid_by: string | null; amount: number }) => {
+        if (!tx.paid_by) return;
+        byMember[tx.paid_by] = (byMember[tx.paid_by] || 0) + Number(tx.amount);
+        countByMember[tx.paid_by] = (countByMember[tx.paid_by] || 0) + 1;
       });
       setSpendingByMember(byMember);
       setTxCountByMember(countByMember);
-      setUnattributedSpending(unattributed);
       setLoading(false);
     }
     load();
@@ -170,7 +164,7 @@ export default function FamiliaPage() {
   const viewerName = viewer ? memberName(viewer).split(/\s+/)[0] : null;
   const invite = canInvite ? <PillButton onClick={() => setInviteKey(Date.now())}>Invitar</PillButton> : undefined;
   const subtitle = [householdName, `${members.length} ${members.length === 1 ? 'miembro' : 'miembros'}`].filter(Boolean).join(' · ');
-  const totalSpending = Object.values(spendingByMember).reduce((s, v) => s + v, 0) + unattributedSpending;
+  const totalSpending = Object.values(spendingByMember).reduce((s, v) => s + v, 0);
 
   const spendRow = (key: string, avatar: React.ReactNode, name: string, amount: number) => {
     const ratio = totalSpending > 0 ? amount / totalSpending : 0;
@@ -261,12 +255,6 @@ export default function FamiliaPage() {
                     spendingByMember[m.user_id] || 0,
                   );
                 })}
-                {unattributedSpending > 0 && spendRow(
-                  'sin-atribuir',
-                  <span aria-hidden className="flex h-6 w-6 flex-none items-center justify-center text-lg leading-none">❔</span>,
-                  'Sin atribuir',
-                  unattributedSpending,
-                )}
               </div>
               <p className={`mx-1 mt-2 flex items-center justify-between text-[13px] ${TEXT_MUTED}`}>
                 <span>Total del hogar</span>
