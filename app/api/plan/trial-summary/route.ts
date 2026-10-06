@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient, sessionUser } from '@/lib/billing/server'
 import { getEffectivePlan } from '@/lib/plans'
 import { TRIAL_DAYS, trialProgress, type TrialSummary } from '@/lib/trial'
+import { dueDateIn } from '@/lib/avisos'
 
 // Uso real durante la prueba, para "Tu prueba termina en N días".
 export async function GET() {
@@ -48,8 +49,27 @@ export async function GET() {
         }
       : null,
     ownedSpendPct: other && total > 0 ? Math.round((owned / total) * 100) : null,
-    billsOnTime: 0,
+    billsOnTime: hh ? await billsPaidOnTime(admin, hh, since) : 0,
     questions: questions.count ?? 0,
   }
   return NextResponse.json(summary)
+}
+
+/** Pagos del mes marcados como pagados a más tardar el día que vencían. */
+async function billsPaidOnTime(admin: ReturnType<typeof adminClient>, householdId: string, since: string): Promise<number> {
+  const { data: pays, error } = await admin
+    .from('bill_payments')
+    .select('bill_id, debt_id, month, paid_at')
+    .eq('household_id', householdId)
+    .gte('paid_at', since)
+  if (error || !pays?.length) return 0
+  const [{ data: bills }, { data: debts }] = await Promise.all([
+    admin.from('recurring_bills').select('id, due_day').eq('household_id', householdId),
+    admin.from('debts').select('id, due_day').eq('household_id', householdId),
+  ])
+  const day = new Map<string, number>([...(bills ?? []), ...(debts ?? [])].map((r: { id: string; due_day: number | null }) => [r.id, r.due_day ?? 31]))
+  return (pays as { bill_id: string | null; debt_id: string | null; month: string; paid_at: string }[]).filter((p) => {
+    const due = dueDateIn(p.month.slice(0, 7), day.get((p.bill_id ?? p.debt_id)!) ?? 31)
+    return p.paid_at.slice(0, 10) <= due
+  }).length
 }

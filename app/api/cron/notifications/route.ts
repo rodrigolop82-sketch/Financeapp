@@ -5,6 +5,7 @@ import { buildCandidates, pickAviso, type AvisoKind } from '@/lib/avisos'
 import { loadUserAvisoContext, usersWithDevices } from '@/lib/avisos-data'
 import { localToday } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
+import { sendBillReminders, sendWeeklySummaries } from '@/lib/pagos-cron'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,5 +69,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ message: 'Notifications processed', today, results })
+  // Pagos con responsable (3 días antes y el día) y, los domingos, el resumen del hogar.
+  const bills = await sendBillReminders(admin, today, fmt).catch((e) => { console.error('[cron/bills]', e); return 0 })
+  const sunday = new Date(today + 'T12:00:00').getDay() === 0
+  const weekly = sunday ? await sendWeeklySummaries(admin, today, fmt).catch((e) => { console.error('[cron/weekly]', e); return 0 }) : 0
+
+  return NextResponse.json({ message: 'Notifications processed', today, results, bills, weekly })
 }

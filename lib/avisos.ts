@@ -19,7 +19,7 @@ import { CAP_META, type CapKey } from './recomendaciones';
 /** Tipos que se guardan en notification_log.type. */
 export type NotificationType =
   | 'due' | 'cap' | 'month_end' | 'month_start' | 'inactivity' | 'income'
-  | 'month_close' | 'apple_pay' | 'household' | 'trial';
+  | 'month_close' | 'apple_pay' | 'household' | 'trial' | 'bill' | 'weekly';
 
 /** Tipos que elige el cron, en orden de prioridad. */
 export type AvisoKind = 'due' | 'cap' | 'month_end' | 'month_start' | 'inactivity' | 'income';
@@ -37,7 +37,7 @@ export const INACTIVITY_REPEAT_MS = 7 * DAY_MS;
 /** ¿Este tipo cuenta para el máximo de 1 aviso al día? */
 export function countsTowardDailyLimit(type: string): boolean {
   // Los avisos entre personas del hogar no gastan el aviso del día.
-  return type !== 'apple_pay' && type !== 'household';
+  return type !== 'apple_pay' && type !== 'household' && type !== 'bill';
 }
 
 export interface LogEntry {

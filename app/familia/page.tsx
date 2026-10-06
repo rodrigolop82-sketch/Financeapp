@@ -8,7 +8,7 @@ import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
 import { fetchEffectivePlan } from '@/lib/plan-client';
 import type { Access, Plan } from '@/lib/plans';
-import { localMonth } from '@/lib/dates';
+import { localMonth, localToday } from '@/lib/dates';
 import { monthRange } from '@/lib/movimientos';
 import { longMonth } from '@/lib/como-te-fue';
 import { getEmoji } from '@/lib/categories-ui';
@@ -32,6 +32,10 @@ import { PremiumInline } from '@/components/premium/PremiumInline';
 import { PremiumSheet } from '@/components/premium/PremiumSheet';
 import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet';
 import { PersonAvatar, SplitBar, personClass } from '@/components/hogar/PersonUI';
+import Link from 'next/link';
+import { Chevron } from '@/components/layout/Pantalla';
+import { loadPagos } from '@/lib/pagos-data';
+import { dueWeekday, pagosSummary, sortPending, type Pago } from '@/lib/pagos';
 
 interface Cat { id: string; name: string; bucket: string; icon?: string | null }
 
@@ -62,6 +66,7 @@ export default function FamiliaPage() {
   const [removed, setRemoved] = useState<Person | null>(null);
   const [message, setMessage] = useState<StatusMessage | null>(null);
   const [familySheet, setFamilySheet] = useState<string | null>(null);
+  const [pagos, setPagos] = useState<Pago[]>([]);
 
   const loadPeople = useCallback(async () => {
     const res = await fetch('/api/household/people', { cache: 'no-store' });
@@ -107,6 +112,7 @@ export default function FamiliaPage() {
     setCats((catData ?? []) as Cat[]);
     setSettled((setData ?? []) as Settlement[]);
     setLoading(false);
+    loadPagos(supabase, hh.id, month).then(setPagos).catch(() => setPagos([]));
   }, [supabase, router, month, loadPeople]);
 
   useEffect(() => { void load(); }, [load]);
@@ -344,6 +350,29 @@ export default function FamiliaPage() {
               </ListCard>
             </section>
           )}
+
+          <section>
+            <GroupTitle className="mb-1.5">Pagos del mes</GroupTitle>
+            <ListCard>
+              <Link href="/plan/pagos" className="flex items-center gap-3 py-3 no-underline">
+                {(() => {
+                  const s = pagosSummary(pagos);
+                  const next = sortPending(pagos, localToday())[0];
+                  const who = next?.responsibleId ? personOf(next.responsibleId)?.name : null;
+                  return (
+                    <RowBody
+                      tile={<Tile>🔔</Tile>}
+                      name={s.total ? `${s.paid} de ${s.total} pagados` : 'Agrega sus pagos fijos'}
+                      help={next
+                        ? ['Próximo: ' + next.name, who, dueWeekday(next, localToday())].filter(Boolean).join(' · ')
+                        : s.total ? 'Todo pagado este mes' : 'Renta, luz, colegio… con quién se encarga'}
+                    />
+                  );
+                })()}
+                <Chevron />
+              </Link>
+            </ListCard>
+          </section>
 
           <section>
             <div className="mb-1.5 flex items-baseline justify-between gap-2 px-1">

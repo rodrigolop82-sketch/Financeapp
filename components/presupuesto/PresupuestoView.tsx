@@ -703,7 +703,13 @@ export function PresupuestoView() {
             Toca cualquier categoría para cambiar cuánto planeas.
           </p>
 
-          <div className="mt-5">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5">
+            <Link
+              href="/plan/pagos"
+              className={`flex min-h-[44px] items-center justify-center text-sm font-semibold text-electric`}
+            >
+              Pagos del mes ›
+            </Link>
             <Link
               href="/plan/retos"
               className={`flex min-h-[44px] items-center justify-center text-sm font-semibold text-electric`}
