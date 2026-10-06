@@ -617,27 +617,16 @@ export function AddSheet() {
                 enterKeyHint="go"
                 className={`flex-1 min-w-0 h-[50px] rounded-[14px] border-[1.5px] border-electric-soft px-3.5 text-[15.5px] outline-none focus:border-electric bg-[var(--zafi-card)] placeholder:text-ink-400 ${TEXT_STRONG}`}
               />
-              {quick.trim() ? (
-                <button
-                  type="submit"
-                  disabled={parsing}
-                  aria-label="Interpretar"
-                  className="flex-none w-[50px] h-[50px] rounded-[14px] bg-electric text-white flex items-center justify-center disabled:opacity-60"
-                >
-                  {parsing
-                    ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" aria-hidden />
-                    : <ArrowRight size={20} aria-hidden />}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setVoiceOpen(true)}
-                  aria-label="Dictar por voz"
-                  className="flex-none w-[50px] h-[50px] rounded-[14px] bg-electric text-white flex items-center justify-center"
-                >
-                  <Mic size={20} aria-hidden />
-                </button>
-              )}
+              <button
+                type="submit"
+                disabled={parsing || !quick.trim()}
+                aria-label="Interpretar"
+                className="flex-none w-[50px] h-[50px] rounded-[14px] bg-electric text-white flex items-center justify-center transition-opacity disabled:opacity-40"
+              >
+                {parsing
+                  ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" aria-hidden />
+                  : <ArrowRight size={20} aria-hidden />}
+              </button>
             </form>
 
             <div className="grid grid-cols-2 gap-2">
