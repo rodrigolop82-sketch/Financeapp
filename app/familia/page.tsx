@@ -1,13 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { AppShell } from '@/components/layout/AppShell';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
 import { fetchEffectivePlan } from '@/lib/plan-client';
+import type { Access, Plan } from '@/lib/plans';
+import { PremiumInline } from '@/components/premium/PremiumInline';
+import { PremiumSheet } from '@/components/premium/PremiumSheet';
+import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet';
 import { localMonth } from '@/lib/dates';
 import { monthRange } from '@/lib/movimientos';
 import { initials } from '@/lib/inicio';
@@ -26,6 +29,7 @@ import { StatusToast, type StatusMessage } from '@/components/movimientos/Status
 interface Member {
   user_id: string;
   role: string;
+  access?: string;
   joined_at: string;
   users: { email: string; full_name: string | null } | null;
 }
@@ -58,7 +62,9 @@ export default function FamiliaPage() {
   const [householdId, setHouseholdId] = useState('');
   const [householdName, setHouseholdName] = useState('');
   const [isOwner, setIsOwner] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
+  const [plan, setPlan] = useState<Plan>('free');
+  const [myAccess, setMyAccess] = useState<Access>('full');
+  const [familySheet, setFamilySheet] = useState<string | null>(null);
   const [spendingByMember, setSpendingByMember] = useState<Record<string, number>>({});
   const [txCountByMember, setTxCountByMember] = useState<Record<string, number>>({});
   const [unattributedSpending, setUnattributedSpending] = useState(0);
@@ -77,7 +83,8 @@ export default function FamiliaPage() {
       if (!user) { router.push('/login'); return; }
 
       const effective = await fetchEffectivePlan();
-      setIsPremium(!!effective && effective.plan !== 'free');
+      setPlan(effective?.plan ?? 'free');
+      setMyAccess(effective?.access ?? 'full');
 
       const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
@@ -125,11 +132,11 @@ export default function FamiliaPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ householdId, email }),
     });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      return data.error || 'No se pudo agregar. Intenta de nuevo.';
-    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return data.error || 'No se pudo agregar. Intenta de nuevo.';
     await loadMembers(householdId);
+    // Entró en solo ver: se le cuenta al dueño qué cambia con Familiar.
+    if (data.access === 'view') setFamilySheet(data.name || email.split('@')[0]);
     return null;
   }
 
@@ -158,7 +165,9 @@ export default function FamiliaPage() {
     return <PageSkeleton variant="list" />;
   }
 
-  const canInvite = isOwner && isPremium;
+  const canInvite = isOwner;
+  const viewer = members.find((m) => m.role !== 'owner' && m.access === 'view');
+  const viewerName = viewer ? memberName(viewer).split(/\s+/)[0] : null;
   const invite = canInvite ? <PillButton onClick={() => setInviteKey(Date.now())}>Invitar</PillButton> : undefined;
   const subtitle = [householdName, `${members.length} ${members.length === 1 ? 'miembro' : 'miembros'}`].filter(Boolean).join(' · ');
   const totalSpending = Object.values(spendingByMember).reduce((s, v) => s + v, 0) + unattributedSpending;
@@ -184,14 +193,19 @@ export default function FamiliaPage() {
         <p className={`hidden text-sm lg:block ${TEXT_MUTED}`}>{subtitle}</p>
 
         <div className="flex flex-col zafi-stagger">
-          {isOwner && !isPremium && (
-            <Link href="/planes?tier=family" className="mt-3.5 flex w-full items-center gap-3 rounded-2xl bg-warning-light px-4 py-3.5 text-left dark:bg-warning/15">
-              <span aria-hidden className="text-[22px] leading-none">👑</span>
-              <span className="flex-1 text-sm text-warning-text dark:text-warning">
-                <b>Familia es Premium.</b> Activa tu plan para invitar y compartir el presupuesto.
+          {isOwner && plan !== 'family' && viewer && (
+            <PremiumInline className="mt-3.5" action="Ver Familiar ›" onClick={() => setFamilySheet(viewerName)}>
+              <b>{viewerName} solo puede ver tu plan.</b> Con Familiar también registra y recibe sus avisos.
+            </PremiumInline>
+          )}
+          {!isOwner && myAccess === 'view' && (
+            <div className="mt-3.5 flex items-center gap-3 rounded-2xl bg-electric-ghost px-4 py-3.5 dark:bg-[#1B2B4D]">
+              <span aria-hidden className="text-[22px] leading-none">👀</span>
+              <span className="flex-1 text-sm leading-[1.45] text-electric-dark dark:text-electric-soft">
+                <b>Estás en modo solo ver.</b> Ves el plan y los movimientos del hogar, pero no registras.
               </span>
-              <span className="flex-none text-sm font-semibold text-warning-text dark:text-warning">Ver planes ›</span>
-            </Link>
+              <button type="button" onClick={openViewOnlySheet} className="flex-none text-sm font-semibold text-electric-dark dark:text-electric-soft">Avisarle ›</button>
+            </div>
           )}
 
           <section>
@@ -207,7 +221,7 @@ export default function FamiliaPage() {
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="flex min-w-0 items-center gap-1.5">
                           <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{name}</span>
-                          <span className={owner ? BADGE_INFO : BADGE_NEUTRAL}>{owner ? 'Dueño' : 'Miembro'}</span>
+                          <span className={owner ? BADGE_INFO : BADGE_NEUTRAL}>{owner ? 'Dueño' : m.access === 'view' ? 'Solo ver' : 'Miembro'}</span>
                         </span>
                         {m.users?.email && <span className={`truncate text-[13px] ${TEXT_MUTED}`}>{m.users.email}</span>}
                       </span>
@@ -226,7 +240,11 @@ export default function FamiliaPage() {
           </section>
 
           {members.length > 1 && (
-            <Note tone="info">Los miembros pueden ver el plan, registrar movimientos y ver cómo va el hogar.</Note>
+            <Note tone="info">
+              {viewer
+                ? 'Quien está en solo ver ve el plan y los movimientos del hogar, pero no registra.'
+                : 'Los miembros pueden ver el plan, registrar movimientos y ver cómo va el hogar.'}
+            </Note>
           )}
 
           {members.length > 0 && totalSpending > 0 && (
@@ -285,6 +303,7 @@ export default function FamiliaPage() {
         onDismiss={dismissRemoved}
       />
       <StatusToast message={message} onDone={() => setMessage(null)} />
+      <PremiumSheet reason="familia" open={familySheet !== null} onClose={() => setFamilySheet(null)} memberName={familySheet} family />
     </AppShell>
   );
 }

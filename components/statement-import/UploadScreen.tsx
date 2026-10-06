@@ -1,5 +1,7 @@
 'use client'
 import { useRef, useState } from 'react'
+import { LimitMeter } from '@/components/premium/LimitMeter'
+import { meterText } from '@/lib/premium'
 import { FileUp, X } from 'lucide-react'
 import type { ImportPhoto } from '@/hooks/useStatementImport'
 import { MAX_IMPORT_IMAGES } from '@/lib/import/constants'
@@ -52,23 +54,22 @@ export function UploadScreen({
   const photoCount = photos.length
   const atMax = photoCount >= MAX_IMPORT_IMAGES
   const canAnalyze = mode === 'photo' ? photoCount > 0 : !!file
-  const lowUsage = importUsage ? importUsage.limit - importUsage.used <= 1 : false
-
   return (
     <div className="flex flex-col px-5 pb-8 [&>*]:shrink-0">
       {/* Encabezado: "‹ Movimientos" cierra el flujo */}
       <div className="flex flex-col items-start gap-0.5">
         <button type="button" onClick={onBack} className={`flex h-11 items-center text-[15px] font-semibold ${LINK_TEXT}`}>‹ Movimientos</button>
         <h1 tabIndex={-1} className={`font-serif text-[30px] leading-[1.15] outline-none ${TEXT_STRONG}`}>Importar estado de cuenta</h1>
-        {importUsage && (
-          <p className={`mt-1 text-[13px] ${TEXT_MUTED}`}>
-            Importaciones gratis este mes:{' '}
-            <b className={`font-outfit ${lowUsage ? 'text-danger-text dark:text-[var(--zafi-error-text)]' : TEXT_STRONG}`}>
-              {importUsage.used} de {importUsage.limit}
-            </b>
-          </p>
-        )}
       </div>
+
+      {importUsage && (
+        <LimitMeter
+          className="mt-3"
+          used={importUsage.used}
+          limit={importUsage.limit}
+          text={meterText('import', importUsage.used, importUsage.limit)}
+        />
+      )}
 
       <div className="mt-3.5">
         <Segmented

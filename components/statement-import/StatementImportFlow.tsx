@@ -11,8 +11,7 @@ import { UndoToast } from '@/components/transactions/UndoToast'
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
 import { importBannerQuery, type ImportBanner } from '@/lib/motion'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
-import { HERO, HERO_MUTED, HERO_STYLE } from '@/components/layout/Pantalla'
-import { PRIMARY_BUTTON, TEXT_MUTED } from '@/components/movimientos/ui'
+import { PremiumSheet } from '@/components/premium/PremiumSheet'
 
 /** Ya en Movimientos: se pide el banner por evento (no cambia la ruta). */
 export const IMPORT_BANNER_EVENT = 'zafi:import-banner'
@@ -42,6 +41,18 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
   }, [confirmed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (imp.step === 'idle') return null
+
+  if (imp.limitReached && imp.limitData) {
+    return (
+      <PremiumSheet
+        reason="import"
+        open
+        onClose={() => { imp.closeImport(); onDone() }}
+        used={imp.limitData.used}
+        limit={imp.limitData.limit}
+      />
+    )
+  }
 
   const handleDone = () => {
     imp.closeImport()
@@ -123,31 +134,6 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
   )
 
   function renderStep() {
-    if (imp.limitReached && imp.limitData) {
-      const limit = imp.limitData
-      return (
-        <div className="flex flex-col gap-3 px-5 pb-8 pt-2">
-          <section className={`flex flex-col gap-1.5 ${HERO}`} style={{ ...HERO_STYLE, padding: '22px 22px 20px' }}>
-            <span className="font-serif text-[24px] leading-tight">Importa sin límites con Premium</span>
-            <span className={`text-sm leading-[1.45] ${HERO_MUTED}`}>
-              Usaste tus {limit.limit} importaciones gratis de este mes. Se renuevan el{' '}
-              {new Date(limit.resetsAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' })}.
-            </span>
-          </section>
-          <button
-            type="button"
-            onClick={() => { window.location.href = '/planes?from=import' }}
-            className={PRIMARY_BUTTON}
-          >
-            Pasar a Premium
-          </button>
-          <button type="button" onClick={imp.closeImport} className={`h-11 text-[15px] font-semibold ${TEXT_MUTED}`}>
-            Ahora no
-          </button>
-        </div>
-      )
-    }
-
     switch (imp.step) {
       case 'upload':
         return (

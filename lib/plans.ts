@@ -197,3 +197,19 @@ export function memberAccessFor(plan: Plan): Access {
 export function hasSeatFor(otherMembers: number): boolean {
   return otherMembers < Math.max(PLAN_LIMITS.FAMILY_SEATS - 1, PLAN_LIMITS.FREE_VIEWERS)
 }
+
+/**
+ * Primer día que Gratis deja ver: inicio del mes actual menos 2 meses
+ * (FREE_HISTORY_MONTHS = 3). `today` es YYYY-MM-DD local.
+ */
+export function freeHistoryStart(today: string): string {
+  const y = Number(today.slice(0, 4))
+  const m = Number(today.slice(5, 7)) - (PLAN_LIMITS.FREE_HISTORY_MONTHS - 1)
+  const d = new Date(Date.UTC(y, m - 1, 1))
+  return d.toISOString().slice(0, 10)
+}
+
+/** El `from` de una consulta con el límite de historial de Gratis. */
+export function clampHistoryFrom(from: string | null | undefined, start: string): string {
+  return !from || from < start ? start : from
+}

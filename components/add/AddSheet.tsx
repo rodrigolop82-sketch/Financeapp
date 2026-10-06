@@ -22,6 +22,8 @@ import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
 import { SubItemPicker, type SubItemOption } from '@/components/movimientos/SubItemPicker'
 import { suggestSubItem } from '@/lib/plan-del-mes'
 import { isReservedLeaf } from '@/lib/month-start-data'
+import { useViewOnly } from '@/lib/hooks/useEffectivePlan'
+import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet'
 import {
   BORDER, PRIMARY_BUTTON, SHEET_TITLE, SOFT_BG, TEXT_BODY, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG,
 } from '@/components/movimientos/ui'
@@ -126,6 +128,9 @@ function notifyTransactionsChanged(detail?: TxChangedDetail) {
  * con `?shared_text=` (Web Share Target), en cualquier ruta.
  */
 export function AddSheet() {
+  const viewOnly = useViewOnly()
+  const viewOnlyRef = useRef(viewOnly)
+  viewOnlyRef.current = viewOnly
   const [open, setOpen] = useState(false)
   const [subView, setSubView] = useState<{ view: SubView; target: Target } | null>(null)
   const [ctx, setCtx] = useState<AddContext | null>(null)
@@ -272,6 +277,8 @@ export function AddSheet() {
   // `zafi:open-add` con { text } (Pegar notificación) abre la hoja e interpreta el texto.
   useEffect(() => {
     function onOpen(e: Event) {
+      // Solo ver: no registra; se le ofrece avisarle al dueño.
+      if (viewOnlyRef.current) { openViewOnlySheet(); return }
       const text = (e as CustomEvent<{ text?: string } | undefined>).detail?.text?.trim()
       openSheet()
       if (text) {
@@ -291,6 +298,7 @@ export function AddSheet() {
     url.searchParams.delete('action')
     url.searchParams.delete('shared_text')
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+    if (viewOnlyRef.current) { openViewOnlySheet(); return }
     void ensureContext()
     if (shared) {
       setOpen(true)

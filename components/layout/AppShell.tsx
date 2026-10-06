@@ -9,6 +9,8 @@ import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav, openAddSheet } from '@/components/dashboard/BottomNav'
 import { AddSheet } from '@/components/add/AddSheet'
+import { ViewOnlySheet } from '@/components/premium/ViewOnlySheet'
+import { useViewOnly } from '@/lib/hooks/useEffectivePlan'
 import { PushOfferSheet } from '@/components/avisos/PushOfferSheet'
 import { ScoreWatcher } from '@/components/score/ScoreWatcher'
 import { signalAppReady } from '@/components/motion/Splash'
@@ -89,6 +91,7 @@ interface AppShellProps {
 export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight, titleRight, mobileHeader, hideMobileBar = false }: AppShellProps) {
   const [isMaster, setIsMaster] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const viewOnly = useViewOnly()
   // Nombre del pie del sidebar: el de la página o, si no lo pasa, el del perfil.
   const [loadedName, setLoadedName] = useState('')
   const displayName = userName || loadedName
@@ -185,15 +188,17 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
               <Wordmark variant="dark" size="sm" />
             </Link>
 
-            <button
-              type="button"
-              onClick={() => openAddSheet()}
-              className="btn-primary w-full"
-              style={{ marginBottom: 16, borderRadius: 14 }}
-            >
-              <Plus className="w-4 h-4" aria-hidden />
-              Agregar
-            </button>
+            {!viewOnly && (
+              <button
+                type="button"
+                onClick={() => openAddSheet()}
+                className="btn-primary w-full"
+                style={{ marginBottom: 16, borderRadius: 14 }}
+              >
+                <Plus className="w-4 h-4" aria-hidden />
+                Agregar
+              </button>
+            )}
 
             {/* Nav groups */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
@@ -325,6 +330,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
 
       {/* Hoja global de agregar (botón + y ?action=) */}
       <AddSheet />
+      <ViewOnlySheet />
       <PushOfferSheet />
       <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <ScoreWatcher />

@@ -43,12 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Solo el dueño puede generar invitaciones' }, { status: 403 });
   }
 
-  // Verify caller has a premium plan (or is still inside their signup trial)
-  const { plan } = await getEffectivePlan(user.id);
-  if (plan === 'free') {
-    return NextResponse.json({ error: 'Se requiere plan Premium para usar el modo familia' }, { status: 403 });
-  }
-
+  // Cualquier plan invita: el acceso (completo o solo ver) se decide al aceptar.
   // Expire any existing active invites for this household
   await supabase
     .from('household_invites')

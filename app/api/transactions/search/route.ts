@@ -1,5 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { NextRequest, NextResponse } from 'next/server';
+import { localToday } from '@/lib/dates';
+import { clampHistoryFrom, freeHistoryStart, getEffectivePlan } from '@/lib/plans';
 
 interface MonthTotal {
   month: string;
@@ -18,7 +20,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
     query,
-    from,
+    from: requestedFrom,
     to,
     categoryId,
     minAmount,
@@ -39,6 +41,34 @@ export async function POST(req: NextRequest) {
   }
 
   const safeLimit = Math.min(Math.max(1, Number(limit) || 30), 100);
+
+  // Gratis ve los últimos 3 meses: lo de antes no se borra, solo se oculta.
+  const { plan } = await getEffectivePlan(user.id);
+  const historyStart = plan === 'free' ? freeHistoryStart(localToday()) : null;
+  const from = historyStart ? clampHistoryFrom(requestedFrom, historyStart) : requestedFrom;
+  if (historyStart && to && to < historyStart) {
+    return NextResponse.json({ rows: [], totals: cursorDate ? null : [], hidden: await countHidden() });
+  }
+
+  /** Cuántos resultados quedan antes del límite (mismos filtros). */
+  async function countHidden(): Promise<{ count: number; before: string } | null> {
+    if (!historyStart || cursorDate) return null;
+    if (requestedFrom && requestedFrom >= historyStart) return null;
+    const dayBefore = new Date(Date.parse(historyStart + 'T00:00:00Z') - 86_400_000).toISOString().slice(0, 10);
+    const { data, error } = await supabase.rpc('search_transactions_summary', {
+      p_query: query?.trim() || null,
+      p_from: requestedFrom || null,
+      p_to: to && to < dayBefore ? to : dayBefore,
+      p_category_id: categoryId || null,
+      p_min_amount: minAmount != null ? Number(minAmount) : null,
+      p_max_amount: maxAmount != null ? Number(maxAmount) : null,
+      p_transaction_type: transactionType || null,
+      p_type: type || null,
+    });
+    if (error) return null;
+    const count = ((data ?? []) as { count: number }[]).reduce((n, t) => n + Number(t.count), 0);
+    return count > 0 ? { count, before: historyStart } : null;
+  }
 
   const { data: rows, error: searchError } = await supabase.rpc('search_transactions', {
     p_query: query?.trim() || null,
@@ -114,5 +144,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ rows: enriched, totals: cursorDate ? null : totals });
+  return NextResponse.json({ rows: enriched, totals: cursorDate ? null : totals, hidden: await countHidden(), historyStart });
 }

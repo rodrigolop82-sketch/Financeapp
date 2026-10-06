@@ -9,9 +9,13 @@ import remarkGfm from 'remark-gfm'
 import { PageSkeleton, SkeletonRows } from '@/components/motion/PageSkeleton'
 import { UndoToast } from '@/components/transactions/UndoToast'
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
+import { LimitMeter } from '@/components/premium/LimitMeter'
+import { PremiumInline } from '@/components/premium/PremiumInline'
+import { PremiumSheet } from '@/components/premium/PremiumSheet'
+import { meterText } from '@/lib/premium'
 import { BORDER, CARD_BG, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG } from '@/components/movimientos/ui'
 import {
-  Chevron, GroupTitle, HERO, HERO_MUTED, HERO_STYLE, LINK_TEXT, ListCard, PageHeader, ROW_DIVIDER, RowBody, Tile,
+  Chevron, GroupTitle, LINK_TEXT, ListCard, PageHeader, ROW_DIVIDER, RowBody, Tile,
 } from '@/components/layout/Pantalla'
 
 interface Message {
@@ -71,6 +75,7 @@ export default function ChatPage() {
   const [usage, setUsage] = useState<UsageData | null>(null)
   const [limitReached, setLimitReached] = useState(false)
   const [resetsAt, setResetsAt] = useState<string | null>(null)
+  const [premiumOpen, setPremiumOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null)
   const pendingRef = useRef<Conversation | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -232,6 +237,7 @@ export default function ChatPage() {
       if (res.status === 402) {
         const errData = await res.json()
         setLimitReached(true)
+        setPremiumOpen(true)
         setResetsAt(errData.resetsAt)
         setUsage(prev => prev ? { ...prev, ai: { used: errData.used, limit: errData.limit, remaining: 0 } } : prev)
         setMessages(prev => prev.slice(0, -1))
@@ -275,8 +281,17 @@ export default function ChatPage() {
 
   const free = usage?.plan === 'free' && usage.ai.limit !== null && usage.ai.remaining !== null
   const quota = free ? (
-    <>Te quedan <b className={`font-outfit ${TEXT_STRONG}`}>{usage!.ai.remaining} de {usage!.ai.limit}</b> preguntas gratis este mes</>
+    <LimitMeter used={usage!.ai.used} limit={usage!.ai.limit!} text={meterText('ia', usage!.ai.used, usage!.ai.limit!)} />
   ) : null
+  const premiumSheet = (
+    <PremiumSheet
+      reason="ia"
+      open={premiumOpen}
+      onClose={() => setPremiumOpen(false)}
+      used={usage?.ai.used}
+      limit={usage?.ai.limit ?? undefined}
+    />
+  )
   const visible = conversations.filter(c => c.id !== pendingDelete?.id)
 
   const undoToast = (
@@ -311,7 +326,7 @@ export default function ChatPage() {
             >
               + Nueva pregunta
             </button>
-            {quota && <span className={`text-center text-[13px] ${TEXT_MUTED}`}>{quota}</span>}
+            {quota && <div className="mt-1">{quota}</div>}
           </div>
 
           <GroupTitle>Prueba con</GroupTitle>
@@ -432,20 +447,10 @@ export default function ChatPage() {
         {/* Barra para escribir */}
         <div className={`sticky bottom-[calc(68px+env(safe-area-inset-bottom))] -mx-4 border-t px-3.5 pb-3 pt-2.5 lg:bottom-0 lg:mx-0 lg:rounded-t-2xl ${BORDER} ${CARD_BG}`}>
           {limitReached ? (
-            <div className={`flex flex-col gap-1.5 p-5 ${HERO}`} style={HERO_STYLE}>
-              <p className="text-base font-bold">Pregunta sin límites</p>
-              <p className={`text-[13.5px] leading-[1.45] ${HERO_MUTED}`}>
-                Con Premium puedes preguntarle a Zafi todas las veces que necesites.
-                {resetsAt && ` Tus preguntas gratis se renuevan el ${new Date(resetsAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' })}.`}
-              </p>
-              <button
-                type="button"
-                onClick={() => { window.location.href = '/planes?from=ia' }}
-                className="mt-2 h-[46px] rounded-full bg-white text-[15px] font-bold text-navy transition-transform duration-150 active:scale-[0.97]"
-              >
-                Pasar a Premium
-              </button>
-            </div>
+            <PremiumInline onClick={() => setPremiumOpen(true)}>
+              <b>Usaste tus {usage?.ai.limit ?? 15} preguntas del mes.</b>
+              {resetsAt && ` Se renuevan el ${new Date(resetsAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' })}.`}
+            </PremiumInline>
           ) : (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2">
@@ -478,16 +483,13 @@ export default function ChatPage() {
                   ↑
                 </button>
               </div>
-              {free && (
-                <span className={`text-center text-[12.5px] ${TEXT_MUTED}`}>
-                  Te quedan {usage!.ai.remaining} de {usage!.ai.limit} preguntas este mes
-                </span>
-              )}
+              {quota}
             </div>
           )}
         </div>
       </div>
       {undoToast}
+      {premiumSheet}
     </AppShell>
   )
 }

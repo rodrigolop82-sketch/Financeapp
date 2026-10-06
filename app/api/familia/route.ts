@@ -43,10 +43,12 @@ export async function GET(request: Request) {
     .select('id, owner_id')
     .eq('id', householdId)
     .single();
+  // Solo quien es del hogar ve a sus miembros (RLS de households).
+  if (!household) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
 
   const { data: members } = await adminClient
     .from('household_members')
-    .select('user_id, role, joined_at, users(email, full_name)')
+    .select('user_id, role, access, joined_at, users(email, full_name)')
     .eq('household_id', householdId);
 
   const memberList = members || [];
@@ -62,7 +64,7 @@ export async function GET(request: Request) {
         .single();
 
       if (ownerProfile) {
-        const ownerEntry = { user_id: household.owner_id, role: 'owner', joined_at: '', users: { email: ownerProfile.email, display_name: ownerProfile.full_name } };
+        const ownerEntry = { user_id: household.owner_id, role: 'owner', access: 'full', joined_at: '', users: { email: ownerProfile.email, full_name: ownerProfile.full_name } };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         memberList.unshift(ownerEntry as any);
       }
@@ -112,11 +114,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Solo el dueño puede invitar miembros' }, { status: 403 });
   }
 
-  // Verify caller has a premium plan (or is still inside their signup trial)
+  // Gratis y Premium: 1 persona en solo ver; Familiar (o prueba): 2 adultos completos.
   const { plan } = await getEffectivePlan(user.id);
-  if (plan === 'free') {
-    return NextResponse.json({ error: 'Se requiere plan Premium para usar el modo familia' }, { status: 403 });
-  }
 
   // Find the user by email — use service role to bypass RLS on users table
   const adminClient = createClient(
@@ -134,7 +133,7 @@ export async function POST(request: Request) {
   }
   const { data: targetUser } = await adminClient
     .from('users')
-    .select('id, email')
+    .select('id, email, full_name')
     .eq('email', email.toLowerCase().trim())
     .single();
 
@@ -172,7 +171,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Error al agregar miembro' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, userId: targetUser.id });
+  return NextResponse.json({ success: true, userId: targetUser.id, access: memberAccessFor(plan), name: (targetUser.full_name || targetUser.email.split('@')[0]).split(' ')[0] });
 }
 
 // DELETE: remove a member

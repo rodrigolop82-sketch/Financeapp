@@ -3,6 +3,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Home, List, Plus, Wallet, MoreHorizontal } from 'lucide-react'
 import { activeTabFor, type TabKey } from '@/lib/navigation'
+import { useViewOnly } from '@/lib/hooks/useEffectivePlan'
 
 const TABS: { key: TabKey; href: string; label: string; icon: typeof Home }[] = [
   { key: 'inicio', href: '/dashboard', label: 'Inicio', icon: Home },
@@ -36,6 +37,8 @@ export function BottomNav() {
   const pathname = usePathname()
   const activeTab = activeTabFor(pathname ?? '')
   const [inicio, movimientos, plan, mas] = TABS
+  // Solo ver: sin el + (no registra).
+  const viewOnly = useViewOnly()
 
   return (
     <nav
@@ -51,7 +54,7 @@ export function BottomNav() {
     >
       <Tab {...inicio} active={activeTab === 'inicio'} />
       <Tab {...movimientos} active={activeTab === 'movimientos'} />
-      <button
+      {!viewOnly && <button
         type="button"
         aria-label="Agregar"
         onClick={() => openAddSheet()}
@@ -62,7 +65,7 @@ export function BottomNav() {
         }}
       >
         <Plus size={24} strokeWidth={2.4} color="#FFFFFF" aria-hidden />
-      </button>
+      </button>}
       <Tab {...plan} active={activeTab === 'plan'} />
       <Tab {...mas} active={activeTab === 'mas'} />
     </nav>

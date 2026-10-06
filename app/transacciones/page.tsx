@@ -29,6 +29,12 @@ import { PageSkeleton, SkeletonRows } from '@/components/motion/PageSkeleton';
 import { IMPORT_BANNER_EVENT } from '@/components/statement-import/StatementImportFlow';
 import { importBannerText, parseImportBanner, type ImportBanner } from '@/lib/motion';
 import { ApplePaySheet } from '@/components/movimientos/ApplePaySheet';
+import { PremiumInline } from '@/components/premium/PremiumInline';
+import { PremiumSheet } from '@/components/premium/PremiumSheet';
+import { fetchEffectivePlan } from '@/lib/plan-client';
+import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet';
+import { freeHistoryStart } from '@/lib/plans';
+import { hiddenHistoryText } from '@/lib/premium';
 
 const PAGE_SIZE = 40;
 const SWIPE_HINT_KEY = 'zafi:swipe-hint';
@@ -79,6 +85,11 @@ export default function MovimientosPage() {
   const cursor = useRef<{ date: string; id: string } | null>(null);
   const [totals, setTotals] = useState<MonthTotal[] | null>(null);
   const [summary, setSummary] = useState<{ spent: number; received: number } | null>(null);
+  // Gratis: primer día visible (null = sin límite) y cuántos quedan ocultos antes.
+  const [historyStart, setHistoryStart] = useState<string | null>(null);
+  const [hidden, setHidden] = useState<{ count: number; before: string } | null>(null);
+  const [premiumOpen, setPremiumOpen] = useState(false);
+  const [viewOnly, setViewOnly] = useState(false);
 
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [swipeCount, setSwipeCount] = useState(3);
@@ -148,12 +159,17 @@ export default function MovimientosPage() {
       if (!user) { router.push('/login'); return; }
       const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
-      const { data: cats } = await supabase.from('budget_categories').select('*').eq('household_id', hh.id);
+      const [{ data: cats }, effective] = await Promise.all([
+        supabase.from('budget_categories').select('*').eq('household_id', hh.id),
+        fetchEffectivePlan(),
+      ]);
       setCategories((cats ?? []) as BudgetCategory[]);
+      setHistoryStart(effective?.plan === 'free' ? freeHistoryStart(today) : null);
+      setViewOnly(effective?.access === 'view');
       setHouseholdId(hh.id as string);
       setReady(true);
     })();
-  }, [supabase, router]);
+  }, [supabase, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (wantsImport && householdId) { setImporting(true); setWantsImport(false); }
@@ -195,7 +211,11 @@ export default function MovimientosPage() {
     });
     if (!res.ok) throw new Error('search');
     const data = await res.json();
-    return { rows: (data.rows ?? []) as SearchTransaction[], totals: (data.totals ?? null) as MonthTotal[] | null };
+    return {
+      rows: (data.rows ?? []) as SearchTransaction[],
+      totals: (data.totals ?? null) as MonthTotal[] | null,
+      hidden: (data.hidden ?? null) as { count: number; before: string } | null,
+    };
   }, [searchQuery, from, to, typeFilter]);
 
   // Primera página: al entrar, al cambiar un filtro y después de cada cambio.
@@ -204,10 +224,11 @@ export default function MovimientosPage() {
     const controller = new AbortController();
     setLoading((was) => was || rows.length === 0);
     fetchPage(null, controller.signal)
-      .then(({ rows: page, totals: t }) => {
+      .then(({ rows: page, totals: t, hidden: h }) => {
         const pendingId = sheets.getPendingDeleteId();
         setRows(pendingId ? page.filter((r) => r.id !== pendingId) : page);
         setTotals(t);
+        setHidden(h);
         setHasMore(page.length === PAGE_SIZE);
         const last = page[page.length - 1];
         cursor.current = last ? { date: last.date, id: last.id } : null;
@@ -228,13 +249,14 @@ export default function MovimientosPage() {
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
-    supabase.rpc('transactions_month_summary', { p_from: browseRange.from, p_to: browseRange.to }).then(({ data }) => {
+    const summaryFrom = historyStart && browseRange.from < historyStart ? historyStart : browseRange.from;
+    supabase.rpc('transactions_month_summary', { p_from: summaryFrom, p_to: browseRange.to }).then(({ data }) => {
       if (cancelled) return;
       const r = Array.isArray(data) ? data[0] : data;
       setSummary({ spent: Number(r?.sum_expense ?? 0), received: Number(r?.sum_income ?? 0) });
     });
     return () => { cancelled = true; };
-  }, [ready, supabase, browseRange.from, browseRange.to, reloadGen]);
+  }, [ready, supabase, browseRange.from, browseRange.to, reloadGen, historyStart]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore || loading || !cursor.current) return;
@@ -282,9 +304,23 @@ export default function MovimientosPage() {
   const remaining = totalCount !== null ? Math.max(0, totalCount - rows.length) : null;
   const totalOf = (m: string) => totals?.find((t) => t.month === m);
 
+  // Gratis: los meses antes de los últimos 3 llevan 👑 y abren el aviso.
+  const lockedMonth = (m: Period) => !!historyStart && m !== 'year' && m < historyStart.slice(0, 7);
+  const choosePeriod = (m: Period, apply: (m: Period) => void) => {
+    setPeriodSheet(null);
+    if (lockedMonth(m)) { setPremiumOpen(true); return; }
+    apply(m);
+  };
+  const hiddenText = hidden ? hiddenHistoryText(hidden.count, hidden.before, today) : null;
+  const hiddenNotice = hiddenText && (
+    <PremiumInline action="Ver todo ›" onClick={() => setPremiumOpen(true)}>
+      <b>{hiddenText.strong}</b> {hiddenText.rest}
+    </PremiumInline>
+  );
+
   const periodOptions = (current: Period) => [
     { value: 'year', label: `Todo ${year}` },
-    ...yearMonths(today).map((m, i) => ({ value: m, label: monthLabel(m, today) + (i === 0 ? ' (este mes)' : '') })),
+    ...yearMonths(today).map((m, i) => ({ value: m, label: monthLabel(m, today) + (i === 0 ? ' (este mes)' : '') + (lockedMonth(m) ? ' 👑' : '') })),
     // Un mes de otro año (p. ej. tras importar un estado de cuenta viejo) sigue en la lista.
     ...(current !== 'year' && !current.startsWith(year) ? [{ value: current, label: monthLabel(current, today) }] : []),
   ];
@@ -341,7 +377,7 @@ export default function MovimientosPage() {
     <div className="flex flex-none items-center gap-1.5">
       <button
         type="button"
-        onClick={() => setImporting(true)}
+        onClick={() => (viewOnly ? openViewOnlySheet() : setImporting(true))}
         disabled={!householdId}
         className="flex-none flex items-center h-9 px-3.5 rounded-full bg-navy text-white text-sm font-semibold dark:bg-electric"
       >
@@ -405,6 +441,8 @@ export default function MovimientosPage() {
         <div className="pt-3.5 flex flex-col gap-3.5">
           {loading ? (
             <SkeletonRows count={6} />
+          ) : rows.length === 0 && hiddenNotice ? (
+            hiddenNotice
           ) : rows.length === 0 ? (
             <div className={`rounded-2xl px-6 py-10 text-center ${CARD_BG}`}>
               {filtered ? (
@@ -475,6 +513,7 @@ export default function MovimientosPage() {
                   Ver más{remaining ? ` (${remaining})` : ''}
                 </button>
               )}
+              {!hasMore && hiddenNotice}
               {swipeCount < 3 && (
                 <p className="lg:hidden text-center text-[13px] px-4 text-ink-400">
                   Toca un movimiento para verlo · desliza a la izquierda para cambiar o borrar
@@ -499,7 +538,7 @@ export default function MovimientosPage() {
             title="¿Qué periodo quieres ver?"
             options={periodOptions(month)}
             selected={month}
-            onSelect={(m) => { setMonth(m); setPeriodSheet(null); }}
+            onSelect={(m) => choosePeriod(m, setMonth)}
           />
         )}
         {periodSheet === 'search' && (
@@ -507,12 +546,14 @@ export default function MovimientosPage() {
             title="¿Dónde buscar?"
             options={periodOptions(searchScope)}
             selected={searchScope}
-            onSelect={(m) => { setSearchScope(m); setPeriodSheet(null); }}
+            onSelect={(m) => choosePeriod(m, setSearchScope)}
           />
         )}
       </BottomSheet>
 
       {sheets.element}
+
+      <PremiumSheet reason="history" open={premiumOpen} onClose={() => setPremiumOpen(false)} />
 
       <ApplePaySheet
         txId={applePayId}
