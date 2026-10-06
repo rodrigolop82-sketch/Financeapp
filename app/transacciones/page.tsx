@@ -95,6 +95,16 @@ export default function MovimientosPage() {
     if (q) { setQuery(q); setDebouncedQuery(q); }
   }, []);
 
+  // ?importar=1 (la ruta vieja /importar) abre el flujo de importar.
+  const [wantsImport, setWantsImport] = useState(false);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('importar') !== '1') return;
+    url.searchParams.delete('importar');
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    setWantsImport(true);
+  }, []);
+
   // ?applepay={id}: el push de Apple Pay abre la hoja para confirmar la categoría.
   const [applePayId, setApplePayId] = useState<string | null>(null);
   useEffect(() => {
@@ -144,6 +154,10 @@ export default function MovimientosPage() {
       setReady(true);
     })();
   }, [supabase, router]);
+
+  useEffect(() => {
+    if (wantsImport && householdId) { setImporting(true); setWantsImport(false); }
+  }, [wantsImport, householdId]);
 
   // La búsqueda espera a que se deje de escribir.
   useEffect(() => {

@@ -28,10 +28,10 @@ export function ImportSuccessScreen({ stats, onSeeMovements, onUndo }: ImportSuc
   }, [])
 
   const cards = [
-    { label: 'Movimientos nuevos', value: stats.imported, format: undefined, duration: 1000, size: 'text-[28px]', color: 'text-ink-900' },
-    { label: 'Duplicados evitados', value: stats.duplicatesSkipped, format: undefined, duration: 700, size: 'text-[28px]', color: 'text-[#B45309]' },
-    { label: 'Gastos', value: stats.totalAmount, format: money, duration: 1200, size: 'text-[22px]', color: 'text-ink-900' },
-    { label: 'Ingresos recibidos', value: stats.incomeAmount, format: money, duration: 1200, size: 'text-[22px]', color: 'text-[#15803D]' },
+    { label: 'Movimientos nuevos', value: stats.imported, format: undefined, duration: 1000, size: 'text-[28px]', color: 'text-ink-900 dark:text-ink-100' },
+    { label: 'Duplicados evitados', value: stats.duplicatesSkipped, format: undefined, duration: 700, size: 'text-[28px]', color: 'text-warning-text dark:text-warning' },
+    { label: 'Gastos', value: stats.totalAmount, format: money, duration: 1200, size: 'text-[22px]', color: 'text-ink-900 dark:text-ink-100' },
+    { label: 'Ingresos recibidos', value: stats.incomeAmount, format: money, duration: 1200, size: 'text-[22px]', color: 'text-success-dark dark:text-[var(--zafi-success-text)]' },
   ]
 
   return (
@@ -53,10 +53,10 @@ export function ImportSuccessScreen({ stats, onSeeMovements, onUndo }: ImportSuc
           {cards.map((c, i) => (
             <div
               key={c.label}
-              className="flex flex-col gap-0.5 rounded-2xl border border-navy/[0.08] bg-white p-3.5 animate-fade-up"
+              className="flex flex-col gap-0.5 rounded-2xl border border-navy/[0.08] bg-[var(--zafi-card)] p-3.5 animate-fade-up"
               style={{ animationDelay: `${0.5 + i * 0.1}s` }}
             >
-              <span className="text-[13px] text-ink-700">{c.label}</span>
+              <span className="text-[13px] text-ink-700 dark:text-ink-200">{c.label}</span>
               <span className={`font-outfit font-extrabold ${c.size} ${c.color}`}>
                 <CountUp value={c.value} from={0} delay={500} duration={c.duration} format={c.format} />
               </span>

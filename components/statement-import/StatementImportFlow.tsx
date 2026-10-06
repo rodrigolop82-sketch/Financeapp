@@ -11,6 +11,8 @@ import { UndoToast } from '@/components/transactions/UndoToast'
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete'
 import { importBannerQuery, type ImportBanner } from '@/lib/motion'
 import { useIsMobile } from '@/lib/hooks/useIsMobile'
+import { HERO, HERO_MUTED, HERO_STYLE } from '@/components/layout/Pantalla'
+import { PRIMARY_BUTTON, TEXT_MUTED } from '@/components/movimientos/ui'
 
 /** Ya en Movimientos: se pide el banner por evento (no cambia la ruta). */
 export const IMPORT_BANNER_EVENT = 'zafi:import-banner'
@@ -87,7 +89,7 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
         onClick={closePanel}
         style={{
           position: 'fixed', inset: 0, zIndex: 52,
-          background: 'rgba(15,23,42,0.5)',
+          background: 'rgba(13,31,54,0.45)',
           opacity: 1,
           transition: 'opacity 0.28s ease',
         }}
@@ -96,12 +98,12 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
       {/* Panel — mobile bottom sheet */}
       <div className="flex flex-col lg:hidden" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 53,
-        background: '#fff', borderRadius: '20px 20px 0 0',
+        background: 'var(--zafi-card)', borderRadius: '28px 28px 0 0',
         boxShadow: '0 -8px 40px rgba(15,23,42,0.15)',
         maxHeight: '92vh',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}>
-        <div style={{ width: 36, height: 4, background: '#CBD5E1', borderRadius: 2, margin: '12px auto 8px', flexShrink: 0 }} />
+        <div className="mx-auto mb-1 mt-2.5 h-[5px] w-10 flex-none rounded-full bg-ink-200 dark:bg-white/20" />
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {isMobile && renderStep()}
         </div>
@@ -110,7 +112,7 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
       {/* Panel — desktop right panel */}
       <div className="hidden lg:flex lg:flex-col" style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, zIndex: 53,
-        background: '#fff', boxShadow: '-8px 0 40px rgba(15,23,42,0.12)',
+        background: 'var(--zafi-card)', boxShadow: '-8px 0 40px rgba(15,23,42,0.12)',
         overflow: 'hidden',
       }}>
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -122,50 +124,33 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
 
   function renderStep() {
     if (imp.limitReached && imp.limitData) {
+      const limit = imp.limitData
       return (
-        <div style={{ padding: 24 }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)',
-            borderRadius: 16, padding: '24px', color: '#fff',
-          }}>
-            <p style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-              Importa sin límites con Premium
-            </p>
-            <p style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.5, marginBottom: 8 }}>
-              Usaste tus {imp.limitData.limit} importaciones gratis de este mes.
-            </p>
-            <p style={{ fontSize: 12, opacity: 0.7, marginBottom: 20 }}>
-              Se renuevan el {new Date(imp.limitData.resetsAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' })}
-            </p>
-            <button
-              onClick={async () => {
-                const res = await fetch('/api/stripe/checkout', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ plan: 'monthly' }),
-                })
-                const { url } = await res.json()
-                if (url) window.location.href = url
-              }}
-              style={{
-                background: '#fff', color: '#1E3A5F',
-                border: 'none', borderRadius: 10, padding: '12px 24px',
-                fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                width: '100%',
-              }}
-            >
-              Pasar a Premium
-            </button>
-          </div>
+        <div className="flex flex-col gap-3 px-5 pb-8 pt-2">
+          <section className={`flex flex-col gap-1.5 ${HERO}`} style={{ ...HERO_STYLE, padding: '22px 22px 20px' }}>
+            <span className="font-serif text-[24px] leading-tight">Importa sin límites con Premium</span>
+            <span className={`text-sm leading-[1.45] ${HERO_MUTED}`}>
+              Usaste tus {limit.limit} importaciones gratis de este mes. Se renuevan el{' '}
+              {new Date(limit.resetsAt).toLocaleDateString('es-GT', { day: 'numeric', month: 'long' })}.
+            </span>
+          </section>
           <button
-            onClick={imp.closeImport}
-            style={{
-              width: '100%', marginTop: 12, padding: '10px',
-              background: 'none', border: 'none', color: '#64748B',
-              fontSize: 13, cursor: 'pointer',
+            type="button"
+            onClick={async () => {
+              const res = await fetch('/api/stripe/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan: 'monthly' }),
+              })
+              const { url } = await res.json()
+              if (url) window.location.href = url
             }}
+            className={PRIMARY_BUTTON}
           >
-            Cerrar
+            Pasar a Premium
+          </button>
+          <button type="button" onClick={imp.closeImport} className={`h-11 text-[15px] font-semibold ${TEXT_MUTED}`}>
+            Ahora no
           </button>
         </div>
       )

@@ -95,7 +95,7 @@ export function ReviewScreen({
   else if (toAdd > 0) buttonLabel = `Agregar ${toAdd} ${toAdd === 1 ? 'movimiento' : 'movimientos'}`
   else buttonLabel = 'Listo, no hay nada nuevo'
 
-  const sectionTitle = 'px-0.5 text-[13px] font-bold text-ink-700'
+  const sectionTitle = 'px-0.5 text-[13px] font-bold text-ink-700 dark:text-ink-200'
   const listBox = 'overflow-hidden rounded-2xl border border-ink-100'
 
   return (
@@ -105,7 +105,7 @@ export function ReviewScreen({
           <ChevronLeft size={20} aria-hidden />
         </button>
         {accountLabel && <span className="eyebrow">{accountLabel}</span>}
-        <h2 tabIndex={-1} className="font-serif text-[26px] leading-tight text-ink-900 outline-none">{title}</h2>
+        <h2 tabIndex={-1} className="font-serif text-[26px] leading-tight text-ink-900 dark:text-ink-100 outline-none">{title}</h2>
         <p className="text-sm leading-[1.45] text-ink-500 [text-wrap:pretty]">{sub}</p>
         {alreadyImported > 0 && !nothing && (
           <p className="text-[13px] text-ink-400">
@@ -119,22 +119,22 @@ export function ReviewScreen({
           <h3 className={sectionTitle}>¿Es el mismo pago?</h3>
           {dups.map(t => {
             const m = t.matchId ? review?.matches[t.matchId] : undefined
-            const cell = 'flex min-w-0 flex-col gap-0.5 rounded-xl bg-white px-3 py-2.5'
+            const cell = 'flex min-w-0 flex-col gap-0.5 rounded-xl bg-[var(--zafi-card)] px-3 py-2.5'
             const btn = (on: boolean, activeBg: string) =>
-              `h-[42px] rounded-xl border-[1.5px] text-sm font-semibold ${on ? `${activeBg} text-white` : 'border-ink-100 bg-white text-ink-700'}`
+              `h-[42px] rounded-xl border-[1.5px] text-sm font-semibold ${on ? `${activeBg} text-white` : 'border-ink-100 bg-[var(--zafi-card)] dark:border-white/10 text-ink-700 dark:text-ink-200'}`
             return (
-              <div key={t.id} className="flex flex-col gap-3 rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] p-3.5">
+              <div key={t.id} className="flex flex-col gap-3 rounded-2xl bg-warning-light dark:bg-warning/15 p-3.5">
                 <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2.5">
                   <div className={cell}>
                     <span className="text-[11.5px] font-bold text-ink-500">Tú lo registraste</span>
-                    <span className="truncate text-sm font-semibold text-ink-900">{m?.description || 'Sin nombre'}</span>
-                    <span className="font-outfit text-[17px] font-bold text-ink-900">{m ? fmt(Number(m.amount)) : ''}</span>
+                    <span className="truncate text-sm font-semibold text-ink-900 dark:text-ink-100">{m?.description || 'Sin nombre'}</span>
+                    <span className="font-outfit text-[17px] font-bold text-ink-900 dark:text-ink-100">{m ? fmt(Number(m.amount)) : ''}</span>
                     <span className="text-[12.5px] text-ink-500">{m ? `${dayLabel(m.date, today)} · ${paymentLabel(m.payment_method)}` : ''}</span>
                   </div>
                   <div className={cell}>
                     <span className="text-[11.5px] font-bold text-ink-500">Del banco</span>
-                    <span className="truncate text-sm font-semibold text-ink-900">{cleanBankName(t.description)}</span>
-                    <span className="font-outfit text-[17px] font-bold text-ink-900">{fmt(t.amount)}</span>
+                    <span className="truncate text-sm font-semibold text-ink-900 dark:text-ink-100">{cleanBankName(t.description)}</span>
+                    <span className="font-outfit text-[17px] font-bold text-ink-900 dark:text-ink-100">{fmt(t.amount)}</span>
                     <span className="text-[12.5px] text-ink-500">{dayLabel(t.date, today)} · {payLabel}</span>
                   </div>
                 </div>
@@ -164,14 +164,14 @@ export function ReviewScreen({
             {fixed.map((t, i) => {
               const cat = catOf(t.category_id)
               return (
-                <div key={t.id} className={`flex items-center gap-3 px-3.5 py-3 ${i < fixed.length - 1 ? 'border-b border-[#EEF1F6]' : ''}`}>
-                  <span aria-hidden className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-[#DCFCE7] text-xl">{cat ? getEmoji(cat) : '📌'}</span>
+                <div key={t.id} className={`flex items-center gap-3 px-3.5 py-3 ${i < fixed.length - 1 ? 'border-b border-[var(--zafi-border-light)]' : ''}`}>
+                  <span aria-hidden className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-success-light text-xl dark:bg-[var(--zafi-success-bg)]">{cat ? getEmoji(cat) : '📌'}</span>
                   <span className="flex min-w-0 flex-1 flex-col gap-px">
-                    <span className="truncate text-[14.5px] font-semibold text-ink-900">{cleanBankName(t.description)}</span>
-                    <span className="text-[12.5px] text-[#166534]">{destLabel(t)} · se marca pagado ✓</span>
+                    <span className="truncate text-[14.5px] font-semibold text-ink-900 dark:text-ink-100">{cleanBankName(t.description)}</span>
+                    <span className="text-[12.5px] text-success-text dark:text-[var(--zafi-success-text)]">{destLabel(t)} · se marca pagado ✓</span>
                     <span className="truncate text-[11.5px] text-ink-400">{t.description}</span>
                   </span>
-                  <span className="flex-none font-outfit text-[15px] font-bold text-ink-900">{fmt(t.amount)}</span>
+                  <span className="flex-none font-outfit text-[15px] font-bold text-ink-900 dark:text-ink-100">{fmt(t.amount)}</span>
                 </div>
               )
             })}
@@ -188,7 +188,7 @@ export function ReviewScreen({
               const batchDup = !!batch && batch.photoCount > 1 && t.possibleBatchDuplicate
                 && (t.possibleDuplicateOf ?? []).some(id => transactions.find(x => x.id === id)?.selected)
               return (
-                <div key={t.id} className={i < fresh.length - 1 ? 'border-b border-[#EEF1F6]' : ''}>
+                <div key={t.id} className={i < fresh.length - 1 ? 'border-b border-[var(--zafi-border-light)]' : ''}>
                   <button
                     type="button"
                     onClick={() => setEditing(t.id)}
@@ -197,11 +197,11 @@ export function ReviewScreen({
                   >
                     <span aria-hidden className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-surface-bg text-xl">{cat ? getEmoji(cat) : '❔'}</span>
                     <span className="flex min-w-0 flex-1 flex-col gap-px">
-                      <span className="truncate text-[14.5px] font-semibold text-ink-900">{cleanBankName(t.description)}</span>
+                      <span className="truncate text-[14.5px] font-semibold text-ink-900 dark:text-ink-100">{cleanBankName(t.description)}</span>
                       <span className="text-[12.5px] text-ink-500">{destLabel(t)} · {dayLabel(t.date, today)}</span>
                       <span className="truncate text-[11.5px] text-ink-400">{t.description}</span>
                     </span>
-                    <span className={`flex-none font-outfit text-[15px] font-bold ${t.type === 'income' ? 'text-success-dark' : 'text-ink-900'}`}>
+                    <span className={`flex-none font-outfit text-[15px] font-bold ${t.type === 'income' ? 'text-success-dark' : 'text-ink-900 dark:text-ink-100'}`}>
                       {t.type === 'income' ? '+' : ''}{fmt(t.amount)}
                     </span>
                   </button>
@@ -219,7 +219,7 @@ export function ReviewScreen({
       )}
 
       {error && (
-        <p role="alert" className="rounded-xl bg-[#FEF2F2] px-3.5 py-2.5 text-[13px] font-medium text-danger-text">{error}</p>
+        <p role="alert" className="rounded-xl bg-danger-light px-3.5 py-2.5 text-[13px] font-medium text-danger-text dark:bg-[var(--zafi-error-bg)] dark:text-[var(--zafi-error-text)]">{error}</p>
       )}
 
       <button

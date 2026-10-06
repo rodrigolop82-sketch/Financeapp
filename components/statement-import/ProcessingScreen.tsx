@@ -39,13 +39,13 @@ export function ProcessingScreen({ bankDetected, isLoading, source = 'pdf' }: Pr
 
   return (
     <div className="px-4 pt-3.5 pb-8" role="status" aria-live="polite">
-      <div className="flex flex-col gap-4 rounded-[20px] border border-navy/[0.08] bg-white px-[18px] py-[22px]">
+      <div className="flex flex-col gap-4 rounded-[20px] border border-navy/[0.08] bg-[var(--zafi-card)] px-[18px] dark:border-white/[0.06] py-[22px]">
         <div className="flex flex-col gap-2">
-          <span className="text-[17px] font-bold text-ink-900">
+          <span className="text-[17px] font-bold text-ink-900 dark:text-ink-100">
             {step >= 3 ? '¡Listo!' : 'Leyendo tu estado de cuenta…'}
           </span>
           <div
-            className="h-2 overflow-hidden rounded-[5px] bg-[#EEF1F6]"
+            className="h-2 overflow-hidden rounded-[5px] bg-[var(--zafi-border-light)]"
             role="progressbar"
             aria-label="Progreso"
             aria-valuemin={0}
@@ -80,7 +80,7 @@ export function ProcessingScreen({ bankDetected, isLoading, source = 'pdf' }: Pr
               ) : (
                 <span aria-hidden className="m-0.5 h-[22px] w-[22px] flex-none rounded-full border-2 border-ink-100" />
               )}
-              <span className="text-[15px] font-semibold text-ink-900">{label}</span>
+              <span className="text-[15px] font-semibold text-ink-900 dark:text-ink-100">{label}</span>
             </div>
           )
         })}
