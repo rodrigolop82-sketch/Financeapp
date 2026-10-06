@@ -1,42 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { LINK_TEXT } from '@/components/layout/Pantalla'
+import { TEXT_BODY, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
 
 export default function TerminosPage() {
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#F0F4FA',
-      padding: '0 16px env(safe-area-inset-bottom)',
-    }}>
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '32px 0 64px' }}>
-        <Link
-          href="/"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            color: '#2563EB',
-            fontSize: 14,
-            fontWeight: 500,
-            textDecoration: 'none',
-            marginBottom: 32,
-          }}
-        >
-          <ArrowLeft size={18} />
-          Volver
-        </Link>
-
-        <h1
-          className="font-serif"
-          style={{ fontSize: 28, fontWeight: 400, color: '#1E3A5F', margin: '0 0 8px' }}
-        >
-          Términos de servicio
-        </h1>
-        <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 32px' }}>
-          Última actualización: 2 de agosto de 2026
-        </p>
+    <div className="min-h-screen bg-[var(--zafi-bg)] px-5 pb-[env(safe-area-inset-bottom)]">
+      <div className="mx-auto max-w-[680px] pb-16 pt-[calc(16px+env(safe-area-inset-top))]">
+        <Link href="/" className={`flex h-11 items-center text-[15px] font-semibold ${LINK_TEXT}`}>‹ Zafi</Link>
+        <h1 className={`font-serif text-[30px] leading-[1.15] ${TEXT_STRONG}`}>Términos de servicio</h1>
+        <p className={`mb-8 mt-1 text-[13px] ${TEXT_MUTED}`}>Última actualización: 2 de agosto de 2026</p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
           <Section title="1. Aceptación">
@@ -87,7 +61,7 @@ export default function TerminosPage() {
             Todo el contenido, diseño, código y marca de Zafi son propiedad de sus creadores.
             Tu contenido financiero te pertenece — Zafi solo lo usa para brindarte el
             servicio según se describe en la{' '}
-            <Link href="/privacidad" style={{ color: '#2563EB' }}>
+            <Link href="/privacidad" className={LINK_TEXT}>
               política de privacidad
             </Link>.
           </Section>
@@ -123,9 +97,9 @@ export default function TerminosPage() {
           </Section>
         </div>
 
-        <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #E2E8F0' }}>
-          <div style={{ display: 'flex', gap: 24, fontSize: 13, color: '#64748B' }}>
-            <Link href="/privacidad" style={{ color: '#2563EB', textDecoration: 'none' }}>
+        <div className="mt-10 border-t border-[var(--zafi-border)] pt-5">
+          <div className={`flex gap-6 text-[13px] ${TEXT_MUTED}`}>
+            <Link href="/privacidad" className={LINK_TEXT}>
               Política de privacidad
             </Link>
           </div>
@@ -137,13 +111,9 @@ export default function TerminosPage() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div>
-      <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1E3A5F', margin: '0 0 8px' }}>
-        {title}
-      </h2>
-      <div style={{ fontSize: 14, color: '#475569', lineHeight: 1.7 }}>
-        {children}
-      </div>
-    </div>
+    <section>
+      <h2 className={`mb-2 text-[17px] font-bold ${TEXT_STRONG}`}>{title}</h2>
+      <div className={`text-base leading-[1.65] ${TEXT_BODY}`}>{children}</div>
+    </section>
   )
 }

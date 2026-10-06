@@ -1,20 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import {
-  ArrowLeft,
-  LogIn,
-  LogOut,
-  Download,
-  KeyRound,
-  Mail,
-  ShieldCheck,
-  ShieldOff,
-  UserX,
-} from 'lucide-react'
+  DANGER_TEXT_BUTTON, GroupTitle, ListCard, PageHeader, ROW_DIVIDER, RowBody, Tile,
+} from '@/components/layout/Pantalla'
+import { TEXT_MUTED } from '@/components/movimientos/ui'
+import { Note } from '@/components/plan/ui'
+import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
 import { SkeletonRows } from '@/components/motion/PageSkeleton'
 
 interface AuditEntry {
@@ -23,15 +17,19 @@ interface AuditEntry {
   created_at: string
 }
 
-const EVENT_MAP: Record<string, { label: string; icon: typeof LogIn }> = {
-  login: { label: 'Inicio de sesión', icon: LogIn },
-  logout: { label: 'Cierre de sesión', icon: LogOut },
-  data_export: { label: 'Exportación de datos', icon: Download },
-  password_changed: { label: 'Contraseña actualizada', icon: KeyRound },
-  email_changed: { label: 'Email actualizado', icon: Mail },
-  mfa_enabled: { label: 'Verificación en dos pasos activada', icon: ShieldCheck },
-  mfa_disabled: { label: 'Verificación en dos pasos desactivada', icon: ShieldOff },
-  account_deletion_requested: { label: 'Solicitud de eliminación de cuenta', icon: UserX },
+const EVENT_MAP: Record<string, { label: string; emoji: string }> = {
+  login: { label: 'Inicio de sesión', emoji: '🔓' },
+  logout: { label: 'Cierre de sesión', emoji: '🚪' },
+  data_export: { label: 'Exportación de datos', emoji: '📤' },
+  password_changed: { label: 'Contraseña actualizada', emoji: '🔑' },
+  email_changed: { label: 'Correo actualizado', emoji: '✉️' },
+  mfa_enabled: { label: 'Verificación en dos pasos activada', emoji: '🛡️' },
+  mfa_disabled: { label: 'Verificación en dos pasos desactivada', emoji: '⚠️' },
+  account_deletion_requested: { label: 'Solicitud de eliminación de cuenta', emoji: '🗑️' },
+}
+
+function when(dateStr: string): string {
+  return new Date(dateStr).toLocaleString('es-GT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 function timeAgo(dateStr: string): string {
@@ -48,7 +46,6 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function HistorialAccesoPage() {
-  const router = useRouter()
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -67,84 +64,57 @@ export default function HistorialAccesoPage() {
     load()
   }, [])
 
+  const [closing, setClosing] = useState(false)
+  const [message, setMessage] = useState<StatusMessage | null>(null)
+
+  async function signOutOthers() {
+    setClosing(true)
+    const { error } = await createClient().auth.signOut({ scope: 'others' })
+    setClosing(false)
+    setMessage(error
+      ? { text: 'No se pudieron cerrar las demás sesiones. Intenta de nuevo.', tone: 'error' }
+      : { text: 'Cerramos tus otras sesiones', tone: 'ok' })
+  }
+
   return (
-    <AppShell title="Historial de acceso" currentPath="/cuenta">
-      <button
-        onClick={() => router.back()}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: '#2563EB',
-          fontSize: 14,
-          fontWeight: 500,
-          padding: 0,
-          marginBottom: 20,
-        }}
-      >
-        <ArrowLeft size={18} />
-        Volver
-      </button>
+    <AppShell title="Historial de acceso" currentPath="/cuenta" hideMobileBar>
+      <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
+        <PageHeader back={{ href: '/cuenta', label: 'Cuenta' }} title="Historial de acceso" />
 
-      {loading ? (
-        <SkeletonRows count={6} />
-      ) : entries.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#64748B', padding: '40px 0', fontSize: 14 }}>
-          No hay registros de acceso todavía.
-        </p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {entries.map((entry) => {
-            const mapped = EVENT_MAP[entry.event_type] ?? {
-              label: entry.event_type,
-              icon: LogIn,
-            }
-            const Icon = mapped.icon
-            return (
-              <div
-                key={entry.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  background: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: 12,
-                  padding: '14px 16px',
-                }}
-              >
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    background: '#EFF6FF',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Icon size={18} color="#2563EB" />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#1E3A5F', margin: 0 }}>
-                    {mapped.label}
-                  </p>
-                  <p style={{ fontSize: 12, color: '#64748B', margin: '2px 0 0' }}>
-                    {timeAgo(entry.created_at)}
-                  </p>
-                </div>
-              </div>
-            )
-          })}
+        <div className="flex flex-col zafi-stagger">
+          <section>
+            <GroupTitle>Últimos accesos</GroupTitle>
+            {loading ? (
+              <SkeletonRows count={6} />
+            ) : entries.length === 0 ? (
+              <p className={`px-1 py-4 text-sm ${TEXT_MUTED}`}>No hay registros de acceso todavía.</p>
+            ) : (
+              <ListCard>
+                {entries.map((entry) => {
+                  const mapped = EVENT_MAP[entry.event_type] ?? { label: entry.event_type, emoji: '🔓' }
+                  return (
+                    <div key={entry.id} className={`flex min-h-16 items-center gap-3 py-2.5 ${ROW_DIVIDER}`}>
+                      <RowBody
+                        tile={<Tile>{mapped.emoji}</Tile>}
+                        name={mapped.label}
+                        help={`${when(entry.created_at)} · ${timeAgo(entry.created_at)}`}
+                      />
+                    </div>
+                  )
+                })}
+              </ListCard>
+            )}
+          </section>
+
+          <Note tone="warn">
+            ¿No reconoces un acceso? <b>Cierra las demás sesiones</b> y escríbenos a hola@zafiapp.com.
+          </Note>
+          <button type="button" onClick={() => void signOutOthers()} disabled={closing} className={`mt-2 ${DANGER_TEXT_BUTTON}`}>
+            {closing ? 'Cerrando…' : 'Cerrar las demás sesiones'}
+          </button>
         </div>
-      )}
-
-      <div className="h-24" />
+      </div>
+      <StatusToast message={message} onDone={() => setMessage(null)} />
     </AppShell>
   )
 }
