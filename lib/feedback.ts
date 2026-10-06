@@ -118,6 +118,21 @@ export interface FeedbackEmailData {
   createdAt: string;
 }
 
+export type FeedbackEmailStatus = 'enviado' | 'omitido' | 'fallido';
+
+export function isFeedbackEmailStatus(v: unknown): v is FeedbackEmailStatus {
+  return v === 'enviado' || v === 'omitido' || v === 'fallido';
+}
+
+/** Resultado de `sendEmail` → lo que se guarda en `feedback.email_status` / `email_error`. */
+export function feedbackEmailOutcome(
+  result: { ok: true } | { ok: false; skipped: true } | { ok: false; skipped: false; error: string },
+): { email_status: FeedbackEmailStatus; email_error: string | null } {
+  if (result.ok) return { email_status: 'enviado', email_error: null };
+  if (result.skipped) return { email_status: 'omitido', email_error: null };
+  return { email_status: 'fallido', email_error: result.error.slice(0, 300) };
+}
+
 /** Cuerpo del correo en texto plano. */
 export function feedbackEmailText(d: FeedbackEmailData): string {
   const who = [d.userName, d.userEmail ? `<${d.userEmail}>` : null].filter(Boolean).join(' ') || '(sin correo)';

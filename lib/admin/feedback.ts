@@ -1,7 +1,7 @@
 // Admin › Feedback (fase 12): etiquetas, filtros, estados y correo de respuesta.
 // Lógica pura para probarla con vitest.
 
-import { feedbackTypeLabel, isFeedbackType } from '../feedback';
+import { feedbackTypeLabel, isFeedbackType, type FeedbackEmailStatus } from '../feedback';
 import { DAY_MS, TZ_OFFSET_MS, dayMonth, localDayKey, toMs } from './dataset';
 
 export type FeedbackStatus = 'nuevo' | 'leido' | 'respondido';
@@ -16,18 +16,41 @@ export interface AdminFeedbackItem {
   email: string | null;
   firstName: string;
   hasScreenshot: boolean;
+  /** Resultado del correo a hola@zafiapp.com. null = mensaje anterior al registro (no se sabe). */
+  emailStatus: FeedbackEmailStatus | null;
+  emailError: string | null;
 }
 
-export const FEEDBACK_FILTERS = ['Sin responder', 'Idea', 'Algo falla', 'Todos'] as const;
+export const FEEDBACK_FILTERS = ['Sin responder', 'Idea', 'Algo falla', 'Sin correo', 'Todos'] as const;
 export type FeedbackFilter = (typeof FEEDBACK_FILTERS)[number];
+
+/** ¿El correo de aviso no salió? (omitido por falta de llave o fallido en Resend). */
+export function emailNotSent(item: Pick<AdminFeedbackItem, 'emailStatus'>): boolean {
+  return item.emailStatus === 'omitido' || item.emailStatus === 'fallido';
+}
+
+export function emailProblemCount(items: Pick<AdminFeedbackItem, 'emailStatus'>[]): number {
+  return items.filter(emailNotSent).length;
+}
+
+/** Texto del aviso del panel y del detalle de cada mensaje. */
+export function emailProblemLabel(item: Pick<AdminFeedbackItem, 'emailStatus' | 'emailError'>): string | null {
+  if (item.emailStatus === 'omitido') return 'El correo no salió: falta RESEND_API_KEY en Vercel.';
+  if (item.emailStatus === 'fallido') return `El correo no salió: ${item.emailError || 'Resend devolvió un error'}.`;
+  return null;
+}
 
 export function typeLabel(type: string): string {
   return isFeedbackType(type) ? feedbackTypeLabel(type) : 'Otro';
 }
 
-export function matchesFeedbackFilter(item: Pick<AdminFeedbackItem, 'type' | 'status'>, f: FeedbackFilter): boolean {
+export function matchesFeedbackFilter(
+  item: Pick<AdminFeedbackItem, 'type' | 'status'> & Partial<Pick<AdminFeedbackItem, 'emailStatus'>>,
+  f: FeedbackFilter,
+): boolean {
   switch (f) {
     case 'Todos': return true;
+    case 'Sin correo': return emailNotSent({ emailStatus: item.emailStatus ?? null });
     case 'Sin responder': return item.status !== 'respondido';
     case 'Idea': return item.type === 'idea';
     case 'Algo falla': return item.type === 'bug';

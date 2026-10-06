@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  emailNotSent,
+  emailProblemCount,
+  emailProblemLabel,
   feedbackDate,
   isFeedbackAction,
   matchesFeedbackFilter,
@@ -41,6 +44,27 @@ describe('filtros', () => {
     expect(matchesFeedbackFilter(m('bug', 'nuevo'), 'Algo falla')).toBe(true);
     expect(matchesFeedbackFilter(m('bug', 'nuevo'), 'Idea')).toBe(false);
     expect(matchesFeedbackFilter(m('otro', 'respondido'), 'Todos')).toBe(true);
+  });
+});
+
+describe('aviso de correo no enviado', () => {
+  it('solo cuenta omitido y fallido; null (mensajes viejos) y enviado no avisan', () => {
+    expect(emailNotSent({ emailStatus: 'omitido' })).toBe(true);
+    expect(emailNotSent({ emailStatus: 'fallido' })).toBe(true);
+    expect(emailNotSent({ emailStatus: 'enviado' })).toBe(false);
+    expect(emailNotSent({ emailStatus: null })).toBe(false);
+    expect(emailProblemCount([{ emailStatus: 'fallido' }, { emailStatus: 'enviado' }, { emailStatus: null }, { emailStatus: 'omitido' }])).toBe(2);
+  });
+  it('filtro "Sin correo"', () => {
+    expect(matchesFeedbackFilter({ type: 'idea', status: 'nuevo', emailStatus: 'omitido' }, 'Sin correo')).toBe(true);
+    expect(matchesFeedbackFilter({ type: 'idea', status: 'nuevo', emailStatus: 'enviado' }, 'Sin correo')).toBe(false);
+    expect(matchesFeedbackFilter({ type: 'idea', status: 'nuevo' }, 'Sin correo')).toBe(false);
+  });
+  it('texto del aviso', () => {
+    expect(emailProblemLabel({ emailStatus: 'omitido', emailError: null })).toContain('RESEND_API_KEY');
+    expect(emailProblemLabel({ emailStatus: 'fallido', emailError: 'Domain not verified' })).toContain('Domain not verified');
+    expect(emailProblemLabel({ emailStatus: 'fallido', emailError: null })).toContain('Resend devolvió un error');
+    expect(emailProblemLabel({ emailStatus: 'enviado', emailError: null })).toBeNull();
   });
 });
 

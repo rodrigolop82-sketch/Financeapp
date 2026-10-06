@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/email';
 import { SUPPORT_EMAIL } from '@/lib/cuenta';
 import {
   FEEDBACK_LIMIT_MESSAGE,
+  feedbackEmailOutcome,
   feedbackEmailText,
   feedbackSubject,
   firstName,
@@ -110,7 +111,8 @@ export async function POST(req: NextRequest) {
   }
 
   // El correo no bloquea: si falla o no hay llave, el mensaje ya quedó guardado.
-  await sendEmail({
+  // El resultado se guarda en la fila para que Admin › Feedback avise si no salió.
+  const emailResult = await sendEmail({
     to: SUPPORT_EMAIL,
     replyTo: user.email ?? null,
     subject: feedbackSubject(type, message),
@@ -125,6 +127,12 @@ export async function POST(req: NextRequest) {
       createdAt: (row?.created_at as string | undefined) ?? new Date().toISOString(),
     }),
   });
+
+  const { error: outcomeError } = await admin
+    .from('feedback')
+    .update(feedbackEmailOutcome(emailResult))
+    .eq('id', id);
+  if (outcomeError) console.warn('[feedback] No se pudo guardar el resultado del correo', outcomeError.message);
 
   return NextResponse.json({ ok: true, name: firstName(fullName) });
 }

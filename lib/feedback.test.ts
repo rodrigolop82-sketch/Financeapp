@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  feedbackEmailOutcome,
+  isFeedbackEmailStatus,
   FEEDBACK_TYPES,
   canSendFeedback,
   feedbackEmailText,
@@ -118,5 +120,23 @@ describe('feedbackEmailText', () => {
     });
     expect(text).not.toContain('Captura');
     expect(text).toContain('Usuario: (sin correo)');
+  });
+});
+
+describe('feedbackEmailOutcome', () => {
+  it('enviado, omitido (sin llave) y fallido con el error recortado', () => {
+    expect(feedbackEmailOutcome({ ok: true })).toEqual({ email_status: 'enviado', email_error: null });
+    expect(feedbackEmailOutcome({ ok: false, skipped: true })).toEqual({ email_status: 'omitido', email_error: null });
+    expect(feedbackEmailOutcome({ ok: false, skipped: false, error: 'Domain not verified' })).toEqual({
+      email_status: 'fallido',
+      email_error: 'Domain not verified',
+    });
+    const long = feedbackEmailOutcome({ ok: false, skipped: false, error: 'x'.repeat(500) });
+    expect(long.email_error).toHaveLength(300);
+  });
+  it('isFeedbackEmailStatus', () => {
+    expect(isFeedbackEmailStatus('fallido')).toBe(true);
+    expect(isFeedbackEmailStatus('otro')).toBe(false);
+    expect(isFeedbackEmailStatus(null)).toBe(false);
   });
 });

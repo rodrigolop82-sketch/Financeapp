@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   FEEDBACK_FILTERS,
+  emailNotSent,
+  emailProblemCount,
+  emailProblemLabel,
   feedbackDate,
   matchesFeedbackFilter,
   screenLabel,
@@ -123,11 +126,30 @@ export function FeedbackTab({ toast, onUnread }: { toast: (text: string, tone?: 
   }
 
   const shot = sel ? shots[sel.id] : undefined;
+  const emailProblems = items ? emailProblemCount(items) : 0;
+  const selProblem = sel ? emailProblemLabel(sel) : null;
 
   return (
     <div className="flex flex-col gap-4">
       <PageTitle title="Feedback" subtitle="Mensajes de “Envíanos tu idea”. También llegan a hola@zafiapp.com." />
       {error && <LoadError message={error} onRetry={load} />}
+      {emailProblems > 0 && (
+        <div role="alert" className="flex flex-col gap-2.5 rounded-[14px] bg-warning-light px-4 py-3.5 text-warning-text sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[14.5px] leading-normal">
+            <strong className="font-bold">
+              {emailProblems === 1 ? '1 mensaje no llegó' : `${emailProblems} mensajes no llegaron`} por correo a hola@zafiapp.com.
+            </strong>{' '}
+            Quedaron guardados aquí, pero revisa RESEND_API_KEY en Vercel y el estado del dominio en Resend.
+          </p>
+          <button
+            type="button"
+            onClick={() => setFilter('Sin correo')}
+            className="h-9 flex-none rounded-full bg-warning px-4 text-[13.5px] font-bold text-ink-900 transition-transform active:scale-[0.97]"
+          >
+            Ver mensajes
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
         {FEEDBACK_FILTERS.map((f) => (
           <FilterChip
@@ -167,7 +189,12 @@ export function FeedbackTab({ toast, onUnread }: { toast: (text: string, tone?: 
                     <span className={`line-clamp-2 text-[14.5px] leading-[1.4] ${TEXT_STRONG} ${m.status === 'nuevo' ? 'font-bold' : 'font-normal'}`}>
                       {m.message}
                     </span>
-                    <span className={`text-[12.5px] font-semibold ${STATUS_CLASS[m.status]}`}>{statusLabel(m.status)}</span>
+                    <span className="flex items-center gap-2">
+                      <span className={`text-[12.5px] font-semibold ${STATUS_CLASS[m.status]}`}>{statusLabel(m.status)}</span>
+                      {emailNotSent(m) && (
+                        <span className="rounded-full bg-warning-light px-2 py-0.5 text-xs font-bold text-warning-text">Sin correo</span>
+                      )}
+                    </span>
                   </button>
                 </li>
               );
@@ -184,6 +211,9 @@ export function FeedbackTab({ toast, onUnread }: { toast: (text: string, tone?: 
               </span>
             </div>
             <span className={`text-[15px] font-bold ${TEXT_STRONG}`}>{sel.email ?? 'Usuario eliminado'}</span>
+            {selProblem && (
+              <p role="status" className="rounded-xl bg-warning-light px-3.5 py-2.5 text-[13.5px] leading-[1.45] text-warning-text">{selProblem}</p>
+            )}
             <p className={`whitespace-pre-wrap text-[15.5px] leading-[1.55] ${TEXT_STRONG}`}>{sel.message}</p>
             {sel.hasScreenshot && (
               shot?.url ? (
