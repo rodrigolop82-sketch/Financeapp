@@ -54,6 +54,8 @@ export interface EffectivePlan {
   householdId: string | null
   /** Dueño del hogar (quien paga el plan). */
   ownerId: string | null
+  /** Plan pagado de quien paga, sin contar la prueba. */
+  paidPlan: Plan
 }
 
 interface UserRow { plan: string | null; trial_ends_at: string | null }
@@ -85,6 +87,7 @@ export function resolveEffectivePlan(input: {
       trialActive: isTrialActive(input.self.trial_ends_at, now),
       householdId: m?.householdId ?? null,
       ownerId: m?.ownerId ?? input.selfId,
+      paidPlan: asPlan(input.self.plan),
     }
   }
 
@@ -99,6 +102,7 @@ export function resolveEffectivePlan(input: {
     trialActive: isTrialActive(input.owner.trial_ends_at, now),
     householdId: m.householdId,
     ownerId: m.ownerId,
+    paidPlan: asPlan(input.owner.plan),
   }
 }
 

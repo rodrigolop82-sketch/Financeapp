@@ -19,7 +19,7 @@ import { CAP_META, type CapKey } from './recomendaciones';
 /** Tipos que se guardan en notification_log.type. */
 export type NotificationType =
   | 'due' | 'cap' | 'month_end' | 'month_start' | 'inactivity' | 'income'
-  | 'month_close' | 'apple_pay' | 'household';
+  | 'month_close' | 'apple_pay' | 'household' | 'trial';
 
 /** Tipos que elige el cron, en orden de prioridad. */
 export type AvisoKind = 'due' | 'cap' | 'month_end' | 'month_start' | 'inactivity' | 'income';

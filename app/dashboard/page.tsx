@@ -32,6 +32,7 @@ import { CARD, GREEN_TEXT } from '@/components/resumen/ctf-ui'
 import { ProgressBar } from '@/components/plan/ui'
 import { useHealthScore } from '@/hooks/useHealthScore'
 import { ScoreHeroLine } from '@/components/score/ScoreUI'
+import { TrialHeroLine } from '@/components/premium/TrialHeroLine'
 import type { BudgetCategory, BudgetSubItem, IncomeEntry, SearchTransaction } from '@/types'
 
 interface HomeMonthTx {
@@ -335,6 +336,7 @@ export default function InicioPage() {
             </>
           )}
           {health && health.components.length > 0 && <ScoreHeroLine score={health} href="/score?from=inicio" />}
+          <TrialHeroLine />
         </section>
 
         {/* Inicio de mes pendiente */}
