@@ -423,7 +423,7 @@ export default function InicioPage() {
           ) : (
             <button
               type="button"
-              onClick={openAddSheet}
+              onClick={() => openAddSheet()}
               className={`rounded-2xl px-4 py-5 text-sm font-semibold text-electric ${CARD_BG}`}
             >
               Agrega tu primer movimiento
@@ -507,7 +507,7 @@ function HomeAlertCard({ alert, fmt }: { alert: HomeAlert; fmt: (n: number) => s
   }
   if (alert.kind === 'sin-registrar') {
     return (
-      <button type="button" onClick={openAddSheet} className={`${base} bg-electric-ghost`}>
+      <button type="button" onClick={() => openAddSheet()} className={`${base} bg-electric-ghost`}>
         <span aria-hidden className="text-[22px] leading-none">✍️</span>
         <span className="flex-1 text-sm text-electric-dark">
           Hace <b>{alert.days} días</b> que no registras un movimiento.

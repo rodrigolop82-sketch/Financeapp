@@ -269,10 +269,19 @@ export function AddSheet() {
 
   // ── Entradas: botón +, deep links y Web Share Target ──
 
+  // `zafi:open-add` con { text } (Pegar notificación) abre la hoja e interpreta el texto.
   useEffect(() => {
-    window.addEventListener('zafi:open-add', openSheet)
-    return () => window.removeEventListener('zafi:open-add', openSheet)
-  }, [openSheet])
+    function onOpen(e: Event) {
+      const text = (e as CustomEvent<{ text?: string } | undefined>).detail?.text?.trim()
+      openSheet()
+      if (text) {
+        setQuick(text)
+        void interpret(text)
+      }
+    }
+    window.addEventListener('zafi:open-add', onOpen)
+    return () => window.removeEventListener('zafi:open-add', onOpen)
+  }, [openSheet, interpret])
 
   useEffect(() => {
     const url = new URL(window.location.href)

@@ -12,8 +12,8 @@ const TABS: { key: TabKey; href: string; label: string; icon: typeof Home }[] = 
 ]
 
 /** Abre la hoja global de agregar (components/add/AddSheet). */
-export function openAddSheet() {
-  window.dispatchEvent(new CustomEvent('zafi:open-add'))
+export function openAddSheet(detail?: { text?: string }) {
+  window.dispatchEvent(new CustomEvent('zafi:open-add', { detail }))
 }
 
 function Tab({ href, label, icon: Icon, active }: { href: string; label: string; icon: typeof Home; active: boolean }) {
@@ -54,7 +54,7 @@ export function BottomNav() {
       <button
         type="button"
         aria-label="Agregar"
-        onClick={openAddSheet}
+        onClick={() => openAddSheet()}
         className="flex items-center justify-center w-14 h-14 rounded-full bg-electric border-4 -mt-[26px] p-0 cursor-pointer transition-transform duration-200 ease-spring active:scale-[0.88] active:rotate-90"
         style={{
           borderColor: 'var(--zafi-bg)',

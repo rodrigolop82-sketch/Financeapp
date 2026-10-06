@@ -425,7 +425,7 @@ export default function MovimientosPage() {
                   <Receipt className="w-10 h-10 text-ink-400 mx-auto mb-3" aria-hidden />
                   <p className={`font-semibold ${TEXT_STRONG}`}>Aún no hay movimientos</p>
                   <p className={`text-sm mt-1 mb-4 ${TEXT_MUTED}`}>Empieza a registrar tus gastos para llevar el control.</p>
-                  <button type="button" onClick={openAddSheet} className="btn-primary" style={{ borderRadius: 14 }}>
+                  <button type="button" onClick={() => openAddSheet()} className="btn-primary" style={{ borderRadius: 14 }}>
                     Agregar el primero
                   </button>
                 </>

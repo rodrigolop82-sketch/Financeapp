@@ -176,7 +176,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
 
             <button
               type="button"
-              onClick={openAddSheet}
+              onClick={() => openAddSheet()}
               className="btn-primary w-full"
               style={{ marginBottom: 22, borderRadius: 14 }}
             >
