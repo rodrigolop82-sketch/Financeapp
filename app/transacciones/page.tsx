@@ -7,7 +7,9 @@ import { localToday } from '@/lib/dates';
 import type { BudgetCategory, SearchTransaction } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
-import { groupByDay, monthLabel, monthRange, recentMonths } from '@/lib/movimientos';
+import {
+  groupByMonth, monthLabel, periodInText, periodLabel, periodRange, yearMonths, type Period,
+} from '@/lib/movimientos';
 import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow';
 import { AppShell } from '@/components/layout/AppShell';
 import { openAddSheet } from '@/components/dashboard/BottomNav';
@@ -20,23 +22,34 @@ import { SwipeRow, txRowData } from '@/components/movimientos/SwipeRow';
 import { OptionSheet } from '@/components/movimientos/OptionSheet';
 import { useTxSheets } from '@/components/movimientos/useTxSheets';
 import { BORDER, CARD_BG, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
-import { Receipt, ChevronDown, X } from 'lucide-react';
+import { GroupTitle, PillButton } from '@/components/layout/Pantalla';
+import { CARD, GREEN_TEXT } from '@/components/resumen/ctf-ui';
+import { Calendar, Receipt, ChevronDown, X } from 'lucide-react';
 import { PageSkeleton, SkeletonRows } from '@/components/motion/PageSkeleton';
 import { IMPORT_BANNER_EVENT } from '@/components/statement-import/StatementImportFlow';
 import { importBannerText, parseImportBanner, type ImportBanner } from '@/lib/motion';
 import { ApplePaySheet } from '@/components/movimientos/ApplePaySheet';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 40;
 const SWIPE_HINT_KEY = 'zafi:swipe-hint';
 
 function readSwipeCount(): number {
   try { return Number(localStorage.getItem(SWIPE_HINT_KEY)) || 0; } catch { return 0; }
 }
 
-/** "Oct" u "Oct 25" (si es de otro año). */
-function shortMonth(label: string): string {
-  const [name, year] = label.split(' ');
+/** "Oct", "Oct 25" (si es de otro año) o "2026" (todo el año). */
+function shortPeriod(period: Period, today: string): string {
+  if (period === 'year') return today.slice(0, 4);
+  const [name, year] = monthLabel(period, today).split(' ');
   return year ? `${name.slice(0, 3)} ${year.slice(2)}` : name.slice(0, 3);
+}
+
+/** Totales por mes de la búsqueda (de /api/transactions/search). */
+interface MonthTotal {
+  month: string;
+  count: number;
+  sum_expense: number;
+  sum_income: number;
 }
 
 export default function MovimientosPage() {
@@ -50,7 +63,10 @@ export default function MovimientosPage() {
   const [householdId, setHouseholdId] = useState('');
   const [importing, setImporting] = useState(false);
 
-  const [month, setMonth] = useState(() => today.slice(0, 7));
+  // Lo que se mira sin buscar: un mes o todo el año.
+  const [month, setMonth] = useState<Period>(() => today.slice(0, 7));
+  // Dónde busca: al empezar a buscar pasa a todo el año.
+  const [searchScope, setSearchScope] = useState<Period>('year');
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
@@ -61,11 +77,12 @@ export default function MovimientosPage() {
   const [hasMore, setHasMore] = useState(false);
   const [reloadGen, setReloadGen] = useState(0);
   const cursor = useRef<{ date: string; id: string } | null>(null);
+  const [totals, setTotals] = useState<MonthTotal[] | null>(null);
   const [summary, setSummary] = useState<{ spent: number; received: number } | null>(null);
 
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [swipeCount, setSwipeCount] = useState(3);
-  const [monthSheetOpen, setMonthSheetOpen] = useState(false);
+  const [periodSheet, setPeriodSheet] = useState<'browse' | 'search' | null>(null);
 
   const reload = useCallback(() => setReloadGen((g) => g + 1), []);
   const sheets = useTxSheets({ rows, setRows, categories, fmt, today, onChanged: reload, loading });
@@ -134,8 +151,18 @@ export default function MovimientosPage() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const { from, to } = monthRange(month);
   const searchQuery = debouncedQuery.length >= 2 ? debouncedQuery : '';
+  const searching = !!searchQuery;
+  const scope = searching ? searchScope : month;
+  const { from, to } = periodRange(scope, today);
+  const browseRange = periodRange(month, today);
+
+  // Cada búsqueda nueva empieza en todo el año, sin importar el mes que se miraba.
+  const wasSearching = useRef(false);
+  useEffect(() => {
+    if (searching && !wasSearching.current) setSearchScope('year');
+    wasSearching.current = searching;
+  }, [searching]);
 
   const fetchPage = useCallback(async (after: { date: string; id: string } | null, signal?: AbortSignal) => {
     const res = await fetch('/api/transactions/search', {
@@ -154,7 +181,7 @@ export default function MovimientosPage() {
     });
     if (!res.ok) throw new Error('search');
     const data = await res.json();
-    return (data.rows ?? []) as SearchTransaction[];
+    return { rows: (data.rows ?? []) as SearchTransaction[], totals: (data.totals ?? null) as MonthTotal[] | null };
   }, [searchQuery, from, to, typeFilter]);
 
   // Primera página: al entrar, al cambiar un filtro y después de cada cambio.
@@ -163,9 +190,10 @@ export default function MovimientosPage() {
     const controller = new AbortController();
     setLoading((was) => was || rows.length === 0);
     fetchPage(null, controller.signal)
-      .then((page) => {
+      .then(({ rows: page, totals: t }) => {
         const pendingId = sheets.getPendingDeleteId();
         setRows(pendingId ? page.filter((r) => r.id !== pendingId) : page);
+        setTotals(t);
         setHasMore(page.length === PAGE_SIZE);
         const last = page[page.length - 1];
         cursor.current = last ? { date: last.date, id: last.id } : null;
@@ -174,6 +202,7 @@ export default function MovimientosPage() {
       .catch((err) => {
         if (err?.name === 'AbortError') return;
         setRows([]);
+        setTotals(null);
         setHasMore(false);
         setLoading(false);
         sheets.showMessage({ text: 'No pudimos cargar tus movimientos. Intenta de nuevo.', tone: 'error' });
@@ -181,23 +210,23 @@ export default function MovimientosPage() {
     return () => controller.abort();
   }, [ready, fetchPage, reloadGen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Totales del mes: no dependen de la búsqueda ni de las filas cargadas.
+  // Totales del periodo: no dependen de la búsqueda ni de las filas cargadas.
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
-    supabase.rpc('transactions_month_summary', { p_from: from, p_to: to }).then(({ data }) => {
+    supabase.rpc('transactions_month_summary', { p_from: browseRange.from, p_to: browseRange.to }).then(({ data }) => {
       if (cancelled) return;
       const r = Array.isArray(data) ? data[0] : data;
       setSummary({ spent: Number(r?.sum_expense ?? 0), received: Number(r?.sum_income ?? 0) });
     });
     return () => { cancelled = true; };
-  }, [ready, supabase, from, to, reloadGen]);
+  }, [ready, supabase, browseRange.from, browseRange.to, reloadGen]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore || loading || !cursor.current) return;
     setLoadingMore(true);
     try {
-      const page = await fetchPage(cursor.current);
+      const { rows: page } = await fetchPage(cursor.current);
       const pendingId = sheets.getPendingDeleteId();
       setRows((prev) => {
         const seen = new Set(prev.map((r) => r.id));
@@ -211,18 +240,6 @@ export default function MovimientosPage() {
     }
     setLoadingMore(false);
   }, [hasMore, loadingMore, loading, fetchPage, sheets]);
-
-  // Scroll infinito
-  const sentinel = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || !hasMore) return;
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) void loadMore();
-    }, { rootMargin: '400px' });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [hasMore, loadMore]);
 
   // Movimientos agregados desde el botón +: recarga y resalta el nuevo.
   const { flash } = sheets;
@@ -243,22 +260,68 @@ export default function MovimientosPage() {
     try { localStorage.setItem(SWIPE_HINT_KEY, String(next)); } catch { /* sin almacenamiento */ }
   }
 
-  const groups = groupByDay(rows, today);
-  const filtered = !!searchQuery || typeFilter !== 'all';
+  const byMonth = scope === 'year';
+  const monthGroups = groupByMonth(rows, today);
+  const filtered = searching || typeFilter !== 'all';
+  const year = today.slice(0, 4);
+  const totalCount = totals ? totals.reduce((n, t) => n + t.count, 0) : null;
+  const remaining = totalCount !== null ? Math.max(0, totalCount - rows.length) : null;
+  const totalOf = (m: string) => totals?.find((t) => t.month === m);
+
+  const periodOptions = (current: Period) => [
+    { value: 'year', label: `Todo ${year}` },
+    ...yearMonths(today).map((m, i) => ({ value: m, label: monthLabel(m, today) + (i === 0 ? ' (este mes)' : '') })),
+    // Un mes de otro año (p. ej. tras importar un estado de cuenta viejo) sigue en la lista.
+    ...(current !== 'year' && !current.startsWith(year) ? [{ value: current, label: monthLabel(current, today) }] : []),
+  ];
 
   const monthPill = (
     <button
       type="button"
-      onClick={() => setMonthSheetOpen(true)}
-      aria-label={`Mes: ${monthLabel(month, today)}. Cambiar mes`}
-      className={`flex-none flex items-center gap-1 h-9 px-3.5 rounded-full border text-sm font-semibold text-navy dark:text-ink-100 ${BORDER} ${CARD_BG}`}
+      onClick={() => setPeriodSheet('browse')}
+      aria-label={`Periodo: ${periodLabel(month, today)}. Cambiar`}
+      className={`flex-none flex items-center gap-1 h-9 px-3.5 rounded-full border text-sm font-semibold text-navy dark:text-ink-100 transition-opacity ${searching ? 'opacity-50' : ''} ${BORDER} ${CARD_BG}`}
     >
       {/* En pantallas angostas, "Oct": deja lugar para "Importar" junto al título. */}
-      <span className="min-[430px]:hidden">{shortMonth(monthLabel(month, today))}</span>
-      <span className="hidden min-[430px]:inline">{monthLabel(month, today)}</span>
+      <span className="min-[430px]:hidden">{shortPeriod(month, today)}</span>
+      <span className="hidden min-[430px]:inline">{periodLabel(month, today)}</span>
       <ChevronDown size={14} aria-hidden />
     </button>
   );
+
+  // Resumen de búsqueda: total de gastos (o de ingresos si solo hay ingresos).
+  const found = totals ?? [];
+  const foundSpent = found.reduce((s, t) => s + t.sum_expense, 0);
+  const foundReceived = found.reduce((s, t) => s + t.sum_income, 0);
+  const foundMonths = found.filter((t) => t.count > 0).length || 1;
+  const onlyIncome = foundSpent === 0 && foundReceived > 0;
+  const searchSummary = (
+    <div className={`flex flex-col gap-1 p-4 ${CARD}`}>
+      <span className={`text-[13px] ${TEXT_MUTED}`}>“{searchQuery}” en {periodInText(searchScope, today)}</span>
+      <span className="flex flex-wrap items-baseline gap-x-2.5">
+        <span className={`font-outfit text-[30px] font-extrabold tracking-[-0.02em] ${onlyIncome ? GREEN_TEXT : TEXT_STRONG}`}>
+          {totals ? (onlyIncome ? `+${fmt(foundReceived)}` : fmt(foundSpent)) : '—'}
+        </span>
+        {totalCount !== null && (
+          <span className={`text-sm ${TEXT_MUTED}`}>{totalCount} {totalCount === 1 ? 'movimiento' : 'movimientos'}</span>
+        )}
+      </span>
+      {searchScope === 'year' && foundSpent > 0 && (
+        <span className={`text-[13px] ${TEXT_MUTED}`}>Promedio {fmt(foundSpent / foundMonths)} al mes</span>
+      )}
+    </div>
+  );
+
+  const scopeChip = searching ? (
+    <button
+      type="button"
+      onClick={() => setPeriodSheet('search')}
+      className="flex h-8 flex-none items-center gap-1.5 rounded-full bg-electric-ghost px-3 text-[13px] font-bold text-electric-dark dark:bg-[#1B2B4D] dark:text-electric-soft"
+    >
+      <Calendar size={14} aria-hidden />
+      En {searchScope === 'year' ? `todo ${year}` : periodInText(searchScope, today)} ▾
+    </button>
+  ) : undefined;
 
   const headerActions = (
     <div className="flex flex-none items-center gap-1.5">
@@ -282,10 +345,13 @@ export default function MovimientosPage() {
     <AppShell title="Movimientos" currentPath="/transacciones" titleRight={headerActions} headerRight={headerActions}>
       <div className="max-w-3xl flex flex-col zafi-stagger">
         <div className="mt-3.5">
-          <MonthSummary
-            spent={summary ? fmt(summary.spent) : null}
-            received={summary ? fmt(summary.received) : null}
-          />
+          {searching ? searchSummary : (
+            <MonthSummary
+              spent={summary ? fmt(summary.spent) : null}
+              received={summary ? fmt(summary.received) : null}
+              spentLabel={month === 'year' ? `Gastaste en ${year}` : 'Gastaste'}
+            />
+          )}
         </div>
 
         {bannerText && (
@@ -311,6 +377,8 @@ export default function MovimientosPage() {
             onQueryChange={(q) => { setQuery(q); setOpenRowId(null); }}
             type={typeFilter}
             onTypeChange={(t) => { setTypeFilter(t); setOpenRowId(null); }}
+            placeholder={`Buscar en ${searching ? (searchScope === 'year' ? `todo ${year}` : periodInText(searchScope, today)) : `todo ${year}`}…`}
+            scope={scopeChip}
           />
         </div>
 
@@ -328,9 +396,15 @@ export default function MovimientosPage() {
               {filtered ? (
                 <>
                   <p className={`font-semibold ${TEXT_STRONG}`}>
-                    {searchQuery ? `Nada con “${searchQuery}”` : 'Nada por aquí'}
+                    {searching ? `Nada con “${searchQuery}” en ${periodInText(searchScope, today)}` : 'Nada por aquí'}
                   </p>
-                  <p className={`text-sm mt-1 ${TEXT_MUTED}`}>Prueba con otra palabra o quita el filtro.</p>
+                  {searching && searchScope !== 'year' ? (
+                    <div className="mt-2 flex justify-center">
+                      <PillButton onClick={() => setSearchScope('year')}>Buscar en todo {year}</PillButton>
+                    </div>
+                  ) : (
+                    <p className={`text-sm mt-1 ${TEXT_MUTED}`}>Prueba con otra palabra o quita el filtro.</p>
+                  )}
                 </>
               ) : (
                 <>
@@ -345,27 +419,47 @@ export default function MovimientosPage() {
             </div>
           ) : (
             <>
-              {groups.map((g) => (
-                <TxDayGroup key={g.date} label={g.label} total={fmt(g.expenseTotal)}>
-                  {g.rows.map((tx) => (
-                    <SwipeRow
-                      key={tx.id}
-                      row={txRowData(tx, fmt)}
-                      isOpen={openRowId === tx.id}
-                      anyOpen={openRowId !== null}
-                      flash={sheets.flashFor(tx.id)}
-                      onOpenChange={(open) => setOpenRowId(open ? tx.id : null)}
-                      onSelect={() => { setOpenRowId(null); sheets.openDetail(tx.id); }}
-                      onChange={() => { setOpenRowId(null); sheets.openCategory(tx.id); }}
-                      onDelete={() => { setOpenRowId(null); sheets.deleteTx(tx); }}
-                      onSwiped={markSwiped}
-                    />
-                  ))}
-                </TxDayGroup>
-              ))}
-              <div ref={sentinel} />
-              {loadingMore && (
+              {monthGroups.map((mg) => {
+                const t = totalOf(mg.month);
+                return (
+                  <section key={mg.month} className="flex flex-col gap-3.5">
+                    {byMonth && (
+                      <div className="flex items-baseline justify-between pr-1 pt-1.5">
+                        <GroupTitle className="">{monthLabel(mg.month, today)}</GroupTitle>
+                        {t && (
+                          <span className={`text-[13px] ${TEXT_MUTED}`}>
+                            {t.count} mov. · <b className={`font-outfit ${TEXT_STRONG}`}>{fmt(t.sum_expense)}</b>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {mg.days.map((g) => (
+                      <TxDayGroup key={g.date} label={g.label} total={fmt(g.expenseTotal)}>
+                        {g.rows.map((tx) => (
+                          <SwipeRow
+                            key={tx.id}
+                            row={txRowData(tx, fmt)}
+                            isOpen={openRowId === tx.id}
+                            anyOpen={openRowId !== null}
+                            flash={sheets.flashFor(tx.id)}
+                            onOpenChange={(open) => setOpenRowId(open ? tx.id : null)}
+                            onSelect={() => { setOpenRowId(null); sheets.openDetail(tx.id); }}
+                            onChange={() => { setOpenRowId(null); sheets.openCategory(tx.id); }}
+                            onDelete={() => { setOpenRowId(null); sheets.deleteTx(tx); }}
+                            onSwiped={markSwiped}
+                          />
+                        ))}
+                      </TxDayGroup>
+                    ))}
+                  </section>
+                );
+              })}
+              {loadingMore ? (
                 <SkeletonRows count={2} />
+              ) : hasMore && (
+                <button type="button" onClick={() => void loadMore()} className="btn-outline w-full">
+                  Ver más{remaining ? ` (${remaining})` : ''}
+                </button>
               )}
               {swipeCount < 3 && (
                 <p className="lg:hidden text-center text-[13px] px-4 text-ink-400">
@@ -385,13 +479,21 @@ export default function MovimientosPage() {
         />
       )}
 
-      <BottomSheet themed open={monthSheetOpen} onClose={() => setMonthSheetOpen(false)} label="Elegir mes">
-        {monthSheetOpen && (
+      <BottomSheet themed open={!!periodSheet} onClose={() => setPeriodSheet(null)} label={periodSheet === 'search' ? 'Dónde buscar' : 'Elegir periodo'}>
+        {periodSheet === 'browse' && (
           <OptionSheet
-            title="¿Qué mes quieres ver?"
-            options={recentMonths(today, 12).map((m) => ({ value: m, label: monthLabel(m, today) }))}
+            title="¿Qué periodo quieres ver?"
+            options={periodOptions(month)}
             selected={month}
-            onSelect={(m) => { setMonth(m); setMonthSheetOpen(false); }}
+            onSelect={(m) => { setMonth(m); setPeriodSheet(null); }}
+          />
+        )}
+        {periodSheet === 'search' && (
+          <OptionSheet
+            title="¿Dónde buscar?"
+            options={periodOptions(searchScope)}
+            selected={searchScope}
+            onSelect={(m) => { setSearchScope(m); setPeriodSheet(null); }}
           />
         )}
       </BottomSheet>

@@ -137,3 +137,48 @@ export function topCategories<T extends { id: string }>(categories: T[], counts:
   const rest = categories.filter((c) => !(counts[c.id] > 0));
   return [...used, ...rest].slice(0, n);
 }
+
+/** Periodo de Movimientos: un mes 'YYYY-MM' o todo el año en curso. */
+export type Period = 'year' | string;
+
+/** Fechas de un periodo: el año va del 1 de enero a hoy. */
+export function periodRange(period: Period, today: string): { from: string; to: string } {
+  if (period === 'year') return { from: `${today.slice(0, 4)}-01-01`, to: today };
+  return monthRange(period);
+}
+
+/** Meses del año en curso, del actual a enero. */
+export function yearMonths(today: string): string[] {
+  const m = Number(today.slice(5, 7));
+  return recentMonths(today, m);
+}
+
+/** "Todo 2026" o "Octubre" ("Octubre 2025" si es de otro año). */
+export function periodLabel(period: Period, today: string): string {
+  return period === 'year' ? `Todo ${today.slice(0, 4)}` : monthLabel(period, today);
+}
+
+/** "2026" o "julio": para "“uber” en julio" y "Buscar en todo 2026…". */
+export function periodInText(period: Period, today: string): string {
+  return period === 'year' ? today.slice(0, 4) : monthLabel(period, today).toLowerCase();
+}
+
+export interface MonthGroup<T extends DayRow> {
+  month: string;
+  days: DayGroup<T>[];
+}
+
+/** Agrupa por mes y, dentro, por día (filas ordenadas por fecha descendente). */
+export function groupByMonth<T extends DayRow>(rows: T[], today: string): MonthGroup<T>[] {
+  const out: MonthGroup<T>[] = [];
+  for (const g of groupByDay(rows, today)) {
+    const month = g.date.slice(0, 7);
+    let m = out[out.length - 1];
+    if (!m || m.month !== month) {
+      m = { month, days: [] };
+      out.push(m);
+    }
+    m.days.push(g);
+  }
+  return out;
+}

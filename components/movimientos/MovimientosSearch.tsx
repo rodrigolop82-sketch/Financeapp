@@ -16,10 +16,13 @@ interface MovimientosSearchProps {
   onQueryChange: (q: string) => void;
   type: TypeFilter;
   onTypeChange: (t: TypeFilter) => void;
+  placeholder?: string;
+  /** Chip de alcance ("En todo 2026 ▾") junto a los filtros. */
+  scope?: React.ReactNode;
 }
 
 /** Búsqueda por nombre o categoría y chips Todo / Gastos / Ingresos. */
-export function MovimientosSearch({ query, onQueryChange, type, onTypeChange }: MovimientosSearchProps) {
+export function MovimientosSearch({ query, onQueryChange, type, onTypeChange, placeholder = 'Buscar “super”, “uber”…', scope }: MovimientosSearchProps) {
   return (
     <div className="flex flex-col gap-2.5">
       <div className={`flex items-center gap-2 h-[46px] pl-4 pr-2 rounded-full border ${BORDER} ${CARD_BG}`}>
@@ -28,7 +31,7 @@ export function MovimientosSearch({ query, onQueryChange, type, onTypeChange }: 
           type="search"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          placeholder="Buscar “super”, “uber”…"
+          placeholder={placeholder}
           aria-label="Buscar movimientos"
           enterKeyHint="search"
           className={`flex-1 min-w-0 h-full bg-transparent outline-none text-[15px] placeholder:text-ink-400 [&::-webkit-search-cancel-button]:hidden ${TEXT_STRONG}`}
@@ -45,24 +48,27 @@ export function MovimientosSearch({ query, onQueryChange, type, onTypeChange }: 
         )}
       </div>
 
-      <div role="radiogroup" aria-label="Tipo de movimiento" className="flex gap-1.5">
-        {CHIPS.map((c) => {
-          const active = c.value === type;
-          return (
-            <button
-              key={c.value}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              onClick={() => onTypeChange(c.value)}
-              className={`h-9 px-[15px] rounded-full text-[13.5px] font-semibold border transition-colors ${
-                active ? 'bg-navy border-navy text-white dark:bg-electric dark:border-electric' : `${CARD_BG} ${BORDER} ${TEXT_BODY}`
-              }`}
-            >
-              {c.label}
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div role="radiogroup" aria-label="Tipo de movimiento" className="flex gap-1.5">
+          {CHIPS.map((c) => {
+            const active = c.value === type;
+            return (
+              <button
+                key={c.value}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => onTypeChange(c.value)}
+                className={`h-9 px-[15px] rounded-full text-[13.5px] font-semibold border transition-colors ${
+                  active ? 'bg-navy border-navy text-white dark:bg-electric dark:border-electric' : `${CARD_BG} ${BORDER} ${TEXT_BODY}`
+                }`}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+        {scope}
       </div>
     </div>
   );

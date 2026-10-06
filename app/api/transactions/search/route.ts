@@ -1,6 +1,13 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { NextRequest, NextResponse } from 'next/server';
 
+interface MonthTotal {
+  month: string;
+  count: number;
+  sum_expense: number;
+  sum_income: number;
+}
+
 export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -54,22 +61,43 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { data: totals, error: totalsError } = await supabase.rpc('search_transactions_month_totals', {
-    p_query: query?.trim() || null,
-    p_from: from || null,
-    p_to: to || null,
-    p_category_id: categoryId || null,
-    p_min_amount: minAmount != null ? Number(minAmount) : null,
-    p_max_amount: maxAmount != null ? Number(maxAmount) : null,
-    p_transaction_type: transactionType || null,
-    p_type: type || null,
-  });
-
-  if (totalsError) {
-    return NextResponse.json(
-      { error: 'No pudimos obtener los totales. Intenta de nuevo.' },
-      { status: 500 },
-    );
+  // Totales por mes (cuántos, gastos e ingresos): solo con la primera página.
+  let totals: MonthTotal[] = [];
+  if (!cursorDate) {
+    const filters = {
+      p_query: query?.trim() || null,
+      p_from: from || null,
+      p_to: to || null,
+      p_category_id: categoryId || null,
+      p_min_amount: minAmount != null ? Number(minAmount) : null,
+      p_max_amount: maxAmount != null ? Number(maxAmount) : null,
+      p_transaction_type: transactionType || null,
+      p_type: type || null,
+    };
+    const summary = await supabase.rpc('search_transactions_summary', filters);
+    if (!summary.error) {
+      totals = ((summary.data ?? []) as MonthTotal[]).map((t) => ({
+        month: t.month,
+        count: Number(t.count),
+        sum_expense: Number(t.sum_expense),
+        sum_income: Number(t.sum_income),
+      }));
+    } else {
+      // Sin la migración de búsqueda anual: totales viejos (sin ingresos).
+      const { data: old, error: totalsError } = await supabase.rpc('search_transactions_month_totals', filters);
+      if (totalsError) {
+        return NextResponse.json(
+          { error: 'No pudimos obtener los totales. Intenta de nuevo.' },
+          { status: 500 },
+        );
+      }
+      totals = ((old ?? []) as { month: string; count: number; sum_gastos: number }[]).map((t) => ({
+        month: t.month,
+        count: Number(t.count),
+        sum_expense: Number(t.sum_gastos),
+        sum_income: 0,
+      }));
+    }
   }
 
   // search_transactions no devuelve la parte del Plan del mes: se agrega aquí.
@@ -86,5 +114,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ rows: enriched, totals: totals ?? [] });
+  return NextResponse.json({ rows: enriched, totals: cursorDate ? null : totals });
 }

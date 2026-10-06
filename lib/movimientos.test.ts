@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   addDays, dayLabel, longDate, monthRange, monthLabel, recentMonths, recentDays,
   cleanAmountInput, groupByDay, sameMerchantOthers, topCategories,
+  periodRange, yearMonths, periodLabel, periodInText, groupByMonth,
 } from './movimientos';
 
 const TODAY = '2026-10-03';
@@ -77,5 +78,40 @@ describe('topCategories', () => {
   it('ordena por uso y completa con el resto', () => {
     const cats = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
     expect(topCategories(cats, { c: 5, b: 2 }, 3).map((c) => c.id)).toEqual(['c', 'b', 'a']);
+  });
+});
+
+describe('periodos (búsqueda anual)', () => {
+  const today = '2026-10-06';
+
+  it('el año va del 1 de enero a hoy; un mes, de su primer a su último día', () => {
+    expect(periodRange('year', today)).toEqual({ from: '2026-01-01', to: '2026-10-06' });
+    expect(periodRange('2026-07', today)).toEqual({ from: '2026-07-01', to: '2026-07-31' });
+  });
+
+  it('lista los meses del año en curso, del actual a enero', () => {
+    const m = yearMonths(today);
+    expect(m).toHaveLength(10);
+    expect(m[0]).toBe('2026-10');
+    expect(m[9]).toBe('2026-01');
+  });
+
+  it('nombra el periodo', () => {
+    expect(periodLabel('year', today)).toBe('Todo 2026');
+    expect(periodLabel('2026-07', today)).toBe('Julio');
+    expect(periodInText('year', today)).toBe('2026');
+    expect(periodInText('2026-07', today)).toBe('julio');
+  });
+
+  it('agrupa por mes y día', () => {
+    const rows = [
+      { id: 'a', date: '2026-10-05', amount: 10, type: 'expense' as const },
+      { id: 'b', date: '2026-10-05', amount: 5, type: 'expense' as const },
+      { id: 'c', date: '2026-07-02', amount: 7, type: 'expense' as const },
+    ];
+    const g = groupByMonth(rows, today);
+    expect(g.map((m) => m.month)).toEqual(['2026-10', '2026-07']);
+    expect(g[0].days[0].rows).toHaveLength(2);
+    expect(g[1].days[0].expenseTotal).toBe(7);
   });
 });
