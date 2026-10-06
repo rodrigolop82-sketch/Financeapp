@@ -40,9 +40,8 @@ export function InAppBrowserBounce({ platform, onContinueInApp }: Props) {
   }
 
   return (
-    <div style={{
+    <div className="bg-navy-deep" style={{
       position: 'fixed', inset: 0, zIndex: 10000,
-      background: 'linear-gradient(180deg, #12233B 0%, #1E3A5F 100%)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       padding: '40px 28px', paddingBottom: 'max(40px, env(safe-area-inset-bottom))',
     }}>
