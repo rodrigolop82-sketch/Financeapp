@@ -127,6 +127,13 @@ export function accountLabel(account: AccountInfo | null | undefined, bank: stri
   return bank && bank !== 'Desconocido' ? bank : null
 }
 
+const CARD_PAYMENT_RE = /PAGO RECIBIDO|SU PAGO|PAGO TARJETA/i
+
+/** El pago de la propia tarjeta no es un ingreso: entra sin marcar para no inflar ingresos. */
+function isCardPayment(tx: { type: string; description: string }, label: string | null): boolean {
+  return !!label?.startsWith('Tarjeta') && tx.type === 'income' && CARD_PAYMENT_RE.test(tx.description)
+}
+
 const REQUEST_TIMEOUT_MS = 120000
 
 function genId(): string {
@@ -492,6 +499,8 @@ export function useStatementImport(householdId: string) {
       if (batchIdRef.current !== batchId) return
 
       const idByKey = new Map(merged.transactions.map(t => [t.key, genId()]))
+      const bank = mostCommon(banks)
+      const label = accountLabel(account, bank)
       const transactions: ExtractedTransaction[] = []
       merged.transactions.forEach((tx, i) => {
         const c = classifiedRes.classified[i]
@@ -504,7 +513,7 @@ export function useStatementImport(householdId: string) {
           type: tx.type,
           suggested_category: tx.suggested_category,
           category_id: c.categoryId,
-          selected: true,
+          selected: !(c.kind === 'new' && isCardPayment(tx, label)),
           isDuplicate: c.kind === 'duplicate',
           original_amount: tx.original_amount ?? null,
           original_currency: tx.original_currency ?? null,
@@ -518,13 +527,12 @@ export function useStatementImport(householdId: string) {
         })
       })
 
-      const bank = mostCommon(banks)
       setState(s => ({
         ...s,
         step: 'review',
         isLoading: false,
         bankDetected: bank,
-        accountLabel: accountLabel(account, bank),
+        accountLabel: label,
         accountLast4: last4Of(account),
         period: null,
         transactions,
@@ -639,6 +647,7 @@ export function useStatementImport(householdId: string) {
 
       // Clasifica contra lo registrado: ya importado, duplicado, fijo o nuevo.
       const classifiedRes = await classify(rawTx)
+      const label = accountLabel(data.account, data.bank || null)
       const transactions: ExtractedTransaction[] = []
       rawTx.forEach((tx, i) => {
         const c = classifiedRes.classified[i]
@@ -651,7 +660,7 @@ export function useStatementImport(householdId: string) {
           type: tx.type,
           suggested_category: tx.suggested_category,
           category_id: c.categoryId,
-          selected: true,
+          selected: !(c.kind === 'new' && isCardPayment(tx, label)),
           isDuplicate: c.kind === 'duplicate',
           original_amount: tx.original_amount ?? null,
           original_currency: tx.original_currency ?? null,
@@ -667,7 +676,7 @@ export function useStatementImport(householdId: string) {
         step: 'review',
         isLoading: false,
         bankDetected: data.bank || null,
-        accountLabel: accountLabel(data.account, data.bank || null),
+        accountLabel: label,
         accountLast4: last4Of(data.account),
         period: data.period || null,
         transactions,
@@ -688,8 +697,16 @@ export function useStatementImport(householdId: string) {
   // ─── Review ────────────────────────────────────────────────────────
 
   /** "Es el mismo" / "Son distintos" en un posible duplicado. */
-  const setSame = useCallback((id: string, same: boolean) => {
+  const setSame = useCallback((id: string, same: boolean | null) => {
     setState(s => ({ ...s, transactions: s.transactions.map(t => (t.id === id ? { ...t, same } : t)) }))
+  }, [])
+
+  /** "Incluir todos" / "Quitar todos" en los cargos nuevos. */
+  const setAllNew = useCallback((selected: boolean) => {
+    setState(s => ({
+      ...s,
+      transactions: s.transactions.map(t => (t.kind === 'new' ? { ...t, selected } : t)),
+    }))
   }, [])
 
   const setCategory = useCallback((id: string, categoryId: string, subItemId: string | null, type: 'expense' | 'income') => {
@@ -840,6 +857,7 @@ export function useStatementImport(householdId: string) {
     showUndoToast,
     undoImport,
     setSame,
+    setAllNew,
     setCategory,
     setPaidBy: (paidBy: string | null) => setState(s => ({ ...s, paidBy })),
   }

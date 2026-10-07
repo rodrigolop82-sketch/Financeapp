@@ -233,6 +233,8 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
             isLoading={imp.isLoading}
             error={imp.error}
             onSame={imp.setSame}
+            onToggle={imp.toggleTransaction}
+            onSetAllNew={imp.setAllNew}
             onSetCategory={imp.setCategory}
             batch={imp.importMode === 'photos' ? imp.batch : null}
             onRemove={imp.deselectTransaction}
