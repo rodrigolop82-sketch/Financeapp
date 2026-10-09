@@ -13,22 +13,24 @@ export type IntroEditorialProps = { mostrarZonasSeguras: boolean };
 
 /* ───────────── Paleta editorial ───────────── */
 
+// Colores del tema claro de la app (app/globals.css y tailwind.config.ts)
 const ed = {
-  cream: "#F6F5EF",
-  paper: "#FFFFFF",
-  line: "#E7E4DA",
-  ink: colors.navyDeep,
-  muted: "#8A8778",
-  rust: "#B4532A",
-  accent: colors.electric,
-  dark: "#1B1B1A",
-  mint: "#CDEFD9",
-  sky: "#CFE0FF",
-  pink: "#F8D3EE",
-  lavender: "#DCD5FB",
-  sand: "#F3E6A6",
-  lime: "#E4F5A1",
-  highlight: "#FFF1A8",
+  cream: "#F3F5F9", // --zafi-bg
+  paper: "#FFFFFF", // --zafi-card
+  line: "#E2E8F0", // --zafi-border
+  ink: colors.navy, // --zafi-text
+  muted: "#8B9AAE", // --zafi-text-faint
+  rust: colors.danger, // acento del problema
+  accent: colors.electric, // acento de la solución
+  dark: colors.navy, // píldoras y burbujas oscuras
+  mint: colors.successLight,
+  sky: colors.electricGhost,
+  pink: colors.dangerLight,
+  lavender: "#E0E7FF",
+  sand: colors.warningLight,
+  lime: "#E7EBF2", // --zafi-tab-bg
+  highlight: colors.warningLight,
+  tint: "#F8F9FC", // --zafi-card-alt
 };
 
 /* ───────────── Línea de tiempo ───────────── */
@@ -137,7 +139,7 @@ const AppWindow: React.FC<{
     }}
   >
     <div style={{ display: "flex", alignItems: "center", padding: "24px 30px 0" }}>
-      {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => (
+      {[colors.danger, colors.warning, colors.success].map((c) => (
         <span key={c} style={{ width: 16, height: 16, borderRadius: 99, background: c, marginRight: 10 }} />
       ))}
       <div style={{ flex: 1 }} />
@@ -259,7 +261,7 @@ const ExpenseColumn: React.FC<{
               >
                 <div>
                   <div style={{ fontSize: 30, fontWeight: 500, color: ed.ink }}>{e.n}</div>
-                  <div style={{ fontSize: 22, color: "rgba(13,31,54,0.55)" }}>{e.a}</div>
+                  <div style={{ fontSize: 22, color: "rgba(30,58,95,0.6)" }}>{e.a}</div>
                 </div>
                 {checked && (
                   <span
@@ -796,11 +798,11 @@ const PANELS: {
   window: string;
   Body: React.FC<{ f: number }>;
 }[] = [
-  { bg: ed.mint, title: <>Tu diagnóstico,<br /><Em color={colors.navy}>al instante.</Em></>, window: "Diagnóstico", Body: DiagnosticoBody },
+  { bg: ed.mint, title: <>Tu diagnóstico,<br /><Em>al instante.</Em></>, window: "Diagnóstico", Body: DiagnosticoBody },
   { bg: ed.sky, title: <>Un plan.</>, window: "Tu plan", Body: PlanBody },
   { bg: ed.pink, title: <>Recordatorios.</>, window: "Pagos del mes", Body: RecordatoriosBody },
   { bg: ed.lavender, title: <>Memoria.</>, window: "Pregúntale a Zafi", Body: MemoriaBody },
-  { bg: ed.sand, title: <>En familia,<br /><Em color={colors.navy}>también.</Em></>, window: "Hogar", Body: FamiliaBody },
+  { bg: ed.sand, title: <>En familia,<br /><Em>también.</Em></>, window: "Hogar", Body: FamiliaBody },
 ];
 
 const Paneles: React.FC = () => {
@@ -986,7 +988,7 @@ export const IntroEditorial: React.FC<IntroEditorialProps> = ({ mostrarZonasSegu
     <Scene {...T.control} bg={ed.cream}>
       <Control />
     </Scene>
-    <Scene {...T.tranquilo} bg="#EEF3FF">
+    <Scene {...T.tranquilo} bg={colors.electricGhost}>
       <Tranquilo />
     </Scene>
     <Scene {...T.logo} bg={ed.paper} fadeOut={false}>
