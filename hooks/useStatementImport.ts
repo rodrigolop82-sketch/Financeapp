@@ -12,6 +12,16 @@ import { dominantMonth } from '@/lib/motion'
 
 export type ImportStep = 'idle' | 'upload' | 'processing' | 'review' | 'success' | 'done'
 
+/** Cargo del estado que ya se había importado antes (no se vuelve a agregar). */
+export interface AlreadyImportedTx {
+  date: string
+  description: string
+  amount: number
+  type: 'expense' | 'income'
+  original_amount: number | null
+  original_currency: string | null
+}
+
 export interface ExtractedTransaction {
   id: string
   date: string
@@ -103,8 +113,8 @@ interface ImportState {
   accountLast4: string | null
   /** Hogares de 2: quién pagó lo de esta tarjeta (null = quien importa). */
   paidBy: string | null
-  /** Cargos que ya se habían importado antes (no se muestran). */
-  alreadyImported: number
+  /** Cargos que ya se habían importado antes (no se vuelven a agregar). */
+  alreadyImported: AlreadyImportedTx[]
   review: ImportReviewContext | null
   /** Después de confirmar: toast con "Deshacer". */
   outcome: ImportOutcomeState | null
@@ -132,6 +142,17 @@ const CARD_PAYMENT_RE = /PAGO RECIBIDO|SU PAGO|PAGO TARJETA/i
 /** El pago de la propia tarjeta no es un ingreso: entra sin marcar para no inflar ingresos. */
 function isCardPayment(tx: { type: string; description: string }, label: string | null): boolean {
   return !!label?.startsWith('Tarjeta') && tx.type === 'income' && CARD_PAYMENT_RE.test(tx.description)
+}
+
+function toAlreadyImported(tx: ApiExtractedTx): AlreadyImportedTx {
+  return {
+    date: tx.date,
+    description: tx.description,
+    amount: tx.amount,
+    type: tx.type,
+    original_amount: tx.original_amount ?? null,
+    original_currency: tx.original_currency ?? null,
+  }
 }
 
 const REQUEST_TIMEOUT_MS = 120000
@@ -185,7 +206,7 @@ const EMPTY_STATE: ImportState = {
   accountLabel: null,
   accountLast4: null,
   paidBy: null,
-  alreadyImported: 0,
+  alreadyImported: [],
   review: null,
   outcome: null,
 }
@@ -502,9 +523,10 @@ export function useStatementImport(householdId: string) {
       const bank = mostCommon(banks)
       const label = accountLabel(account, bank)
       const transactions: ExtractedTransaction[] = []
+      const alreadyImported: AlreadyImportedTx[] = []
       merged.transactions.forEach((tx, i) => {
         const c = classifiedRes.classified[i]
-        if (c.kind === 'imported') return
+        if (c.kind === 'imported') { alreadyImported.push(toAlreadyImported(tx)); return }
         transactions.push({
           id: idByKey.get(tx.key)!,
           date: tx.date,
@@ -536,7 +558,7 @@ export function useStatementImport(householdId: string) {
         accountLast4: last4Of(account),
         period: null,
         transactions,
-        alreadyImported: merged.transactions.length - transactions.length,
+        alreadyImported,
         review: reviewContext(classifiedRes),
         batch: { photoCount: perPhoto.length, exactDuplicatesCollapsed: merged.exactDuplicatesCollapsed },
       }))
@@ -649,9 +671,10 @@ export function useStatementImport(householdId: string) {
       const classifiedRes = await classify(rawTx)
       const label = accountLabel(data.account, data.bank || null)
       const transactions: ExtractedTransaction[] = []
+      const alreadyImported: AlreadyImportedTx[] = []
       rawTx.forEach((tx, i) => {
         const c = classifiedRes.classified[i]
-        if (c.kind === 'imported') return
+        if (c.kind === 'imported') { alreadyImported.push(toAlreadyImported(tx)); return }
         transactions.push({
           id: genId(),
           date: tx.date,
@@ -680,7 +703,7 @@ export function useStatementImport(householdId: string) {
         accountLast4: last4Of(data.account),
         period: data.period || null,
         transactions,
-        alreadyImported: rawTx.length - transactions.length,
+        alreadyImported,
         review: reviewContext(classifiedRes),
       }))
     } catch (err) {
@@ -751,7 +774,7 @@ export function useStatementImport(householdId: string) {
     // La fila de statement_imports: la del lote de fotos (creada en el servidor) o una nueva.
     const summary = {
       bank_detected: current.bankDetected,
-      transactions_found: current.transactions.length + current.alreadyImported,
+      transactions_found: current.transactions.length + current.alreadyImported.length,
       status: 'processing',
     }
     let importId: string | null = null
