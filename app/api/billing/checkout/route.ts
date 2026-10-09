@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { billing } from '@/lib/billing'
 import { currentSubscription } from '@/lib/billing/service'
-import { adminClient, appUrl, readPlanChoice, sessionUser } from '@/lib/billing/server'
+import { adminClient, appUrl, readPlanChoice, sessionUser, sandboxDetail } from '@/lib/billing/server'
 import { getEffectivePlan } from '@/lib/plans'
 
 // Abre el checkout de Recurrente. Sin prueba en el proveedor: la prueba de
@@ -38,6 +38,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: checkout.url })
   } catch (e) {
     console.error('billing checkout', e)
-    return NextResponse.json({ error: 'No pudimos abrir el pago' }, { status: 502 })
+    return NextResponse.json({ error: 'No pudimos abrir el pago', detail: sandboxDetail(e) }, { status: 502 })
   }
 }

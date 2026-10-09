@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { billing } from '@/lib/billing'
 import { currentSubscription } from '@/lib/billing/service'
-import { adminClient, appUrl, readPlanChoice, sessionUser } from '@/lib/billing/server'
+import { adminClient, appUrl, readPlanChoice, sessionUser, sandboxDetail } from '@/lib/billing/server'
 import { getEffectivePlan, prorationCreditCents } from '@/lib/plans'
 
 // Cambio de plan calculado por la app: se cobra el nuevo completo y, cuando
@@ -54,6 +54,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: checkout.url, creditCents })
   } catch (e) {
     console.error('billing change-plan', e)
-    return NextResponse.json({ error: 'No pudimos abrir el pago' }, { status: 502 })
+    return NextResponse.json({ error: 'No pudimos abrir el pago', detail: sandboxDetail(e) }, { status: 502 })
   }
 }
