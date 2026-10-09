@@ -1,7 +1,8 @@
 // M02 · Intro editorial de Zafi.
-// Estilo: fondo crema, serif editorial con acentos en itálica, bloques pastel,
-// ventanas de app limpias y paneles de color por función. Movimiento suave,
-// sin rebotes: todo entra con fade + desplazamiento corto + desenfoque.
+// Estilo: serif editorial con acentos en itálica (DM Serif Display, la misma de
+// los títulos de la app), pantallas que replican el look de Zafi (fondo #F3F5F9,
+// tarjetas blancas, filas con emoji, hero navy) y paneles que alternan navy y
+// claro. Movimiento suave, sin rebotes: fade + desplazamiento corto + desenfoque.
 import React from "react";
 import { AbsoluteFill, Img, Sequence, staticFile, useCurrentFrame } from "remotion";
 import { Bell, Check, Sparkles } from "lucide-react";
@@ -13,25 +14,78 @@ export type IntroEditorialProps = { mostrarZonasSeguras: boolean };
 
 /* ───────────── Paleta editorial ───────────── */
 
-// Colores del tema claro de la app (app/globals.css y tailwind.config.ts)
+// Colores y estilos del tema claro de la app (app/globals.css,
+// tailwind.config.ts y components/movimientos/ui.ts)
 const ed = {
-  cream: "#F3F5F9", // --zafi-bg
+  cream: "#F3F5F9", // --zafi-bg (fondo de pantalla y de los tiles de emoji)
   paper: "#FFFFFF", // --zafi-card
   line: "#E2E8F0", // --zafi-border
-  ink: colors.navy, // --zafi-text
+  divider: "#EEF1F6", // --zafi-border-light
+  cardBorder: "rgba(30,58,95,0.08)", // border-navy/[0.08]
+  ink: colors.navy, // --zafi-text (títulos)
+  strong: colors.ink900, // texto fuerte de filas
+  secondary: "#475569", // --zafi-text-secondary
   muted: "#8B9AAE", // --zafi-text-faint
   rust: colors.danger, // acento del problema
   accent: colors.electric, // acento de la solución
-  dark: colors.navy, // píldoras y burbujas oscuras
-  mint: colors.successLight,
-  sky: colors.electricGhost,
-  pink: colors.dangerLight,
-  lavender: "#E0E7FF",
-  sand: colors.warningLight,
-  lime: "#E7EBF2", // --zafi-tab-bg
-  highlight: colors.warningLight,
+  dark: colors.navy, // --zafi-hero: píldoras, burbujas y paneles oscuros
+  heroMuted: "#CBD8E8",
+  heroFaint: "#9FB3CB",
+  heroTrack: "#2A4A6E",
   tint: "#F8F9FC", // --zafi-card-alt
 };
+
+/** Insignias de la app (BADGE_OK / BADGE_WARN / BADGE_INFO). */
+const badge = {
+  ok: { background: colors.successLight, color: "#15803D" },
+  warn: { background: colors.warningLight, color: "#92400E" },
+  info: { background: colors.electricGhost, color: colors.electricDark },
+  neutral: { background: "#F3F5F9", color: "#475569" },
+};
+
+const Badge: React.FC<{ kind: keyof typeof badge; size?: number; children: React.ReactNode }> = ({
+  kind,
+  size = 22,
+  children,
+}) => (
+  <span
+    style={{
+      ...badge[kind],
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      padding: `${size * 0.2}px ${size * 0.6}px`,
+      borderRadius: 99,
+      fontFamily: fonts.body,
+      fontWeight: 700,
+      fontSize: size,
+      whiteSpace: "nowrap",
+    }}
+  >
+    {children}
+  </span>
+);
+
+/** Tile de emoji como en las filas de Movimientos (fondo #F3F5F9, radio 12). */
+const EmojiTile: React.FC<{ emoji: string; size?: number }> = ({ emoji, size = 72 }) => (
+  <span
+    style={{
+      width: size,
+      height: size,
+      minWidth: size,
+      borderRadius: size * 0.3,
+      background: ed.cream,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: size * 0.5,
+    }}
+  >
+    {emoji}
+  </span>
+);
+
+const money: React.CSSProperties = { fontFamily: fonts.display, fontWeight: 700, color: colors.ink900 };
 
 /* ───────────── Línea de tiempo ───────────── */
 
@@ -114,7 +168,7 @@ const Em: React.FC<{ color?: string; children: React.ReactNode }> = ({ color = e
   <span style={{ fontStyle: "italic", color }}>{children}</span>
 );
 
-/** Ventana estilo app de escritorio. */
+/** Tarjeta/pantalla con el look de la app: blanca, radio 28, borde navy 8%. */
 const AppWindow: React.FC<{
   title?: string;
   tabs?: boolean;
@@ -128,42 +182,37 @@ const AppWindow: React.FC<{
     style={{
       width,
       height,
-      borderRadius: 30,
+      borderRadius: 32,
       background: ed.paper,
-      border: `1.5px solid ${ed.line}`,
-      boxShadow: "0 40px 90px rgba(27,27,26,0.10), 0 6px 18px rgba(27,27,26,0.06)",
+      border: `2px solid ${ed.cardBorder}`,
+      boxShadow: "0 30px 80px rgba(30,58,95,0.10), 0 4px 14px rgba(30,58,95,0.05)",
       overflow: "hidden",
       fontFamily: fonts.body,
-      color: ed.ink,
+      color: ed.strong,
       ...style,
     }}
   >
-    <div style={{ display: "flex", alignItems: "center", padding: "24px 30px 0" }}>
-      {[colors.danger, colors.warning, colors.success].map((c) => (
-        <span key={c} style={{ width: 16, height: 16, borderRadius: 99, background: c, marginRight: 10 }} />
-      ))}
-      <div style={{ flex: 1 }} />
-      {tabs && (
-        <div style={{ display: "flex", gap: 8, fontSize: 20 }}>
-          <span style={{ padding: "6px 14px", borderRadius: 99, color: ed.muted }}>Mis notas</span>
+    <div style={{ padding: "38px 44px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        {title && <div style={{ ...serif(56), lineHeight: 1.15 }}>{title}</div>}
+        {tabs && (
           <span
             style={{
-              padding: "6px 14px",
-              borderRadius: 99,
-              background: zafiTab ? colors.electric : "transparent",
-              color: zafiTab ? colors.white : ed.muted,
               display: "flex",
               alignItems: "center",
-              gap: 6,
+              gap: 8,
+              padding: "10px 20px",
+              borderRadius: 99,
+              fontSize: 24,
+              fontWeight: 700,
+              background: zafiTab ? colors.electric : colors.electricGhost,
+              color: zafiTab ? colors.white : colors.electricDark,
             }}
           >
-            <Sparkles size={16} color={zafiTab ? colors.white : ed.muted} /> Zafi
+            <Sparkles size={22} color={zafiTab ? colors.white : colors.electricDark} /> Zafi
           </span>
-        </div>
-      )}
-    </div>
-    <div style={{ padding: "26px 44px 0" }}>
-      {title && <div style={{ ...serif(54), marginBottom: 22 }}>{title}</div>}
+        )}
+      </div>
       {children}
     </div>
   </div>
@@ -185,7 +234,7 @@ const NotesBody: React.FC<{ frame: number }> = ({ frame }) => {
   const lines = typed(MESSY, frame);
   const active = lines.findIndex((l, i) => l.length < MESSY[i].length);
   return (
-    <div style={{ fontSize: 36, lineHeight: 1.55, color: colors.ink700 }}>
+    <div style={{ fontSize: 36, lineHeight: 1.55, color: ed.secondary }}>
       {lines.map((l, i) => (
         <div key={i} style={{ minHeight: 56 }}>
           {l}
@@ -199,18 +248,20 @@ const NotesBody: React.FC<{ frame: number }> = ({ frame }) => {
 /* ───────────── Columna de gastos (equivale al calendario del estilo) ───────────── */
 
 const EXPENSES = [
-  { n: "Súper", a: "Q 640", c: ed.sand },
-  { n: "Netflix", a: "Q 75", c: ed.pink },
-  { n: "Gasolina", a: "Q 300", c: ed.sky },
-  { n: "Tarjeta de crédito", a: "Q 1,200", c: ed.lime },
-  { n: "Delivery", a: "Q 180", c: ed.lavender },
-  { n: "Luz", a: "Q 280", c: ed.mint },
-  { n: "Farmacia", a: "Q 95", c: ed.pink },
-  { n: "Cine", a: "Q 120", c: ed.sky },
-  { n: "Gimnasio", a: "Q 250", c: ed.sand },
-  { n: "Café", a: "Q 35", c: ed.lavender },
+  { e: "🛒", n: "Súper", c: "Supermercado", a: "Q 640" },
+  { e: "🎬", n: "Netflix", c: "Suscripciones", a: "Q 75" },
+  { e: "⛽", n: "Gasolina", c: "Transporte", a: "Q 300" },
+  { e: "💳", n: "Tarjeta de crédito", c: "Deudas", a: "Q 1,200" },
+  { e: "🍔", n: "Delivery", c: "Comida", a: "Q 180" },
+  { e: "💡", n: "Luz", c: "Servicios", a: "Q 280" },
+  { e: "💊", n: "Farmacia", c: "Salud", a: "Q 95" },
+  { e: "🍿", n: "Cine", c: "Entretenimiento", a: "Q 120" },
+  { e: "🏋️", n: "Gimnasio", c: "Salud", a: "Q 250" },
+  { e: "☕", n: "Café", c: "Comida", a: "Q 35" },
 ];
+const DAYS = ["Hoy", "Ayer", "Lunes 27", "Domingo 26", "Sábado 25", "Viernes 24", "Jueves 23", "Miércoles 22"];
 
+/** Lista de movimientos que se desplaza (igual a la pantalla Movimientos). */
 const ExpenseColumn: React.FC<{
   speed?: number;
   offset?: number;
@@ -219,86 +270,74 @@ const ExpenseColumn: React.FC<{
   height: number;
 }> = ({ speed = 2.4, offset = 0, checked = false, top, height }) => {
   const frame = useCurrentFrame();
-  const ROW = 124;
-  const items = [...EXPENSES, ...EXPENSES, ...EXPENSES];
   const y = -(offset + frame * speed);
-  const nowLine = height * 0.42;
+  // Grupos de 2-3 movimientos por día, como en la app
+  const items = [...EXPENSES, ...EXPENSES, ...EXPENSES];
+  const groups: { day: string; rows: typeof EXPENSES }[] = [];
+  for (let i = 0, d = 0; i < items.length; d++) {
+    const n = d % 2 === 0 ? 3 : 2;
+    groups.push({ day: DAYS[d % DAYS.length], rows: items.slice(i, i + n) });
+    i += n;
+  }
   return (
     <div
       style={{
         position: "absolute",
         top,
         left: SAFE.left,
-        right: SAFE.right - 40,
+        width: 848,
         height,
         overflow: "hidden",
-        WebkitMaskImage: "linear-gradient(to bottom, transparent, black 14%, black 86%, transparent)",
-        maskImage: "linear-gradient(to bottom, transparent, black 14%, black 86%, transparent)",
+        WebkitMaskImage: "linear-gradient(to bottom, transparent, black 12%, black 88%, transparent)",
+        maskImage: "linear-gradient(to bottom, transparent, black 12%, black 88%, transparent)",
       }}
     >
-      <div style={{ transform: `translateY(${y}px)` }}>
-        {items.map((e, i) => {
-          const rowTop = i * ROW + y;
-          const past = rowTop + ROW / 2 < nowLine;
-          return (
-            <div key={i} style={{ display: "flex", alignItems: "center", height: ROW }}>
-              <div style={{ width: 120, fontFamily: fonts.body, fontSize: 22, color: ed.muted }}>
-                día {(i % 30) + 1}
-              </div>
+      <div style={{ transform: `translateY(${y}px)`, fontFamily: fonts.body }}>
+        {groups.map((g, gi) => (
+          <div key={gi} style={{ marginBottom: 26 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "0 8px 10px",
+                fontSize: 24,
+                fontWeight: 600,
+                color: ed.secondary,
+              }}
+            >
+              <span>{g.day}</span>
+              <span>{checked ? "en presupuesto" : `-Q ${(gi * 137) % 900 + 120}`}</span>
+            </div>
+            {g.rows.map((r, ri) => (
               <div
+                key={ri}
                 style={{
-                  flex: 1,
-                  height: ROW - 16,
-                  borderRadius: 18,
-                  background: e.c,
-                  padding: "0 28px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  fontFamily: fonts.body,
-                  opacity: checked || !past ? 1 : 0.55,
+                  gap: 22,
+                  height: 116,
+                  padding: "0 26px",
+                  marginBottom: 10,
+                  borderRadius: 26,
+                  background: ed.paper,
+                  border: `2px solid ${ed.cardBorder}`,
                 }}
               >
-                <div>
-                  <div style={{ fontSize: 30, fontWeight: 500, color: ed.ink }}>{e.n}</div>
-                  <div style={{ fontSize: 22, color: "rgba(30,58,95,0.6)" }}>{e.a}</div>
+                <EmojiTile emoji={r.e} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 30, fontWeight: 600, color: ed.strong }}>{r.n}</div>
+                  <div style={{ fontSize: 24, color: ed.secondary }}>{r.c}</div>
                 </div>
                 {checked && (
-                  <span
-                    style={{
-                      width: 46,
-                      height: 46,
-                      borderRadius: 99,
-                      background: colors.success,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Check size={28} color={colors.white} strokeWidth={3} />
-                  </span>
+                  <Badge kind="ok" size={20}>
+                    <Check size={18} strokeWidth={3} color="#15803D" /> Pagado
+                  </Badge>
                 )}
+                <div style={{ ...money, fontSize: 32 }}>{r.a}</div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-      {/* Línea de "hoy" */}
-      <div style={{ position: "absolute", top: nowLine, left: 0, right: 0, display: "flex", alignItems: "center" }}>
-        <span
-          style={{
-            padding: "6px 14px",
-            borderRadius: 99,
-            background: colors.danger,
-            color: colors.white,
-            fontFamily: fonts.body,
-            fontWeight: 700,
-            fontSize: 20,
-          }}
-        >
-          hoy
-        </span>
-        <div style={{ flex: 1, height: 3, background: colors.danger }} />
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -513,24 +552,14 @@ const YSi: React.FC = () => {
   );
 };
 
-const Chip: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <span
-    style={{
-      display: "inline-block",
-      padding: "4px 12px",
-      borderRadius: 8,
-      background: ed.highlight,
-      fontWeight: 700,
-      fontSize: 26,
-      color: ed.ink,
-    }}
-  >
+const Chip: React.FC<{ kind: keyof typeof badge; children: React.ReactNode }> = ({ kind, children }) => (
+  <Badge kind={kind} size={24}>
     {children}
-  </span>
+  </Badge>
 );
 
 const Bullet: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div style={{ display: "flex", gap: 14, fontSize: 27, lineHeight: 1.4, color: colors.ink700, margin: "8px 0 0 6px" }}>
+  <div style={{ display: "flex", gap: 14, fontSize: 27, lineHeight: 1.4, color: ed.secondary, margin: "10px 0 0 6px" }}>
     <span>•</span>
     <span>{children}</span>
   </div>
@@ -541,9 +570,9 @@ const Entiende: React.FC = () => {
   const swap = tween(frame, [46, 58], [0, 1], easeInOut);
   const analyzing = tween(frame, [26, 34], [0, 1]) * (1 - tween(frame, [56, 62], [0, 1]));
   const groups = [
-    { chip: "Comida y delivery", lines: ["Q 1,820 este mes, 18% más que septiembre", "El delivery ya es el 40% de tu comida"] },
-    { chip: "Tarjeta de crédito", lines: ["Debes Q 4,300: págala primero (36% anual)"] },
-    { chip: "Luz", lines: ["Vence el día 5 · ya está en tus recordatorios"] },
+    { kind: "warn" as const, chip: "Comida y delivery", lines: ["Q 1,820 este mes, 18% más que septiembre", "El delivery ya es el 40% de tu comida"] },
+    { kind: "info" as const, chip: "Tarjeta de crédito", lines: ["Debes Q 4,300: págala primero (36% anual)"] },
+    { kind: "ok" as const, chip: "Luz", lines: ["Vence el día 5 · ya está en tus recordatorios"] },
   ];
   return (
     <AbsoluteFill>
@@ -562,7 +591,7 @@ const Entiende: React.FC = () => {
             <div style={{ opacity: swap }}>
               {groups.map((g, gi) => (
                 <Rise key={g.chip} delay={52 + gi * 8} distance={18} style={{ marginBottom: 26 }}>
-                  <Chip>{g.chip}</Chip>
+                  <Chip kind={g.kind}>{g.chip}</Chip>
                   {g.lines.map((l) => (
                     <Bullet key={l}>{l}</Bullet>
                   ))}
@@ -612,35 +641,61 @@ const PANEL = 42;
 
 const DiagnosticoBody: React.FC<{ f: number }> = ({ f }) => {
   const score = Math.round(tween(f, [4, 30], [0, 72]));
-  const rows = [
-    { l: "Deudas", v: "controladas", c: colors.success },
-    { l: "Ahorro", v: "bajo", c: colors.warning },
-    { l: "Gastos", v: "altos en comida", c: colors.danger },
-  ];
+  const spent = tween(f, [4, 30], [0, 6240]);
+  const pct = tween(f, [4, 30], [0, 78]);
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 18 }}>
-        <span style={{ ...serif(150), fontVariantNumeric: "tabular-nums" }}>{score}</span>
-        <span style={{ fontSize: 28, color: ed.muted }}>/ 100 · salud financiera</span>
-      </div>
-      {rows.map((r, i) => (
-        <Rise key={r.l} delay={10 + i * 5} distance={14}>
+      {/* Igual al StatusHero del dashboard */}
+      <div style={{ background: ed.dark, borderRadius: 28, padding: "30px 32px", color: colors.white }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 24, color: ed.heroMuted }}>
+            <span style={{ width: 12, height: 12, borderRadius: 99, background: colors.warning }} />
+            Cuidado, vas un poco rápido
+          </div>
           <div
             style={{
+              width: 76,
+              height: 76,
+              borderRadius: 99,
+              border: `5px solid ${colors.warning}`,
               display: "flex",
               alignItems: "center",
-              gap: 16,
-              padding: "18px 0",
-              borderTop: `1.5px solid ${ed.line}`,
+              justifyContent: "center",
+              fontFamily: fonts.display,
+              fontWeight: 700,
               fontSize: 28,
             }}
           >
-            <span style={{ width: 16, height: 16, borderRadius: 99, background: r.c }} />
-            <span style={{ fontWeight: 500 }}>{r.l}</span>
-            <span style={{ color: ed.muted }}>{r.v}</span>
+            {score}
           </div>
-        </Rise>
-      ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginTop: 18 }}>
+          <span style={{ fontFamily: fonts.display, fontWeight: 800, fontSize: 70 }}>
+            Q {Math.round(spent).toLocaleString("es-GT")}
+          </span>
+          <span style={{ fontSize: 24, color: ed.heroFaint }}>de Q 8,000</span>
+        </div>
+        <div style={{ height: 14, borderRadius: 9, background: ed.heroTrack, marginTop: 16, overflow: "hidden" }}>
+          <div style={{ width: `${pct}%`, height: "100%", borderRadius: 9, background: colors.warning }} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 22, color: ed.heroFaint }}>
+          <span>
+            Te quedan <b style={{ color: colors.white, fontFamily: fonts.display }}>Q 1,760</b>
+          </span>
+          <span>12 días restantes</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 26 }}>
+        {[
+          { k: "ok" as const, t: "Deudas controladas" },
+          { k: "warn" as const, t: "Ahorro bajo" },
+          { k: "info" as const, t: "Comida: +18%" },
+        ].map((b, i) => (
+          <Rise key={b.t} delay={14 + i * 4} distance={10}>
+            <Badge kind={b.k}>{b.t}</Badge>
+          </Rise>
+        ))}
+      </div>
     </div>
   );
 };
@@ -679,9 +734,9 @@ const PlanBody: React.FC<{ f: number }> = ({ f }) => {
 
 const RecordatoriosBody: React.FC<{ f: number }> = ({ f }) => {
   const rows = [
-    { n: "Luz", a: "Q 280", d: "vence en 2 días" },
-    { n: "Internet", a: "Q 299", d: "vence en 5 días" },
-    { n: "Tarjeta", a: "Q 1,200", d: "vence en 9 días" },
+    { e: "💡", n: "Luz", a: "Q 280", d: "en 2 días", k: "warn" as const },
+    { e: "🌐", n: "Internet", a: "Q 299", d: "en 5 días", k: "neutral" as const },
+    { e: "💳", n: "Tarjeta", a: "Q 1,200", d: "en 9 días", k: "neutral" as const },
   ];
   const sent = tween(f, [20, 30], [0, 1]);
   return (
@@ -692,38 +747,39 @@ const RecordatoriosBody: React.FC<{ f: number }> = ({ f }) => {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 18,
-              padding: "18px 0",
-              borderBottom: `1.5px solid ${ed.line}`,
-              fontSize: 28,
+              gap: 20,
+              padding: "16px 0",
+              borderBottom: `2px solid ${ed.divider}`,
             }}
           >
-            <Bell size={28} color={i === 0 ? colors.electric : ed.muted} />
+            <EmojiTile emoji={r.e} size={66} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500 }}>{r.n}</div>
-              <div style={{ fontSize: 22, color: i === 0 ? colors.danger : ed.muted }}>{r.d}</div>
+              <div style={{ fontSize: 29, fontWeight: 600 }}>{r.n}</div>
+              <Badge kind={r.k} size={19}>
+                Vence {r.d}
+              </Badge>
             </div>
-            <span style={{ fontWeight: 700 }}>{r.a}</span>
+            <span style={{ ...money, fontSize: 30 }}>{r.a}</span>
           </div>
         </Rise>
       ))}
       <div
         style={{
           marginTop: 26,
-          display: "inline-flex",
+          display: "flex",
           alignItems: "center",
-          gap: 10,
-          padding: "12px 22px",
-          borderRadius: 99,
-          background: colors.successLight,
-          color: colors.success,
+          gap: 14,
+          padding: "18px 22px",
+          borderRadius: 20,
+          background: ed.tint,
+          border: `2px solid ${ed.divider}`,
           fontSize: 24,
-          fontWeight: 700,
+          color: ed.secondary,
           opacity: sent,
           transform: `translateY(${(1 - sent) * 12}px)`,
         }}
       >
-        <Check size={22} color={colors.success} strokeWidth={3} /> Te avisamos a tiempo
+        <Bell size={26} color={colors.electric} /> Te avisamos antes de que venza
       </div>
     </div>
   );
@@ -735,14 +791,26 @@ const MemoriaBody: React.FC<{ f: number }> = ({ f }) => {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, fontSize: 28, lineHeight: 1.4 }}>
       <Rise delay={2} distance={14} style={{ alignSelf: "flex-end", maxWidth: "80%" }}>
-        <div style={{ padding: "16px 22px", borderRadius: 22, borderBottomRightRadius: 6, background: ed.dark, color: colors.white }}>
+        <div style={{ padding: "16px 22px", borderRadius: 22, borderBottomRightRadius: 6, background: colors.electric, color: colors.white }}>
           ¿Cuánto llevo para el viaje?
         </div>
       </Rise>
       {f > 10 && (
-        <div style={{ alignSelf: "flex-start", maxWidth: "86%", display: "flex", gap: 14 }}>
-          <Sparkles size={28} color={colors.electric} style={{ marginTop: 6, flexShrink: 0 }} />
-          <div style={{ color: colors.ink700 }}>{shown || "…"}</div>
+        <div
+          style={{
+            alignSelf: "flex-start",
+            maxWidth: "88%",
+            display: "flex",
+            gap: 14,
+            padding: "16px 22px",
+            borderRadius: 22,
+            borderBottomLeftRadius: 6,
+            background: ed.tint,
+            border: `2px solid ${ed.divider}`,
+          }}
+        >
+          <Sparkles size={28} color={colors.electric} style={{ marginTop: 4, flexShrink: 0 }} />
+          <div style={{ color: ed.secondary }}>{shown || "…"}</div>
         </div>
       )}
     </div>
@@ -774,8 +842,8 @@ const FamiliaBody: React.FC<{ f: number }> = ({ f }) => {
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 26 }}>
         <div style={{ display: "flex" }}>
-          {avatar("Tú", ed.sky)}
-          <span style={{ marginLeft: -16 }}>{avatar("A", ed.pink)}</span>
+          {avatar("Tú", colors.electricGhost)}
+          <span style={{ marginLeft: -16 }}>{avatar("A", "#E7EBF2")}</span>
         </div>
         <span style={{ fontSize: 26, color: ed.muted }}>Hogar compartido</span>
       </div>
@@ -793,16 +861,16 @@ const FamiliaBody: React.FC<{ f: number }> = ({ f }) => {
 };
 
 const PANELS: {
-  bg: string;
+  dark: boolean;
   title: React.ReactNode;
   window: string;
   Body: React.FC<{ f: number }>;
 }[] = [
-  { bg: ed.mint, title: <>Tu diagnóstico,<br /><Em>al instante.</Em></>, window: "Diagnóstico", Body: DiagnosticoBody },
-  { bg: ed.sky, title: <>Un plan.</>, window: "Tu plan", Body: PlanBody },
-  { bg: ed.pink, title: <>Recordatorios.</>, window: "Pagos del mes", Body: RecordatoriosBody },
-  { bg: ed.lavender, title: <>Memoria.</>, window: "Pregúntale a Zafi", Body: MemoriaBody },
-  { bg: ed.sand, title: <>En familia,<br /><Em>también.</Em></>, window: "Hogar", Body: FamiliaBody },
+  { dark: true, title: <>Tu diagnóstico,<br /><Em color={colors.electricPale}>al instante.</Em></>, window: "Inicio", Body: DiagnosticoBody },
+  { dark: false, title: <>Un plan.</>, window: "Tu plan", Body: PlanBody },
+  { dark: true, title: <>Recordatorios.</>, window: "Pagos del mes", Body: RecordatoriosBody },
+  { dark: false, title: <>Memoria.</>, window: "Pregúntale a Zafi", Body: MemoriaBody },
+  { dark: true, title: <>En familia,<br /><Em color={colors.electricPale}>también.</Em></>, window: "Hogar", Body: FamiliaBody },
 ];
 
 const Paneles: React.FC = () => {
@@ -817,7 +885,7 @@ const Paneles: React.FC = () => {
         const wipe = tween(frame, [start, start + 12], [100, 0], easeInOut);
         if (frame < start) return null;
         return (
-          <AbsoluteFill key={i} style={{ background: p.bg, clipPath: `inset(0 ${wipe}% 0 0)` }} />
+          <AbsoluteFill key={i} style={{ background: p.dark ? ed.dark : ed.cream, clipPath: `inset(0 ${wipe}% 0 0)` }} />
         );
       })}
       {PANELS.map((p, i) => {
@@ -832,7 +900,7 @@ const Paneles: React.FC = () => {
               position: "absolute",
               top: TEXT_TOP,
               left: SAFE.left + 8,
-              ...serif(120),
+              ...serif(120, p.dark ? colors.white : ed.ink),
               opacity: 1 - exit,
               transform: `translateY(${-exit * 24}px)`,
               filter: `blur(${exit * 6}px)`,
@@ -906,8 +974,8 @@ const Control: React.FC = () => {
 
 const Tranquilo: React.FC = () => (
   <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", paddingRight: SAFE.right - SAFE.left }}>
-    <Rise style={serif(140)}>Vive tranquilo.</Rise>
-    <Rise delay={12} style={{ fontFamily: fonts.body, fontSize: 34, color: colors.electric, marginTop: 30 }}>
+    <Rise style={serif(140, colors.white)}>Vive tranquilo.</Rise>
+    <Rise delay={12} style={{ fontFamily: fonts.body, fontSize: 34, color: ed.heroMuted, marginTop: 30 }}>
       Tu dinero en orden, sin estrés.
     </Rise>
   </AbsoluteFill>
@@ -940,9 +1008,10 @@ const Logo: React.FC = () => {
       <div
         style={{
           marginTop: 60,
-          padding: "24px 56px",
-          borderRadius: 99,
-          background: ed.ink,
+          padding: "28px 72px",
+          borderRadius: 28,
+          background: colors.electric,
+          boxShadow: `0 20px 50px ${colors.electric}40`,
           color: colors.white,
           fontFamily: fonts.body,
           fontWeight: 700,
@@ -953,7 +1022,7 @@ const Logo: React.FC = () => {
       >
         Pruébalo gratis
       </div>
-      <Rise delay={34} style={{ fontFamily: fonts.body, fontSize: 32, color: ed.ink, marginTop: 40 }}>
+      <Rise delay={34} style={{ fontFamily: fonts.body, fontWeight: 600, fontSize: 32, color: colors.electricDark, marginTop: 40 }}>
         {BRAND.url}
       </Rise>
     </AbsoluteFill>
@@ -988,10 +1057,10 @@ export const IntroEditorial: React.FC<IntroEditorialProps> = ({ mostrarZonasSegu
     <Scene {...T.control} bg={ed.cream}>
       <Control />
     </Scene>
-    <Scene {...T.tranquilo} bg={colors.electricGhost}>
+    <Scene {...T.tranquilo} bg={ed.dark}>
       <Tranquilo />
     </Scene>
-    <Scene {...T.logo} bg={ed.paper} fadeOut={false}>
+    <Scene {...T.logo} bg={ed.cream} fadeOut={false}>
       <Logo />
     </Scene>
     {mostrarZonasSeguras && <SafeZoneGuide />}
