@@ -7,6 +7,7 @@ import { VERTICAL } from "./config/formats";
 import { QueEsZafi, F01_DURATION } from "./videos/funcionalidades/F01-QueEsZafi";
 import { EmpiezaEn3Pasos, G01_DURATION } from "./videos/guias/G01-EmpiezaEn3Pasos";
 import { IntroZafi, M01_DURATION } from "./videos/marca/M01-IntroZafi";
+import { IntroEditorial, M02_DURATION } from "./videos/marca/M02-IntroEditorial";
 import { Plantilla, PLANTILLA_DURATION } from "./videos/_plantilla/Plantilla";
 
 export const RemotionRoot: React.FC = () => (
@@ -17,6 +18,13 @@ export const RemotionRoot: React.FC = () => (
         id="M01-IntroZafi"
         component={IntroZafi}
         durationInFrames={M01_DURATION}
+        {...VERTICAL}
+        defaultProps={{ mostrarZonasSeguras: false }}
+      />
+      <Composition
+        id="M02-IntroEditorial"
+        component={IntroEditorial}
+        durationInFrames={M02_DURATION}
         {...VERTICAL}
         defaultProps={{ mostrarZonasSeguras: false }}
       />

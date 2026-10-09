@@ -71,6 +71,7 @@ remotion/
 | ID                    | Duración | De qué trata                                            |
 | --------------------- | -------- | ------------------------------------------------------- |
 | `M01-IntroZafi`       | 17 s     | Intro de marca: "¿otra app de gastos? No." → tu asesor financiero personal (diagnóstico, plan, chat) → logo |
+| `M02-IntroEditorial`  | 32 s     | Versión editorial (fondo crema, serif con itálicas, paneles pastel): el caos del fin de mes → Zafi te dice qué hacer → diagnóstico, plan, recordatorios, memoria, familia → logo |
 | `F01-QueEsZafi`       | 21 s     | Gancho + recorrido por funciones principales + CTA      |
 | `G01-EmpiezaEn3Pasos` | 21 s     | Guía: ingresos/gastos → registrar gasto → ver progreso  |
 | `Plantilla`           | 10 s     | Esqueleto gancho → contenido → cierre                   |

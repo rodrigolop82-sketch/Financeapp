@@ -1,5 +1,5 @@
 // Colores y tipografías de Zafi (tomados de tailwind.config.ts de la app).
-import { bodyFamily, fontFamily as outfit } from "./fonts";
+import { bodyFamily, fontFamily as outfit, serifFamily } from "./fonts";
 
 export const colors = {
   navyDeep: "#0D1F36",
@@ -31,6 +31,8 @@ export const fonts = {
   display: outfit,
   /** Texto de apoyo */
   body: bodyFamily,
+  /** Serif editorial (DM Serif Display, normal e itálica) */
+  serif: serifFamily,
 } as const;
 
 export const BRAND = {
