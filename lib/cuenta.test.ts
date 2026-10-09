@@ -7,7 +7,6 @@ import {
   initialsFrom,
   planPill,
   shortDate,
-  trialDaysLeft,
   usageMeter,
 } from './cuenta';
 
@@ -41,23 +40,10 @@ describe('initialsFrom', () => {
   });
 });
 
-describe('trialDaysLeft', () => {
-  const now = new Date('2026-10-04T12:00:00Z');
-  it('redondea hacia arriba y nunca es negativo', () => {
-    expect(trialDaysLeft('2026-10-13T12:00:00Z', now)).toBe(9);
-    expect(trialDaysLeft('2026-10-04T13:00:00Z', now)).toBe(1);
-    expect(trialDaysLeft('2026-10-01T00:00:00Z', now)).toBe(0);
-    expect(trialDaysLeft(null, now)).toBe(0);
-    expect(trialDaysLeft('no es fecha', now)).toBe(0);
-  });
-});
-
 describe('planPill', () => {
-  it('prueba con días, premium o gratis', () => {
-    expect(planPill({ isPremium: true, isTrialing: true, daysLeft: 9 })).toEqual({ label: 'Prueba · 9 días', tone: 'trial' });
-    expect(planPill({ isPremium: true, isTrialing: true, daysLeft: 1 }).label).toBe('Prueba · 1 día');
-    expect(planPill({ isPremium: true, isTrialing: false, daysLeft: 0 })).toEqual({ label: 'Premium', tone: 'premium' });
-    expect(planPill({ isPremium: false, isTrialing: false, daysLeft: 0 })).toEqual({ label: 'Gratis', tone: 'free' });
+  it('solo el plan: premium o gratis', () => {
+    expect(planPill({ isPremium: true })).toEqual({ label: 'Premium', tone: 'premium' });
+    expect(planPill({ isPremium: false })).toEqual({ label: 'Gratis', tone: 'free' });
   });
 });
 

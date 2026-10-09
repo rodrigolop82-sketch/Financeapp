@@ -44,24 +44,10 @@ export function initialsFrom(fullName: string | null | undefined, email: string 
   return local.slice(0, 2).toUpperCase() || '?';
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+export type PlanTone = 'premium' | 'free';
 
-/** Días que le quedan a la prueba (redondeo hacia arriba, nunca negativo). */
-export function trialDaysLeft(trialEndsAt: string | null | undefined, now: Date = new Date()): number {
-  if (!trialEndsAt) return 0;
-  const end = new Date(trialEndsAt).getTime();
-  if (Number.isNaN(end)) return 0;
-  return Math.max(0, Math.ceil((end - now.getTime()) / DAY_MS));
-}
-
-export type PlanTone = 'trial' | 'premium' | 'free';
-
-/** Pill del plan en la tarjeta del perfil. */
-export function planPill(opts: { isPremium: boolean; isTrialing: boolean; daysLeft: number }): { label: string; tone: PlanTone } {
-  if (opts.isTrialing) {
-    const d = opts.daysLeft;
-    return { label: `Prueba · ${d} ${d === 1 ? 'día' : 'días'}`, tone: 'trial' };
-  }
+/** Pill del plan en la tarjeta del perfil: solo el plan, sin días de prueba. */
+export function planPill(opts: { isPremium: boolean }): { label: string; tone: PlanTone } {
   if (opts.isPremium) return { label: 'Premium', tone: 'premium' };
   return { label: 'Gratis', tone: 'free' };
 }
