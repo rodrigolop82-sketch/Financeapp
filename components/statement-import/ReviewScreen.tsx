@@ -1,20 +1,20 @@
 'use client'
 import { useState } from 'react'
-import { Check, ChevronLeft, Copy } from 'lucide-react'
-import { formatMoney } from '@/lib/format'
+import { Check, ChevronDown, ChevronLeft, Copy } from 'lucide-react'
+import { formatMoney, type Currency } from '@/lib/format'
 import { localToday } from '@/lib/dates'
 import { dayLabel } from '@/lib/movimientos'
 import { getEmoji, paymentLabel } from '@/lib/categories-ui'
 import { cleanBankName } from '@/lib/import/classify'
 import { CategorySheet } from '@/components/movimientos/CategorySheet'
-import type { BatchSummary, ExtractedTransaction, ImportReviewContext } from '@/hooks/useStatementImport'
+import type { AlreadyImportedTx, BatchSummary, ExtractedTransaction, ImportReviewContext } from '@/hooks/useStatementImport'
 
 interface ReviewScreenProps {
   transactions: ExtractedTransaction[]
   /** "Tarjeta •••• 4821" o el banco. */
   accountLabel: string | null
   /** Cargos que ya se habían importado antes. */
-  alreadyImported: number
+  alreadyImported: AlreadyImportedTx[]
   review: ImportReviewContext | null
   isLoading: boolean
   error?: string | null
@@ -35,6 +35,15 @@ interface ReviewScreenProps {
 }
 
 const fmt = (n: number) => formatMoney(n, { showDecimals: true })
+const FOREX_CURRENCIES: Currency[] = ['USD', 'EUR', 'MXN', 'COP', 'HNL', 'NIO', 'CRC']
+/** "$ 20.00" para un cargo en moneda extranjera; null si es en quetzales. */
+const fmtOriginal = (t: { original_amount: number | null; original_currency: string | null }) => {
+  if (t.original_amount == null || !t.original_currency) return null
+  const cur = t.original_currency.toUpperCase()
+  return (FOREX_CURRENCIES as string[]).includes(cur)
+    ? formatMoney(t.original_amount, { currency: cur as Currency, showDecimals: true })
+    : `${cur} ${t.original_amount.toFixed(2)}`
+}
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 export function ReviewScreen({
@@ -42,6 +51,7 @@ export function ReviewScreen({
   onSame, onToggle, onSetAllNew, onSetCategory, onConfirm, onBack, onDone, batch, onRemove,
 }: ReviewScreenProps) {
   const [editing, setEditing] = useState<string | null>(null)
+  const [showImported, setShowImported] = useState(false)
   const today = localToday()
   const categories = review?.categories ?? []
   const subItems = review?.subItems ?? []
@@ -138,12 +148,51 @@ export function ReviewScreen({
           {accountLabel && <span className="eyebrow">{accountLabel}</span>}
           <h2 tabIndex={-1} className={`font-serif text-[26px] leading-[1.15] outline-none ${strong}`}>{title}</h2>
           <p className={`text-sm leading-[1.45] [text-wrap:pretty] ${secondary}`}>{sub}</p>
-          {alreadyImported > 0 && !nothing && (
-            <p className="text-[13px] text-ink-400">
-              {alreadyImported === 1 ? '1 cargo ya estaba importado.' : `${alreadyImported} cargos ya estaban importados.`}
-            </p>
-          )}
         </div>
+
+        {alreadyImported.length > 0 && (
+          <section className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setShowImported(v => !v)}
+              aria-expanded={nothing || showImported}
+              disabled={nothing}
+              className={`${sectionHead} text-left`}
+            >
+              <h3 className={sectionTitle}>
+                Ya importados <span className={sectionCount}>· {alreadyImported.length === 1 ? '1 cargo no se vuelve a agregar' : `${alreadyImported.length} cargos no se vuelven a agregar`}</span>
+              </h3>
+              {!nothing && (
+                <span className={`flex flex-none items-center gap-0.5 ${textAction}`}>
+                  {showImported ? 'Ocultar' : 'Ver cuáles'}
+                  <ChevronDown size={15} aria-hidden className={`transition-transform ${showImported ? 'rotate-180' : ''}`} />
+                </span>
+              )}
+            </button>
+            {(nothing || showImported) && (
+              <div className={listBox}>
+                {alreadyImported.map((t, i) => {
+                  const original = fmtOriginal(t)
+                  return (
+                    <div key={`${t.date}-${t.description}-${i}`} className={`flex items-center gap-3 px-3.5 py-2.5 ${i < alreadyImported.length - 1 ? 'border-b border-[var(--zafi-border-light)]' : ''}`}>
+                      <span aria-hidden className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-success-dark text-white">
+                        <Check size={14} strokeWidth={2.5} />
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col gap-px">
+                        <span className={`truncate text-[14px] font-semibold ${strong}`}>{cleanBankName(t.description)}</span>
+                        <span className={`text-[12.5px] ${muted}`}>{dayLabel(t.date, today)}</span>
+                      </span>
+                      <span className="flex flex-none flex-col items-end">
+                        <span className={`font-outfit text-[14px] font-bold ${secondary}`}>{t.type === 'income' ? '+' : ''}{fmt(t.amount)}</span>
+                        {original && <span className={`text-[11.5px] ${muted}`}>{original}</span>}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         {dups.length > 0 && (
           <section className="flex flex-col gap-2">
