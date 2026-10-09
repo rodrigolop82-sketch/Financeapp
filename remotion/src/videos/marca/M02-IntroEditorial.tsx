@@ -26,8 +26,8 @@ const ed = {
   strong: colors.ink900, // texto fuerte de filas
   secondary: "#475569", // --zafi-text-secondary
   muted: "#8B9AAE", // --zafi-text-faint
-  rust: colors.danger, // acento del problema
-  accent: colors.electric, // acento de la solución
+  rust: colors.electricLight, // acento del problema (azul claro de la marca)
+  accent: colors.electric, // acento de la solución (azul eléctrico)
   dark: colors.navy, // --zafi-hero: píldoras, burbujas y paneles oscuros
   heroMuted: "#CBD8E8",
   heroFaint: "#9FB3CB",
@@ -38,7 +38,7 @@ const ed = {
 /** Insignias de la app (BADGE_OK / BADGE_WARN / BADGE_INFO). */
 const badge = {
   ok: { background: colors.successLight, color: "#15803D" },
-  warn: { background: colors.warningLight, color: "#92400E" },
+  warn: { background: "#E7EBF2", color: colors.navy },
   info: { background: colors.electricGhost, color: colors.electricDark },
   neutral: { background: "#F3F5F9", color: "#475569" },
 };
@@ -570,8 +570,8 @@ const Entiende: React.FC = () => {
   const swap = tween(frame, [46, 58], [0, 1], easeInOut);
   const analyzing = tween(frame, [26, 34], [0, 1]) * (1 - tween(frame, [56, 62], [0, 1]));
   const groups = [
-    { kind: "warn" as const, chip: "Comida y delivery", lines: ["Q 1,820 este mes, 18% más que septiembre", "El delivery ya es el 40% de tu comida"] },
-    { kind: "info" as const, chip: "Tarjeta de crédito", lines: ["Debes Q 4,300: págala primero (36% anual)"] },
+    { kind: "info" as const, chip: "Comida y delivery", lines: ["Q 1,820 este mes, 18% más que septiembre", "El delivery ya es el 40% de tu comida"] },
+    { kind: "warn" as const, chip: "Tarjeta de crédito", lines: ["Debes Q 4,300: págala primero (36% anual)"] },
     { kind: "ok" as const, chip: "Luz", lines: ["Vence el día 5 · ya está en tus recordatorios"] },
   ];
   return (
@@ -640,24 +640,24 @@ const Entiende: React.FC = () => {
 const PANEL = 42;
 
 const DiagnosticoBody: React.FC<{ f: number }> = ({ f }) => {
-  const score = Math.round(tween(f, [4, 30], [0, 72]));
-  const spent = tween(f, [4, 30], [0, 6240]);
-  const pct = tween(f, [4, 30], [0, 78]);
+  const score = Math.round(tween(f, [4, 30], [0, 82]));
+  const spent = tween(f, [4, 30], [0, 4960]);
+  const pct = tween(f, [4, 30], [0, 62]);
   return (
     <div>
       {/* Igual al StatusHero del dashboard */}
       <div style={{ background: ed.dark, borderRadius: 28, padding: "30px 32px", color: colors.white }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 24, color: ed.heroMuted }}>
-            <span style={{ width: 12, height: 12, borderRadius: 99, background: colors.warning }} />
-            Cuidado, vas un poco rápido
+            <span style={{ width: 12, height: 12, borderRadius: 99, background: colors.success }} />
+            Vas bien este mes
           </div>
           <div
             style={{
               width: 76,
               height: 76,
               borderRadius: 99,
-              border: `5px solid ${colors.warning}`,
+              border: `5px solid ${colors.success}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -676,11 +676,11 @@ const DiagnosticoBody: React.FC<{ f: number }> = ({ f }) => {
           <span style={{ fontSize: 24, color: ed.heroFaint }}>de Q 8,000</span>
         </div>
         <div style={{ height: 14, borderRadius: 9, background: ed.heroTrack, marginTop: 16, overflow: "hidden" }}>
-          <div style={{ width: `${pct}%`, height: "100%", borderRadius: 9, background: colors.warning }} />
+          <div style={{ width: `${pct}%`, height: "100%", borderRadius: 9, background: colors.electric }} />
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 22, color: ed.heroFaint }}>
           <span>
-            Te quedan <b style={{ color: colors.white, fontFamily: fonts.display }}>Q 1,760</b>
+            Te quedan <b style={{ color: colors.white, fontFamily: fonts.display }}>Q 3,040</b>
           </span>
           <span>12 días restantes</span>
         </div>
@@ -866,11 +866,11 @@ const PANELS: {
   window: string;
   Body: React.FC<{ f: number }>;
 }[] = [
-  { dark: true, title: <>Tu diagnóstico,<br /><Em color={colors.electricPale}>al instante.</Em></>, window: "Inicio", Body: DiagnosticoBody },
+  { dark: false, title: <>Tu diagnóstico,<br /><Em>al instante.</Em></>, window: "Inicio", Body: DiagnosticoBody },
   { dark: false, title: <>Un plan.</>, window: "Tu plan", Body: PlanBody },
-  { dark: true, title: <>Recordatorios.</>, window: "Pagos del mes", Body: RecordatoriosBody },
+  { dark: false, title: <>Recordatorios.</>, window: "Pagos del mes", Body: RecordatoriosBody },
   { dark: false, title: <>Memoria.</>, window: "Pregúntale a Zafi", Body: MemoriaBody },
-  { dark: true, title: <>En familia,<br /><Em color={colors.electricPale}>también.</Em></>, window: "Hogar", Body: FamiliaBody },
+  { dark: false, title: <>En familia,<br /><Em>también.</Em></>, window: "Hogar", Body: FamiliaBody },
 ];
 
 const Paneles: React.FC = () => {
@@ -974,8 +974,10 @@ const Control: React.FC = () => {
 
 const Tranquilo: React.FC = () => (
   <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", paddingRight: SAFE.right - SAFE.left }}>
-    <Rise style={serif(140, colors.white)}>Vive tranquilo.</Rise>
-    <Rise delay={12} style={{ fontFamily: fonts.body, fontSize: 34, color: ed.heroMuted, marginTop: 30 }}>
+    <Rise style={serif(140)}>
+      Vive <Em>tranquilo.</Em>
+    </Rise>
+    <Rise delay={12} style={{ fontFamily: fonts.body, fontSize: 34, color: ed.secondary, marginTop: 30 }}>
       Tu dinero en orden, sin estrés.
     </Rise>
   </AbsoluteFill>
@@ -1057,7 +1059,7 @@ export const IntroEditorial: React.FC<IntroEditorialProps> = ({ mostrarZonasSegu
     <Scene {...T.control} bg={ed.cream}>
       <Control />
     </Scene>
-    <Scene {...T.tranquilo} bg={ed.dark}>
+    <Scene {...T.tranquilo} bg={ed.cream}>
       <Tranquilo />
     </Scene>
     <Scene {...T.logo} bg={ed.cream} fadeOut={false}>
