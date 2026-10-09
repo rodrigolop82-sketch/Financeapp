@@ -9,3 +9,4 @@ export { Reveal } from "./Reveal";
 export { SafeArea } from "./SafeArea";
 export { SafeZoneGuide } from "./SafeZoneGuide";
 export { StepBadge } from "./StepBadge";
+export { easeInOut, easeOut, LineReveal, tween, Typewriter } from "./kinetic";

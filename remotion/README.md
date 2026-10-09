@@ -40,6 +40,7 @@ remotion/
 │   ├── brand/                ← colores, fuentes y logo de Zafi
 │   ├── components/           ← piezas reutilizables (titulares, tarjetas, teléfono, CTA…)
 │   └── videos/
+│       ├── marca/            ← M## · intros y piezas de identidad
 │       ├── funcionalidades/  ← F## · qué hace la app
 │       ├── herramientas/     ← H## · una herramienta a fondo (voz, importar, chat…)
 │       ├── beneficios/       ← B## · por qué usar Zafi
@@ -59,6 +60,7 @@ remotion/
 
 | Letra | Categoría        | Carpeta                 |
 | ----- | ---------------- | ----------------------- |
+| M     | Marca / intros   | `videos/marca`           |
 | F     | Funcionalidades  | `videos/funcionalidades` |
 | H     | Herramientas     | `videos/herramientas`    |
 | B     | Beneficios       | `videos/beneficios`      |
@@ -68,6 +70,7 @@ remotion/
 
 | ID                    | Duración | De qué trata                                            |
 | --------------------- | -------- | ------------------------------------------------------- |
+| `M01-IntroZafi`       | 17 s     | Intro de marca: "¿otra app de gastos? No." → tu asesor financiero personal (diagnóstico, plan, chat) → logo |
 | `F01-QueEsZafi`       | 21 s     | Gancho + recorrido por funciones principales + CTA      |
 | `G01-EmpiezaEn3Pasos` | 21 s     | Guía: ingresos/gastos → registrar gasto → ver progreso  |
 | `Plantilla`           | 10 s     | Esqueleto gancho → contenido → cierre                   |
@@ -100,6 +103,7 @@ remotion/
 - `Reveal`: hace aparecer cualquier cosa (`from="bottom" | "left" | "right" | "top" | "scale"`, `delay`).
 - `FeatureCard` / `IconBubble`: tarjeta con ícono ([lucide](https://lucide.dev/icons)) + título + descripción.
 - `PhoneMockup`: marco de teléfono; dentro puedes dibujar una pantalla o poner una captura real con `<Img src={staticFile("capturas/x.png")} />`.
+- `LineReveal`, `Typewriter`, `tween`, `easeOut`, `easeInOut` (`kinetic.tsx`): tipografía cinética; líneas que suben detrás de una máscara, texto que se escribe solo y curvas suaves.
 - `CountUp`: número que sube (por defecto en `Q`).
 - `StepBadge`: etiqueta "PASO 1".
 - `CallToAction`: cierre con logo, botón "Empieza gratis" y `zafiapp.com`.
