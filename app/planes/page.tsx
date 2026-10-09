@@ -134,7 +134,8 @@ function PlanesContent() {
       });
       const data = await res.json().catch(() => ({}));
       if (data.url) { window.location.href = data.url; return; }
-      setError(data.error || 'No pudimos abrir el pago. Intenta de nuevo.');
+      const message = data.error || 'No pudimos abrir el pago. Intenta de nuevo.';
+      setError(data.detail ? `${message} (${data.detail})` : message);
     } catch {
       setError('No pudimos abrir el pago. Revisa tu conexión.');
     }

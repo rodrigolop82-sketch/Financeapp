@@ -23,3 +23,13 @@ export async function readPlanChoice(request: Request): Promise<{ tier: Tier; cy
   if (!body || !isTier(body.tier) || !isCycle(body.cycle)) return null
   return { tier: body.tier, cycle: body.cycle }
 }
+
+/**
+ * Detalle del error de cobro para mostrar en pantalla, solo con llaves de
+ * prueba (Sandbox). En producción la persona ve el mensaje general.
+ */
+export function sandboxDetail(e: unknown): string | undefined {
+  const key = process.env.RECURRENTE_SECRET_KEY
+  if (key && !key.startsWith('sk_test_')) return undefined
+  return e instanceof Error ? e.message : String(e)
+}
