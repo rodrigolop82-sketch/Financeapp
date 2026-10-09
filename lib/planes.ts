@@ -174,9 +174,8 @@ export function planStatusRow(opts: {
     }
     return { title: 'Premium', hint: [cycle, date ? when : ''].filter(Boolean).join(' · '), tone: 'normal' }
   }
-  if (opts.trialActive && opts.trialEndsAt) {
-    const days = Math.max(1, Math.ceil((new Date(opts.trialEndsAt).getTime() - now.getTime()) / 86_400_000))
-    return { title: 'Prueba Premium', hint: `Quedan ${days} ${days === 1 ? 'día' : 'días'}`, tone: 'warn' }
+  if (opts.trialActive) {
+    return { title: 'Premium', hint: 'Periodo de prueba', tone: 'normal' }
   }
   if (!opts.isOwner && opts.plan === 'family') {
     return {

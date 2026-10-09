@@ -28,7 +28,6 @@ import {
   decimalsHint,
   initialsFrom,
   planPill,
-  trialDaysLeft,
   usageMeter,
   type MeterTone,
 } from '@/lib/cuenta';
@@ -295,10 +294,8 @@ function CuentaContent() {
     return <PageSkeleton variant="list" />;
   }
 
-  const isTrialing = !!planStatus?.trialActive && planStatus.subscription?.status !== 'active';
   const isPremium = !!planStatus && planStatus.plan !== 'free';
-  const daysLeft = trialDaysLeft(planStatus?.trialEndsAt ?? user?.trial_ends_at);
-  const pill = planPill({ isPremium, isTrialing, daysLeft });
+  const pill = planPill({ isPremium });
   const currency = currencyOption(user?.currency);
   const statusRow = planStatus ? planStatusRow(planStatus) : { title: 'Plan Gratis', hint: 'Conoce lo que incluye Premium', tone: 'normal' as const };
   const statusHintClass = statusRow.tone === 'danger'
@@ -306,9 +303,7 @@ function CuentaContent() {
     : statusRow.tone === 'warn' ? 'text-warning-text dark:text-warning' : '';
 
   const pillClass =
-    pill.tone === 'trial' ? 'bg-[#FDE68A] text-[#78350F]'
-      : pill.tone === 'premium' ? 'bg-electric-ghost text-navy'
-        : 'bg-white/15 text-white';
+    pill.tone === 'premium' ? 'bg-electric-ghost text-navy' : 'bg-white/15 text-white';
 
   const appearanceOptions: { value: Appearance; label: string }[] = [
     { value: 'light', label: '☀️ Claro' },

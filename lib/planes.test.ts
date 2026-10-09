@@ -59,7 +59,7 @@ describe('planAction', () => {
 describe('planStatusRow', () => {
   const base = { plan: 'free' as const, isOwner: true, trialActive: false, trialEndsAt: null, subscription: null, household: null, now: NOW }
   it('cubre prueba, gratis, premium, familiar y cobro rechazado', () => {
-    expect(planStatusRow({ ...base, plan: 'family', trialActive: true, trialEndsAt: '2026-10-09T12:00:00Z' })).toEqual({ title: 'Prueba Premium', hint: 'Quedan 3 días', tone: 'warn' })
+    expect(planStatusRow({ ...base, plan: 'family', trialActive: true, trialEndsAt: '2026-10-09T12:00:00Z' })).toEqual({ title: 'Premium', hint: 'Periodo de prueba', tone: 'normal' })
     expect(planStatusRow(base)).toEqual({ title: 'Plan Gratis', hint: 'Conoce lo que incluye Premium', tone: 'normal' })
     const sub = { tier: 'premium' as const, cycle: 'annual' as const, status: 'active', currentPeriodEnd: '2027-10-06T12:00:00Z', cancelAtPeriodEnd: false, creditCents: 0 }
     expect(planStatusRow({ ...base, plan: 'premium', subscription: sub }).hint).toBe('Anual · se renueva el 6 de octubre de 2027')

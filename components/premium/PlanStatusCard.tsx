@@ -1,7 +1,7 @@
 'use client'
 
-// Fila de estado del plan (Tile 👑) que lleva a /planes: "Prueba Premium ·
-// Quedan N días", "Plan Gratis", "Familiar · Casa Pérez", "No pudimos cobrar".
+// Fila de estado del plan (Tile 👑) que lleva a /planes: "Premium ·
+// Periodo de prueba", "Plan Gratis", "Familiar · Casa Pérez", "No pudimos cobrar".
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
