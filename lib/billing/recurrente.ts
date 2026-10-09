@@ -182,13 +182,28 @@ async function findOrCreateCustomer(email: string, name?: string | null): Promis
   }
 }
 
+/**
+ * Recurrente cobra por precio (`price_…`). Si el catálogo trae el producto
+ * (`prod_…`), busca su primer precio; si no lo encuentra, manda el producto.
+ */
+async function checkoutItem(catalog: string): Promise<Json> {
+  if (catalog.startsWith('prod_')) {
+    const product = await call('GET', `/products/${encodeURIComponent(catalog)}`).catch(() => null)
+    const prices = pick(product, ['prices', 'product.prices'])
+    const priceId = (Array.isArray(prices) ? prices.map((p) => str(obj(p)?.id)).find(Boolean) : null)
+      ?? str(pick(product, ['price.id', 'default_price.id']))
+    return priceId ? { price_id: priceId, quantity: 1 } : { product_id: catalog, quantity: 1 }
+  }
+  return { price_id: catalog, quantity: 1 }
+}
+
 export const recurrente: BillingProvider = {
   name: 'recurrente',
 
   async createCheckout(input: CheckoutInput) {
     const catalog = catalogId(input.tier, input.cycle)
     const customerId = await findOrCreateCustomer(input.email, input.name)
-    const item = catalog.startsWith('prod_') ? { product_id: catalog, quantity: 1 } : { price_id: catalog, quantity: 1 }
+    const item = await checkoutItem(catalog)
     const data = await call('POST', '/checkouts', {
       items: [item],
       success_url: input.successUrl,
