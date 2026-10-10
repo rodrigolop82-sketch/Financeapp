@@ -8,6 +8,7 @@ import { QueEsZafi, F01_DURATION } from "./videos/funcionalidades/F01-QueEsZafi"
 import { EmpiezaEn3Pasos, G01_DURATION } from "./videos/guias/G01-EmpiezaEn3Pasos";
 import { IntroZafi, M01_DURATION } from "./videos/marca/M01-IntroZafi";
 import { IntroEditorial, M02_DURATION } from "./videos/marca/M02-IntroEditorial";
+import { MockupSerie, MOCKUP_FRAMES } from "./videos/como-funciona/Mockup";
 import { Plantilla, PLANTILLA_DURATION } from "./videos/_plantilla/Plantilla";
 
 export const RemotionRoot: React.FC = () => (
@@ -56,6 +57,11 @@ export const RemotionRoot: React.FC = () => (
         {...VERTICAL}
         defaultProps={{ mostrarZonasSeguras: false }}
       />
+    </Folder>
+
+    {/* C — Serie "Cómo funciona Zafi" */}
+    <Folder name="ComoFunciona">
+      <Composition id="C-Mockup" component={MockupSerie} durationInFrames={MOCKUP_FRAMES} {...VERTICAL} />
     </Folder>
 
     <Folder name="Plantilla">
