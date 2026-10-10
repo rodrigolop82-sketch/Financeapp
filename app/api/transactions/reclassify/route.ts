@@ -119,12 +119,11 @@ export async function POST(req: NextRequest) {
   };
 
   const merchantKey = getMerchantKey(tx.description);
-  const isGasto = tx.transaction_type === 'gasto';
 
   // The "same merchant, reclassify the rest too?" flow only makes sense when
   // the category (or its part) changed — a type-only edit (gasto ↔ ingreso)
   // applies to this one transaction.
-  if (!merchantKey || !isGasto || (!categoryChanged && !subChanged)) {
+  if (!merchantKey || (!categoryChanged && !subChanged)) {
     return NextResponse.json({
       success: true,
       learningDeferred: false,
@@ -138,7 +137,9 @@ export async function POST(req: NextRequest) {
     .from('transactions')
     .select(`id, description, category_id, category_source, transaction_type, date, amount, household_id${subItemId !== undefined ? ', budget_sub_item_id' : ''}`)
     .eq('household_id', tx.household_id)
-    .eq('transaction_type', 'gasto')
+    // Mismo tipo que el movimiento editado (gastos con gastos, ingresos con
+    // ingresos). Se filtra por `type` y no por el legado `transaction_type`.
+    .eq('type', newType)
     .neq('id', transactionId);
   // Con parte, también cuentan los de la misma categoría que están en otra parte.
   if (subItemId === undefined) sameMerchantQuery = sameMerchantQuery.neq('category_id', categoryId);

@@ -30,7 +30,7 @@ export function findMerchantMatches({
   const filtered = all.filter((t) => {
     if (t.id === source.id) return false;
     if (t.household_id !== source.household_id) return false;
-    if (t.transaction_type !== 'gasto') return false;
+    if (t.type !== source.type) return false;
     if (t.category_id === newCategoryId) return false;
     return getMerchantKey(t.description) === key;
   });

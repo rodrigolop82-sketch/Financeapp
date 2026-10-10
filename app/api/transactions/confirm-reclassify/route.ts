@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getMerchantKey } from '@/lib/transactions/merchant-key';
+import { deriveTransactionType } from '@/lib/transactions/transaction-type';
 
 export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient();
@@ -31,32 +32,46 @@ export async function POST(req: NextRequest) {
 
   const { data: sourceTx } = await supabase
     .from('transactions')
-    .select('id, household_id, description, transaction_type')
+    .select('id, household_id, description, type')
     .eq('id', sourceTransactionId)
-    .single();
+    .single<{ id: string; household_id: string; description: string | null; type: 'expense' | 'income' }>();
 
   if (!sourceTx || !householdIds.includes(sourceTx.household_id)) {
     return NextResponse.json({ error: 'Transacción origen no encontrada.' }, { status: 404 });
   }
 
+  const { data: cat } = await supabase
+    .from('budget_categories')
+    .select('id, household_id, bucket')
+    .eq('id', categoryId)
+    .single();
+
+  if (!cat || (cat.household_id !== null && !householdIds.includes(cat.household_id))) {
+    return NextResponse.json({ error: 'Categoría no encontrada.' }, { status: 404 });
+  }
+
+  const newTransactionType = deriveTransactionType(sourceTx.type, cat.bucket);
+
   const merchantKey = getMerchantKey(sourceTx.description);
   const selectedIds: string[] = Array.isArray(ids) ? ids : [];
-  const snapshot: { id: string; categoryId: string; categorySource: string; subItemId?: string | null }[] = [];
+  const snapshot: {
+    id: string; categoryId: string; categorySource: string; transactionType: string; subItemId?: string | null;
+  }[] = [];
   let appliedCount = 0;
 
   if (selectedIds.length > 0) {
     const { data: txToUpdate } = await supabase
       .from('transactions')
-      .select(`id, category_id, category_source, description, transaction_type, household_id${withSub ? ', budget_sub_item_id' : ''}`)
+      .select(`id, category_id, category_source, description, type, transaction_type, household_id${withSub ? ', budget_sub_item_id' : ''}`)
       .in('id', selectedIds)
       .returns<{
         id: string; category_id: string; category_source: string; description: string | null;
-        transaction_type: string; household_id: string; budget_sub_item_id?: string | null;
+        type: 'expense' | 'income'; transaction_type: string; household_id: string; budget_sub_item_id?: string | null;
       }[]>();
 
     const valid = (txToUpdate ?? []).filter((t) => {
       if (!householdIds.includes(t.household_id)) return false;
-      if (t.transaction_type !== 'gasto') return false;
+      if (t.type !== sourceTx.type) return false;
       if (t.category_id === categoryId && (!withSub || (t.budget_sub_item_id ?? null) === subItemId)) return false;
       if (merchantKey && getMerchantKey(t.description) !== merchantKey) return false;
       return true;
@@ -64,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     for (const t of valid) {
       snapshot.push({
-        id: t.id, categoryId: t.category_id, categorySource: t.category_source,
+        id: t.id, categoryId: t.category_id, categorySource: t.category_source, transactionType: t.transaction_type,
         ...(withSub ? { subItemId: t.budget_sub_item_id ?? null } : {}),
       });
     }
@@ -73,7 +88,12 @@ export async function POST(req: NextRequest) {
       const validIds = valid.map((t) => t.id);
       const { error: bulkError } = await supabase
         .from('transactions')
-        .update({ category_id: categoryId, category_source: 'bulk', ...(withSub ? { budget_sub_item_id: subItemId } : {}) })
+        .update({
+          category_id: categoryId,
+          category_source: 'bulk',
+          transaction_type: newTransactionType,
+          ...(withSub ? { budget_sub_item_id: subItemId } : {}),
+        })
         .in('id', validIds);
 
       if (bulkError) {

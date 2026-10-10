@@ -113,14 +113,24 @@ describe('findMerchantMatches', () => {
     expect(result.candidates).toHaveLength(0);
   });
 
-  it('excludes non-gasto transactions (ingreso, ahorro)', () => {
+  it('excludes transactions of the other type (income vs expense)', () => {
     const all = [
       source,
-      makeTx({ id: 't2', description: 'Pollo Campero', transaction_type: 'ingreso' }),
-      makeTx({ id: 't3', description: 'Pollo Campero', transaction_type: 'ahorro' }),
+      makeTx({ id: 't2', description: 'Pollo Campero', type: 'income', transaction_type: 'ingreso' }),
     ];
     const result = findMerchantMatches({ source, all, newCategoryId });
     expect(result.candidates).toHaveLength(0);
+  });
+
+  it('matches income transactions when the source is income', () => {
+    const salary = makeTx({ id: 's1', description: 'Salario Empresa', type: 'income', transaction_type: 'ingreso' });
+    const all = [
+      salary,
+      makeTx({ id: 's2', description: 'Salario Empresa', type: 'income', transaction_type: 'ingreso' }),
+      makeTx({ id: 's3', description: 'Salario Empresa', type: 'expense', transaction_type: 'gasto' }),
+    ];
+    const result = findMerchantMatches({ source: salary, all, newCategoryId });
+    expect(result.candidates.map((t) => t.id)).toEqual(['s2']);
   });
 
   it('does not cross households', () => {

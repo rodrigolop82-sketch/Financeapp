@@ -196,7 +196,7 @@ export function useReclassifyFlow(
           overrideCreated: data.overrideCreated ?? false,
           merchantKey: merchantKeyRef.current,
           householdId: editingTx.household_id,
-          title: `${1 + bulkCount} ${1 + bulkCount === 1 ? 'gasto' : 'gastos'} reclasificados`,
+          title: `${1 + bulkCount} ${1 + bulkCount === 1 ? 'movimiento reclasificado' : 'movimientos reclasificados'}`,
           subtitle: `${merchantName} → ${newCategoryName}`,
         };
 

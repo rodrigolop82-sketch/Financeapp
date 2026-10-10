@@ -113,7 +113,7 @@ export function ReclassifySheet({
         <p className="text-sm text-ink-700 leading-relaxed">
           Hay{' '}
           <span className="font-semibold">{matches.length}</span>{' '}
-          {matches.length === 1 ? 'gasto' : 'gastos'} más de{' '}
+          {matches.length === 1 ? 'movimiento' : 'movimientos'} más de{' '}
           <span className="font-semibold">{merchantName}</span>{' '}
           {monthRange} que no están en{' '}
           <span className="font-semibold">{newCategoryName}</span>.
@@ -233,7 +233,7 @@ export function ReclassifySheet({
         >
           {saving
             ? 'Guardando...'
-            : `Cambiar ${selectedCount} ${selectedCount === 1 ? 'gasto' : 'gastos'}`}
+            : `Cambiar ${selectedCount} ${selectedCount === 1 ? 'movimiento' : 'movimientos'}`}
         </button>
         <button
           type="button"
