@@ -200,7 +200,7 @@ const Ajusta: React.FC = () => {
 };
 
 /* 04 — Empieza el mes → Hoy puedes gastar */
-const EmpiezaMes: React.FC = () => {
+export const EmpiezaMes: React.FC = () => {
   const frame = useCurrentFrame();
   const press = frame >= v(1.8) && frame < v(2.1);
   const amount = Math.round(tween(frame, [v(3.6), v(4.6)], [0, 245]));

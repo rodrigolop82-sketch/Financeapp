@@ -115,14 +115,15 @@ const Strategy: React.FC<{ at: number; title: string; line: string; rule: string
   </CardIn>
 );
 
-const Estrategia: React.FC = () => (
+/** Tiempos (en segundos de la narración) en que entra cada tarjeta y el "VS". */
+export const Estrategia: React.FC<{ t1?: number; tVs?: number; t2?: number }> = ({ t1 = 1.55, tVs = 3.9, t2 = 4.1 }) => (
   <div style={{ position: "relative", display: "flex", gap: 40, alignItems: "flex-start" }}>
-    <Strategy at={v(1.55)} title="Bola de nieve" line="Ganas rápido y te motiva" rule="La deuda más pequeña" color={z.electricPale} rotate={-2.5} />
+    <Strategy at={v(t1)} title="Bola de nieve" line="Ganas rápido y te motiva" rule="La deuda más pequeña" color={z.electricPale} rotate={-2.5} />
     <div style={{ marginTop: 50 }}>
-      <Strategy at={v(4.1)} title="Avalancha" line="Pagas menos en total" rule="La de más interés" color={z.navy} rotate={2} />
+      <Strategy at={v(t2)} title="Avalancha" line="Pagas menos en total" rule="La de más interés" color={z.navy} rotate={2} />
     </div>
     <div style={{ position: "absolute", left: 390 - 28, top: 190 }}>
-      <PopIn at={v(3.9)} style={{ transformOrigin: "center" }}>
+      <PopIn at={v(tVs)} style={{ transformOrigin: "center" }}>
         <div
           style={{
             width: 96,
@@ -210,7 +211,7 @@ export const C06_DEF: VideoDef = {
       eyebrow: { n: "03", label: "Tu estrategia" },
       headline: [{ t: "Bola de nieve", s: "mark" }, { br: true }, "o ", { t: "avalancha?", s: "accentBox" }],
       headlineSize: 112,
-      Body: Estrategia,
+      Body: () => <Estrategia />,
       audio: "03",
       sfx: [
         { at: v(1.55), name: "pop", volume: 0.35 },

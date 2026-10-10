@@ -56,7 +56,7 @@ const NuevaMeta: React.FC = () => {
 };
 
 /* 02 — Cuándo llegas */
-const Cuando: React.FC = () => {
+export const Cuando: React.FC = () => {
   const frame = useCurrentFrame();
   const meta = Math.round(tween(frame, [v(0.4), v(1.2)], [0, 6000]) / 100) * 100;
   const aporte = Math.round(tween(frame, [v(1.7), v(2.4)], [0, 500]) / 50) * 50;

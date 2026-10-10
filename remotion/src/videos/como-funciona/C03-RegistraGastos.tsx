@@ -84,7 +84,7 @@ const Entendi: React.FC<{ at: number; rows: { emoji: string; name: string; sub: 
 );
 
 /* 01 — Escríbelo */
-const Escribelo: React.FC = () => (
+export const Escribelo: React.FC = () => (
   <CardIn at={4}>
     <Card>
       <CardLabel>Agregar</CardLabel>

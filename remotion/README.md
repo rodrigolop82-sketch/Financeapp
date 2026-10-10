@@ -73,6 +73,7 @@ remotion/
 | --------------------- | -------- | ------------------------------------------------------- |
 | `M01-IntroZafi`       | 17 s     | Intro de marca: "¿otra app de gastos? No." → tu asesor financiero personal (diagnóstico, plan, chat) → logo |
 | `M02-IntroEditorial`  | 32 s     | Versión editorial con el look de la app (fondo #F3F5F9, serif con itálicas, filas de Movimientos, hero navy): el caos del fin de mes → Zafi te dice qué hacer → diagnóstico, plan, recordatorios, memoria, familia → logo |
+| `C00-Zafi60`          | 51 s     | Serie: resumen de toda la app (una escena de cada video y cierre con las 6) |
 | `C01-Empieza`         | 36 s     | Serie: registro y onboarding (diagnóstico, salud financiera, plan) |
 | `C02-PlanDelMes`      | 34 s     | Serie: ingresos, básico/gustos/metas, editar categoría, inicio de mes |
 | `C03-RegistraGastos`  | 32 s     | Serie: escribirlo, dictarlo, estado de cuenta (PDF/foto) y SMS del banco |

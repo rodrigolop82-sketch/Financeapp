@@ -224,7 +224,7 @@ const PARTS: [string, number][] = [
   ["📈 Estabilidad", 18],
 ];
 
-const Diagnostico: React.FC = () => {
+export const Diagnostico: React.FC = () => {
   const frame = useCurrentFrame();
   const score = tween(frame, [v(2.3), v(3.3)], [0, 68]);
   return (

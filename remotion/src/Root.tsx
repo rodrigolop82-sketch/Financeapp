@@ -10,6 +10,7 @@ import { IntroZafi, M01_DURATION } from "./videos/marca/M01-IntroZafi";
 import { IntroEditorial, M02_DURATION } from "./videos/marca/M02-IntroEditorial";
 import { MockupSerie, MOCKUP_FRAMES } from "./videos/como-funciona/Mockup";
 import { PruebaVoz, PRUEBA_DURATION } from "./videos/como-funciona/PruebaVoz";
+import { C00Zafi60, C00_DURATION } from "./videos/como-funciona/C00-Zafi60";
 import { C01Empieza, C01_DURATION } from "./videos/como-funciona/C01-Empieza";
 import { C02PlanDelMes, C02_DURATION } from "./videos/como-funciona/C02-PlanDelMes";
 import { C03RegistraGastos, C03_DURATION } from "./videos/como-funciona/C03-RegistraGastos";
@@ -68,6 +69,13 @@ export const RemotionRoot: React.FC = () => (
 
     {/* C — Serie "Cómo funciona Zafi" */}
     <Folder name="ComoFunciona">
+      <Composition
+        id="C00-Zafi60"
+        component={C00Zafi60}
+        durationInFrames={C00_DURATION}
+        {...VERTICAL}
+        defaultProps={{ mostrarZonasSeguras: false }}
+      />
       <Composition
         id="C01-Empieza"
         component={C01Empieza}

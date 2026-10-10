@@ -111,7 +111,7 @@ const Leccion: React.FC = () => {
 };
 
 /* 04 — Pregúntale a Zafi */
-const Pregunta: React.FC = () => {
+export const Pregunta: React.FC = () => {
   const frame = useCurrentFrame();
   const q = "Leí sobre el pago mínimo, ¿cómo aplica a mi situación?";
   const a = "Con tu Visa de Q 6,400, si pagas Q 300 extra al mes sales 2 años antes.";

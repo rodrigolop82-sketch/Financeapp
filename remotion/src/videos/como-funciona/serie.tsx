@@ -184,6 +184,8 @@ export type OutroDef = {
   headline: Seg[];
   audio: string;
   cta?: string;
+  /** Capítulos que se muestran en la vista alejada (por defecto los 4 primeros). */
+  tiles?: number[];
 };
 
 export type VideoDef = {
@@ -258,17 +260,23 @@ const Outro: React.FC<{ def: VideoDef }> = ({ def }) => {
   const frame = useCurrentFrame();
   const zoom = tween(frame, [0, 24], [0, 1], easeInOut);
   const toEnd = tween(frame, [OUTRO_GRID - 8, OUTRO_GRID + 4], [0, 1], easeInOut);
-  const tileW = 360;
-  const tileH = 640;
-  const scale = tileW / 1080;
-  const shots = def.chapters.slice(0, 4);
   const lengths = def.chapters.map((c) => chapterLength(def, c));
-  // Zoom: empieza enfocado en el último capítulo (a pantalla completa) y se aleja hasta la cuadrícula
+  const idx = def.outro.tiles ?? [0, 1, 2, 3];
+  const shots = idx.map((i) => def.chapters[i]);
+  // 4 escenas en 2 columnas; 5 o 6 en 3 columnas
+  const cols = shots.length > 4 ? 3 : 2;
+  const gap = cols === 3 ? 28 : 36;
+  const tileW = cols === 3 ? 250 : 360;
+  const tileH = (tileW * 16) / 9;
+  const scale = tileW / 1080;
+  // Zoom: empieza enfocado en la última escena (a pantalla completa) y se aleja hasta la cuadrícula
   const gridScale = 1 + (1 - zoom) * (1080 / tileW - 1);
-  const gridLeft = (1080 - (tileW * 2 + 36)) / 2 - (SAFE.right - SAFE.left) / 2;
-  const gridTop = 560;
-  const ox = tileW * 1.5 + 36;
-  const oy = tileH * 1.5 + 36;
+  const gridW = tileW * cols + gap * (cols - 1);
+  const gridLeft = (1080 - gridW) / 2 - (SAFE.right - SAFE.left) / 2;
+  const gridTop = cols === 3 ? 600 : 560;
+  const last = shots.length - 1;
+  const ox = (last % cols) * (tileW + gap) + tileW / 2;
+  const oy = Math.floor(last / cols) * (tileH + gap) + tileH / 2;
   const dx = (1 - zoom) * (540 - (gridLeft + ox));
   const dy = (1 - zoom) * (960 - (gridTop + oy));
   return (
@@ -284,8 +292,8 @@ const Outro: React.FC<{ def: VideoDef }> = ({ def }) => {
             top: gridTop,
             left: gridLeft,
             display: "grid",
-            gridTemplateColumns: `repeat(2, ${tileW}px)`,
-            gap: 36,
+            gridTemplateColumns: `repeat(${cols}, ${tileW}px)`,
+            gap,
             transform: `translate(${dx}px, ${dy}px) scale(${gridScale})`,
             transformOrigin: `${ox}px ${oy}px`,
           }}
@@ -302,7 +310,7 @@ const Outro: React.FC<{ def: VideoDef }> = ({ def }) => {
               }}
             >
               <div style={{ width: 1080, height: 1920, transform: `scale(${scale})`, transformOrigin: "top left", position: "relative" }}>
-                <Freeze frame={Math.round(lengths[i] * 0.85)}>
+                <Freeze frame={Math.round(lengths[idx[i]] * 0.85)}>
                   <ChapterView ch={ch} enter={false} />
                 </Freeze>
               </div>
