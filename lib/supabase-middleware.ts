@@ -19,24 +19,20 @@ export async function updateSession(request: NextRequest) {
     key,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
+        // getAll/setAll: la sesión de Google viene partida en varias cookies
+        // (sb-…-auth-token.0, .1). Con get/set/remove cada set recreaba la
+        // respuesta y solo sobrevivía la última parte, así que al refrescar
+        // el token se perdía la sesión y había que volver a iniciar sesión.
+        getAll() {
+          return request.cookies.getAll();
         },
-        set(name: string, value: string, options: Record<string, unknown>) {
-          request.cookies.set({ name, value });
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          });
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          response.cookies.set(name, value, options as any);
-        },
-        remove(name: string, options: Record<string, unknown>) {
-          request.cookies.set({ name, value: '' });
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          });
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          response.cookies.set(name, '', options as any);
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            response.cookies.set(name, value, options as any)
+          );
         },
       },
     }
@@ -53,15 +49,22 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('next', path);
-    return NextResponse.redirect(url);
+    return redirectWithCookies(url, response);
   }
 
   // Redirect authenticated users from auth routes to dashboard
   if (user && authRoutes.some((route) => path.startsWith(route))) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    return redirectWithCookies(url, response);
   }
 
   return response;
+}
+
+// Una redirección también debe llevar las cookies de sesión recién refrescadas.
+function redirectWithCookies(url: URL, from: NextResponse) {
+  const redirect = NextResponse.redirect(url);
+  from.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+  return redirect;
 }
