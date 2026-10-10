@@ -402,3 +402,28 @@ export const SerieVideo: React.FC<{ def: VideoDef; mostrarZonasSeguras: boolean 
     </AbsoluteFill>
   );
 };
+
+/** Toque de dedo: círculo que aparece y se expande sobre un punto. */
+export const Tap: React.FC<{ at: number; x: number; y: number }> = ({ at, x, y }) => {
+  const frame = useCurrentFrame();
+  const p = tween(frame, [at, at + 14], [0, 1]);
+  if (frame < at || frame > at + 14) return null;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: x - 45,
+        top: y - 45,
+        width: 90,
+        height: 90,
+        borderRadius: 99,
+        background: "rgba(37,99,235,0.25)",
+        border: "4px solid rgba(37,99,235,0.6)",
+        transform: `scale(${0.6 + p * 0.8})`,
+        opacity: 1 - p,
+        pointerEvents: "none",
+        zIndex: 50,
+      }}
+    />
+  );
+};

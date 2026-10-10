@@ -11,6 +11,7 @@ import { IntroEditorial, M02_DURATION } from "./videos/marca/M02-IntroEditorial"
 import { MockupSerie, MOCKUP_FRAMES } from "./videos/como-funciona/Mockup";
 import { PruebaVoz, PRUEBA_DURATION } from "./videos/como-funciona/PruebaVoz";
 import { C01Empieza, C01_DURATION } from "./videos/como-funciona/C01-Empieza";
+import { C02PlanDelMes, C02_DURATION } from "./videos/como-funciona/C02-PlanDelMes";
 import { Plantilla, PLANTILLA_DURATION } from "./videos/_plantilla/Plantilla";
 
 export const RemotionRoot: React.FC = () => (
@@ -67,6 +68,13 @@ export const RemotionRoot: React.FC = () => (
         id="C01-Empieza"
         component={C01Empieza}
         durationInFrames={C01_DURATION}
+        {...VERTICAL}
+        defaultProps={{ mostrarZonasSeguras: false }}
+      />
+      <Composition
+        id="C02-PlanDelMes"
+        component={C02PlanDelMes}
+        durationInFrames={C02_DURATION}
         {...VERTICAL}
         defaultProps={{ mostrarZonasSeguras: false }}
       />
