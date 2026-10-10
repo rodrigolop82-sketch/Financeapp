@@ -12,6 +12,10 @@ import { MockupSerie, MOCKUP_FRAMES } from "./videos/como-funciona/Mockup";
 import { PruebaVoz, PRUEBA_DURATION } from "./videos/como-funciona/PruebaVoz";
 import { C01Empieza, C01_DURATION } from "./videos/como-funciona/C01-Empieza";
 import { C02PlanDelMes, C02_DURATION } from "./videos/como-funciona/C02-PlanDelMes";
+import { C03RegistraGastos, C03_DURATION } from "./videos/como-funciona/C03-RegistraGastos";
+import { C04Aprende, C04_DURATION } from "./videos/como-funciona/C04-Aprende";
+import { C05Metas, C05_DURATION } from "./videos/como-funciona/C05-Metas";
+import { C06Deudas, C06_DURATION } from "./videos/como-funciona/C06-Deudas";
 import { Plantilla, PLANTILLA_DURATION } from "./videos/_plantilla/Plantilla";
 
 export const RemotionRoot: React.FC = () => (
@@ -75,6 +79,34 @@ export const RemotionRoot: React.FC = () => (
         id="C02-PlanDelMes"
         component={C02PlanDelMes}
         durationInFrames={C02_DURATION}
+        {...VERTICAL}
+        defaultProps={{ mostrarZonasSeguras: false }}
+      />
+      <Composition
+        id="C03-RegistraGastos"
+        component={C03RegistraGastos}
+        durationInFrames={C03_DURATION}
+        {...VERTICAL}
+        defaultProps={{ mostrarZonasSeguras: false }}
+      />
+      <Composition
+        id="C04-Aprende"
+        component={C04Aprende}
+        durationInFrames={C04_DURATION}
+        {...VERTICAL}
+        defaultProps={{ mostrarZonasSeguras: false }}
+      />
+      <Composition
+        id="C05-Metas"
+        component={C05Metas}
+        durationInFrames={C05_DURATION}
+        {...VERTICAL}
+        defaultProps={{ mostrarZonasSeguras: false }}
+      />
+      <Composition
+        id="C06-Deudas"
+        component={C06Deudas}
+        durationInFrames={C06_DURATION}
         {...VERTICAL}
         defaultProps={{ mostrarZonasSeguras: false }}
       />

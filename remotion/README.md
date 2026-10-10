@@ -61,6 +61,7 @@ remotion/
 | Letra | Categoría        | Carpeta                 |
 | ----- | ---------------- | ----------------------- |
 | M     | Marca / intros   | `videos/marca`           |
+| C     | Serie "Cómo funciona" | `videos/como-funciona` |
 | F     | Funcionalidades  | `videos/funcionalidades` |
 | H     | Herramientas     | `videos/herramientas`    |
 | B     | Beneficios       | `videos/beneficios`      |
@@ -72,6 +73,12 @@ remotion/
 | --------------------- | -------- | ------------------------------------------------------- |
 | `M01-IntroZafi`       | 17 s     | Intro de marca: "¿otra app de gastos? No." → tu asesor financiero personal (diagnóstico, plan, chat) → logo |
 | `M02-IntroEditorial`  | 32 s     | Versión editorial con el look de la app (fondo #F3F5F9, serif con itálicas, filas de Movimientos, hero navy): el caos del fin de mes → Zafi te dice qué hacer → diagnóstico, plan, recordatorios, memoria, familia → logo |
+| `C01-Empieza`         | 36 s     | Serie: registro y onboarding (diagnóstico, salud financiera, plan) |
+| `C02-PlanDelMes`      | 34 s     | Serie: ingresos, básico/gustos/metas, editar categoría, inicio de mes |
+| `C03-RegistraGastos`  | 32 s     | Serie: escribirlo, dictarlo, estado de cuenta (PDF/foto) y SMS del banco |
+| `C04-Aprende`         | 29 s     | Serie: lecciones, temas, "Lo más importante" y Pregúntale a Zafi |
+| `C05-Metas`           | 28 s     | Serie: crear meta, cuándo llegas, aportar, metas compartidas |
+| `C06-Deudas`          | 29 s     | Serie: total de deudas, trampa del mínimo, bola de nieve vs avalancha |
 | `F01-QueEsZafi`       | 21 s     | Gancho + recorrido por funciones principales + CTA      |
 | `G01-EmpiezaEn3Pasos` | 21 s     | Guía: ingresos/gastos → registrar gasto → ver progreso  |
 | `Plantilla`           | 10 s     | Esqueleto gancho → contenido → cierre                   |
@@ -108,6 +115,25 @@ remotion/
 - `CountUp`: número que sube (por defecto en `Q`).
 - `StepBadge`: etiqueta "PASO 1".
 - `CallToAction`: cierre con logo, botón "Empieza gratis" y `zafiapp.com`.
+
+## Serie "Cómo funciona Zafi" (con narración)
+
+Guiones y decisiones en `guiones/serie-como-funciona.md`. Cada video se describe
+en `src/videos/como-funciona/C0X-*.tsx` con 4 capítulos y un cierre, sobre el
+motor `serie.tsx` (titular que se escribe, tarjetas, transiciones, efectos y
+vista alejada final). La duración de cada capítulo sale de su narración.
+
+**Narración:** voz "Julián" de Higgsfield (motor ElevenLabs), un clip por capítulo.
+1. Genera los clips y guárdalos en `public/audio/voz/<video>/original/01.mp3 … 05.mp3`
+   (01–04 = capítulos, 05 = cierre).
+2. Ejecuta `node scripts/preparar-voz.mjs <video>` (requiere `ffmpeg`): nivela el
+   volumen, recorta silencios y escribe `src/videos/como-funciona/tiempos/<video>.json`.
+3. Ajusta los momentos de cada animación con `v(segundos)` según lo que dice la voz.
+
+**Efectos de sonido:** `python3 scripts/generar-sfx.py` crea `public/audio/sfx/*.wav`
+(whoosh, pop, tic, campanita). Son propios, sin licencias de terceros.
+
+**Música:** los videos salen sin música para agregarla al publicar en TikTok/Instagram.
 
 ## Tips para Reels y TikTok
 
