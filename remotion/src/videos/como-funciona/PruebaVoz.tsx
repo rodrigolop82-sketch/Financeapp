@@ -13,12 +13,12 @@ export type PruebaVozProps = {
   mostrarZonasSeguras: boolean;
 };
 
-export const PRUEBA_DURATION = 306;
+export const PRUEBA_DURATION = 315;
 
-/** Momentos (en frames) en que empieza cada frase de la narración. */
+/** Momentos (en frames) en que empieza cada frase, medidos con las pausas reales del audio. */
 const CUES: Record<PruebaVozProps["voz"], { file: string; b: number; c: number; d: number }> = {
-  mujer: { file: "audio/voz/prueba-mujer-elena.mp3", b: 72, c: 112, d: 222 },
-  hombre: { file: "audio/voz/prueba-hombre-julian.mp3", b: 68, c: 104, d: 206 },
+  mujer: { file: "audio/voz/prueba-mujer-elena.mp3", b: 68, c: 120, d: 220 },
+  hombre: { file: "audio/voz/prueba-hombre-julian.mp3", b: 66, c: 111, d: 207 },
 };
 const VOICE_START = 3;
 
