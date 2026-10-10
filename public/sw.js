@@ -1,8 +1,7 @@
-const CACHE_NAME = 'zafi-v1'
+const CACHE_NAME = 'zafi-v2'
 
 const PRECACHE_URLS = [
   '/',
-  '/dashboard',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
