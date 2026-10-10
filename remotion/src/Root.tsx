@@ -10,6 +10,7 @@ import { IntroZafi, M01_DURATION } from "./videos/marca/M01-IntroZafi";
 import { IntroEditorial, M02_DURATION } from "./videos/marca/M02-IntroEditorial";
 import { MockupSerie, MOCKUP_FRAMES } from "./videos/como-funciona/Mockup";
 import { PruebaVoz, PRUEBA_DURATION } from "./videos/como-funciona/PruebaVoz";
+import { C01Empieza, C01_DURATION } from "./videos/como-funciona/C01-Empieza";
 import { Plantilla, PLANTILLA_DURATION } from "./videos/_plantilla/Plantilla";
 
 export const RemotionRoot: React.FC = () => (
@@ -62,6 +63,13 @@ export const RemotionRoot: React.FC = () => (
 
     {/* C — Serie "Cómo funciona Zafi" */}
     <Folder name="ComoFunciona">
+      <Composition
+        id="C01-Empieza"
+        component={C01Empieza}
+        durationInFrames={C01_DURATION}
+        {...VERTICAL}
+        defaultProps={{ mostrarZonasSeguras: false }}
+      />
       <Composition id="C-Mockup" component={MockupSerie} durationInFrames={MOCKUP_FRAMES} {...VERTICAL} />
       <Composition
         id="C-PruebaVoz-Mujer"

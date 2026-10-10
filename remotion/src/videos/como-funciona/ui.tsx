@@ -359,3 +359,29 @@ export const ChapterLayout: React.FC<{
     {footer && <div style={{ position: "absolute", top: 1440, left: SAFE.left + 10 }}>{footer}</div>}
   </AbsoluteFill>
 );
+
+/** Anillo de salud financiera (0–100). */
+export const ScoreRing: React.FC<{ value: number; size?: number; color?: string }> = ({ value, size = 230, color = z.success }) => {
+  const r = size / 2 - 18;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg width={size} height={size}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={z.divider} strokeWidth={22} />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth={22}
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - value / 100)}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+      <text x="50%" y="52%" textAnchor="middle" dominantBaseline="middle" fontFamily={fonts.display} fontWeight={800} fontSize={size * 0.33} fill={z.navy}>
+        {Math.round(value)}
+      </text>
+    </svg>
+  );
+};
