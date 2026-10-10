@@ -142,8 +142,12 @@ registrar → metas → deudas → aprende, y cierra con la cuadrícula de los 6
 
 ---
 
+## Voces elegidas
+
+- **Mujer:** Elena (Higgsfield · motor ElevenLabs · voice_id `ca83ca7f-c186-493d-bd69-0d765fa861b2`)
+- **Hombre:** Julián (Higgsfield · motor ElevenLabs · voice_id `95429266-c0ac-4137-a209-63b8812b0f23`)
+
 ## Pendientes por decidir
 
-1. **Voz de la narración:** voz generada con IA (español latino neutro) o grabada por ti.
 2. **Música:** pista libre de derechos que elijas, o música generada; en TikTok/IG también se puede agregar música de tendencia al publicar.
 3. **Efectos de sonido:** los genero yo (suaves, sin problemas de licencia).

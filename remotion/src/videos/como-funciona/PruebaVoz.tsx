@@ -17,7 +17,7 @@ export const PRUEBA_DURATION = 306;
 
 /** Momentos (en frames) en que empieza cada frase de la narración. */
 const CUES: Record<PruebaVozProps["voz"], { file: string; b: number; c: number; d: number }> = {
-  mujer: { file: "audio/voz/prueba-mujer-marisol.mp3", b: 72, c: 112, d: 222 },
+  mujer: { file: "audio/voz/prueba-mujer-elena.mp3", b: 72, c: 112, d: 222 },
   hombre: { file: "audio/voz/prueba-hombre-julian.mp3", b: 68, c: 104, d: 206 },
 };
 const VOICE_START = 3;
