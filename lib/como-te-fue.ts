@@ -68,24 +68,57 @@ function round2(n: number): number {
 
 // ── Fijo / variable ──────────────────────────────────
 
+/** Un movimiento "es" una parte si su monto está a ±10 % del de la parte. */
+export const PART_MATCH_TOLERANCE = 0.1;
+
 /**
- * ¿Un gasto es fijo? Usa el `is_fixed` de su parte (Fase 5); si no tiene
- * parte, el de la categoría: fija si todas sus partes son fijas o, sin
- * partes, si su `pace_mode` es 'fixed'.
+ * ¿Un gasto es fijo? Devuelve la parte fija del gasto, de 0 a 1:
+ * · Con parte asignada: el `is_fixed` de esa parte.
+ * · Sin parte, en una categoría sin partes: su `pace_mode`.
+ * · Sin parte, en una categoría con partes todas fijas o todas variables: esa.
+ * · Sin parte, en una categoría MEZCLADA (p. ej. colegiaturas fijas + útiles
+ *   variables): si el monto se parece al de una sola parte, esa parte; si no,
+ *   se reparte según lo que el plan tiene como fijo en la categoría. Antes,
+ *   todo se iba a variables y una colegiatura sin parte salía variable.
  */
 export function fixedResolver(categories: CtfCategory[], subs: PlanSubItem[]) {
   const subFixed = new Map(subs.map((s) => [s.id, !!s.is_fixed]));
-  const catFixed = new Map<string, boolean>();
+  const partsOf = new Map<string, PlanSubItem[]>();
+  for (const s of subs) partsOf.set(s.category_id, [...(partsOf.get(s.category_id) ?? []), s]);
+  const catShare = new Map<string, number>();
   for (const c of categories) {
-    const own = subs.filter((s) => s.category_id === c.id);
-    catFixed.set(c.id, own.length > 0 ? own.every((s) => s.is_fixed) : c.pace_mode === 'fixed');
+    const own = partsOf.get(c.id) ?? [];
+    if (own.length === 0) { catShare.set(c.id, c.pace_mode === 'fixed' ? 1 : 0); continue; }
+    const total = own.reduce((t, s) => t + subMonthly(s), 0);
+    const fixedPlan = own.filter((s) => s.is_fixed).reduce((t, s) => t + subMonthly(s), 0);
+    // Sin montos en el plan, cuenta cada parte por igual.
+    catShare.set(c.id, total > 0 ? fixedPlan / total : own.filter((s) => s.is_fixed).length / own.length);
   }
+  const near = (amount: number, ref: number) => ref > 0 && Math.abs(amount - ref) / ref <= PART_MATCH_TOLERANCE;
+
+  const share = (t: Pick<CtfTx, 'category_id' | 'budget_sub_item_id'> & { amount?: number | string }): number => {
+    if (t.budget_sub_item_id && subFixed.has(t.budget_sub_item_id)) return subFixed.get(t.budget_sub_item_id)! ? 1 : 0;
+    if (!t.category_id) return 0;
+    const base = catShare.get(t.category_id) ?? 0;
+    if (base === 0 || base === 1) return base;
+    const amount = Number(t.amount);
+    if (Number.isFinite(amount) && amount > 0) {
+      const hits = (partsOf.get(t.category_id) ?? []).filter((s) => near(amount, Number(s.amount)) || near(amount, subMonthly(s)));
+      const kinds = new Set(hits.map((s) => !!s.is_fixed));
+      if (kinds.size === 1) return kinds.has(true) ? 1 : 0;
+    }
+    return base;
+  };
+
   return {
-    category: (id: string | null) => (id ? catFixed.get(id) ?? false : false),
-    tx: (t: Pick<CtfTx, 'category_id' | 'budget_sub_item_id'>) => {
-      if (t.budget_sub_item_id && subFixed.has(t.budget_sub_item_id)) return subFixed.get(t.budget_sub_item_id)!;
-      return t.category_id ? catFixed.get(t.category_id) ?? false : false;
-    },
+    /** Parte fija del plan de la categoría (0 a 1). */
+    categoryShare: (id: string | null) => (id ? catShare.get(id) ?? 0 : 0),
+    /** La categoría es mayormente fija según su plan. */
+    category: (id: string | null) => (id ? (catShare.get(id) ?? 0) >= 0.5 : false),
+    /** Parte fija del gasto (0 a 1). */
+    share,
+    /** Compatibilidad: ¿el gasto es mayormente fijo? */
+    tx: (t: Pick<CtfTx, 'category_id' | 'budget_sub_item_id'> & { amount?: number | string }) => share(t) >= 0.5,
   };
 }
 
@@ -114,7 +147,7 @@ export function monthTotals(
   txs: CtfTx[],
   months: string[],
   categories: CtfCategory[],
-  isFixedTx: (t: CtfTx) => boolean,
+  isFixedTx: (t: CtfTx) => boolean | number,
 ): MonthTotals[] {
   const bucketOf = new Map(categories.map((c) => [c.id, c.bucket]));
   const nameOf = new Map(categories.map((c) => [c.id, c.name]));
@@ -135,7 +168,9 @@ export function monthTotals(
       }
       if (bucket === 'income') continue;
       if (bucket === 'wants') t.wants += amt; else t.needs += amt;
-      if (isFixedTx(tx)) t.fixed += amt; else t.variable += amt;
+      const f = Number(isFixedTx(tx));
+      t.fixed += amt * f;
+      t.variable += amt * (1 - f);
     }
     t.income = round2(t.income);
     t.needs = round2(t.needs);
@@ -282,7 +317,7 @@ export function spendByCategory(
   txs: CtfTx[],
   month: string,
   categories: CtfCategory[],
-  isFixedTx: (t: CtfTx) => boolean,
+  isFixedTx: (t: CtfTx) => boolean | number,
 ): Record<string, CategorySpend> {
   const byId = new Map(categories.map((c) => [c.id, c]));
   const out: Record<string, CategorySpend> = {};
@@ -293,7 +328,7 @@ export function spendByCategory(
     const row = out[c.id] ??= { id: c.id, name: c.name, bucket: c.bucket, spent: 0, fixedSpent: 0, bySub: {} };
     const amt = Number(tx.amount) || 0;
     row.spent = round2(row.spent + amt);
-    if (isFixedTx(tx)) row.fixedSpent = round2(row.fixedSpent + amt);
+    row.fixedSpent = round2(row.fixedSpent + amt * Number(isFixedTx(tx)));
     const sk = tx.budget_sub_item_id ?? '';
     row.bySub[sk] = round2((row.bySub[sk] ?? 0) + amt);
   }
@@ -519,9 +554,9 @@ export function analyzeMonth(
   const { categories, subs, incomes, txs, snapshots, earliest } = input;
   const fixed = fixedResolver(categories, subs);
   const capKeyOf = categoryCapKeys(categories);
-  const series = monthTotals(txs, chartMonths(month, earliest), categories, fixed.tx);
+  const series = monthTotals(txs, chartMonths(month, earliest), categories, fixed.share);
   const current = series[series.length - 1];
-  const spend = spendByCategory(txs, month, categories, fixed.tx);
+  const spend = spendByCategory(txs, month, categories, fixed.share);
   const groups = capGroups(spend, capKeyOf, subs, fixed.category, categories);
   const recs = buildRecommendations(groups, current.income, caps, fmt);
 
@@ -538,7 +573,7 @@ export function analyzeMonth(
   // Historia por categoría: mes anterior y promedio de los 3 anteriores con datos.
   const prevMonths = [1, 2, 3].map((i) => addMonths(month, -i));
   const hasData = (m: string) => series.find((t) => t.month === m)?.hasData ?? false;
-  const prevSpend = prevMonths.map((m) => (hasData(m) ? spendByCategory(txs, m, categories, fixed.tx) : null));
+  const prevSpend = prevMonths.map((m) => (hasData(m) ? spendByCategory(txs, m, categories, fixed.share) : null));
   const ids = new Set([...Object.keys(spend), ...prevSpend.flatMap((p) => (p ? Object.keys(p) : []))]);
   const history: CategoryHistory[] = Array.from(ids).map((id) => {
     const c = categories.find((x) => x.id === id)!;

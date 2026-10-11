@@ -55,6 +55,38 @@ describe('fixedResolver', () => {
   });
 });
 
+describe('fixedResolver con categorías mezcladas', () => {
+  // Como Educación: colegiaturas y viaje fijos, "otros libros" variable.
+  const edu: CtfCategory[] = [{ id: 'edu', name: 'Educación', bucket: 'needs', budgeted_amount: 0, pace_mode: 'linear' }]
+  const eduSubs: PlanSubItem[] = [
+    { id: 'col1', category_id: 'edu', name: 'Colegiatura Andrés', amount: 4000, is_fixed: true },
+    { id: 'col2', category_id: 'edu', name: 'Colegiatura Paulis', amount: 3500, is_fixed: true },
+    { id: 'viaje', category_id: 'edu', name: 'Viaje a Italia', amount: 1500, is_fixed: true },
+    { id: 'libros', category_id: 'edu', name: 'Otros libros', amount: 1000, is_fixed: false },
+  ]
+  const r = fixedResolver(edu, eduSubs)
+
+  it('sin parte y con monto parecido a una parte fija → fijo', () => {
+    expect(r.share({ category_id: 'edu', amount: 3900 })).toBe(1)
+  })
+  it('sin parte y con monto parecido a la parte variable → variable', () => {
+    expect(r.share({ category_id: 'edu', amount: 1050 })).toBe(0)
+  })
+  it('sin parte y sin parecido → se reparte según el plan (90 % fijo)', () => {
+    expect(r.share({ category_id: 'edu', amount: 13883 })).toBeCloseTo(0.9)
+    expect(r.tx({ category_id: 'edu', amount: 13883 })).toBe(true)
+    expect(r.category('edu')).toBe(true)
+  })
+  it('con parte asignada manda la parte', () => {
+    expect(r.share({ category_id: 'edu', budget_sub_item_id: 'libros', amount: 4000 })).toBe(0)
+  })
+  it('el gráfico reparte el monto entre fijos y variables', () => {
+    const t = monthTotals([{ id: 'x', category_id: 'edu', amount: 10000, type: 'expense', date: '2026-09-05' }], ['2026-09'], edu, r.share)[0]
+    expect(t.fixed).toBe(9000)
+    expect(t.variable).toBe(1000)
+  })
+})
+
 describe('monthTotals', () => {
   const [a, s] = monthTotals([...aug, ...sep], ['2026-08', '2026-09'], cats, fixed.tx);
 

@@ -9,12 +9,16 @@ export interface SnapshotTx {
   date: string // YYYY-MM-DD
   amount: number // positivo
   categoryId: string | null
+  /** Parte fija del gasto (0 a 1), si ya se resolvió por sus partes del plan. */
+  fixedShare?: number
 }
 
 export interface SnapshotCategory {
   id: string
   name: string
   fixed: boolean
+  /** Parte fija del plan de la categoría (0 a 1); si falta, `fixed`. */
+  fixedShare?: number
 }
 
 export type Verdict = 'en_linea' | 'en_riesgo' | 'sobre_ritmo'
@@ -96,14 +100,21 @@ export interface ComputeInput {
   budgets: Record<string, Record<string, number>>
 }
 
-function sumByCategory(txs: SnapshotTx[], variable: (id: string | null) => boolean): Map<string, number> {
+/** Gasto variable por categoría (la parte variable de cada movimiento). */
+function sumByCategory(txs: SnapshotTx[], variablePart: (t: SnapshotTx) => number): Map<string, number> {
   const m = new Map<string, number>()
   for (const t of txs) {
-    if (!variable(t.categoryId)) continue
+    const v = variablePart(t)
+    if (v <= 0) continue
     const k = t.categoryId ?? ''
-    m.set(k, (m.get(k) ?? 0) + t.amount)
+    m.set(k, (m.get(k) ?? 0) + v)
   }
   return m
+}
+
+function categoryShare(c: SnapshotCategory | undefined): number {
+  if (!c) return 0
+  return c.fixedShare ?? (c.fixed ? 1 : 0)
 }
 
 export function computeWeeklySnapshot(input: ComputeInput): WeeklySnapshot {
@@ -111,14 +122,15 @@ export function computeWeeklySnapshot(input: ComputeInput): WeeklySnapshot {
   const weekEnd = addDays(weekStart, 6)
   const prevStart = addDays(weekStart, -7)
   const catById = new Map(input.categories.map((c) => [c.id, c]))
-  const isFixed = (id: string | null) => !!id && !!catById.get(id)?.fixed
-  const isVariable = (id: string | null) => !isFixed(id)
+  // Parte fija de cada movimiento: la resuelta por sus partes, o la de su categoría.
+  const share = (t: SnapshotTx) => t.fixedShare ?? (t.categoryId ? categoryShare(catById.get(t.categoryId)) : 0)
+  const varPart = (t: SnapshotTx) => t.amount * (1 - share(t))
 
   const week = input.txs.filter((t) => t.date >= weekStart && t.date <= weekEnd && t.amount > 0)
   const prev = input.txs.filter((t) => t.date >= prevStart && t.date < weekStart && t.amount > 0)
 
-  const totalVariable = round2(week.filter((t) => isVariable(t.categoryId)).reduce((s, t) => s + t.amount, 0))
-  const fixedPaid = round2(week.filter((t) => isFixed(t.categoryId)).reduce((s, t) => s + t.amount, 0))
+  const totalVariable = round2(week.reduce((s, t) => s + varPart(t), 0))
+  const fixedPaid = round2(week.reduce((s, t) => s + t.amount * share(t), 0))
 
   // Ritmo esperado, día por día con el presupuesto variable de su mes.
   let expected = 0
@@ -128,13 +140,13 @@ export function computeWeeklySnapshot(input: ComputeInput): WeeklySnapshot {
     const date = addDays(weekStart, i)
     const month = date.slice(0, 7)
     const budget = Object.entries(input.budgets[month] ?? {})
-      .filter(([id]) => catById.has(id) && !isFixed(id))
-      .reduce((s, [, v]) => s + Math.max(0, Number(v) || 0), 0)
+      .filter(([id]) => catById.has(id))
+      .reduce((s, [id, v]) => s + Math.max(0, Number(v) || 0) * (1 - categoryShare(catById.get(id))), 0)
     if (budget > 0) anyBudget = true
     expected += budget / daysInMonth(month)
     byDay.push({
       date,
-      amount: round2(week.filter((t) => t.date === date && isVariable(t.categoryId)).reduce((s, t) => s + t.amount, 0)),
+      amount: round2(week.filter((t) => t.date === date).reduce((s, t) => s + varPart(t), 0)),
     })
   }
   const expectedVariable = anyBudget ? round2(expected) : null
@@ -147,8 +159,8 @@ export function computeWeeklySnapshot(input: ComputeInput): WeeklySnapshot {
     deltaVsExpectedPct = Math.round((ratio - 1) * 100)
   }
 
-  const cur = sumByCategory(week, isVariable)
-  const before = sumByCategory(prev, isVariable)
+  const cur = sumByCategory(week, varPart)
+  const before = sumByCategory(prev, varPart)
   const prevHasData = prev.length > 0
   const nameOf = (id: string) => (id ? catById.get(id)?.name ?? 'Otra categoría' : 'Sin categoría')
 
@@ -224,11 +236,12 @@ export function weekRangeLabel(weekStart: string): string {
 
 /** Promedio de las 4 semanas completas anteriores (para semanas sin presupuesto). */
 export function averagePreviousWeeks(txs: SnapshotTx[], categories: SnapshotCategory[], weekStart: string, weeks = 4): number | null {
-  const fixed = new Set(categories.filter((c) => c.fixed).map((c) => c.id))
+  const catById = new Map(categories.map((c) => [c.id, c]))
+  const varPart = (t: SnapshotTx) => t.amount * (1 - (t.fixedShare ?? (t.categoryId ? categoryShare(catById.get(t.categoryId)) : 0)))
   const from = addDays(weekStart, -7 * weeks)
-  const rel = txs.filter((t) => t.date >= from && t.date < weekStart && !(t.categoryId && fixed.has(t.categoryId)))
+  const rel = txs.filter((t) => t.date >= from && t.date < weekStart && varPart(t) > 0)
   if (rel.length === 0) return null
   // Solo semanas con movimientos: un hogar nuevo no tiene 4 semanas de historia.
   const withData = new Set(rel.map((t) => mondayOf(t.date))).size
-  return round2(rel.reduce((s, t) => s + t.amount, 0) / withData)
+  return round2(rel.reduce((s, t) => s + varPart(t), 0) / withData)
 }

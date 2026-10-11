@@ -4,7 +4,9 @@
 
 import { createHash } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fixedResolver, type CtfCategory } from '../como-te-fue'
 import { localMonth } from '../dates'
+import type { PlanSubItem } from '../plan-del-mes'
 import { generateSnapshotCommentary } from './ai'
 import { snapshotDataKey } from './prompt'
 import {
@@ -36,12 +38,14 @@ export interface SnapshotView {
 
 const PAGE = 1000
 
-async function loadExpenses(admin: Admin, hid: string, from: string, to: string): Promise<SnapshotTx[]> {
-  const rows: SnapshotTx[] = []
+type RawTx = SnapshotTx & { subItemId: string | null }
+
+async function loadExpenses(admin: Admin, hid: string, from: string, to: string): Promise<RawTx[]> {
+  const rows: RawTx[] = []
   for (let offset = 0; ; offset += PAGE) {
     const { data, error } = await admin
       .from('transactions')
-      .select('id, date, amount, category_id')
+      .select('id, date, amount, category_id, budget_sub_item_id')
       .eq('household_id', hid)
       .eq('type', 'expense')
       .eq('transaction_type', 'gasto')
@@ -51,8 +55,8 @@ async function loadExpenses(admin: Admin, hid: string, from: string, to: string)
       .order('id', { ascending: true })
       .range(offset, offset + PAGE - 1)
     if (error) throw new Error('No se pudieron leer los movimientos')
-    for (const t of (data ?? []) as { date: string; amount: number; category_id: string | null }[]) {
-      rows.push({ date: t.date, amount: Number(t.amount), categoryId: t.category_id })
+    for (const t of (data ?? []) as { date: string; amount: number; category_id: string | null; budget_sub_item_id: string | null }[]) {
+      rows.push({ date: t.date, amount: Number(t.amount), categoryId: t.category_id, subItemId: t.budget_sub_item_id })
     }
     if (!data || data.length < PAGE) return rows
   }
@@ -90,16 +94,23 @@ export async function loadWeeklySnapshot(
   const months = Array.from(new Set([weekStart.slice(0, 7), to.slice(0, 7)]))
   const currentMonth = localMonth()
 
-  const [txs, catsRes, snapsRes] = await Promise.all([
+  const [txs, catsRes, snapsRes, subsRes] = await Promise.all([
     loadExpenses(admin, hid, from, to),
     admin.from('budget_categories').select('id, name, bucket, pace_mode, budgeted_amount').eq('household_id', hid),
     admin.from('budget_snapshots').select('category_id, month, amount').eq('household_id', hid).in('month', months.map((m) => `${m}-01`)),
+    admin.from('budget_sub_items').select('id, category_id, name, amount, is_fixed, recurrence').eq('household_id', hid),
   ])
 
   type Cat = { id: string; name: string; bucket: string; pace_mode: string | null; budgeted_amount: number | null }
   const rawCats = (catsRes.data ?? []) as Cat[]
   const spendCats = rawCats.filter((c) => c.bucket === 'needs' || c.bucket === 'wants')
-  const categories: SnapshotCategory[] = spendCats.map((c) => ({ id: c.id, name: c.name, fixed: c.pace_mode === 'fixed' }))
+  // Fijo/variable igual que Cómo te fue: por las partes del plan (una categoría
+  // mezclada reparte su gasto), no solo por la marca de la categoría.
+  const resolver = fixedResolver(spendCats as unknown as CtfCategory[], (subsRes.data ?? []) as PlanSubItem[])
+  const categories: SnapshotCategory[] = spendCats.map((c) => {
+    const fixedShare = resolver.categoryShare(c.id)
+    return { id: c.id, name: c.name, fixed: fixedShare >= 0.5, fixedShare }
+  })
 
   // Plan de cada mes: el guardado al cerrar el mes si existe; si no, el vigente.
   const snaps = (snapsRes.data ?? []) as { category_id: string; month: string; amount: number }[]
@@ -117,7 +128,12 @@ export async function loadWeeklySnapshot(
   const spendIds = new Set(spendCats.map((c) => c.id))
   // Movimientos de categorías de ahorro/ingreso no son gasto semanal.
   const savingIds = new Set(rawCats.filter((c) => !spendIds.has(c.id)).map((c) => c.id))
-  const relevant = txs.filter((t) => !(t.categoryId && savingIds.has(t.categoryId)))
+  const relevant: SnapshotTx[] = txs
+    .filter((t) => !(t.categoryId && savingIds.has(t.categoryId)))
+    .map((t) => ({
+      date: t.date, amount: t.amount, categoryId: t.categoryId,
+      fixedShare: resolver.share({ category_id: t.categoryId, budget_sub_item_id: t.subItemId, amount: t.amount }),
+    }))
 
   const snapshot = computeWeeklySnapshot({ weekStart, txs: relevant, categories, budgets })
   return { snapshot, avgPrevWeeks: averagePreviousWeeks(relevant, categories, weekStart) }
