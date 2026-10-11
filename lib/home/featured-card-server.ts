@@ -3,6 +3,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { localToday } from '../dates'
 import { getChallenges } from '../challenges/data'
+import { getNetWorth } from '../networth/data'
 import { loadWeeklySnapshot, weekBounds } from '../snapshot/data'
 import { pickFeaturedCard, weekdayOf, type FeaturedCard, type FeaturedInputs } from './featured-card'
 
@@ -41,5 +42,10 @@ export async function resolveFeaturedCard(admin: Admin, householdId: string): Pr
       return pickFeaturedCard(inputs)
     }
   }
-  return null
+
+  // (3) Patrimonio neto, o la invitación a agregar cuentas.
+  const nw = await getNetWorth(admin, householdId, new Date().toISOString()).catch(() => null)
+  if (!nw) return null
+  inputs.networth = { hasSources: nw.hasSources, netWorth: nw.summary.netWorth, delta: nw.summary.deltaVsPrevMonthEnd }
+  return pickFeaturedCard(inputs)
 }
