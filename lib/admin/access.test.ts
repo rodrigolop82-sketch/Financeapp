@@ -26,5 +26,7 @@ describe('recordatorio', () => {
     expect(reminderToast({ sent: 3, alreadyToday: 0, noDevice: 0 })).toBe('Recordatorio enviado a 3 usuarios');
     expect(reminderToast({ sent: 1, alreadyToday: 1, noDevice: 2 })).toBe('Recordatorio enviado a 1 usuario · 1 ya tenía uno hoy · 2 sin avisos activados');
     expect(reminderToast({ sent: 0, alreadyToday: 0, noDevice: 2 })).toBe('No se envió ningún recordatorio · 2 sin avisos activados');
+    expect(reminderToast({ sent: 0, alreadyToday: 0, noDevice: 0, failed: 1, errorCodes: [403] }))
+      .toBe('No se envió ningún recordatorio · 1 rechazado por el servicio de push (403)');
   });
 });

@@ -12,7 +12,7 @@ import { isAdminEmail } from './access';
 import type { AdminTx, AdminUser } from './dataset';
 
 export type AdminGuard =
-  | { ok: true; admin: SupabaseClient; email: string }
+  | { ok: true; admin: SupabaseClient; email: string; userId: string }
   | { ok: false; response: NextResponse };
 
 /** Sesión + lista de admins + service role. Úsalo al inicio de cada ruta /api/admin/*. */
@@ -31,7 +31,7 @@ export async function requireAdmin(): Promise<AdminGuard> {
   const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  return { ok: true, admin, email: user.email! };
+  return { ok: true, admin, email: user.email!, userId: user.id };
 }
 
 const PAGE = 1000;

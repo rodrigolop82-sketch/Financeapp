@@ -41,15 +41,24 @@ export const REMINDER_PAYLOAD = {
 export interface ReminderSummary {
   sent: number;
   alreadyToday: number;
+  /** Sin dispositivos con avisos activados (o todas sus suscripciones vencieron). */
   noDevice: number;
+  /** Tenían dispositivo, pero el servicio de push rechazó el envío. */
+  failed?: number;
+  /** Códigos de error del servicio de push, sin repetir. */
+  errorCodes?: number[];
 }
 
-/** "Recordatorio enviado a 3 · 1 ya tenía uno hoy · 2 sin avisos activados". */
+/** "Recordatorio enviado a 3 · 1 ya tenía uno hoy · 2 sin avisos activados · 1 rechazado (403)". */
 export function reminderToast(s: ReminderSummary): string {
   const parts: string[] = [];
   parts.push(s.sent > 0 ? `Recordatorio enviado a ${s.sent} usuario${s.sent === 1 ? '' : 's'}` : 'No se envió ningún recordatorio');
   if (s.alreadyToday > 0) parts.push(`${s.alreadyToday} ya tenía${s.alreadyToday === 1 ? '' : 'n'} uno hoy`);
   if (s.noDevice > 0) parts.push(`${s.noDevice} sin avisos activados`);
+  if (s.failed && s.failed > 0) {
+    const codes = s.errorCodes && s.errorCodes.length > 0 ? ` (${s.errorCodes.join(', ')})` : '';
+    parts.push(`${s.failed} rechazado${s.failed === 1 ? '' : 's'} por el servicio de push${codes}`);
+  }
   return parts.join(' · ');
 }
 

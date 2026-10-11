@@ -33,20 +33,29 @@ export interface PushPayload {
   key?: string
 }
 
+export interface PushResult {
+  /** Dispositivos a los que llegó. */
+  sent: number
+  /** Suscripciones que tenía el usuario. */
+  devices: number
+  /** Códigos de error del servicio de push (p. ej. 403 si las llaves VAPID no coinciden). */
+  errors: number[]
+}
+
 /**
  * Manda el push a todos los teléfonos del usuario y lo anota en
- * notification_log. Devuelve a cuántos llegó (0 sin llaves VAPID o sin
- * suscripciones). No aplica el límite diario: eso lo decide quien llama
- * (lib/avisos.ts pickAviso / usersNotifiedToday).
+ * notification_log. No aplica el límite diario: eso lo decide quien llama
+ * (lib/avisos.ts pickAviso / usersNotifiedToday). Las suscripciones vencidas
+ * (404/410) se borran; cualquier otro error se registra en el log.
  */
-export async function sendPushToUser(
+export async function sendPushToUserDetailed(
   userId: string,
   payload: PushPayload,
   notificationType: NotificationType,
-): Promise<number> {
+): Promise<PushResult> {
   if (!pushConfigured()) {
     console.warn('[push] Faltan las llaves VAPID: no se envió el aviso', notificationType)
-    return 0
+    return { sent: 0, devices: 0, errors: [] }
   }
   const supabase = getServiceSupabase()
 
@@ -55,9 +64,10 @@ export async function sendPushToUser(
     .select('id, endpoint, keys_p256dh, keys_auth')
     .eq('user_id', userId)
 
-  if (!subs || subs.length === 0) return 0
+  if (!subs || subs.length === 0) return { sent: 0, devices: 0, errors: [] }
 
   let sent = 0
+  const errors: number[] = []
 
   for (const sub of subs) {
     try {
@@ -70,9 +80,19 @@ export async function sendPushToUser(
       )
       sent++
     } catch (err: unknown) {
-      const statusCode = (err as { statusCode?: number })?.statusCode
+      const statusCode = (err as { statusCode?: number })?.statusCode ?? 0
+      errors.push(statusCode)
       if (statusCode === 404 || statusCode === 410) {
         await supabase.from('push_subscriptions').delete().eq('id', sub.id)
+      } else {
+        const body = (err as { body?: string })?.body
+        console.error('[push] El servicio de push rechazó el aviso', {
+          notificationType,
+          statusCode,
+          host: (() => { try { return new URL(sub.endpoint).host } catch { return '' } })(),
+          body: typeof body === 'string' ? body.slice(0, 300) : undefined,
+          message: err instanceof Error ? err.message : String(err),
+        })
       }
     }
   }
@@ -86,7 +106,16 @@ export async function sendPushToUser(
     if (error) console.warn('[push] No se pudo anotar en notification_log', error.message)
   }
 
-  return sent
+  return { sent, devices: subs.length, errors }
+}
+
+/** Como sendPushToUserDetailed, pero solo devuelve a cuántos dispositivos llegó. */
+export async function sendPushToUser(
+  userId: string,
+  payload: PushPayload,
+  notificationType: NotificationType,
+): Promise<number> {
+  return (await sendPushToUserDetailed(userId, payload, notificationType)).sent
 }
 
 /**
