@@ -17,6 +17,8 @@ interface AddContributionSheetProps {
   /** Si falla, la hoja queda abierta y muestra el error. */
   onConfirm: (amount: number, note: string, contributorId?: string) => Promise<void>
   monthlyContribution: number | null
+  /** Monto ya puesto (p. ej. "Ahorrar Q x" del resumen semanal). */
+  initialAmount?: number | null
   /** Meta compartida: "¿Quién aporta?". */
   people?: Person[]
   defaultPersonId?: string | null
@@ -32,10 +34,10 @@ export function AddContributionSheet(props: AddContributionSheetProps) {
 }
 
 function ContributionForm({
-  onClose, goalName, goalEmoji, currentAmount, targetAmount, onConfirm, monthlyContribution, people, defaultPersonId,
+  onClose, goalName, goalEmoji, currentAmount, targetAmount, onConfirm, monthlyContribution, people, defaultPersonId, initialAmount,
 }: AddContributionSheetProps) {
   const [who, setWho] = useState<string>(defaultPersonId ?? people?.[0]?.id ?? '')
-  const [amount, setAmount] = useState('')
+  const [amount, setAmount] = useState(initialAmount && initialAmount > 0 ? String(initialAmount) : '')
   const [note, setNote] = useState('')
   const [other, setOther] = useState(false)
   const [saving, setSaving] = useState(false)

@@ -63,7 +63,10 @@ function GoalDetail() {
   const { goals, addContribution, updateGoal, togglePause, getContributionHistory, isLoading } = useGoals()
   const [contributions, setContributions] = useState<Contribution[]>([])
   const [contribLoading, setContribLoading] = useState(true)
-  const [sheet, setSheet] = useState<SheetKind | null>(null)
+  // "Ahorrar Q x" del resumen semanal abre el aporte con el monto puesto.
+  const aportar = Number(search.get('aportar'))
+  const initialAmount = Number.isFinite(aportar) && aportar > 0 ? Math.floor(aportar) : null
+  const [sheet, setSheet] = useState<SheetKind | null>(initialAmount ? 'contrib' : null)
   const [message, setMessage] = useState<StatusMessage | null>(null)
   const [busy, setBusy] = useState(false)
   const household = useHouseholdPeople()
@@ -186,6 +189,7 @@ function GoalDetail() {
         currentAmount={goal.currentAmount}
         targetAmount={goal.targetAmount}
         monthlyContribution={goal.monthlyContribution}
+        initialAmount={initialAmount}
         people={pair ?? undefined}
         defaultPersonId={household.me}
         onConfirm={async (amount, note, contributorId) => {

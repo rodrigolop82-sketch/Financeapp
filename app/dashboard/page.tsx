@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { FeaturedCard } from '@/components/home/FeaturedCard'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -346,6 +347,9 @@ export default function InicioPage() {
 
         {/* Alerta única */}
         {alert && <HomeAlertCard alert={alert} fmt={fmt} />}
+
+        {/* Tarjeta destacada (resumen semanal, reto o patrimonio): un solo slot */}
+        <FeaturedCard fmt={fmt} reloadKey={reloadGen} />
 
         {/* Tu meta principal */}
         {mainGoal && <MainGoalCard goal={mainGoal} fmt={fmt} onContribute={() => setContributing(true)} />}

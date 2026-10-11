@@ -272,6 +272,9 @@ function ComoTeFue() {
                 <NavRow href="/score?from=resumen" emoji="💚" name="Tu salud financiera" description="Tu puntaje Zafi y cómo mejorarlo" last />
               </NavCard>
             </div>
+            <Link href="/resumen/semana" className="mx-auto mt-3 flex h-11 items-center text-[15px] font-semibold text-electric">
+              Ver resumen semanal
+            </Link>
           </div>
         )}
       </div>
