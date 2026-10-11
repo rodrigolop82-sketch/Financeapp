@@ -6,6 +6,7 @@ import { loadUserAvisoContext, usersWithDevices } from '@/lib/avisos-data'
 import { localToday } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
 import { sendBillReminders, sendWeeklySummaries } from '@/lib/pagos-cron'
+import { sendRecurringNotices } from '@/lib/recurring/cron'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +47,8 @@ export async function GET(req: NextRequest) {
     due: 0, cap: 0, month_end: 0, month_start: 0, inactivity: 0, income: 0, skippedToday: 0, nothing: 0, noDevice: 0,
   }
 
-  for (const userId of await usersWithDevices(admin)) {
+  const deviceUsers = await usersWithDevices(admin)
+  for (const userId of deviceUsers) {
     try {
       const ctx = await loadUserAvisoContext(admin, userId, today, nowMs)
       if (!ctx) { results.nothing++; continue }
@@ -74,5 +76,8 @@ export async function GET(req: NextRequest) {
   const sunday = new Date(today + 'T12:00:00').getDay() === 0
   const weekly = sunday ? await sendWeeklySummaries(admin, today, fmt).catch((e) => { console.error('[cron/weekly]', e); return 0 }) : 0
 
-  return NextResponse.json({ message: 'Notifications processed', today, results, bills, weekly })
+  // Suscripciones (Premium): recordatorio antes del cobro y alza de precio.
+  const recurring = await sendRecurringNotices(admin, deviceUsers, today, fmt).catch((e) => { console.error('[cron/recurring]', e instanceof Error ? e.message : 'error'); return 0 })
+
+  return NextResponse.json({ message: 'Notifications processed', today, results, bills, weekly, recurring })
 }

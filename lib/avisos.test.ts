@@ -36,6 +36,9 @@ describe('límite diario', () => {
   it('apple_pay no cuenta', () => {
     expect(countsTowardDailyLimit('apple_pay')).toBe(false);
     expect(countsTowardDailyLimit('inactivity')).toBe(true);
+    expect(countsTowardDailyLimit('recurring_reminder')).toBe(false);
+    expect(countsTowardDailyLimit('weekly_snapshot')).toBe(false);
+    expect(countsTowardDailyLimit('price_alert')).toBe(true);
   });
   it('ventana móvil de 24 h', () => {
     const log = (h: number, type = 'cap'): LogEntry[] => [{ type, sent_at: new Date(NOW - h * 3600_000).toISOString() }];
