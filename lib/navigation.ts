@@ -39,7 +39,7 @@ export const MORE_GROUPS: MoreGroup[] = [
   {
     title: 'Tu cuenta',
     items: [
-      { emoji: '🏦', name: 'Mis bancos', description: 'Importa tu estado de cuenta', href: '/mis-fuentes' },
+      { emoji: '🏦', name: 'Mis cuentas', description: 'Bancos, tarjetas y tu patrimonio', href: '/mis-fuentes' },
       { emoji: '👪', name: 'Familia', description: 'Comparte con tu pareja o familia', href: '/familia' },
       { emoji: '⚙️', name: 'Cuenta y privacidad', description: 'Perfil, apariencia, datos', href: '/cuenta' },
     ],
@@ -88,7 +88,7 @@ const PARENTS: [string, ParentLink][] = [
   ['/notificacion', { label: 'Movimientos', href: '/transacciones' }],
   ['/metas', { label: 'Metas', href: '/plan?s=metas' }],
   ['/cuenta', { label: 'Cuenta', href: '/cuenta' }],
-  ['/mis-fuentes', { label: 'Mis bancos', href: '/mis-fuentes' }],
+  ['/mis-fuentes', { label: 'Mis cuentas', href: '/mis-fuentes' }],
   ['/aprende', { label: 'Aprende', href: '/aprende' }],
 ];
 

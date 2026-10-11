@@ -178,7 +178,7 @@ export function tokenSummary(t: { created_at: string; last_used_at: string | nul
   return `${created} · usada ${sameDay ? 'hoy' : `el ${shortDay(t.last_used_at)}`}`;
 }
 
-/** Los 4 pasos de la pantalla Mis bancos › Apple Pay. */
+/** Los 4 pasos de la pantalla Mis cuentas › Apple Pay. */
 export const SHORTCUT_STEPS: { title: string; detail: string }[] = [
   { title: 'Abre Atajos › Automatización', detail: 'Toca “Nueva automatización” y elige “Transacción”.' },
   { title: 'Elige tus tarjetas', detail: 'Marca las tarjetas de Wallet que quieres registrar.' },

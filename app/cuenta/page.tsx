@@ -386,7 +386,7 @@ function CuentaContent() {
               </div>
             }
           />
-          <AccountRow emoji="📈" title="Mis Fuentes" hint="Tus cuentas, bienes y deudas para tu patrimonio" href="/patrimonio/fuentes" />
+          <AccountRow emoji="🏦" title="Mis cuentas" hint="Bancos, tarjetas, bienes y tu patrimonio" href="/mis-fuentes" />
           <AccountRow emoji="🏷️" title="Categorías" hint="Crea y organiza las tuyas" href="/cuenta/categorias" last />
         </AccountGroup>
 

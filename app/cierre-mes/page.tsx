@@ -102,14 +102,14 @@ function CierreMesContent() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    await supabase.from('source_monthly_status').upsert(
+    await supabase.from('source_statement_status').upsert(
       {
-        user_source_id: sourceId,
+        source_id: sourceId,
         year_month: yearMonth,
         loaded: true,
         loaded_at: new Date().toISOString(),
       },
-      { onConflict: 'user_source_id,year_month' },
+      { onConflict: 'source_id,year_month' },
     )
 
     setMarking(null)

@@ -825,7 +825,13 @@ export function useStatementImport(householdId: string) {
       })
 
       // Auto-detect source (best-effort, never blocks)
-      if (current.bankDetected) upsertDetectedSource(user.id, current.bankDetected).catch(() => {})
+      if (current.bankDetected) {
+        upsertDetectedSource(householdId, {
+          bank: current.bankDetected,
+          last4: current.accountLast4,
+          isAccount: !!current.accountLabel?.startsWith('Cuenta'),
+        }).catch(() => {})
+      }
 
       // Los marcados como "ya lo tenía" no suman: no se agregaron.
       const kept = chosen.filter(t => !(t.kind === 'duplicate' && t.same === true))

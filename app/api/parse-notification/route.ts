@@ -223,7 +223,7 @@ async function handleShortcut(req: NextRequest, token: string) {
 
   const row = await findShortcutToken(admin, token)
   if (!row) {
-    return NextResponse.json({ error: 'Clave inválida o revocada. Genera una nueva en Zafi › Mis bancos › Apple Pay.' }, { status: 401 })
+    return NextResponse.json({ error: 'Clave inválida o revocada. Genera una nueva en Zafi › Mis cuentas › Apple Pay.' }, { status: 401 })
   }
 
   let body: unknown

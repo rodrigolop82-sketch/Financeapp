@@ -13,7 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: PREMIUM_REQUIRED, premium: true }, { status: 403 })
   }
   try {
-    return NextResponse.json({ series: await getNetWorthHistorySeries(ctx.admin, ctx.householdId, new Date().toISOString()) })
+    return NextResponse.json({ series: await getNetWorthHistorySeries(ctx.admin, ctx.householdId, ctx.userId, new Date().toISOString()) })
   } catch {
     return NextResponse.json({ error: 'No se pudo cargar la evolución' }, { status: 500 })
   }

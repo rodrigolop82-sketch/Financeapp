@@ -24,7 +24,7 @@ async function snapshotInput(admin: Admin, hid: string, today: string): Promise<
   return { weekStart: bounds.latest, total: snapshot.totalVariable, viewed: false, sparse: snapshot.isSparse }
 }
 
-export async function resolveFeaturedCard(admin: Admin, householdId: string): Promise<FeaturedCard | null> {
+export async function resolveFeaturedCard(admin: Admin, householdId: string, userId: string): Promise<FeaturedCard | null> {
   const today = localToday()
   const weekday = weekdayOf(today)
   const inputs: FeaturedInputs = { weekday }
@@ -44,7 +44,7 @@ export async function resolveFeaturedCard(admin: Admin, householdId: string): Pr
   }
 
   // (3) Patrimonio neto, o la invitación a agregar cuentas.
-  const nw = await getNetWorth(admin, householdId, new Date().toISOString()).catch(() => null)
+  const nw = await getNetWorth(admin, householdId, userId, new Date().toISOString()).catch(() => null)
   if (!nw) return null
   inputs.networth = { hasSources: nw.hasSources, netWorth: nw.summary.netWorth, delta: nw.summary.deltaVsPrevMonthEnd }
   return pickFeaturedCard(inputs)

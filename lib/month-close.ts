@@ -1,5 +1,14 @@
 import { createClient } from '@/lib/supabase'
-import type { UserSource, SourceMonthlyStatus } from '@/types'
+
+interface StatementSource { id: string; kind: string; name: string; institution: string | null; last4: string | null }
+interface StatementStatus { source_id: string; loaded: boolean }
+
+/** Tipo de Mis cuentas → el que usa la lista del cierre. */
+const CHECKLIST_TYPE: Record<string, string> = {
+  credit_card: 'tarjeta_credito',
+  bank_account: 'cuenta_bancaria',
+  cash: 'efectivo',
+}
 
 export interface ChecklistItem {
   id: string
@@ -29,15 +38,17 @@ export async function getMonthCloseChecklist(
   const supabase = createClient()
 
   const [{ data: sources }, { data: statuses }, { data: incomeEntries }, { data: incomeConfirmation }] = await Promise.all([
+    // Mis cuentas con cierre de mes (RLS: propias y compartidas del hogar).
     supabase
-      .from('user_sources')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('active', true)
+      .from('financial_sources')
+      .select('id, kind, name, institution, last4')
+      .eq('household_id', householdId)
+      .eq('tracks_statements', true)
+      .is('archived_at', null)
       .order('created_at', { ascending: true }),
     supabase
-      .from('source_monthly_status')
-      .select('*')
+      .from('source_statement_status')
+      .select('source_id, loaded')
       .eq('year_month', yearMonth),
     supabase
       .from('income_entries')
@@ -52,20 +63,20 @@ export async function getMonthCloseChecklist(
       .maybeSingle(),
   ])
 
-  const activeSources = (sources ?? []) as UserSource[]
-  const monthStatuses = (statuses ?? []) as SourceMonthlyStatus[]
+  const activeSources = (sources ?? []) as StatementSource[]
+  const monthStatuses = (statuses ?? []) as StatementStatus[]
 
-  const statusMap = new Map(monthStatuses.map(s => [s.user_source_id, s]))
+  const statusMap = new Map(monthStatuses.map(s => [s.source_id, s]))
 
   const items: ChecklistItem[] = activeSources.map(source => {
     const status = statusMap.get(source.id)
     return {
       id: `source-${source.id}`,
-      label: `${source.bank_name}${source.nickname ? ` (${source.nickname})` : ''}`,
+      label: source.institution && !source.name.includes(source.institution) ? `${source.institution} (${source.name})` : source.name,
       type: 'source' as const,
       done: status?.loaded === true,
       sourceId: source.id,
-      sourceType: source.type,
+      sourceType: CHECKLIST_TYPE[source.kind] ?? 'cuenta_bancaria',
     }
   })
 

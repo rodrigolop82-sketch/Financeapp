@@ -1,6 +1,6 @@
 'use client';
 
-// Mis bancos › Apple Pay (fase 13.3): cómo conectar el atajo de iOS, la
+// Mis cuentas › Apple Pay (fase 13.3): cómo conectar el atajo de iOS, la
 // clave personal (se muestra una sola vez; se puede revocar) y "Probar con
 // un pago". Los pasos para construir y publicar el atajo están en
 // docs/apple-pay-atajo.md.
@@ -151,7 +151,7 @@ export default function ApplePayPage() {
       <div className="mx-auto flex max-w-2xl flex-col pb-10 lg:mx-0 zafi-stagger">
         <div className="-mx-4 flex flex-col items-start gap-0.5 px-5 pt-[env(safe-area-inset-top)]">
           <Link href="/mis-fuentes" className="flex h-11 items-center text-[15px] font-semibold text-electric-dark dark:text-electric-soft">
-            ‹ Mis bancos
+            ‹ Mis cuentas
           </Link>
           <h1 className={`font-serif text-[30px] leading-[1.15] ${TEXT_STRONG}`}>Apple Pay</h1>
           <p className={`text-[14.5px] leading-[1.45] ${TEXT_MUTED}`}>

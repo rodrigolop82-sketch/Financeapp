@@ -63,7 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Tu cuenta',
     items: [
-      { href: '/mis-fuentes', icon: Landmark, label: 'Mis bancos' },
+      { href: '/mis-fuentes', icon: Landmark, label: 'Mis cuentas' },
       { href: '/familia', icon: Users, label: 'Familia' },
       { href: '/cuenta', icon: Settings, label: 'Cuenta y privacidad' },
     ],

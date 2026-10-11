@@ -11,7 +11,7 @@ import { CARD } from '@/components/resumen/ctf-ui'
 import { BottomSheet } from '@/components/transactions/BottomSheet'
 import { PremiumBadge, upgradeHref } from '@/components/premium/PremiumTag'
 import { NetWorthChart, SAMPLE_SERIES } from '@/components/networth/NetWorthChart'
-import { AddSourceSheet, UpdateBalanceSheet } from '@/components/networth/SourceSheets'
+import { AccountSheet, UpdateBalanceSheet } from '@/components/networth/SourceSheets'
 import { useNetWorth } from '@/components/networth/useNetWorth'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import type { HistoryPoint } from '@/lib/networth/compute'
@@ -21,6 +21,7 @@ const BACK = { href: '/dashboard', label: 'Inicio' }
 
 function updatedText(s: SourceView): string {
   if (s.fromDebts) return 'Desde Plan › Deudas'
+  if (s.balance === null) return s.institution ? `${s.institution} · sin saldo` : 'Sin saldo'
   const d = s.daysSinceUpdate ?? 0
   const when = d <= 0 ? 'actualizado hoy' : d === 1 ? 'actualizado ayer' : `actualizado hace ${d} días`
   return s.institution ? `${s.institution} · ${when}` : when
@@ -44,7 +45,9 @@ function SourceRow({ s, fmt, onUpdate, canWrite }: { s: SourceView; fmt: (n: num
           <span className={`truncate text-[13px] ${TEXT_MUTED}`}>{updatedText(s)}</span>
         )}
       </span>
-      <span className={`flex-none font-outfit text-[15px] font-extrabold ${TEXT_STRONG}`}>{liability ? '−' : ''}{fmt(s.balance)}</span>
+      {s.balance === null
+        ? <span className={`flex-none text-[13px] ${TEXT_MUTED}`}>—</span>
+        : <span className={`flex-none font-outfit text-[15px] font-extrabold ${TEXT_STRONG}`}>{liability ? '−' : ''}{fmt(s.balance)}</span>}
     </>
   )
   if (s.fromDebts) {
@@ -62,7 +65,7 @@ function SourceRow({ s, fmt, onUpdate, canWrite }: { s: SourceView; fmt: (n: num
           Actualizar
         </button>
       ) : (
-        <button type="button" onClick={onUpdate} className={`-mt-1 self-end text-[13px] font-semibold ${LINK_TEXT} h-9`}>Actualizar saldo</button>
+        <button type="button" onClick={onUpdate} className={`-mt-1 self-end text-[13px] font-semibold ${LINK_TEXT} h-9`}>{s.balance === null ? 'Agregar saldo' : 'Actualizar saldo'}</button>
       ))}
     </div>
   )
@@ -127,8 +130,8 @@ export default function PatrimonioPage() {
   return (
     <AppShell title="Mi patrimonio" currentPath="/patrimonio" hideMobileBar>
       <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
-        <PageHeader back={BACK} title="Mi patrimonio" subtitle="Mis Fuentes" right={
-          <Link href="/patrimonio/fuentes" className={`flex h-11 items-center text-sm font-semibold ${LINK_TEXT}`}>Administrar</Link>
+        <PageHeader back={BACK} title="Mi patrimonio" subtitle="Lo que tienes menos lo que debes" right={
+          <Link href="/mis-fuentes" className={`flex h-11 items-center text-sm font-semibold ${LINK_TEXT}`}>Administrar</Link>
         } />
 
         {state.status === 'error' && (
@@ -146,7 +149,7 @@ export default function PatrimonioPage() {
             </span>
             {canWrite && (
               <button type="button" onClick={() => setSheet({ kind: 'add' })} className="flex h-11 items-center self-start rounded-full bg-electric px-4 text-sm font-semibold text-white">
-                Agregar fuente
+                Agregar cuenta
               </button>
             )}
           </div>
@@ -201,7 +204,7 @@ export default function PatrimonioPage() {
                 onClick={() => setSheet({ kind: 'add' })}
                 className="mt-3.5 flex h-[52px] items-center justify-center rounded-2xl border-[1.5px] border-dashed border-electric-soft text-[15px] font-semibold text-electric-dark dark:text-electric-soft"
               >
-                + Agregar fuente
+                + Agregar cuenta
               </button>
             )}
 
@@ -211,9 +214,9 @@ export default function PatrimonioPage() {
         )}
       </div>
 
-      <BottomSheet themed open={!!sheet} onClose={closeSheet} label={sheet?.kind === 'add' ? 'Agregar fuente' : 'Actualizar saldo'}>
+      <BottomSheet themed open={!!sheet} onClose={closeSheet} label={sheet?.kind === 'add' ? 'Agregar cuenta' : 'Actualizar saldo'}>
         {sheet?.kind === 'add' && (
-          <AddSourceSheet onDone={(name) => { setSheet(null); setMessage({ text: `${name} agregada`, tone: 'ok' }); void reload() }} />
+          <AccountSheet debts={data?.debts ?? []} onDone={(text) => { setSheet(null); setMessage({ text, tone: 'ok' }); void reload() }} />
         )}
         {sheet?.kind === 'update' && (
           <UpdateBalanceSheet source={sheet.source} onDone={() => { setSheet(null); setMessage({ text: 'Saldo actualizado', tone: 'ok' }); void reload() }} />

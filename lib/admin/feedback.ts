@@ -71,7 +71,7 @@ const SCREENS: Record<string, string> = {
   '/cierre-mes': 'Cerrar el mes',
   '/chat': 'Pregúntale a Zafi',
   '/aprende': 'Aprende',
-  '/mis-fuentes': 'Mis bancos',
+  '/mis-fuentes': 'Mis cuentas',
   '/familia': 'Familia',
   '/planes': 'Planes',
   '/importar': 'Importar',

@@ -1,5 +1,5 @@
 // Patrimonio neto (puro, para vitest). Saldos DECLARADOS por el usuario en
-// Mis Fuentes, más las deudas del módulo Deudas como pasivos de solo lectura
+// Mis cuentas, más las deudas del módulo Deudas como pasivos de solo lectura
 // (así no se cuentan dos veces). Solo quetzales en v1.
 //
 // · netWorth = activos − pasivos; las fuentes archivadas no cuentan.
