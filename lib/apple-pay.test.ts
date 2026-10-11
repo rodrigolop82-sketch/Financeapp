@@ -73,7 +73,10 @@ describe('parseApplePayBody', () => {
   });
   it('errores claros', () => {
     expect(parseApplePayBody(null, TODAY)).toMatchObject({ ok: false });
-    expect(parseApplePayBody({ amount: 'x' }, TODAY)).toEqual({ ok: false, error: 'Monto inválido.' });
+    expect(parseApplePayBody({ amount: 'x' }, TODAY)).toEqual({ ok: false, error: 'Monto inválido. Llegó: "x".' });
+    expect(parseApplePayBody({ amount: '-Q75.00' }, TODAY)).toEqual({ ok: false, error: 'Monto inválido. Llegó: "-Q75.00".' });
+    const missing = parseApplePayBody({ merchant: 'Krispy Kreme' }, TODAY);
+    expect(!missing.ok && missing.error).toMatch(/No llegó ningún monto/);
     expect(parseApplePayBody({ amount: 5, date: 'ayer' }, TODAY)).toMatchObject({ ok: false, error: expect.stringContaining('Fecha') });
   });
   it('cleanText recorta', () => {
