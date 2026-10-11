@@ -126,6 +126,28 @@ describe('suggestCategory', () => {
   it('renta por palabra clave', () => {
     expect(suggestCategory({ description: 'PAGO ALQUILER OCT' }, ctx)).toEqual({ categoryId: 'viv', subItemId: 'renta' })
   })
+
+  const withIncome = {
+    ...ctx,
+    categories: [...ctx.categories, { id: 'sal', name: 'Salario', bucket: 'income' }],
+    overrides: [
+      { merchant_key: 'dep salario empresa', category_id: 'sal' },
+      { merchant_key: 'walmart', category_id: 'sup' },
+    ],
+  }
+  it('un ingreso usa la regla del comercio de ingresos', () => {
+    expect(suggestCategory({ description: 'DEP SALARIO EMPRESA', type: 'income' }, withIncome))
+      .toEqual({ categoryId: 'sal', subItemId: null })
+  })
+  it('un gasto no toma una regla que apunta a una categoría de ingreso', () => {
+    expect(suggestCategory({ description: 'DEP SALARIO EMPRESA', type: 'expense' }, withIncome).categoryId).toBeNull()
+  })
+  it('un ingreso no toma reglas ni palabras clave de gasto', () => {
+    expect(suggestCategory({ description: 'WALMART', type: 'income' }, withIncome).categoryId).toBeNull()
+    expect(suggestCategory({ description: 'DEVOLUCION SPOTIFY', type: 'income' }, withIncome).categoryId).toBeNull()
+    expect(suggestCategory({ description: 'ABONO', type: 'income', category_id: 'sup' }, withIncome).categoryId).toBeNull()
+    expect(suggestCategory({ description: 'ABONO', type: 'income', category_id: 'sal' }, withIncome).categoryId).toBe('sal')
+  })
 })
 
 describe('cleanBankName', () => {

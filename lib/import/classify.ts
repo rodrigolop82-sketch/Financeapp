@@ -117,18 +117,25 @@ function hasPrefix(tokens: string[], prefixes: string[]): boolean {
  * Categoría (y parte) sugerida: primero la regla del comercio
  * (merchant_category_overrides), si no palabras clave, y si no la que
  * sugirió la extracción. En categorías con partes, la parte por palabras clave.
+ * Solo sugiere categorías del mismo tipo que el cargo: un ingreso nunca cae en
+ * una categoría de gasto ni al revés (las reglas no guardan el tipo).
  */
 export function suggestCategory(
-  charge: Pick<BankCharge, 'description' | 'category_id'>,
+  charge: Pick<BankCharge, 'description' | 'category_id'> & Partial<Pick<BankCharge, 'type'>>,
   ctx: Pick<ClassifyContext, 'categories' | 'subItems' | 'overrides'>,
 ): { categoryId: string | null; subItemId: string | null } {
+  const isIncome = charge.type === 'income'
+  const fits = (categoryId: string | null | undefined) => {
+    const cat = categoryId ? ctx.categories.find((c) => c.id === categoryId) : undefined
+    return !!cat && (cat.bucket === 'income') === isIncome
+  }
   const tokens = words(charge.description)
   const key = getMerchantKey(charge.description)
-  const override = key ? ctx.overrides.find((o) => o.merchant_key === key) : undefined
+  const override = key ? ctx.overrides.find((o) => o.merchant_key === key && fits(o.category_id)) : undefined
 
   // Parte por palabras clave (Vivienda · Mantenimiento con "COND ... CUOTA").
   let part: ClassifySubItem | undefined
-  for (const rule of PART_KEYWORDS) {
+  for (const rule of isIncome ? [] : PART_KEYWORDS) {
     if (!hasPrefix(tokens, rule.prefixes)) continue
     part = ctx.subItems.find((s) =>
       rule.targets.some((t) => normalizeText(s.name).includes(t))
@@ -137,7 +144,7 @@ export function suggestCategory(
   }
 
   let categoryId: string | null = override?.category_id ?? part?.category_id ?? null
-  if (!categoryId) {
+  if (!categoryId && !isIncome) {
     for (const rule of CATEGORY_KEYWORDS) {
       if (!hasPrefix(tokens, rule.prefixes)) continue
       const cat = ctx.categories.find((c) => c.bucket !== 'income'
@@ -145,7 +152,7 @@ export function suggestCategory(
       if (cat) { categoryId = cat.id; break }
     }
   }
-  categoryId ??= charge.category_id ?? null
+  if (!categoryId && fits(charge.category_id)) categoryId = charge.category_id!
   const subItemId = part && part.category_id === categoryId ? part.id : null
   return { categoryId, subItemId }
 }
