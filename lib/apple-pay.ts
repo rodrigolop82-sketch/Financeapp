@@ -120,12 +120,19 @@ export interface ApplePayCharge {
 
 export type ParseResult = { ok: true; value: ApplePayCharge } | { ok: false; error: string };
 
+/** " Llegó: …" para que el error del atajo diga qué mandó Atajos. */
+function describeReceived(v: unknown): string {
+  if (v === undefined || v === null || v === '') return ' No llegó ningún monto: revisa que el atajo mande la variable “Monto” de la transacción.';
+  const shown = typeof v === 'string' ? `"${cleanText(v, 40)}"` : typeof v === 'number' ? String(v) : typeof v;
+  return ` Llegó: ${shown}.`;
+}
+
 /** Valida el JSON del atajo: { amount, merchant, card, date }. */
 export function parseApplePayBody(body: unknown, today: string): ParseResult {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false, error: 'Manda un JSON con amount, merchant, card y date.' };
   const b = body as Record<string, unknown>;
   const amount = parseAmount(b.amount);
-  if (!amount) return { ok: false, error: 'Monto inválido.' };
+  if (!amount) return { ok: false, error: `Monto inválido.${describeReceived(b.amount)}` };
   const date = parseDate(b.date, today);
   if (!date) return { ok: false, error: 'Fecha inválida. Usa el formato ISO 8601 (AAAA-MM-DD).' };
   const merchant = cleanText(b.merchant, MAX_MERCHANT) || 'Apple Pay';
