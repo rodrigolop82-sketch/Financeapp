@@ -7,6 +7,7 @@ import { localToday } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
 import { sendBillReminders, sendWeeklySummaries } from '@/lib/pagos-cron'
 import { sendRecurringNotices } from '@/lib/recurring/cron'
+import { sendWeeklySnapshots } from '@/lib/snapshot/cron'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,5 +80,9 @@ export async function GET(req: NextRequest) {
   // Suscripciones (Premium): recordatorio antes del cobro y alza de precio.
   const recurring = await sendRecurringNotices(admin, deviceUsers, today, fmt).catch((e) => { console.error('[cron/recurring]', e instanceof Error ? e.message : 'error'); return 0 })
 
-  return NextResponse.json({ message: 'Notifications processed', today, results, bills, weekly, recurring })
+  // Lunes: "Tu semana en Zafi está lista" (semana completa anterior).
+  const monday = new Date(today + 'T12:00:00').getDay() === 1
+  const weeklySnapshot = monday ? await sendWeeklySnapshots(admin, deviceUsers, today, fmt).catch((e) => { console.error('[cron/weekly-snapshot]', e instanceof Error ? e.message : 'error'); return 0 }) : 0
+
+  return NextResponse.json({ message: 'Notifications processed', today, results, bills, weekly, recurring, weeklySnapshot })
 }

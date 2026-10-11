@@ -87,6 +87,7 @@ function CuentaContent() {
     due_enabled: true,
     cap_enabled: true,
     income_enabled: false,
+    weekly_snapshot_enabled: true,
   });
   const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -126,6 +127,7 @@ function CuentaContent() {
           due_enabled: nPrefs.due_enabled ?? true,
           cap_enabled: nPrefs.cap_enabled ?? true,
           income_enabled: nPrefs.income_enabled ?? false,
+          weekly_snapshot_enabled: nPrefs.weekly_snapshot_enabled ?? true,
         });
       }
       setLoading(false);
@@ -161,6 +163,7 @@ function CuentaContent() {
           due_enabled: nPrefs.due_enabled ?? prev.due_enabled,
           cap_enabled: nPrefs.cap_enabled ?? prev.cap_enabled,
           income_enabled: nPrefs.income_enabled ?? prev.income_enabled,
+          weekly_snapshot_enabled: nPrefs.weekly_snapshot_enabled ?? prev.weekly_snapshot_enabled,
         }));
       }
     }
@@ -473,6 +476,18 @@ function CuentaContent() {
                 de cada mes
               </div>
             )}
+          />
+          <AccountRow
+            emoji="🗓️"
+            title="Resumen semanal"
+            hint="Los lunes, cómo te fue la semana"
+            right={
+              <Switch
+                checked={notifPrefs.weekly_snapshot_enabled}
+                label="Resumen semanal"
+                onChange={(v) => updateNotifPref({ weekly_snapshot_enabled: v }, v ? 'Te mandaremos tu semana cada lunes' : 'Resumen semanal apagado')}
+              />
+            }
           />
           <AccountRow
             emoji="💼"

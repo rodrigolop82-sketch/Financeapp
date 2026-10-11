@@ -17,7 +17,7 @@ async function alreadySent(admin: Admin, userId: string, key: string): Promise<b
 }
 
 /** Hogares activos de los usuarios con teléfono suscrito, con sus miembros que escriben. */
-async function householdsOf(admin: Admin, userIds: string[]): Promise<Map<string, string[]>> {
+export async function deviceHouseholds(admin: Admin, userIds: string[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>()
   for (let i = 0; i < userIds.length; i += 200) {
     const { data } = await admin
@@ -37,7 +37,7 @@ async function householdsOf(admin: Admin, userIds: string[]): Promise<Map<string
 export async function sendRecurringNotices(admin: Admin, deviceUserIds: string[], today: string, fmt: (n: number) => string): Promise<number> {
   let sent = 0
   const notifiedToday = await usersNotifiedToday(admin, deviceUserIds)
-  for (const [hid, members] of Array.from((await householdsOf(admin, deviceUserIds)).entries())) {
+  for (const [hid, members] of Array.from((await deviceHouseholds(admin, deviceUserIds)).entries())) {
     try {
       const [reminders, priceAlerts] = await Promise.all([
         hasFeature(hid, 'recurring.reminders'),

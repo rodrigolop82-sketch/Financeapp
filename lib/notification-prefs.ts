@@ -6,7 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = SupabaseClient<any>;
 
-export const NEW_PREF_COLUMNS = ['due_enabled', 'cap_enabled', 'income_enabled'] as const;
+export const NEW_PREF_COLUMNS = ['due_enabled', 'cap_enabled', 'income_enabled', 'weekly_snapshot_enabled'] as const;
 
 export async function saveNotificationPrefs(
   supabase: Client,
