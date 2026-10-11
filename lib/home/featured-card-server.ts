@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { localToday } from '../dates'
+import { getChallenges } from '../challenges/data'
 import { loadWeeklySnapshot, weekBounds } from '../snapshot/data'
 import { pickFeaturedCard, weekdayOf, type FeaturedCard, type FeaturedInputs } from './featured-card'
 
@@ -28,5 +29,17 @@ export async function resolveFeaturedCard(admin: Admin, householdId: string): Pr
   const inputs: FeaturedInputs = { weekday }
   // El resumen solo compite lunes y martes: los demás días ni se calcula.
   if (weekday === 1 || weekday === 2) inputs.snapshot = await snapshotInput(admin, householdId, today).catch(() => null)
-  return pickFeaturedCard(inputs)
+  const card = pickFeaturedCard(inputs)
+  if (card) return card
+
+  // (2) Reto activo: el más reciente.
+  const { data: anyActive } = await admin.from('user_challenges').select('id').eq('household_id', householdId).eq('status', 'active').limit(1)
+  if (anyActive && anyActive.length > 0) {
+    const c = (await getChallenges(admin, householdId, today).catch(() => null))?.active[0]
+    if (c) {
+      inputs.challenge = { id: c.id, title: c.title, dayIndex: c.progress.dayIndex, durationDays: c.progress.durationDays, streak: c.progress.streak }
+      return pickFeaturedCard(inputs)
+    }
+  }
+  return null
 }

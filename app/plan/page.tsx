@@ -12,11 +12,19 @@ import { PageSkeleton } from '@/components/motion/PageSkeleton';
 import { PresupuestoView } from '@/components/presupuesto/PresupuestoView';
 import { MetasView } from '@/components/goals/MetasView';
 import { DeudasView } from '@/components/deudas/DeudasView';
+import { RetosView } from '@/components/retos/RetosView';
 import { ScorePill } from '@/components/score/ScoreUI';
 import { useHealthScore } from '@/hooks/useHealthScore';
 import { createClient } from '@/lib/supabase';
 import { getUserHousehold } from '@/lib/household';
 import { SCORE_INPUTS_CHANGED } from '@/lib/score-feedback';
+
+type MetasVista = 'metas' | 'retos';
+const METAS_VISTAS: { value: MetasVista; label: string }[] = [
+  { value: 'metas', label: 'Metas' },
+  { value: 'retos', label: 'Retos' },
+];
+const VISTA_KEY = 'zafi:metas-vista';
 
 const SECTIONS: { value: PlanSection; label: string }[] = [
   { value: 'mes', label: 'Del mes' },
@@ -52,6 +60,19 @@ function PlanHub() {
       if (s === 'mes') q.delete('s');
       else q.set('s', s);
     });
+  }
+
+  // Metas | Retos (?v=retos). Sin parámetro, la última que eligió.
+  const vParam = params.get('v');
+  const [savedVista, setSavedVista] = useState<MetasVista>('metas');
+  useEffect(() => {
+    try { if (localStorage.getItem(VISTA_KEY) === 'retos') setSavedVista('retos'); } catch { /* sin almacenamiento */ }
+  }, []);
+  const vista: MetasVista = vParam === 'retos' ? 'retos' : vParam === 'metas' ? 'metas' : savedVista;
+  function selectVista(v: MetasVista) {
+    setSavedVista(v);
+    try { localStorage.setItem(VISTA_KEY, v); } catch { /* sin almacenamiento */ }
+    replaceQuery((q) => { if (v === 'retos') q.set('v', 'retos'); else q.delete('v'); });
   }
 
   // /metas/nueva llega con ?nueva=1: abre la hoja una vez.
@@ -103,8 +124,14 @@ function PlanHub() {
       </div>
       {section === 'mes' && <PresupuestoView />}
       {section === 'metas' && (
+        <div className="mt-3 max-w-2xl">
+          <Segmented label="Metas o retos" options={METAS_VISTAS} value={vista} onChange={selectVista} />
+        </div>
+      )}
+      {section === 'metas' && vista === 'metas' && (
         <MetasView addRequest={addMeta} deletedId={params.get('eliminada')} onDeletedHandled={clearDeleted} />
       )}
+      {section === 'metas' && vista === 'retos' && <RetosView />}
       {section === 'deudas' && <DeudasView />}
     </AppShell>
   );

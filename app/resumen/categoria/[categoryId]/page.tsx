@@ -18,6 +18,7 @@ import { useTxSheets } from '@/components/movimientos/useTxSheets';
 import { BORDER, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
 import { useComoTeFue } from '@/components/resumen/useComoTeFue';
 import { CARD } from '@/components/resumen/ctf-ui';
+import { CategoryTip } from '@/components/retos/CategoryTip';
 import type { BudgetCategory, SearchTransaction } from '@/types';
 
 export default function CategoriaDetallePage() {
@@ -178,6 +179,9 @@ function CategoriaDetalle() {
               </div>
             </div>
           </section>
+
+          {/* Tip de Zafi: solo en el mes en curso y con la categoría en Sobregiro */}
+          {month === today.slice(0, 7) && <CategoryTip categoryId={categoryId} fmt={fmt} />}
 
           {/* ¿En qué exactamente? */}
           {loaded && rows.length > 0 && (

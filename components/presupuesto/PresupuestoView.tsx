@@ -711,7 +711,7 @@ export function PresupuestoView() {
               Pagos del mes ›
             </Link>
             <Link
-              href="/plan/retos"
+              href="/plan?s=metas&v=retos"
               className={`flex min-h-[44px] items-center justify-center text-sm font-semibold text-electric`}
             >
               Retos del mes ›
