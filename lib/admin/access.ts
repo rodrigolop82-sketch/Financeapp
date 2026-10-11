@@ -52,3 +52,19 @@ export function reminderToast(s: ReminderSummary): string {
   if (s.noDevice > 0) parts.push(`${s.noDevice} sin avisos activados`);
   return parts.join(' · ');
 }
+
+// ── Recordatorio por correo ───────────────────────────────
+
+export interface EmailReminderSummary {
+  sent: number;
+  /** No aceptaron recibir correos: no se les envió. */
+  noConsent: number;
+}
+
+/** "Correo enviado a 3 · 2 no aceptaron correos". */
+export function emailReminderToast(s: EmailReminderSummary): string {
+  const parts: string[] = [];
+  parts.push(s.sent > 0 ? `Correo enviado a ${s.sent} usuario${s.sent === 1 ? '' : 's'}` : 'No se envió ningún correo');
+  if (s.noConsent > 0) parts.push(`${s.noConsent} no ${s.noConsent === 1 ? 'aceptó' : 'aceptaron'} correos`);
+  return parts.join(' · ');
+}

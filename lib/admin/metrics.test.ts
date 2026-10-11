@@ -19,6 +19,10 @@ import {
   ptsDelta,
   situationOf,
   sourceGroup,
+  computeUsuarios,
+  matchesUserFilter,
+  matchesUserSearch,
+  parseUserFilter,
 } from './metrics';
 
 const DAY = 86_400_000;
@@ -275,8 +279,44 @@ describe('para reactivar', () => {
     expect(rows.filter((x) => matchesInactiveFilter(x, '+30 días')).map((x) => x.id)).toEqual(['e']);
     expect(rows.filter((x) => matchesInactiveFilter(x, 'Nunca capturó')).map((x) => x.id)).toEqual(['b', 'e']);
     expect(parseInactiveFilter('nada')).toBe('Todos');
-    expect(pickForExport(rows, ['c', 'zz'], '7–14 días').map((x) => x.id)).toEqual(['c']);
-    expect(pickForExport(rows, [], '+30 días').map((x) => x.id)).toEqual(['e']);
-    expect(pickForExport(rows, null, 'Todos')).toHaveLength(5);
+    const by = (f: Parameters<typeof matchesInactiveFilter>[1]) => (x: (typeof rows)[number]) => matchesInactiveFilter(x, f);
+    expect(pickForExport(rows, ['c', 'zz'], by('7–14 días')).map((x) => x.id)).toEqual(['c']);
+    expect(pickForExport(rows, [], by('+30 días')).map((x) => x.id)).toEqual(['e']);
+    expect(pickForExport(rows, null, by('Todos'))).toHaveLength(5);
+  });
+});
+
+describe('usuarios', () => {
+  it('incluye a todos con estado activo/inactivo', () => {
+    const activo = user(60, { lastSignInAt: ago(1) });
+    const nuevo = user(3);
+    const enfriado = user(60, { lastSignInAt: ago(20) });
+    const sinCapturar = user(9, { lastSignInAt: ago(0) });
+    const txs = [txAfter(activo, 50), txAfter(enfriado, 40)];
+    const rows = computeUsuarios(buildCtx([activo, nuevo, enfriado, sinCapturar], txs, NOW));
+    expect(rows).toHaveLength(4);
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+    expect(byId[activo.id]).toMatchObject({ status: 'Activo', situation: 'Activo' });
+    expect(byId[nuevo.id]).toMatchObject({ status: 'Activo', situation: 'Recién llegó' });
+    expect(byId[enfriado.id]).toMatchObject({ status: 'Inactivo', situation: 'Se enfrió' });
+    expect(byId[sinCapturar.id]).toMatchObject({ status: 'Inactivo', situation: 'Nunca capturó' });
+    // Para reactivar = los inactivos de Usuarios.
+    expect(computeInactivos(buildCtx([activo, nuevo, enfriado, sinCapturar], txs, NOW)).map((r) => r.id).sort())
+      .toEqual([enfriado.id, sinCapturar.id].sort());
+  });
+  it('filtros y búsqueda', () => {
+    const r = (id: string, status: 'Activo' | 'Inactivo', txCount: number) => ({ id, status, txCount });
+    const rows = [r('a', 'Activo', 3), r('b', 'Activo', 0), r('c', 'Inactivo', 0), r('d', 'Inactivo', 5)];
+    const ids = (f: Parameters<typeof matchesUserFilter>[1]) => rows.filter((x) => matchesUserFilter(x, f)).map((x) => x.id);
+    expect(ids('Todos')).toEqual(['a', 'b', 'c', 'd']);
+    expect(ids('Activos')).toEqual(['a', 'b']);
+    expect(ids('Inactivos')).toEqual(['c', 'd']);
+    expect(ids('Nunca capturó')).toEqual(['b', 'c']);
+    expect(parseUserFilter('x')).toBe('Todos');
+    const p = { email: 'maria.gonzalez@gmail.com', firstName: 'María' };
+    expect(matchesUserSearch(p, '')).toBe(true);
+    expect(matchesUserSearch(p, 'GONZALEZ')).toBe(true);
+    expect(matchesUserSearch(p, 'maria')).toBe(true);
+    expect(matchesUserSearch(p, 'pedro')).toBe(false);
   });
 });

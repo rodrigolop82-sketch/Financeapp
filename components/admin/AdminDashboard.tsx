@@ -5,14 +5,16 @@ import Link from 'next/link';
 import { ResumenTab } from './ResumenTab';
 import { RetencionTab } from './RetencionTab';
 import { ReactivarTab } from './ReactivarTab';
+import { UsuariosTab } from './UsuariosTab';
 import { FeedbackTab } from './FeedbackTab';
 import { AdminToast, type ToastMsg } from './ui';
 
-type Tab = 'resumen' | 'ret' | 'inact' | 'fb';
+type Tab = 'resumen' | 'ret' | 'users' | 'inact' | 'fb';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'resumen', label: 'Resumen' },
   { key: 'ret', label: 'Retención' },
+  { key: 'users', label: 'Usuarios' },
   { key: 'inact', label: 'Para reactivar' },
   { key: 'fb', label: 'Feedback' },
 ];
@@ -108,6 +110,11 @@ export function AdminDashboard() {
         {visited.has('ret') && (
           <div hidden={tab !== 'ret'}>
             <RetencionTab />
+          </div>
+        )}
+        {visited.has('users') && (
+          <div hidden={tab !== 'users'}>
+            <UsuariosTab toast={showToast} />
           </div>
         )}
         {visited.has('inact') && (

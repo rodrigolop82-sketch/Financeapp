@@ -457,13 +457,16 @@ export function computeRetencion(ctx: Ctx): Retencion {
   };
 }
 
-// ── Para reactivar ────────────────────────────────────────
+// ── Usuarios y Para reactivar ─────────────────────────────
 
 export type Situation = 'Nunca capturó' | 'Se enfrió' | 'Dejó de usar';
+/** Situación en la vista de Usuarios: la de inactivos o, si está activo, una de estas. */
+export type UserSituation = Situation | 'Activo' | 'Recién llegó';
+export type UserStatus = 'Activo' | 'Inactivo';
 
 export const INACTIVE_MIN_DAYS = 7;
 
-export interface InactiveRow {
+export interface UserRow {
   id: string;
   email: string;
   firstName: string;
@@ -473,8 +476,14 @@ export interface InactiveRow {
   daysInactive: number;
   txCount: number;
   plan: PlanLabel;
-  situation: Situation;
+  status: UserStatus;
+  situation: UserSituation;
   marketingOptIn: boolean;
+}
+
+export interface InactiveRow extends UserRow {
+  status: 'Inactivo';
+  situation: Situation;
 }
 
 export function situationOf(txCount: number, daysInactive: number): Situation {
@@ -488,21 +497,20 @@ export function firstNameOf(fullName: string | null | undefined): string {
 }
 
 /**
- * Para reactivar: quienes llevan ≥ 7 días sin entrar, más quienes nunca
- * capturaron un movimiento y se registraron hace ≥ 7 días. Ordenado de menos
- * a más días sin entrar (los más fáciles de rescatar primero).
+ * Todos los usuarios. Inactivo: lleva ≥ 7 días sin entrar, o nunca capturó un
+ * movimiento y se registró hace ≥ 7 días. Ordenado de menos a más días sin
+ * entrar.
  */
-export function computeInactivos(ctx: Ctx): InactiveRow[] {
+export function computeUsuarios(ctx: Ctx): UserRow[] {
   const { now } = ctx;
-  const rows: InactiveRow[] = [];
+  const rows: UserRow[] = [];
   for (const u of ctx.users) {
     const h = act(ctx, u);
     const last = lastAccessMs(u, h);
     const daysInactive = last === null ? 0 : daysBetween(last, now);
     const txCount = h?.count ?? 0;
     const daysSinceReg = daysBetween(regMs(u), now);
-    const include = daysInactive >= INACTIVE_MIN_DAYS || (txCount === 0 && daysSinceReg >= INACTIVE_MIN_DAYS);
-    if (!include) continue;
+    const inactive = daysInactive >= INACTIVE_MIN_DAYS || (txCount === 0 && daysSinceReg >= INACTIVE_MIN_DAYS);
     rows.push({
       id: u.id,
       email: u.email,
@@ -513,11 +521,17 @@ export function computeInactivos(ctx: Ctx): InactiveRow[] {
       daysInactive,
       txCount,
       plan: planLabel(u, now),
-      situation: situationOf(txCount, daysInactive),
+      status: inactive ? 'Inactivo' : 'Activo',
+      situation: inactive ? situationOf(txCount, daysInactive) : txCount === 0 ? 'Recién llegó' : 'Activo',
       marketingOptIn: u.marketingOptIn,
     });
   }
   return rows.sort((a, b) => a.daysInactive - b.daysInactive || a.email.localeCompare(b.email));
+}
+
+/** Para reactivar: solo los inactivos de computeUsuarios. */
+export function computeInactivos(ctx: Ctx): InactiveRow[] {
+  return computeUsuarios(ctx).filter((r): r is InactiveRow => r.status === 'Inactivo');
 }
 
 export const INACTIVE_FILTERS = ['Todos', '7–14 días', '15–30 días', '+30 días', 'Nunca capturó'] as const;
@@ -537,15 +551,38 @@ export function matchesInactiveFilter(r: Pick<InactiveRow, 'daysInactive' | 'txC
   }
 }
 
-/** Seleccionados (si hay) o, si no, los del filtro actual. */
-export function pickForExport<T extends Pick<InactiveRow, 'id' | 'daysInactive' | 'txCount'>>(
+export const USER_FILTERS = ['Todos', 'Activos', 'Inactivos', 'Nunca capturó'] as const;
+export type UserFilter = (typeof USER_FILTERS)[number];
+
+export function parseUserFilter(raw: unknown): UserFilter {
+  return (USER_FILTERS as readonly string[]).includes(raw as string) ? (raw as UserFilter) : 'Todos';
+}
+
+export function matchesUserFilter(r: Pick<UserRow, 'status' | 'txCount'>, f: UserFilter): boolean {
+  switch (f) {
+    case 'Todos': return true;
+    case 'Activos': return r.status === 'Activo';
+    case 'Inactivos': return r.status === 'Inactivo';
+    case 'Nunca capturó': return r.txCount === 0;
+  }
+}
+
+/** Búsqueda por correo o nombre, sin tildes ni mayúsculas. */
+export function matchesUserSearch(r: Pick<UserRow, 'email' | 'firstName'>, query: string): boolean {
+  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const q = norm(query.trim());
+  return !q || norm(r.email).includes(q) || norm(r.firstName).includes(q);
+}
+
+/** Seleccionados (si hay) o, si no, los que pasan `matches`. */
+export function pickForExport<T extends { id: string }>(
   rows: T[],
   ids: string[] | null | undefined,
-  filter: InactiveFilter,
+  matches: (row: T) => boolean,
 ): T[] {
   if (ids && ids.length > 0) {
     const set = new Set(ids);
     return rows.filter((r) => set.has(r.id));
   }
-  return rows.filter((r) => matchesInactiveFilter(r, filter));
+  return rows.filter(matches);
 }

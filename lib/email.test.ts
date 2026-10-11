@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { RESEND_ENDPOINT, sendEmail } from './email';
+import { RESEND_BATCH_ENDPOINT, RESEND_ENDPOINT, sendEmail, sendEmailBatch } from './email';
 
 const env = { ...process.env };
 afterEach(() => {
@@ -52,5 +52,39 @@ describe('sendEmail', () => {
     expect(await sendEmail({ to: 'a@b.com', subject: 's', text: 't' }, g as unknown as typeof fetch)).toEqual({
       ok: false, skipped: false, error: 'red',
     });
+  });
+});
+
+describe('sendEmailBatch', () => {
+  it('sin RESEND_API_KEY no envía', async () => {
+    delete process.env.RESEND_API_KEY;
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const f = vi.fn();
+    expect(await sendEmailBatch([{ to: 'a@b.com', subject: 's', text: 't' }], f as unknown as typeof fetch)).toEqual({ ok: false, skipped: true });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('manda todos en una sola llamada al endpoint de lotes', async () => {
+    process.env.RESEND_API_KEY = 're_test';
+    const f = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [{ id: '1' }, { id: '2' }] }), { status: 200 }));
+    const r = await sendEmailBatch(
+      [{ to: 'a@b.com', subject: 's', text: 't', html: '<p>t</p>' }, { to: 'c@d.com', subject: 's', text: 't' }],
+      f as unknown as typeof fetch,
+    );
+    expect(r).toEqual({ ok: true, sent: 2 });
+    expect(f).toHaveBeenCalledTimes(1);
+    const [url, init] = f.mock.calls[0];
+    expect(url).toBe(RESEND_BATCH_ENDPOINT);
+    const body = JSON.parse(init.body);
+    expect(body).toHaveLength(2);
+    expect(body[0]).toMatchObject({ to: ['a@b.com'], html: '<p>t</p>' });
+  });
+
+  it('error de Resend', async () => {
+    process.env.RESEND_API_KEY = 're_test';
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const f = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: 'malo' }), { status: 422 }));
+    expect(await sendEmailBatch([{ to: 'a@b.com', subject: 's', text: 't' }], f as unknown as typeof fetch))
+      .toEqual({ ok: false, skipped: false, error: 'malo' });
   });
 });
