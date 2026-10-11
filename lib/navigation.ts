@@ -78,7 +78,9 @@ export interface ParentLink {
  * la primera coincidencia gana, así que las rutas más específicas van antes.
  */
 const PARENTS: [string, ParentLink][] = [
-  ['/resumen/categoria', { label: 'Cómo te fue', href: '/resumen' }],
+  ['/resumen/suscripciones', { label: 'Suscripciones', href: '/resumen/suscripciones' }],
+  ['/resumen', { label: 'Cómo te fue', href: '/resumen' }],
+  ['/patrimonio', { label: 'Mi patrimonio', href: '/patrimonio' }],
   ['/health-score', { label: 'Cómo te fue', href: '/resumen' }],
   ['/score', { label: 'Cómo te fue', href: '/resumen' }],
   ['/plan', { label: 'Plan', href: '/plan' }],

@@ -2,9 +2,9 @@
 
 import { PRICES_CENTS, priceLabel, type Cycle, type Plan, type Tier } from './plans'
 
-export type PlanFrom = 'import' | 'history' | 'ia' | 'reminders'
+export type PlanFrom = 'import' | 'history' | 'ia' | 'reminders' | 'recurring' | 'snapshot' | 'challenges' | 'networth'
 
-export const PLAN_FROMS: PlanFrom[] = ['import', 'history', 'ia', 'reminders']
+export const PLAN_FROMS: PlanFrom[] = ['import', 'history', 'ia', 'reminders', 'recurring', 'snapshot', 'challenges', 'networth']
 
 export function planFrom(v: string | null | undefined): PlanFrom | null {
   return PLAN_FROMS.includes(v as PlanFrom) ? (v as PlanFrom) : null
@@ -17,6 +17,10 @@ const PREMIUM_BENEFITS: Record<PlanFrom | 'learn' | 'viewer', Benefit> = {
   history: ['🗓️', 'Todo tu historial', 'Busca y compara meses y años. Gratis ves los últimos 3 meses.'],
   ia: ['✨', 'Pregúntale a Zafi sin límite', 'Gratis son 15 preguntas al mes.'],
   reminders: ['🔔', 'Recordatorios de pagos', 'Te avisamos antes de que venza cada tarjeta, préstamo o servicio.'],
+  recurring: ['🔁', 'Avisos de tus suscripciones', 'Te recordamos antes de cada cobro y te avisamos si sube de precio.'],
+  snapshot: ['🗓️', 'Lo que Zafi notó de tu semana', 'Un comentario de tu semana y una sugerencia para ahorrar lo que te sobró.'],
+  challenges: ['🏁', 'Retos a tu medida', 'Varios retos a la vez y metas personalizadas.'],
+  networth: ['📈', 'Evolución de tu patrimonio', 'Mira cómo cambia tu patrimonio mes a mes.'],
   learn: ['📚', 'Aprende completo', 'Todas las lecciones, no solo las primeras.'],
   viewer: ['👀', 'Comparte en modo ver', '1 persona de tu casa puede ver tu plan.'],
 }
@@ -34,7 +38,7 @@ const FAMILY_BENEFITS: Benefit[] = [
 export function planBenefits(tier: Tier, from: PlanFrom | null): Benefit[] {
   if (tier === 'family') return FAMILY_BENEFITS
   const base = ['import', 'history', 'ia', 'reminders', 'learn', 'viewer'] as const
-  const order = from ? [from, ...base.filter((k) => k !== from)] : [...base]
+  const order: (PlanFrom | 'learn' | 'viewer')[] = from ? [from, ...base.filter((k) => k !== from)] : [...base]
   return order.map((k) => PREMIUM_BENEFITS[k])
 }
 

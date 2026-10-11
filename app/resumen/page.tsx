@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
+import { RecurringCard } from '@/components/recurring/RecurringCard';
 import { addMonths, analyzeMonth, longMonth, monthSaved, monthTitle, verdictSaved } from '@/lib/como-te-fue';
 import { categoryPlan, monthName, subAmountFromMonthly } from '@/lib/plan-del-mes';
 import {
@@ -265,6 +266,7 @@ function ComoTeFue() {
               <span className={`text-[15px] font-semibold ${TEXT_STRONG}`}>Ver detalle por categoría</span>
               <span aria-hidden className="font-bold text-electric">›</span>
             </Link>
+            <RecurringCard fmt={fmt} />
             <div className="mt-3">
               <NavCard>
                 <NavRow href="/score?from=resumen" emoji="💚" name="Tu salud financiera" description="Tu puntaje Zafi y cómo mejorarlo" last />

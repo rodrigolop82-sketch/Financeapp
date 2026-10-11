@@ -44,6 +44,10 @@ describe('parentFor', () => {
     expect(parentFor('/cuenta/privacidad')).toEqual({ label: 'Cuenta', href: '/cuenta' });
     expect(parentFor('/resumen')).toEqual({ label: 'Más', href: '/mas' });
     expect(parentFor('/resumen/categoria/abc')).toEqual({ label: 'Cómo te fue', href: '/resumen' });
+    expect(parentFor('/resumen/suscripciones')).toEqual({ label: 'Cómo te fue', href: '/resumen' });
+    expect(parentFor('/resumen/suscripciones/netflix')).toEqual({ label: 'Suscripciones', href: '/resumen/suscripciones' });
+    expect(parentFor('/resumen/semana')).toEqual({ label: 'Cómo te fue', href: '/resumen' });
+    expect(parentFor('/patrimonio/fuentes')).toEqual({ label: 'Mi patrimonio', href: '/patrimonio' });
     expect(parentFor('/metas/123')).toEqual({ label: 'Metas', href: '/plan?s=metas' });
     expect(parentFor('/plan/retos')).toEqual({ label: 'Plan', href: '/plan' });
   });
