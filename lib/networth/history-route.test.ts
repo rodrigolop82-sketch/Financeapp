@@ -1,14 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { GET } from '@/app/api/networth/history/route'
 
-const ctx = { userId: 'u1', householdId: 'h1', plan: { access: 'full' }, admin: {} }
-const hasFeature = vi.fn()
-const series = vi.fn()
+const { ctx, hasFeature, series } = vi.hoisted(() => ({
+  ctx: { userId: 'u1', householdId: 'h1', plan: { access: 'full' }, admin: {} },
+  hasFeature: vi.fn(),
+  series: vi.fn(),
+}))
 
 vi.mock('@/lib/server/household-context', () => ({ householdContext: async () => ctx }))
 vi.mock('@/lib/entitlements/features', () => ({ hasFeature: (...a: unknown[]) => hasFeature(...a), PREMIUM_REQUIRED: 'Esta función es parte de Premium' }))
 vi.mock('@/lib/networth/data', () => ({ getNetWorthHistorySeries: (...a: unknown[]) => series(...a) }))
 
-const { GET } = await import('@/app/api/networth/history/route')
 
 describe('GET /api/networth/history (gating en servidor)', () => {
   beforeEach(() => { hasFeature.mockReset(); series.mockReset() })
