@@ -183,5 +183,5 @@ export const SHORTCUT_STEPS: { title: string; detail: string }[] = [
   { title: 'Abre Atajos › Automatización', detail: 'Toca “Nueva automatización” y elige “Transacción”.' },
   { title: 'Elige tus tarjetas', detail: 'Marca las tarjetas de Wallet que quieres registrar.' },
   { title: 'Agrega “Registrar en Zafi”', detail: 'O instala nuestro atajo y se configura solo.' },
-  { title: 'Activa “Ejecutar de inmediato”', detail: 'Así no te pregunta en cada pago.' },
+  { title: 'Activa “Ejecutar de inmediato”', detail: 'Y apaga “Notificar al ejecutar”: el aviso de Zafi ya te confirma cada gasto.' },
 ];

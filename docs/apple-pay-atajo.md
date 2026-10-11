@@ -6,7 +6,7 @@ Cada pago con Apple Pay dispara una automatización de Atajos (iOS 17+) que mand
 
 `POST https://zafiapp.com/api/parse-notification`
 
-- Header `Authorization: Bearer zafi_…`: la clave personal. Se genera en **Mis bancos › Apple Pay** y se muestra una sola vez.
+- Header `Authorization: Bearer zafi_…`: la clave personal. Se genera en **Mis cuentas › Apple Pay** y se muestra una sola vez.
 - Header `Content-Type: application/json`
 - Cuerpo:
 
@@ -37,7 +37,7 @@ Respuestas: `201` con `{ ok, id, message, category, categorized }`; `400` si el 
       - Método: **POST**
       - Encabezados: `Authorization` = `Bearer ` + la variable Texto de la clave; `Content-Type` = `application/json`
       - Cuerpo de la solicitud: **JSON**, con el Diccionario anterior.
-   6. Opcional: **Obtener valor del diccionario** `message` del resultado y **Mostrar notificación** con él (útil si la persona no activó los avisos de Zafi).
+   6. No agregues **Mostrar notificación** ni **Mostrar resultado**: con los avisos de Zafi activos, el servidor ya manda “Registramos Q x en …” y saldrían dos avisos por pago. Solo si la persona no usa los avisos de Zafi, usa **Obtener valor del diccionario** `message` y muéstralo (nunca el resultado completo, que es JSON).
 4. Prueba el atajo con ▶: debe aparecer un gasto en Movimientos.
 
 ## Automatización
@@ -50,9 +50,9 @@ Respuestas: `201` con `{ ok, id, message, category, categorized }`; `400` si el 
 ## Publicar
 
 1. En el atajo, **Compartir › Copiar enlace de iCloud**. La clave debe ir como **Pregunta de importación** (Detalles del atajo › Configurar este atajo): nunca publiques un atajo con una clave real dentro.
-2. Pon el enlace en la variable de entorno `NEXT_PUBLIC_APPLE_PAY_SHORTCUT_URL` (Vercel) y vuelve a desplegar: el botón “Instalar el atajo de Zafi” de **Mis bancos › Apple Pay** lo abre. Sin la variable, el botón aparece deshabilitado.
+2. Pon el enlace en la variable de entorno `NEXT_PUBLIC_APPLE_PAY_SHORTCUT_URL` (Vercel) y vuelve a desplegar: el botón “Instalar el atajo de Zafi” de **Mis cuentas › Apple Pay** lo abre. Sin la variable, el botón aparece deshabilitado.
 3. Si cambia la URL de la API o el formato, publica una versión nueva del atajo y actualiza el enlace.
 
 ## Revocar
 
-En **Mis bancos › Apple Pay › Revocar** la clave deja de funcionar al instante (`401`). Hay 6 segundos para “Deshacer”. Para seguir registrando pagos, genera otra clave y pégala en el atajo.
+En **Mis cuentas › Apple Pay › Revocar** la clave deja de funcionar al instante (`401`). Hay 6 segundos para “Deshacer”. Para seguir registrando pagos, genera otra clave y pégala en el atajo.
