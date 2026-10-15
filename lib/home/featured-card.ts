@@ -7,7 +7,7 @@
 export type FeaturedCard =
   | { kind: 'snapshot'; weekStart: string; total: number }
   | { kind: 'challenge'; id: string; title: string; dayIndex: number; durationDays: number; streak: number }
-  | { kind: 'networth'; netWorth: number; delta: number | null }
+  | { kind: 'networth'; netWorth: number; delta: number | null; assets?: number; liabilities?: number }
   | { kind: 'networth_invite' }
 
 export interface FeaturedInputs {
@@ -15,7 +15,7 @@ export interface FeaturedInputs {
   weekday: number
   snapshot?: { weekStart: string; total: number; viewed: boolean; sparse: boolean } | null
   challenge?: { id: string; title: string; dayIndex: number; durationDays: number; streak: number } | null
-  networth?: { hasSources: boolean; netWorth: number; delta: number | null } | null
+  networth?: { hasSources: boolean; netWorth: number; delta: number | null; assets?: number; liabilities?: number } | null
 }
 
 export function pickFeaturedCard(i: FeaturedInputs): FeaturedCard | null {
@@ -25,9 +25,12 @@ export function pickFeaturedCard(i: FeaturedInputs): FeaturedCard | null {
   }
   if (i.challenge) return { kind: 'challenge', ...i.challenge }
   if (i.networth) {
-    return i.networth.hasSources
-      ? { kind: 'networth', netWorth: i.networth.netWorth, delta: i.networth.delta }
-      : { kind: 'networth_invite' }
+    const { hasSources, netWorth, delta, assets, liabilities } = i.networth
+    if (!hasSources) return { kind: 'networth_invite' }
+    // F3: con datos, también el desglose de activos y deudas.
+    return assets === undefined || liabilities === undefined
+      ? { kind: 'networth', netWorth, delta }
+      : { kind: 'networth', netWorth, delta, assets, liabilities }
   }
   return null
 }

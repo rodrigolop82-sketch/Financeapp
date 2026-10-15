@@ -64,6 +64,9 @@ export function FeaturedCard({ fmt, reloadKey }: { fmt: (n: number) => string; r
               {d > 0 ? '+' : '−'}{fmt(Math.abs(d))} este mes
             </span>
           )}
+          {card.assets !== undefined && card.liabilities !== undefined && (card.assets > 0 || card.liabilities > 0) && (
+            <span className={`text-[13px] ${TEXT_MUTED}`}>Activos {fmt(card.assets)} · Deudas {fmt(card.liabilities)}</span>
+          )}
         </span>
         <span aria-hidden className="font-bold text-electric">›</span>
       </Link>

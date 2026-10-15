@@ -26,4 +26,9 @@ describe('pickFeaturedCard', () => {
     expect(weekdayOf('2026-10-12')).toBe(1)
     expect(weekdayOf('2026-10-11')).toBe(0)
   })
+
+  it('F3: con activos y deudas, la tarjeta lleva el desglose', () => {
+    expect(pickFeaturedCard({ weekday: 4, networth: { ...networth, assets: 200000, liabilities: 15500 } }))
+      .toEqual({ kind: 'networth', netWorth: 184500, delta: 2500, assets: 200000, liabilities: 15500 })
+  })
 })
