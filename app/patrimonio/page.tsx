@@ -158,10 +158,11 @@ function Evolution({ premium, fmt }: { premium: boolean; fmt: (n: number) => str
       ) : series === null ? (
         <div className="h-[150px] animate-pulse rounded-xl bg-[var(--zafi-bg)]" />
       ) : series.length < 2 ? (
-        <p className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>Tu evolución aparece cuando tengas saldos de al menos dos cierres de mes.</p>
+        <p className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>Tu evolución aparece cuando tengas saldos de al menos dos cierres de mes. También puedes agregar meses anteriores.</p>
       ) : (
         <NetWorthChart series={series} fmt={fmt} />
       )}
+      <Link href="/patrimonio/historial" className={`mt-2 flex h-9 items-center text-[13px] font-semibold ${LINK_TEXT}`}>Editar historial ›</Link>
     </div>
   )
 }
