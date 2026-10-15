@@ -104,6 +104,24 @@ function CuentaContent() {
   const clearToast = useCallback(() => setToast(null), []);
   const closeSheet = useCallback(() => setSheet(null), []);
 
+  // F7: resumen mensual por correo. Va aparte de notifPrefs para que, sin la
+  // migración, los demás interruptores se sigan guardando igual.
+  const [monthlyEmail, setMonthlyEmail] = useState(false);
+
+  async function toggleMonthlyEmail(val: boolean) {
+    setMonthlyEmail(val);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const { error } = await supabase.from('notification_preferences').upsert({ user_id: authUser.id, resumen_mensual_correo: val });
+      if (error) {
+        setMonthlyEmail(!val);
+        showToast('No pudimos guardar el cambio');
+        return;
+      }
+    }
+    showToast(val ? 'Te mandaremos tu resumen el día 1' : 'Resumen mensual apagado');
+  }
+
   // Privacidad (F9): el mismo estado que el ojo de Inicio.
   const privacy = usePrivacy();
   const [biometricShown, setBiometricShown] = useState(false);
@@ -156,6 +174,7 @@ function CuentaContent() {
           income_enabled: nPrefs.income_enabled ?? false,
           weekly_snapshot_enabled: nPrefs.weekly_snapshot_enabled ?? true,
         });
+        setMonthlyEmail(nPrefs.resumen_mensual_correo === true);
       }
       setLoading(false);
 
@@ -418,6 +437,7 @@ function CuentaContent() {
         </AccountGroup>
 
         {/* Recordatorios */}
+        <span id="recordatorios" aria-hidden />
         <AccountGroup title="Recordatorios">
           <AccountRow
             emoji="🔔"
@@ -516,6 +536,12 @@ function CuentaContent() {
                 onChange={(v) => updateNotifPref({ weekly_snapshot_enabled: v }, v ? 'Te mandaremos tu semana cada lunes' : 'Resumen semanal apagado')}
               />
             }
+          />
+          <AccountRow
+            emoji="✉️"
+            title="Resumen mensual por correo"
+            hint="El primer día de cada mes, cómo cerró tu mes y tu siguiente paso"
+            right={<Switch checked={monthlyEmail} onChange={(v) => void toggleMonthlyEmail(v)} label="Resumen mensual por correo" />}
           />
           <AccountRow
             emoji="💼"
