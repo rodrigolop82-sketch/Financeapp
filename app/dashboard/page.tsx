@@ -36,6 +36,7 @@ import { ScoreHeroLine } from '@/components/score/ScoreUI'
 import { TrialHeroLine } from '@/components/premium/TrialHeroLine'
 import { useMaskedFmt, usePrivacy } from '@/components/privacidad/PrivacyProvider'
 import { OcultarSaldosButton } from '@/components/privacidad/OcultarSaldosButton'
+import { SiguientePasoCard } from '@/components/siguiente-paso/SiguientePasoCard'
 import type { BudgetCategory, BudgetSubItem, IncomeEntry, SearchTransaction } from '@/types'
 
 interface HomeMonthTx {
@@ -344,6 +345,9 @@ export default function InicioPage() {
           {health && health.components.length > 0 && <ScoreHeroLine score={health} href="/score?from=inicio" />}
           <TrialHeroLine />
         </section>
+
+        {/* F1: Tu siguiente mejor paso (debajo de la tarjeta principal) */}
+        <SiguientePasoCard householdId={data.householdId} fmt={fmt} reloadKey={reloadGen} />
 
         {/* Inicio de mes pendiente */}
         {hasPlan && monthStart.loaded && !monthStart.done && (

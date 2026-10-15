@@ -2,9 +2,9 @@
 
 import { PRICES_CENTS, priceLabel, type Cycle, type Plan, type Tier } from './plans'
 
-export type PlanFrom = 'import' | 'history' | 'ia' | 'reminders' | 'recurring' | 'snapshot' | 'challenges' | 'networth'
+export type PlanFrom = 'import' | 'history' | 'ia' | 'reminders' | 'recurring' | 'snapshot' | 'challenges' | 'networth' | 'next_step'
 
-export const PLAN_FROMS: PlanFrom[] = ['import', 'history', 'ia', 'reminders', 'recurring', 'snapshot', 'challenges', 'networth']
+export const PLAN_FROMS: PlanFrom[] = ['import', 'history', 'ia', 'reminders', 'recurring', 'snapshot', 'challenges', 'networth', 'next_step']
 
 export function planFrom(v: string | null | undefined): PlanFrom | null {
   return PLAN_FROMS.includes(v as PlanFrom) ? (v as PlanFrom) : null
@@ -21,6 +21,7 @@ const PREMIUM_BENEFITS: Record<PlanFrom | 'learn' | 'viewer', Benefit> = {
   snapshot: ['🗓️', 'Lo que Zafi notó de tu semana', 'Un comentario de tu semana y una sugerencia para ahorrar lo que te sobró.'],
   challenges: ['🏁', 'Retos a tu medida', 'Varios retos a la vez y metas personalizadas.'],
   networth: ['📈', 'Evolución de tu patrimonio', 'Mira cómo cambia tu patrimonio mes a mes.'],
+  next_step: ['🧭', 'Tu plan paso a paso', 'Mira cómo calculamos cada paso y simula cuánto sube tu puntaje.'],
   learn: ['📚', 'Aprende completo', 'Todas las lecciones, no solo las primeras.'],
   viewer: ['👀', 'Comparte en modo ver', '1 persona de tu casa puede ver tu plan.'],
 }

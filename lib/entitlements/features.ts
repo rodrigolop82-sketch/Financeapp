@@ -13,6 +13,7 @@ export const FEATURE_KEYS = [
   'challenges.multiple',
   'challenges.customize',
   'networth.history',
+  'next_step.details',
 ] as const
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number]
@@ -29,6 +30,7 @@ const FEATURE_PLANS: Record<FeatureKey, readonly Plan[]> = {
   'challenges.multiple': ['premium', 'family'],
   'challenges.customize': ['premium', 'family'],
   'networth.history': ['premium', 'family'],
+  'next_step.details': ['premium', 'family'],
 }
 
 /** ¿Este plan incluye la función? (puro) */
