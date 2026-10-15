@@ -8,6 +8,8 @@ import { formatMoney } from '@/lib/format'
 import { sendBillReminders, sendWeeklySummaries } from '@/lib/pagos-cron'
 import { sendRecurringNotices } from '@/lib/recurring/cron'
 import { sendWeeklySnapshots } from '@/lib/snapshot/cron'
+import { sendMonthlySummaries } from '@/lib/resumen-mensual/envio'
+import { adminClient } from '@/lib/billing/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,9 +30,15 @@ export async function GET(req: NextRequest) {
     console.warn('[cron/notifications] Falta CRON_SECRET: no se envían avisos')
     return NextResponse.json({ error: 'Falta configurar CRON_SECRET' }, { status: 503 })
   }
+  // F7: resumen mensual por correo. Solo el día 1 y con RESUMEN_MENSUAL_ENABLED;
+  // va antes de revisar las llaves VAPID porque no usa push.
+  const monthlyEmail = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? await sendMonthlySummaries(adminClient(), localToday()).catch((e) => { console.error('[cron/monthly-email]', e instanceof Error ? e.message : 'error'); return { skipped: 'error' } })
+    : { skipped: 'no_service_key' }
+
   if (!pushConfigured()) {
     console.warn('[cron/notifications] Faltan las llaves VAPID: no se envían avisos')
-    return NextResponse.json({ message: 'Avisos push sin configurar', sent: 0 })
+    return NextResponse.json({ message: 'Avisos push sin configurar', sent: 0, monthlyEmail })
   }
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!key) {
@@ -84,5 +92,5 @@ export async function GET(req: NextRequest) {
   const monday = new Date(today + 'T12:00:00').getDay() === 1
   const weeklySnapshot = monday ? await sendWeeklySnapshots(admin, deviceUsers, today, fmt).catch((e) => { console.error('[cron/weekly-snapshot]', e instanceof Error ? e.message : 'error'); return 0 }) : 0
 
-  return NextResponse.json({ message: 'Notifications processed', today, results, bills, weekly, recurring, weeklySnapshot })
+  return NextResponse.json({ message: 'Notifications processed', today, results, bills, weekly, recurring, weeklySnapshot, monthlyEmail })
 }

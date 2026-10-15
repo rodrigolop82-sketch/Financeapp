@@ -19,6 +19,7 @@ import { UndoToast } from '@/components/transactions/UndoToast';
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast';
 import { SkeletonRows } from '@/components/motion/PageSkeleton';
 import { notifyScoreInputsChanged } from '@/lib/score-feedback';
+import { NavCard, NavRow } from '@/components/layout/NavRow';
 
 type DebtType = Debt['type'];
 
@@ -225,6 +226,13 @@ export function DeudasView() {
                 <AddRow label="Agregar una deuda" onClick={openNew} />
               </ListCard>
             </section>
+
+            {/* F6: plan de pago (pantalla nueva; esta lista y el simulador no cambian). */}
+            <div className="mt-3">
+              <NavCard>
+                <NavRow href="/plan/deudas/plan-de-pago" emoji="🧭" name="Tu plan de pago" description="Qué deuda pagar primero y cuánto te ahorras" last />
+              </NavCard>
+            </div>
 
             <section>
               <GroupTitle>Cómo salir más rápido</GroupTitle>

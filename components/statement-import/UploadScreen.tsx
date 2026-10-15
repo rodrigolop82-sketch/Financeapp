@@ -5,8 +5,9 @@ import { meterText } from '@/lib/premium'
 import { FileUp, X } from 'lucide-react'
 import type { ImportPhoto } from '@/hooks/useStatementImport'
 import { MAX_IMPORT_IMAGES } from '@/lib/import/constants'
+import { OPCIONES_GUIA } from '@/lib/import/guias-banco'
 import {
-  BADGE_NEUTRAL, Chevron, ErrorBox, GroupTitle, LINK_TEXT, ListCard, PILL_OUTLINE, PillButton, ROW_DIVIDER, RowBody,
+  BADGE_INFO, BADGE_NEUTRAL, Chevron, ErrorBox, GroupTitle, LINK_TEXT, ListCard, PILL_OUTLINE, PillButton, ROW_DIVIDER, RowBody,
   Segmented, Tile,
 } from '@/components/layout/Pantalla'
 import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
@@ -27,13 +28,13 @@ interface UploadScreenProps {
   importUsage?: { used: number; limit: number } | null
 }
 
-const BANKS = ['Banrural', 'BAM', 'Industrial', 'G&T', 'Bantrab', 'BAC Credomatic']
-
 export function UploadScreen({
   file, error, onFileSelect, onAnalyze, onBack, importUsage,
   photos, photoNotice, onAddPhotos, onRemovePhoto, onAnalyzePhotos,
 }: UploadScreenProps) {
   const [mode, setMode] = useState<'photo' | 'pdf'>(file && photos.length === 0 ? 'pdf' : 'photo')
+  const [bankId, setBankId] = useState<string | null>(null)
+  const guide = OPCIONES_GUIA.find((g) => g.id === bankId) ?? null
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
   const pdfRef = useRef<HTMLInputElement>(null)
@@ -128,10 +129,39 @@ export function UploadScreen({
 
       <GroupTitle>Bancos soportados</GroupTitle>
       <div className="flex flex-wrap gap-1.5">
-        {BANKS.map((b) => (
-          <span key={b} className={`${BADGE_NEUTRAL} !px-2.5 !py-1 !text-[12.5px] !font-semibold`}>{b}</span>
-        ))}
+        {OPCIONES_GUIA.map((g) => {
+          const on = g.id === bankId
+          return (
+            <button
+              key={g.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setBankId(on ? null : g.id)}
+              className={`${on ? BADGE_INFO : BADGE_NEUTRAL} !px-2.5 !py-1 !text-[12.5px] !font-semibold transition duration-150 active:scale-[0.97]`}
+            >
+              {g.nombre}
+            </button>
+          )
+        })}
       </div>
+      {guide && (
+        <section aria-label={`Cómo bajar tu estado de cuenta de ${guide.nombre}`} className="mt-2.5">
+          <ListCard className="py-3">
+            <ol className="flex flex-col gap-2">
+              {guide.pasos.map((paso, i) => (
+                <li key={paso} className="flex items-start gap-2.5">
+                  <span aria-hidden className="mt-px flex h-5 w-5 flex-none items-center justify-center rounded-full bg-electric-ghost font-outfit text-xs font-bold text-electric dark:bg-[#1B2B4D] dark:text-electric-soft">
+                    {i + 1}
+                  </span>
+                  <span className={`text-sm leading-[1.4] [text-wrap:pretty] ${TEXT_STRONG}`}>{paso}</span>
+                </li>
+              ))}
+            </ol>
+            <p className={`mt-2.5 text-[13px] leading-[1.4] ${TEXT_MUTED}`}>{guide.consejo}</p>
+          </ListCard>
+          <p className={`mt-2 px-1 text-[13px] ${TEXT_MUTED}`}>Nunca te pedimos usuario ni contraseña de tu banco.</p>
+        </section>
+      )}
 
       <Note tone="info" className="mt-4">
         Para mejores resultados, usa buena luz y que el texto se lea bien. Los PDF suelen funcionar mejor.

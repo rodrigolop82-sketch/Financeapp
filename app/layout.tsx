@@ -19,6 +19,8 @@ import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistratio
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Splash } from "@/components/motion/Splash";
 import { SPLASH_BOOT_SCRIPT } from "@/lib/motion";
+import { PrivacyProvider } from "@/components/privacidad/PrivacyProvider";
+import { BiometricGate } from "@/components/privacidad/BiometricGate";
 
 export const metadata: Metadata = {
   title: "Zafi — Ordena tu dinero. Construye tu futuro.",
@@ -50,9 +52,12 @@ export default function RootLayout({
         <ThemeProvider>
           <ServiceWorkerRegistration />
           <Splash />
-          <InstallPromptManager>
-            {children}
-          </InstallPromptManager>
+          <PrivacyProvider>
+            <BiometricGate />
+            <InstallPromptManager>
+              {children}
+            </InstallPromptManager>
+          </PrivacyProvider>
         </ThemeProvider>
       </body>
     </html>

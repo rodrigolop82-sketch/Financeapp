@@ -46,6 +46,9 @@ export async function resolveFeaturedCard(admin: Admin, householdId: string, use
   // (3) Patrimonio neto, o la invitación a agregar cuentas.
   const nw = await getNetWorth(admin, householdId, userId, new Date().toISOString()).catch(() => null)
   if (!nw) return null
-  inputs.networth = { hasSources: nw.hasSources, netWorth: nw.summary.netWorth, delta: nw.summary.deltaVsPrevMonthEnd }
+  inputs.networth = {
+    hasSources: nw.hasSources, netWorth: nw.summary.netWorth, delta: nw.summary.deltaVsPrevMonthEnd,
+    assets: nw.summary.assets, liabilities: nw.summary.liabilities,
+  }
   return pickFeaturedCard(inputs)
 }

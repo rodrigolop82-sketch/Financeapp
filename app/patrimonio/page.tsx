@@ -14,6 +14,9 @@ import { NetWorthChart, SAMPLE_SERIES } from '@/components/networth/NetWorthChar
 import { AccountSheet, UpdateBalanceSheet } from '@/components/networth/SourceSheets'
 import { useNetWorth } from '@/components/networth/useNetWorth'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
+import { useMaskedFmt, usePrivacy } from '@/components/privacidad/PrivacyProvider'
+import { AmortizacionDetalle } from '@/components/deudas/AmortizacionDetalle'
+import { createClient } from '@/lib/supabase'
 import type { HistoryPoint } from '@/lib/networth/compute'
 import type { SourceView } from '@/lib/networth/data'
 
@@ -25,6 +28,58 @@ function updatedText(s: SourceView): string {
   const d = s.daysSinceUpdate ?? 0
   const when = d <= 0 ? 'actualizado hoy' : d === 1 ? 'actualizado ayer' : `actualizado hace ${d} días`
   return s.institution ? `${s.institution} · ${when}` : when
+}
+
+/** Tasa y cuota de las deudas de Plan › Deudas, para su amortización (F3). */
+type DebtTerms = { tasaAnual: number; cuota: number }
+
+/** null mientras carga. */
+function useDebtTerms(): Map<string, DebtTerms> | null {
+  const [terms, setTerms] = useState<Map<string, DebtTerms> | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void createClient().from('debts').select('id, interest_rate, min_payment').eq('is_paid', false).then(({ data }) => {
+      if (cancelled) return
+      setTerms(new Map(((data ?? []) as { id: string; interest_rate: number | null; min_payment: number | null }[]).map((d) => [
+        `debt:${d.id}`, { tasaAnual: Number(d.interest_rate) || 0, cuota: Number(d.min_payment) || 0 },
+      ])))
+    })
+    return () => { cancelled = true }
+  }, [])
+  return terms
+}
+
+/** Deuda de Plan › Deudas: al abrirla muestra su amortización. */
+function DebtRow({ s, fmt, terms }: { s: SourceView; fmt: (n: number) => string; terms: DebtTerms | null }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className={`flex flex-col py-3 ${ROW_DIVIDER}`}>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex min-h-[44px] w-full items-center gap-3 text-left">
+        <span
+          aria-hidden
+          className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-electric-ghost font-outfit text-lg font-extrabold text-electric-dark dark:bg-[#1B2B4D] dark:text-electric-soft"
+        >
+          {(s.name.trim()[0] ?? '?').toUpperCase()}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{s.name}</span>
+          <span className={`truncate text-[13px] ${TEXT_MUTED}`}>{updatedText(s)}</span>
+        </span>
+        <span className={`flex-none font-outfit text-[15px] font-extrabold ${TEXT_STRONG}`}>−{fmt(s.balance ?? 0)}</span>
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-col gap-1">
+          {terms
+            ? <AmortizacionDetalle saldo={s.balance ?? 0} tasaAnual={terms.tasaAnual} cuota={terms.cuota} fmt={fmt} />
+            : <div className="h-5 w-2/3 animate-pulse rounded bg-[var(--zafi-bg)]" />}
+          <div className="flex gap-4">
+            <Link href="/plan/deudas/plan-de-pago" className={`flex h-9 items-center text-[13px] font-semibold ${LINK_TEXT}`}>Ver plan de pago ›</Link>
+            <Link href="/plan?s=deudas" className={`flex h-9 items-center text-[13px] font-semibold ${LINK_TEXT}`}>Editar en Deudas ›</Link>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function SourceRow({ s, fmt, onUpdate, canWrite }: { s: SourceView; fmt: (n: number) => string; onUpdate: () => void; canWrite: boolean }) {
@@ -103,23 +158,27 @@ function Evolution({ premium, fmt }: { premium: boolean; fmt: (n: number) => str
       ) : series === null ? (
         <div className="h-[150px] animate-pulse rounded-xl bg-[var(--zafi-bg)]" />
       ) : series.length < 2 ? (
-        <p className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>Tu evolución aparece cuando tengas saldos de al menos dos cierres de mes.</p>
+        <p className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>Tu evolución aparece cuando tengas saldos de al menos dos cierres de mes. También puedes agregar meses anteriores.</p>
       ) : (
         <NetWorthChart series={series} fmt={fmt} />
       )}
+      <Link href="/patrimonio/historial" className={`mt-2 flex h-9 items-center text-[13px] font-semibold ${LINK_TEXT}`}>Editar historial ›</Link>
     </div>
   )
 }
 
 export default function PatrimonioPage() {
-  const fmt = useFormatMoney()
+  // Ocultar saldos (F9): todos los montos de Mi patrimonio pasan por aquí.
+  const fmt = useMaskedFmt(useFormatMoney())
+  const privacy = usePrivacy()
   const { state, reload } = useNetWorth()
+  const debtTerms = useDebtTerms()
   const [sheet, setSheet] = useState<{ kind: 'add' } | { kind: 'update'; source: SourceView } | null>(null)
   const [message, setMessage] = useState<StatusMessage | null>(null)
   const clearMessage = useCallback(() => setMessage(null), [])
   const closeSheet = useCallback(() => setSheet(null), [])
 
-  if (state.status === 'loading') return <PageSkeleton variant="detail" />
+  if (state.status === 'loading' || !privacy.resolved) return <PageSkeleton variant="detail" />
 
   const data = state.status === 'ok' ? state.data : null
   const sm = data?.summary
@@ -193,8 +252,9 @@ export default function PatrimonioPage() {
             <GroupTitle>Lo que debes</GroupTitle>
             <ListCard>
               {data.liabilities.length === 0 && <p className={`py-3 text-sm ${TEXT_MUTED}`}>Sin deudas registradas.</p>}
-              {data.liabilities.map((s) => (
-                <SourceRow key={s.id} s={s} fmt={fmt} canWrite={canWrite} onUpdate={() => setSheet({ kind: 'update', source: s })} />
+              {data.liabilities.map((s) => (s.fromDebts
+                ? <DebtRow key={s.id} s={s} fmt={fmt} terms={debtTerms ? debtTerms.get(s.id) ?? { tasaAnual: 0, cuota: 0 } : null} />
+                : <SourceRow key={s.id} s={s} fmt={fmt} canWrite={canWrite} onUpdate={() => setSheet({ kind: 'update', source: s })} />
               ))}
             </ListCard>
 

@@ -26,6 +26,9 @@ import { Proyeccion } from '@/components/resumen/Proyeccion';
 import { BucketsChart, FixedVarChart } from '@/components/resumen/Graficas';
 import { CapSheet } from '@/components/resumen/CapSheet';
 import { CARD } from '@/components/resumen/ctf-ui';
+import { GastoDiario } from '@/components/resumen/GastoDiario';
+import { dailySpend } from '@/lib/resumen/daily-spend';
+import { localToday } from '@/lib/dates';
 import type { BudgetSubItem } from '@/types';
 
 export default function ResumenPage() {
@@ -64,6 +67,7 @@ function ComoTeFue() {
 
   const caps = useMemo(() => ({ ...(data?.caps ?? DEFAULT_CAPS), ...capsOverride }), [data, capsOverride]);
   const a = useMemo(() => (data ? analyzeMonth(data, month, caps, fmt) : null), [data, month, caps, fmt]);
+  const daily = useMemo(() => (data ? dailySpend(month, localToday(), data.txs, data.categories) : null), [data, month]);
 
   const selected = useMemo(() => new Set(
     (a?.recs.over ?? []).filter((r) => picked[r.key] ?? r.kind === 'variable').map((r) => r.key),
@@ -231,6 +235,7 @@ function ComoTeFue() {
               hasRecs={a.recs.over.length > 0}
               fmt={fmt}
             />
+            {daily && <GastoDiario data={daily} fmt={fmt} />}
             <Highlights good={a.highlights.good} bad={a.highlights.bad} />
             <Oportunidades
               over={a.recs.over}
