@@ -34,6 +34,8 @@ import { ProgressBar } from '@/components/plan/ui'
 import { useHealthScore } from '@/hooks/useHealthScore'
 import { ScoreHeroLine } from '@/components/score/ScoreUI'
 import { TrialHeroLine } from '@/components/premium/TrialHeroLine'
+import { useMaskedFmt, usePrivacy } from '@/components/privacidad/PrivacyProvider'
+import { OcultarSaldosButton } from '@/components/privacidad/OcultarSaldosButton'
 import type { BudgetCategory, BudgetSubItem, IncomeEntry, SearchTransaction } from '@/types'
 
 interface HomeMonthTx {
@@ -66,7 +68,9 @@ type LatestRow = SearchTransaction
 
 export default function InicioPage() {
   const router = useRouter()
-  const fmt = useFormatMoney()
+  // Ocultar saldos (F9): todos los montos de Inicio pasan por este formateador.
+  const fmt = useMaskedFmt(useFormatMoney())
+  const privacy = usePrivacy()
   const supabase = useMemo(() => createClient(), [])
   const today = localToday()
   const month = today.slice(0, 7)
@@ -242,7 +246,8 @@ export default function InicioPage() {
     openMonthStart()
   }, [monthStart.loaded, openMonthStart])
 
-  if (!data || !baseSummary) {
+  // Sin la preferencia de Ocultar saldos resuelta no se pintan montos.
+  if (!data || !baseSummary || !privacy.resolved) {
     return <PageSkeleton variant="home" />
   }
 
@@ -277,8 +282,8 @@ export default function InicioPage() {
       title="Inicio"
       currentPath="/dashboard"
       userName={data.firstName}
-      mobileHeader={<>{greeting}{avatar}</>}
-      headerRight={avatar}
+      mobileHeader={<>{greeting}<div className="flex flex-none items-center gap-1"><OcultarSaldosButton />{avatar}</div></>}
+      headerRight={<div className="flex items-center gap-1"><OcultarSaldosButton />{avatar}</div>}
     >
       <div className="max-w-2xl flex flex-col zafi-stagger">
         {/* Hero */}

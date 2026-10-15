@@ -14,6 +14,7 @@ import { NetWorthChart, SAMPLE_SERIES } from '@/components/networth/NetWorthChar
 import { AccountSheet, UpdateBalanceSheet } from '@/components/networth/SourceSheets'
 import { useNetWorth } from '@/components/networth/useNetWorth'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
+import { useMaskedFmt, usePrivacy } from '@/components/privacidad/PrivacyProvider'
 import type { HistoryPoint } from '@/lib/networth/compute'
 import type { SourceView } from '@/lib/networth/data'
 
@@ -112,14 +113,16 @@ function Evolution({ premium, fmt }: { premium: boolean; fmt: (n: number) => str
 }
 
 export default function PatrimonioPage() {
-  const fmt = useFormatMoney()
+  // Ocultar saldos (F9): todos los montos de Mi patrimonio pasan por aquí.
+  const fmt = useMaskedFmt(useFormatMoney())
+  const privacy = usePrivacy()
   const { state, reload } = useNetWorth()
   const [sheet, setSheet] = useState<{ kind: 'add' } | { kind: 'update'; source: SourceView } | null>(null)
   const [message, setMessage] = useState<StatusMessage | null>(null)
   const clearMessage = useCallback(() => setMessage(null), [])
   const closeSheet = useCallback(() => setSheet(null), [])
 
-  if (state.status === 'loading') return <PageSkeleton variant="detail" />
+  if (state.status === 'loading' || !privacy.resolved) return <PageSkeleton variant="detail" />
 
   const data = state.status === 'ok' ? state.data : null
   const sm = data?.summary

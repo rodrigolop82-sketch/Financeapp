@@ -38,6 +38,8 @@ import { saveNotificationPrefs } from '@/lib/notification-prefs';
 import { openPushOffer, PUSH_STATUS_EVENT } from '@/components/avisos/PushOfferSheet';
 import { PageSkeleton } from '@/components/motion/PageSkeleton';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
+import { usePrivacy } from '@/components/privacidad/PrivacyProvider';
+import { biometricAvailable, readLockEnabled, writeLockEnabled } from '@/lib/biometria';
 
 export default function CuentaPage() {
   return (
@@ -101,6 +103,31 @@ function CuentaContent() {
   const showToast = useCallback((text: string) => setToast({ text, key: Date.now() }), []);
   const clearToast = useCallback(() => setToast(null), []);
   const closeSheet = useCallback(() => setSheet(null), []);
+
+  // Privacidad (F9): el mismo estado que el ojo de Inicio.
+  const privacy = usePrivacy();
+  const [biometricShown, setBiometricShown] = useState(false);
+  const [lockOn, setLockOn] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void biometricAvailable().then((ok) => {
+      if (cancelled || !ok) return;
+      setBiometricShown(true);
+      setLockOn(readLockEnabled());
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function toggleHideBalances(val: boolean) {
+    const ok = await privacy.setHidden(val);
+    showToast(!ok ? 'No pudimos guardar el cambio' : val ? 'Saldos ocultos' : 'Saldos visibles');
+  }
+
+  function toggleLock(val: boolean) {
+    writeLockEnabled(val);
+    setLockOn(val);
+    showToast(val ? 'Bloqueo activado' : 'Bloqueo apagado');
+  }
 
   useEffect(() => {
     async function load() {
@@ -557,6 +584,20 @@ function CuentaContent() {
 
         {/* Privacidad y seguridad */}
         <AccountGroup title="Privacidad y seguridad">
+          <AccountRow
+            emoji="👁️"
+            title="Ocultar saldos"
+            hint="Cubre los montos en Inicio y Patrimonio"
+            right={<Switch checked={privacy.hidden} onChange={(v) => void toggleHideBalances(v)} label="Ocultar saldos" />}
+          />
+          {biometricShown && (
+            <AccountRow
+              emoji="🔒"
+              title="Bloqueo con Face ID o huella"
+              hint="Te pide tu cara o tu huella al abrir Zafi"
+              right={<Switch checked={lockOn} onChange={toggleLock} label="Bloqueo con Face ID o huella" />}
+            />
+          )}
           <AccountRow emoji="🛡️" title="Cómo protegemos tu info" hint="Encriptación y acceso exclusivo" href="/cuenta/privacidad" />
           <AccountRow emoji="🕑" title="Historial de acceso" hint="Últimos inicios de sesión" href="/cuenta/historial-acceso" />
           <AccountRow
