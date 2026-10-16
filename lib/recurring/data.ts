@@ -14,6 +14,8 @@ import {
   type RecurringTotals,
   type RecurringTxInput,
 } from './detect'
+import { planSubscriptions, type PlanSubscriptions } from './plan'
+import type { PlanCategory, PlanSubItem } from '../plan-del-mes'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any>
@@ -37,7 +39,11 @@ export interface RecurringData {
   today: string
   charges: RecurringChargeView[]
   totals: RecurringTotals
-  /** ≈ % del gasto mensual (promedio de 3 meses completos). null si no aplica. */
+  /** Suscripciones del Plan del mes, cruzadas por nombre con `charges`. */
+  plan: PlanSubscriptions
+  /** Plan + cobros activos detectados que no están en el plan. */
+  monthlyTotal: number
+  /** ≈ % del gasto mensual (promedio de 3 meses completos) de `monthlyTotal`. null si no aplica. */
   pctOfSpending: number | null
 }
 
@@ -89,16 +95,19 @@ export async function getRecurringCharges(
   const { today } = opts
   const from = monthsBackStart(today, 6)
 
-  const [txs, catsRes, overridesRes, debtPaysRes, infoRes, earliestRes] = await Promise.all([
+  const [txs, catsRes, subsRes, overridesRes, debtPaysRes, infoRes, earliestRes] = await Promise.all([
     loadExpenses(admin, householdId, from, today),
-    admin.from('budget_categories').select('id, name, bucket, cap_key, parent_category_id').eq('household_id', householdId),
+    admin.from('budget_categories')
+      .select('id, name, bucket, cap_key, parent_category_id, budgeted_amount, pace_mode, expected_day, archived_at')
+      .eq('household_id', householdId),
+    admin.from('budget_sub_items').select('id, category_id, name, amount, is_fixed, recurrence, expected_day').eq('household_id', householdId),
     admin.from('recurring_overrides').select('merchant_key, status, remind_days_before').eq('household_id', householdId),
     admin.from('bill_payments').select('transaction_id').eq('household_id', householdId).not('debt_id', 'is', null).not('transaction_id', 'is', null),
     admin.from('merchant_cancel_info').select('merchant_key, display_name, match_patterns, cancel_url, cancel_email, steps, notes'),
     admin.from('transactions').select('date').eq('household_id', householdId).order('date', { ascending: true }).limit(1),
   ])
 
-  const categories = (catsRes.data ?? []) as (CapCategory & { bucket: string })[]
+  const categories = (catsRes.data ?? []) as (PlanCategory & CapCategory & { archived_at: string | null })[]
   const catName = new Map(categories.map((c) => [c.id, c.name]))
   const overrides = (overridesRes.data ?? []) as { merchant_key: string; status: string | null; remind_days_before: number | null }[]
   const excludeKeys = overrides.filter((o) => o.status === 'dismissed' || o.status === 'cancelled_by_user').map((o) => o.merchant_key)
@@ -133,7 +142,11 @@ export async function getRecurringCharges(
   for (const t of txs) monthTotals[t.date.slice(0, 7)] = (monthTotals[t.date.slice(0, 7)] ?? 0) + Number(t.amount)
   const earliest = (earliestRes.data?.[0]?.date as string | undefined)?.slice(0, 7) ?? null
   const avg = averageCompleteMonthSpending(monthTotals, today, earliest)
-  const pctOfSpending = avg && avg > 0 && totals.monthlyTotal > 0 ? Math.round((totals.monthlyTotal / avg) * 100) : null
+  const plan = planSubscriptions(categories, (subsRes.data ?? []) as PlanSubItem[], detected)
+  const inPlan = new Set(plan.lines.map((l) => l.merchantKey).filter(Boolean))
+  const outsidePlan = detected.filter((c) => c.status === 'active' && !inPlan.has(c.merchantKey)).reduce((s, c) => s + c.typicalAmount, 0)
+  const monthlyTotal = Math.round((plan.monthlyTotal + outsidePlan) * 100) / 100
+  const pctOfSpending = avg && avg > 0 && monthlyTotal > 0 ? Math.round((monthlyTotal / avg) * 100) : null
 
-  return { today, charges, totals, pctOfSpending }
+  return { today, charges, totals, plan, monthlyTotal, pctOfSpending }
 }
