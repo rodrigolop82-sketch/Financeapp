@@ -305,8 +305,8 @@ export function computeResumen(ctx: Ctx, days: PeriodDays): Resumen {
   const retNow = s4Of(ctx, usersRegisteredBetween(ctx, now - lag4 - P, now - lag4));
   const retPrev = s4Of(ctx, usersRegisteredBetween(ctx, now - lag4 - 2 * P, now - lag4 - P));
 
-  // Prueba → premium: quienes ya terminaron su prueba de 14 días.
-  const lagT = 14 * DAY_MS;
+  // Prueba → premium: quienes ya terminaron su prueba de 15 días.
+  const lagT = 15 * DAY_MS;
   const trials = usersRegisteredBetween(ctx, now - lagT - P, now - lagT);
   const trialsPrev = usersRegisteredBetween(ctx, now - lagT - 2 * P, now - lagT - P);
   const paid = trials.filter((u) => u.plan === 'premium' || u.plan === 'family').length;

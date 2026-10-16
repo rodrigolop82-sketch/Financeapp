@@ -1,7 +1,7 @@
-// Fin de la prueba de 14 días: cuándo avisar y qué contar. Sin React.
+// Fin de la prueba de 15 días: cuándo avisar y qué contar. Sin React.
 
-export const TRIAL_DAYS = 14
-/** Desde cuántos días antes del fin se avisa (día 11). */
+export const TRIAL_DAYS = 15
+/** Desde cuántos días antes del fin se avisa (día 12). */
 export const TRIAL_WARN_DAYS = 3
 
 const DAY = 86_400_000

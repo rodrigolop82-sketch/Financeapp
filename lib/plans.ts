@@ -21,7 +21,7 @@ export function isPremium(plan: Plan): boolean {
 }
 
 /**
- * True mientras dura la prueba de 14 días (users.trial_ends_at). La prueba
+ * True mientras dura la prueba de 15 días (users.trial_ends_at). La prueba
  * es de la app, no del proveedor de pagos, y da el nivel Familiar.
  */
 export function isTrialActive(trialEndsAt?: string | null, now: number = Date.now()): boolean {

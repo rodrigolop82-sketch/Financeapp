@@ -5,7 +5,7 @@ import { adminClient, appUrl, readPlanChoice, sessionUser, sandboxDetail } from 
 import { getEffectivePlan } from '@/lib/plans'
 
 // Abre el checkout de Recurrente. Sin prueba en el proveedor: la prueba de
-// 14 días es de la app, así que siempre se cobra el primer periodo.
+// 15 días es de la app, así que siempre se cobra el primer periodo.
 export async function POST(request: Request) {
   const user = await sessionUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })

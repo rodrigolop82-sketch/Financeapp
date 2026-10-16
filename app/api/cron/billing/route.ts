@@ -12,7 +12,7 @@ const CANCEL_AHEAD_MS = 36 * 60 * 60 * 1000
 
 // Diario: 1) cancela de verdad las suscripciones marcadas "al terminar el
 // periodo" antes de que se renueven; 2) baja a Gratis a quien ya terminó lo
-// pagado (los miembros pasan a solo ver); 3) avisa el día 11 de la prueba.
+// pagado (los miembros pasan a solo ver); 3) avisa el día 12 de la prueba.
 export async function GET(req: NextRequest) {
   if (CRON_SECRET && req.headers.get('authorization') !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ cancelled, downgraded, trialWarned })
 }
 
-/** Día 11: "Tu prueba termina en 3 días" por push y correo, una sola vez. */
+/** Día 12: "Tu prueba termina en 3 días" por push y correo, una sola vez. */
 async function warnTrialEnding(admin: ReturnType<typeof adminClient>, now: number): Promise<number> {
   const { data: users } = await admin
     .from('users')

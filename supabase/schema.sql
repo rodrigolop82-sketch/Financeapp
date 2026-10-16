@@ -10,7 +10,7 @@ CREATE TABLE users (
   currency TEXT DEFAULT 'GTQ',
   plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'premium')),
   show_decimals BOOLEAN DEFAULT false,
-  trial_ends_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '14 days',
+  trial_ends_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '15 days',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

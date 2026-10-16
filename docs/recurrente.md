@@ -13,7 +13,7 @@ La app solo conoce `lib/billing` (`billing()` → `BillingProvider`). La única 
    | Familiar mensual | $6.99 / mes | `RECURRENTE_PRODUCT_FAMILY_MONTHLY` |
    | Familiar anual | $54.99 / año | `RECURRENTE_PRODUCT_FAMILY_ANNUAL` |
 
-   **Sin prueba gratis en el producto.** La prueba de 14 días es de la app (`users.trial_ends_at`).
+   **Sin prueba gratis en el producto.** La prueba de 15 días es de la app (`users.trial_ends_at`).
    Guarda en cada variable el id del **precio** (`price_…`). Si guardas el del producto (`prod_…`), el checkout lo manda como `product_id`.
 
 2. Variables de entorno en Vercel:
