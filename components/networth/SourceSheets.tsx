@@ -36,14 +36,16 @@ function ToggleRow({ title, hint, checked, onChange }: { title: string; hint: st
 }
 
 /** Agregar (sin `source`) o editar una cuenta. */
-export function AccountSheet({ source, debts, onDone, onError }: {
+export function AccountSheet({ source, debts, kinds = SOURCE_KINDS, onDone, onError }: {
   source?: SourceView
   debts: DebtRef[]
+  /** Tipos que se ofrecen al agregar. */
+  kinds?: readonly (typeof SOURCE_KINDS)[number][]
   onDone: (text: string) => void
   onError?: (text: string) => void
 }) {
   const editing = !!source
-  const [kind, setKind] = useState<SourceKind>(source?.kind ?? 'bank_account')
+  const [kind, setKind] = useState<SourceKind>(source?.kind ?? kinds[0])
   const [name, setName] = useState(source?.name ?? '')
   const known = (GT_BANKS as readonly string[]).includes(source?.institution ?? '')
   const [institution, setInstitution] = useState(source?.institution ?? '')
@@ -52,7 +54,7 @@ export function AccountSheet({ source, debts, onDone, onError }: {
   const [balance, setBalance] = useState(source?.balance !== null && source?.balance !== undefined ? String(source.balance) : '')
   const [debtId, setDebtId] = useState(source?.debt?.id ?? '')
   const [shared, setShared] = useState(source?.shared ?? false)
-  const [tracks, setTracks] = useState(source?.tracksStatements ?? hasStatements('bank_account'))
+  const [tracks, setTracks] = useState(source?.tracksStatements ?? hasStatements(kinds[0]))
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -115,13 +117,13 @@ export function AccountSheet({ source, debts, onDone, onError }: {
 
   return (
     <div className={SHEET_BODY}>
-      <SheetHeader emoji={KIND_EMOJI[kind]} title={editing ? source!.name : 'Agregar cuenta'} subtitle={editing ? KIND_LABEL[kind] : 'Un banco, tarjeta, efectivo, inversión, bien o deuda'} />
+      <SheetHeader emoji={KIND_EMOJI[kind]} title={editing ? source!.name : 'Agregar cuenta'} subtitle={editing ? KIND_LABEL[kind] : kinds.length === SOURCE_KINDS.length ? 'Un banco, tarjeta, efectivo, inversión, bien o deuda' : 'Una cuenta de banco o una tarjeta'} />
 
       {!editing && (
         <div className="flex flex-col gap-1.5">
           <span className={LABEL}>Tipo</span>
           <div className="flex flex-wrap gap-2">
-            {SOURCE_KINDS.map((k) => (
+            {kinds.map((k) => (
               <button key={k} type="button" aria-pressed={kind === k} onClick={() => pickKind(k)} className={chip(kind === k)}>
                 {KIND_EMOJI[k]} {KIND_LABEL[k]}
               </button>

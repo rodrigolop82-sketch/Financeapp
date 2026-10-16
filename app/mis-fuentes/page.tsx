@@ -1,8 +1,9 @@
 'use client'
 
-// Mis cuentas: la lista única de bancos, tarjetas, efectivo, inversiones,
-// bienes y otras deudas. Cada cuenta puede tener saldo (cuenta en el
-// patrimonio), entrar al cierre de mes y ser personal o compartida.
+// Mis cuentas: cuentas de banco y tarjetas, las que tienen movimientos.
+// Efectivo, inversiones, bienes y otras deudas viven solo en Mi patrimonio.
+// Cada cuenta puede tener saldo (cuenta en el patrimonio), entrar al cierre
+// de mes y ser personal o compartida.
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -18,10 +19,10 @@ import { BottomSheet } from '@/components/transactions/BottomSheet'
 import { AccountSheet } from '@/components/networth/SourceSheets'
 import { sendJson, useNetWorth } from '@/components/networth/useNetWorth'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
-import { KIND_EMOJI, KIND_LABEL } from '@/lib/networth/sources'
+import { ACCOUNT_KINDS, KIND_EMOJI, KIND_LABEL, isAccountKind } from '@/lib/networth/sources'
 import type { SourceView } from '@/lib/networth/data'
 
-const SUBTITLE = 'Tus bancos, tarjetas y lo que tienes. Con saldo cuentan en tu patrimonio; con cierre de mes, Zafi te recuerda su estado de cuenta.'
+const SUBTITLE = 'Tus cuentas de banco y tarjetas. Con saldo cuentan en tu patrimonio; con cierre de mes, Zafi te recuerda su estado de cuenta.'
 
 function help(s: SourceView): string {
   return [KIND_LABEL[s.kind], s.institution && s.institution !== s.name ? s.institution : null, s.last4 ? `•••• ${s.last4}` : null]
@@ -58,8 +59,10 @@ export default function MisCuentasPage() {
   if (state.status === 'loading') return <PageSkeleton variant="list" />
   const data = state.status === 'ok' ? state.data : null
   const canWrite = data?.canWrite ?? false
-  const mine = (data?.accounts ?? []).filter((a) => a.mine || !a.shared)
-  const shared = (data?.accounts ?? []).filter((a) => !a.mine && a.shared)
+  const accounts = (data?.accounts ?? []).filter((a) => isAccountKind(a.kind))
+  const mine = accounts.filter((a) => a.mine || !a.shared)
+  const shared = accounts.filter((a) => !a.mine && a.shared)
+  const archived = (data?.archived ?? []).filter((a) => isAccountKind(a.kind))
 
   async function restore(id: string, name: string) {
     const r = await sendJson(`/api/networth/sources/${id}`, 'PATCH', { restore: true })
@@ -127,13 +130,15 @@ export default function MisCuentasPage() {
 
             <p className={`mx-1 mt-3 text-[13px] leading-[1.45] [text-wrap:pretty] ${TEXT_MUTED}`}>
               Al importar un estado de cuenta, Zafi agrega el banco por ti. El saldo de las tarjetas se toma de Plan › Deudas.
+              Efectivo, inversiones, vehículos, inmuebles y otras deudas se agregan en{' '}
+              <Link href="/patrimonio" className={`font-semibold ${LINK_TEXT}`}>Mi patrimonio</Link>.
             </p>
 
-            {data.archived.length > 0 && (
+            {archived.length > 0 && (
               <>
                 <GroupTitle>Archivadas</GroupTitle>
                 <ListCard>
-                  {data.archived.map((s) => (
+                  {archived.map((s) => (
                     <div key={s.id} className={`flex items-center gap-3 py-3 ${ROW_DIVIDER}`}>
                       <RowBody tile={<Tile>{KIND_EMOJI[s.kind]}</Tile>} name={s.name} help={KIND_LABEL[s.kind]} />
                       {canWrite && <PillButton onClick={() => void restore(s.id, s.name)}>Restaurar</PillButton>}
@@ -152,6 +157,7 @@ export default function MisCuentasPage() {
             key={sheet.kind === 'edit' ? sheet.source.id : 'nueva'}
             source={sheet.kind === 'edit' ? sheet.source : undefined}
             debts={data.debts}
+            kinds={ACCOUNT_KINDS}
             onDone={(text) => { setSheet(null); setMessage({ text, tone: 'ok' }); void reload() }}
             onError={(text) => setMessage({ text, tone: 'error' })}
           />

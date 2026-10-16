@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AppShell } from '@/components/layout/AppShell'
-import { ErrorBox, GroupTitle, HERO, HERO_MUTED, HERO_STYLE, LINK_TEXT, ListCard, PageHeader, PillButton, ROW_DIVIDER } from '@/components/layout/Pantalla'
+import { ErrorBox, GroupTitle, HERO, HERO_MUTED, HERO_STYLE, LINK_TEXT, ListCard, PageHeader, PillButton, ROW_DIVIDER, RowBody, Tile } from '@/components/layout/Pantalla'
 import { PageSkeleton } from '@/components/motion/PageSkeleton'
 import { DIVIDER, SOFT_BG, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
@@ -12,7 +12,8 @@ import { BottomSheet } from '@/components/transactions/BottomSheet'
 import { PremiumBadge, upgradeHref } from '@/components/premium/PremiumTag'
 import { NetWorthChart, SAMPLE_SERIES } from '@/components/networth/NetWorthChart'
 import { AccountSheet, UpdateBalanceSheet } from '@/components/networth/SourceSheets'
-import { useNetWorth } from '@/components/networth/useNetWorth'
+import { sendJson, useNetWorth } from '@/components/networth/useNetWorth'
+import { KIND_EMOJI, KIND_LABEL, isAccountKind } from '@/lib/networth/sources'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { useMaskedFmt, usePrivacy } from '@/components/privacidad/PrivacyProvider'
 import { AmortizacionDetalle } from '@/components/deudas/AmortizacionDetalle'
@@ -253,7 +254,7 @@ export default function PatrimonioPage() {
   // Ocultar saldos (F9): todos los montos de Mi patrimonio pasan por aquí.
   const fmt = useMaskedFmt(useFormatMoney())
   const privacy = usePrivacy()
-  const { state, reload } = useNetWorth()
+  const { state, reload } = useNetWorth({ archived: true })
   const [sheet, setSheet] = useState<{ kind: 'add' } | { kind: 'update' | 'edit'; source: SourceView } | null>(null)
   const [message, setMessage] = useState<StatusMessage | null>(null)
   const clearMessage = useCallback(() => setMessage(null), [])
@@ -266,14 +267,22 @@ export default function PatrimonioPage() {
   const canWrite = data?.canWrite ?? false
   const total = sm ? sm.assets + sm.liabilities : 0
   const delta = sm?.deltaVsPrevMonthEnd ?? null
+  // Las cuentas de banco y tarjetas archivadas se restauran en Mis cuentas.
+  const archived = (data?.archived ?? []).filter((a) => !isAccountKind(a.kind))
   const assetGroups = data ? groupAssets(data.assets) : []
+
+  async function restore(id: string, name: string) {
+    const r = await sendJson(`/api/networth/sources/${id}`, 'PATCH', { restore: true })
+    setMessage(r.ok ? { text: `${name} restaurado`, tone: 'ok' } : { text: r.error ?? 'No se pudo restaurar', tone: 'error' })
+    if (r.ok) await reload()
+  }
   const liabilityGroups = data ? groupLiabilities(data.liabilities) : []
 
   return (
     <AppShell title="Mi patrimonio" currentPath="/patrimonio" hideMobileBar>
       <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
         <PageHeader back={BACK} title="Mi patrimonio" subtitle="Lo que tienes menos lo que debes" right={
-          <Link href="/mis-fuentes" className={`flex h-11 items-center text-sm font-semibold ${LINK_TEXT}`}>Administrar</Link>
+          <Link href="/mis-fuentes" className={`flex h-11 items-center text-sm font-semibold ${LINK_TEXT}`}>Mis cuentas</Link>
         } />
 
         {state.status === 'error' && (
@@ -367,6 +376,20 @@ export default function PatrimonioPage() {
 
             <GroupTitle>Evolución</GroupTitle>
             <Evolution premium={data.features.history} fmt={fmt} />
+
+            {archived.length > 0 && (
+              <>
+                <GroupTitle>Archivados</GroupTitle>
+                <ListCard>
+                  {archived.map((a) => (
+                    <div key={a.id} className={`flex items-center gap-3 py-3 ${ROW_DIVIDER}`}>
+                      <RowBody tile={<Tile>{KIND_EMOJI[a.kind]}</Tile>} name={a.name} help={KIND_LABEL[a.kind]} />
+                      {canWrite && <PillButton onClick={() => void restore(a.id, a.name)}>Restaurar</PillButton>}
+                    </div>
+                  ))}
+                </ListCard>
+              </>
+            )}
           </>
         )}
       </div>
