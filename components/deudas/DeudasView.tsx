@@ -29,14 +29,24 @@ const DEBT_TYPES: Record<DebtType, { emoji: string; label: string }> = {
   informal: { emoji: '🤝', label: 'Informal' },
 };
 
+const PURPOSES: Record<DebtPurpose, string> = {
+  vehicle: '🚗 Vehículo',
+  real_estate: '🏠 Inmueble',
+  personal: 'Personal',
+};
+
 const STRATEGY_HELP: Record<DebtStrategy, string> = {
   snowball: 'Pagas primero la deuda más pequeña: ganas rápido y te motiva.',
   avalanche: 'Pagas primero la de más interés: pagas menos en total.',
 };
 
+type DebtPurpose = NonNullable<Debt['purpose']>;
+
 interface DebtDraft {
   name: string;
   type: DebtType;
+  purpose: DebtPurpose;
+  original_amount: string;
   balance: string;
   min_payment: string;
   interest_rate: string;
@@ -191,7 +201,7 @@ export function DeudasView() {
                         <RowBody
                           tile={<Tile>{t.emoji}</Tile>}
                           name={d.name}
-                          help={`${t.label} · ${rate ? `${rate}% anual` : 'sin interés'}${d.due_day ? ` · vence el ${d.due_day}` : ''}`}
+                          help={`${d.type === 'loan' && d.purpose ? PURPOSES[d.purpose] : t.label} · ${rate ? `${rate}% anual` : 'sin interés'}${d.due_day ? ` · vence el ${d.due_day}` : ''}`}
                         />
                         <RowAmount>{fmt(Number(d.balance))}</RowAmount>
                       </button>
@@ -199,7 +209,7 @@ export function DeudasView() {
                         <div className="flex flex-col gap-2.5">
                           <div className={`grid grid-cols-2 gap-1 rounded-xl px-3 py-2.5 ${SOFT_BG}`}>
                             <span className={`text-[13px] ${TEXT_MUTED}`}>
-                              Pago mínimo
+                              {d.type === 'credit' ? 'Pago mínimo' : 'Pago mensual'}
                               <b className={`block font-outfit text-[15px] ${TEXT_STRONG}`}>{fmt(Number(d.min_payment))}/mes</b>
                             </span>
                             <span className={`text-[13px] ${TEXT_MUTED}`}>
@@ -367,6 +377,8 @@ function DebtSheet({ debt, onSave, onDelete }: {
   const [f, setF] = useState<DebtDraft>(() => ({
     name: debt?.name ?? '',
     type: debt?.type ?? 'credit',
+    purpose: debt?.purpose ?? 'personal',
+    original_amount: debt?.original_amount ? String(debt.original_amount) : '',
     balance: debt ? String(debt.balance) : '',
     min_payment: debt ? String(debt.min_payment) : '',
     interest_rate: debt ? String(debt.interest_rate) : '',
@@ -374,16 +386,20 @@ function DebtSheet({ debt, onSave, onDelete }: {
   }));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const set = (k: keyof DebtDraft) => (e: React.ChangeEvent<HTMLInputElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const set = (k: Exclude<keyof DebtDraft, 'type' | 'purpose'>) => (e: React.ChangeEvent<HTMLInputElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
 
   async function save() {
     if (!f.name.trim() || !num(f.balance)) { setError('Escribe el nombre y cuánto debes.'); return; }
     const day = Math.round(num(f.due_day));
+    const original = num(f.original_amount);
+    if (original > 0 && original < num(f.balance)) { setError('La deuda original no puede ser menor que lo que debes hoy.'); return; }
     setError('');
     setSaving(true);
     await onSave({
       name: f.name.trim(),
       type: f.type,
+      purpose: f.type === 'loan' ? f.purpose : null,
+      original_amount: original > 0 ? original : null,
       balance: num(f.balance),
       min_payment: num(f.min_payment),
       interest_rate: num(f.interest_rate),
@@ -392,7 +408,7 @@ function DebtSheet({ debt, onSave, onDelete }: {
     setSaving(false);
   }
 
-  const field = (id: keyof DebtDraft, label: string, placeholder: string, mode: 'decimal' | 'numeric' = 'decimal') => (
+  const field = (id: Exclude<keyof DebtDraft, 'type' | 'purpose'>, label: string, placeholder: string, mode: 'decimal' | 'numeric' = 'decimal') => (
     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
       <FieldLabel htmlFor={`deuda-${id}`}>{label}</FieldLabel>
       <input id={`deuda-${id}`} inputMode={mode} value={f[id]} onChange={set(id)} placeholder={placeholder} className={INPUT_48} />
@@ -412,17 +428,32 @@ function DebtSheet({ debt, onSave, onDelete }: {
         value={f.type}
         onChange={(type) => setF((s) => ({ ...s, type }))}
       />
+      {f.type === 'loan' && (
+        <div className="flex flex-col gap-1.5">
+          <span className={`text-[13px] font-semibold ${TEXT_MUTED}`}>¿Para qué es?</span>
+          <Segmented
+          label="¿Para qué es?"
+          options={(Object.keys(PURPOSES) as DebtPurpose[]).map((v) => ({ value: v, label: PURPOSES[v] }))}
+          value={f.purpose}
+          onChange={(purpose) => setF((s) => ({ ...s, purpose }))}
+          />
+        </div>
+      )}
       <div className="flex flex-col gap-1.5">
         <FieldLabel htmlFor="deuda-name">Nombre</FieldLabel>
         <input id="deuda-name" value={f.name} onChange={set('name')} placeholder="Ej: Tarjeta Visa, Préstamo del tío" className={INPUT_48} />
       </div>
       <div className="flex gap-3">
-        {field('balance', 'Saldo', 'Q 0.00')}
-        {field('min_payment', 'Pago mínimo', 'Q 0.00')}
+        {field('original_amount', 'Deuda original (opcional)', 'Q 0.00')}
+        {field('balance', 'Saldo de hoy', 'Q 0.00')}
       </div>
       <div className="flex gap-3">
+        {field('min_payment', f.type === 'credit' ? 'Pago mínimo' : 'Pago mensual', 'Q 0.00')}
         {field('interest_rate', 'Interés anual', '0 %')}
+      </div>
+      <div className="flex gap-3">
         {field('due_day', 'Vence el día', '15', 'numeric')}
+        <div className="flex-1" />
       </div>
       {error && <ErrorBox>{error}</ErrorBox>}
       <button type="button" onClick={() => void save()} disabled={saving} className={PRIMARY_BUTTON}>

@@ -3,7 +3,7 @@ import { householdContext } from '@/lib/server/household-context'
 import { parseSourceUpdate } from '@/lib/networth/sources'
 import { getVisibleSource, updateSourceBalance } from '@/lib/networth/data'
 
-// Editar una cuenta propia o compartida: datos, saldo, compartir, cierre de
+// Editar una cuenta propia o compartida: tipo (entre activos), datos, saldo, compartir, cierre de
 // mes, vínculo con su deuda, archivar o restaurar.
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const ctx = await householdContext({ write: true })
@@ -32,6 +32,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 
   const patch: Record<string, unknown> = {}
+  if (v.kind !== undefined) patch.kind = v.kind
   if (v.name !== undefined) patch.name = v.name
   if (v.institution !== undefined) patch.institution = v.institution
   if (v.shared !== undefined) patch.shared = v.shared

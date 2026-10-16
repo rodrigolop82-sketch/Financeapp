@@ -44,6 +44,12 @@ describe('parseSourceUpdate', () => {
     expect(parseSourceUpdate({ debtId: null }, 'credit_card')).toEqual({ ok: true, value: { debtId: null } })
     expect(parseSourceUpdate({ debtId: 'd1' }, 'bank_account').ok).toBe(false)
   })
+  it('un activo puede cambiar a otro tipo de activo; tarjetas y deudas no', () => {
+    expect(parseSourceUpdate({ kind: 'vehicle' }, 'real_estate')).toEqual({ ok: true, value: { kind: 'vehicle' } })
+    expect(parseSourceUpdate({ kind: 'real_estate', name: 'Casa' }, 'real_estate')).toEqual({ ok: true, value: { name: 'Casa' } })
+    expect(parseSourceUpdate({ kind: 'credit_card' }, 'bank_account').ok).toBe(false)
+    expect(parseSourceUpdate({ kind: 'cash' }, 'other_liability').ok).toBe(false)
+  })
 })
 
 describe('canSeeSource', () => {

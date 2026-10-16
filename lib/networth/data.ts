@@ -1,11 +1,15 @@
 // Capa de datos de Mis cuentas y patrimonio (solo servidor, service role).
 // Como el service role salta RLS, aquí se filtra lo mismo que RLS: cuentas
 // del hogar que son propias o compartidas. Los saldos son datos sensibles:
-// nunca van a logs, mensajes de error, URLs ni a la IA.
+// nunca van a logs, mensajes de error ni URLs. Sí van al contexto de
+// Pregúntale a Zafi (lib/ai-context.ts), con el mismo filtro de visibilidad,
+// para que pueda aconsejar con el patrimonio real de la persona.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { daysSince, isStale, monthlyHistory, summarize, type BalancePoint, type HistoryPoint, type NetWorthItem, type NetWorthSummary } from './compute'
 import { canSeeSource, type SourceKind } from './sources'
+import type { DebtPurpose, DebtTerms } from './groups'
+import { amortizar } from '@/lib/amortizacion'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any>
@@ -36,6 +40,8 @@ export interface SourceView {
   detected: boolean
   /** Tarjeta vinculada a su deuda de Plan › Deudas. */
   debt: DebtRef | null
+  /** Tasa, pago y plazo de una deuda de Plan › Deudas (null en las demás). */
+  debtTerms: DebtTerms | null
 }
 
 export interface NetWorthData {
@@ -56,7 +62,11 @@ export type SourceRow = {
   owner_user_id: string | null; shared: boolean; tracks_statements: boolean; last4: string | null
   detection_method: string; debt_id: string | null
 }
-type DebtRow = { id: string; name: string; type: string; balance: number; is_paid: boolean | null }
+type DebtRow = {
+  id: string; name: string; type: string; balance: number; is_paid: boolean | null
+  interest_rate: number | null; min_payment: number | null; due_day: number | null
+  original_amount: number | null; purpose: DebtPurpose | null
+}
 
 export const SOURCE_COLUMNS =
   'id, household_id, kind, side, name, institution, current_balance, balance_updated_at, archived_at, owner_user_id, shared, tracks_statements, last4, detection_method, debt_id'
@@ -82,7 +92,7 @@ async function load(admin: Admin, hid: string, userId: string) {
     ids.length
       ? admin.from('source_balance_snapshots').select('source_id, balance, recorded_at').in('source_id', ids).order('recorded_at', { ascending: true }).limit(5000)
       : Promise.resolve({ data: [] }),
-    admin.from('debts').select('id, name, type, balance, is_paid').eq('household_id', hid),
+    admin.from('debts').select('id, name, type, balance, is_paid, interest_rate, min_payment, due_day, original_amount, purpose').eq('household_id', hid),
     admin.from('debt_balance_snapshots').select('debt_id, balance, recorded_at').eq('household_id', hid).order('recorded_at', { ascending: true }).limit(5000),
   ])
   const debts = (debtRes.data ?? []) as DebtRow[]
@@ -100,6 +110,21 @@ async function load(admin: Admin, hid: string, userId: string) {
     ...((debtSnapRes.data ?? []) as { debt_id: string; balance: number; recorded_at: string }[]).map((p) => ({ itemId: `debt:${p.debt_id}`, balance: Math.max(0, Number(p.balance)), recordedAt: p.recorded_at })),
   ]
   return { sources, debts, items, points }
+}
+
+function debtTerms(d: DebtRow): DebtTerms {
+  const interestRate = Number(d.interest_rate) || 0
+  const monthlyPayment = Number(d.min_payment) || 0
+  const a = amortizar({ saldo: Math.max(0, Number(d.balance)), tasaAnual: interestRate, cuota: monthlyPayment })
+  return {
+    debtType: d.type === 'loan' ? 'loan' : d.type === 'informal' ? 'informal' : 'credit',
+    purpose: d.purpose ?? null,
+    interestRate,
+    monthlyPayment,
+    dueDay: d.due_day ?? null,
+    originalAmount: d.original_amount === null || d.original_amount === undefined ? null : Number(d.original_amount),
+    monthsLeft: a.ok ? a.meses : null,
+  }
 }
 
 export async function getNetWorth(admin: Admin, hid: string, userId: string, nowIso: string): Promise<NetWorthData> {
@@ -120,6 +145,7 @@ export async function getNetWorth(admin: Admin, hid: string, userId: string, now
       fromDebts: false, mine: s.owner_user_id === userId, shared: s.shared, tracksStatements: s.tracks_statements,
       last4: s.last4, detected: s.detection_method === 'auto',
       debt: s.debt_id ? debtById.get(s.debt_id) ?? null : null,
+      debtTerms: null,
     }
   })
   const debtViews: SourceView[] = activeDebts.map((d) => {
@@ -128,6 +154,7 @@ export async function getNetWorth(admin: Admin, hid: string, userId: string, now
       id: `debt:${d.id}`, kind: raw.type === 'loan' ? 'loan' : raw.type === 'credit' ? 'credit_card' : 'other_liability',
       side: 'liability', name: d.name, institution: null, balance: d.balance, daysSinceUpdate: null, stale: false, fromDebts: true,
       mine: false, shared: true, tracksStatements: false, last4: null, detected: false, debt: null,
+      debtTerms: debtTerms(raw),
     }
   })
   const byBalance = (a: SourceView, b: SourceView) => (b.balance ?? -1) - (a.balance ?? -1)

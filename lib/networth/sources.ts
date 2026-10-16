@@ -6,7 +6,7 @@
 // · Cada cuenta es personal (de quien la creó) o compartida con el hogar.
 
 export const SOURCE_KINDS = [
-  'bank_account', 'credit_card', 'cash', 'investment', 'property_or_vehicle', 'other_asset', 'other_liability',
+  'bank_account', 'credit_card', 'cash', 'investment', 'vehicle', 'real_estate', 'other_asset', 'other_liability',
 ] as const
 export type SourceKind = (typeof SOURCE_KINDS)[number] | 'loan'
 
@@ -15,20 +15,28 @@ export const KIND_LABEL: Record<SourceKind, string> = {
   credit_card: 'Tarjeta de crédito',
   cash: 'Efectivo',
   investment: 'Inversión',
-  property_or_vehicle: 'Casa o vehículo',
+  vehicle: 'Vehículo',
+  real_estate: 'Inmueble',
   other_asset: 'Otro activo',
   loan: 'Préstamo',
   other_liability: 'Otra deuda',
 }
 
 export const KIND_EMOJI: Record<SourceKind, string> = {
-  bank_account: '🏦', credit_card: '💳', cash: '💵', investment: '📈', property_or_vehicle: '🏠', other_asset: '💎',
+  bank_account: '🏦', credit_card: '💳', cash: '💵', investment: '📈', vehicle: '🚗', real_estate: '🏠', other_asset: '💎',
   loan: '🧾', other_liability: '🧾',
 }
 
 /** Tipos con estado de cuenta mensual (entran al cierre de mes por defecto). */
 export function hasStatements(kind: SourceKind): boolean {
   return kind === 'bank_account' || kind === 'credit_card'
+}
+
+/** Tipos de activo entre los que se puede cambiar una cuenta ya creada. */
+export const ASSET_KINDS = ['bank_account', 'cash', 'investment', 'vehicle', 'real_estate', 'other_asset'] as const
+
+function isAssetKind(v: unknown): v is (typeof ASSET_KINDS)[number] {
+  return typeof v === 'string' && (ASSET_KINDS as readonly string[]).includes(v)
 }
 
 export const MAX_BALANCE = 1_000_000_000
@@ -109,6 +117,7 @@ export function parseNewSource(body: unknown): Parsed<NewSource> {
 }
 
 export interface SourceUpdate {
+  kind?: (typeof ASSET_KINDS)[number]
   name?: string
   institution?: string | null
   balance?: number
@@ -123,6 +132,10 @@ export interface SourceUpdate {
 export function parseSourceUpdate(body: unknown, kind: SourceKind): Parsed<SourceUpdate> {
   const b = (body ?? {}) as Record<string, unknown>
   const out: SourceUpdate = {}
+  if (b.kind !== undefined && b.kind !== kind) {
+    if (!isAssetKind(kind) || !isAssetKind(b.kind)) return { ok: false, error: 'Solo los activos pueden cambiar de tipo' }
+    out.kind = b.kind
+  }
   if (b.name !== undefined) {
     const name = parseText(b.name, 60)
     if (!name) return { ok: false, error: 'Ponle un nombre' }
