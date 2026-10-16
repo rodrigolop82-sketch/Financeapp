@@ -11,12 +11,15 @@
 -- · debts.purpose: para qué es un préstamo (vehículo, inmueble o personal).
 --   Opcional; sirve para agrupar las deudas por plazo.
 
+-- Primero se quita la regla vieja (no acepta los tipos nuevos), luego se
+-- reparten las filas y al final se pone la regla nueva.
+ALTER TABLE financial_sources DROP CONSTRAINT IF EXISTS financial_sources_kind_check;
+
 UPDATE financial_sources SET kind = 'vehicle'
 WHERE kind = 'property_or_vehicle'
   AND name ~* '(carro|auto|veh[ií]culo|moto|camioneta|pick ?up|cami[oó]n|bus|toyota|honda|mazda|nissan|hyundai|kia|suzuki|mitsubishi|ford|chevrolet|jeep|bmw|mercedes|audi|volkswagen|isuzu|yamaha|subaru|tesla)';
 UPDATE financial_sources SET kind = 'real_estate' WHERE kind = 'property_or_vehicle';
 
-ALTER TABLE financial_sources DROP CONSTRAINT IF EXISTS financial_sources_kind_check;
 ALTER TABLE financial_sources ADD CONSTRAINT financial_sources_kind_check
   CHECK (kind IN ('bank_account', 'cash', 'investment', 'vehicle', 'real_estate',
                   'credit_card', 'loan', 'other_asset', 'other_liability'));
