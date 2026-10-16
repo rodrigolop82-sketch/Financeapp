@@ -6,6 +6,8 @@
 --   reciben una prueba de 15 días desde que corre esta migración. Incluye las
 --   cuentas con Premium puesto a mano (fundadoras, QA): al terminar la
 --   prueba pierden Premium igual que las demás.
+-- · Excepción: rodrigolop82@gmail.com e ileanmag@gmail.com conservan su
+--   Premium manual.
 -- · Se borran los avisos de fin de prueba ya enviados, para que todos
 --   reciban el del día 12 de la prueba nueva.
 -- · Quien ya tiene una suscripción activa o en mora no se toca.
@@ -14,7 +16,8 @@
 --
 -- Para revisar antes quién cambia:
 --   SELECT email, plan, trial_ends_at FROM users u
---   WHERE NOT EXISTS (
+--   WHERE lower(u.email) NOT IN ('rodrigolop82@gmail.com', 'ileanmag@gmail.com')
+--     AND NOT EXISTS (
 --     SELECT 1 FROM subscriptions s
 --     WHERE s.user_id = u.id AND s.status IN ('active', 'past_due')
 --       AND (s.current_period_end IS NULL OR s.current_period_end > NOW())
@@ -32,7 +35,8 @@ BEGIN
   UPDATE users u
   SET plan = 'free',
       trial_ends_at = NOW() + INTERVAL '15 days'
-  WHERE NOT EXISTS (
+  WHERE lower(u.email) NOT IN ('rodrigolop82@gmail.com', 'ileanmag@gmail.com')
+    AND NOT EXISTS (
     SELECT 1 FROM subscriptions s
     WHERE s.user_id = u.id
       AND s.status IN ('active', 'past_due')
