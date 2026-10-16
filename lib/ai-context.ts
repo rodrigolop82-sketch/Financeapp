@@ -1,6 +1,78 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { localMonthStart, localMonth } from '@/lib/dates'
 import { getUserHousehold } from '@/lib/household'
+import { loadScoreInput, type ScoreRaw } from '@/lib/health-data'
+import { getNetWorth, type NetWorthData, type SourceView } from '@/lib/networth/data'
+import { groupAssets, groupLiabilities, PURPOSE_LABEL } from '@/lib/networth/groups'
+import { formatMonths } from '@/lib/deudas'
+
+type Money = (n: number) => string
+
+function prevMonth(month: string, n: number): string {
+  const [y, m] = month.split('-').map(Number)
+  const d = new Date(y, m - 1 - n, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** Ingresos y gastos registrados en los últimos meses completos (solo los meses con movimientos). */
+export function recordedMonths(txs: ScoreRaw['txs'], month: string, money: Money): string {
+  const lines = [1, 2, 3].map((n) => prevMonth(month, n)).map((m) => {
+    const inMonth = txs.filter((t) => t.date.startsWith(m))
+    if (inMonth.length === 0) return null
+    const income = inMonth.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
+    const expense = inMonth.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
+    return `  ${m}: ingresos ${money(income)} · gastos ${money(expense)}`
+  }).filter((l): l is string => l !== null)
+  return lines.length ? lines.join('\n') : '  Sin movimientos registrados en los últimos 3 meses.'
+}
+
+function debtLine(s: SourceView, money: Money): string {
+  const t = s.debtTerms
+  const parts = [`${s.name}: ${money(s.balance ?? 0)}`]
+  if (t) {
+    if (t.debtType === 'loan' && t.purpose) parts.push(`préstamo de ${PURPOSE_LABEL[t.purpose].label.toLowerCase()}`)
+    else parts.push(t.debtType === 'credit' ? 'tarjeta' : t.debtType === 'informal' ? 'informal' : 'préstamo')
+    parts.push(`${t.interestRate}% anual`)
+    parts.push(`pago ${money(t.monthlyPayment)}/mes`)
+    if (t.originalAmount) parts.push(`deuda original ${money(t.originalAmount)}`)
+    parts.push(t.monthsLeft !== null ? `la termina en ${formatMonths(t.monthsLeft)}` : 'con el pago actual no baja')
+  } else {
+    parts.push('sin tasa ni pago registrados')
+  }
+  return `    - ${parts.join(' · ')}`
+}
+
+/** Mi patrimonio en texto, con los mismos grupos que ve el usuario. */
+export function netWorthSummary(data: NetWorthData, money: Money): string {
+  if (!data.hasSources) return 'El usuario aún no registra cuentas, bienes ni deudas en Mi patrimonio.'
+  const sm = data.summary
+  const out: string[] = []
+  out.push(`Patrimonio neto: ${sm.netWorth < 0 ? '-' : ''}${money(Math.abs(sm.netWorth))} (activos ${money(sm.assets)} · deudas ${money(sm.liabilities)})`)
+  if (sm.deltaVsPrevMonthEnd !== null) {
+    out.push(`Cambio desde el cierre del mes pasado: ${sm.deltaVsPrevMonthEnd >= 0 ? '+' : '-'}${money(Math.abs(sm.deltaVsPrevMonthEnd))}`)
+  }
+  out.push('LO QUE TIENE:')
+  const withBalance = data.assets.filter((a) => a.balance !== null)
+  if (withBalance.length === 0) out.push('  Sin activos con saldo.')
+  for (const g of groupAssets(withBalance)) {
+    out.push(`  ${g.label}: ${money(g.total)}`)
+    for (const a of g.items) {
+      const when = a.daysSinceUpdate === null ? '' : a.daysSinceUpdate <= 0 ? ' (actualizado hoy)' : ` (actualizado hace ${a.daysSinceUpdate} días)`
+      out.push(`    - ${a.name}${a.institution && a.institution !== a.name ? ` (${a.institution})` : ''}: ${money(a.balance ?? 0)}${when}`)
+    }
+  }
+  const noBalance = data.assets.filter((a) => a.balance === null)
+  if (noBalance.length) out.push(`  Cuentas sin saldo registrado (no cuentan): ${noBalance.map((a) => a.name).join(', ')}`)
+  out.push('LO QUE DEBE:')
+  if (data.liabilities.length === 0) out.push('  Sin deudas.')
+  for (const g of groupLiabilities(data.liabilities)) {
+    out.push(`  ${g.label}: ${money(g.total)}${g.monthly > 0 ? ` (pagos ${money(g.monthly)}/mes)` : ''}`)
+    for (const d of g.items) out.push(debtLine(d, money))
+  }
+  const stale = data.accounts.filter((a) => a.stale).map((a) => a.name)
+  if (stale.length) out.push(`Saldos con más de 30 días sin actualizar: ${stale.join(', ')}`)
+  return out.join('\n')
+}
 
 export async function buildZafiSystemPrompt(
   userId: string,
@@ -37,6 +109,16 @@ export async function buildZafiSystemPrompt(
         : Promise.resolve({ data: [] }),
     ])
 
+  const month = localMonth()
+  const [scoreRes, netWorthRes] = householdId
+    ? await Promise.allSettled([
+        loadScoreInput(supabase, { householdId, userId, month }),
+        getNetWorth(supabase, householdId, userId, new Date().toISOString()),
+      ])
+    : [null, null]
+  const live = scoreRes?.status === 'fulfilled' ? scoreRes.value : null
+  const netWorth = netWorthRes?.status === 'fulfilled' ? netWorthRes.value : null
+
   const user = userRes.data
   const profile = profileRes.data
   const debts = debtsRes.data ?? []
@@ -46,6 +128,12 @@ export async function buildZafiSystemPrompt(
 
   const currency = user?.currency ?? 'GTQ'
   const symbol = currency === 'GTQ' ? 'Q' : '$'
+  const money: Money = (n) => `${symbol} ${Math.round(n).toLocaleString()}`
+
+  const netWorthText = netWorth
+    ? netWorthSummary(netWorth, money)
+    : householdId ? 'No se pudo leer Mi patrimonio en este momento.' : 'Sin hogar configurado.'
+  const recordedText = live ? recordedMonths(live.raw.txs, month, money) : '  No se pudieron leer los movimientos.'
 
   const debtsSummary = debts.length === 0
     ? 'Sin deudas activas.'
@@ -68,7 +156,7 @@ export async function buildZafiSystemPrompt(
     spentByCategory[t.category_id] = (spentByCategory[t.category_id] ?? 0) + t.amount
   })
 
-  const budgetSummary = categories.map((c: { id: string; name: string; budgeted_amount: number }) => {
+  const budgetSummary = categories.filter((c: { archived_at?: string | null }) => !c.archived_at).map((c: { id: string; name: string; budgeted_amount: number }) => {
     const spent = spentByCategory[c.id] ?? 0
     const pct = c.budgeted_amount > 0
       ? Math.round((spent / c.budgeted_amount) * 100)
@@ -100,15 +188,20 @@ Puntaje Zafi: ${profile?.health_score ?? 0}/100 ${profile?.health_score >= 85 ? 
   profile?.health_score >= 25 ? 'Nivel: EN RIESGO' : 'Nivel: CRITICO'}
 ${scoreTrend}
 
-Ingreso mensual: ${symbol} ${Math.round(profile?.total_income ?? 0).toLocaleString()} (${profile?.income_type === 'fixed' ? 'fijo' : profile?.income_type === 'variable' ? 'variable' : 'mixto'})
-Gastos fijos: ${symbol} ${Math.round(profile?.total_fixed_expenses ?? 0).toLocaleString()}
-Ahorros totales: ${symbol} ${Math.round(profile?.total_savings ?? 0).toLocaleString()}
-  - Efectivo disponible: ${symbol} ${Math.round(profile?.savings_cash ?? 0).toLocaleString()}
-  - Inversiones (no líquido): ${symbol} ${Math.round(profile?.savings_investments ?? 0).toLocaleString()}
-Fondo de emergencia: ${profile?.has_emergency_fund ? 'Sí' : 'No'}
-Deudas totales: ${symbol} ${Math.round(profile?.total_debt ?? 0).toLocaleString()}
+Ingreso mensual (Plan del mes): ${money(live?.input.income ?? profile?.total_income ?? 0)} (${profile?.income_type === 'fixed' ? 'fijo' : profile?.income_type === 'variable' ? 'variable' : 'mixto'})
+Gastos fijos (Plan del mes): ${money(live?.input.fixedExpenses ?? profile?.total_fixed_expenses ?? 0)}
+Gastado este mes hasta hoy (sin ahorro): ${money(live?.input.spent ?? 0)}
+Ahorrado este mes (metas y categorías de ahorro): ${money(live?.input.saved ?? 0)}
 
-DEUDAS ACTIVAS:
+MOVIMIENTOS REGISTRADOS (meses completos recientes):
+${recordedText}
+
+PATRIMONIO (pantalla Mi patrimonio, saldos que el usuario declara; es la fuente correcta para patrimonio, efectivo, inversiones, bienes y deudas):
+${netWorthText}
+
+Dato del perfil inicial (puede estar desactualizado; usa Mi patrimonio si tiene datos): ahorros ${money(profile?.total_savings ?? 0)}, fondo de emergencia ${profile?.has_emergency_fund ? 'sí' : 'no'}.
+
+DEUDAS ACTIVAS (Plan › Deudas; ya están incluidas en Mi patrimonio):
 ${debtsSummary}
 
 PRESUPUESTO DEL MES (${new Date().toLocaleString('es-GT', { month: 'long', year: 'numeric' })}):
@@ -130,13 +223,17 @@ GUIA DE LA APP (usa esto para responder preguntas sobre cómo funciona la app):
 - **Score Zafi** (/score): Puntaje de salud financiera de 0 a 100. Muestra los componentes que lo afectan (ahorro, deuda, presupuesto, etc.) y su evolución.
 - **Metas** (/plan?s=metas, pestaña Plan › Metas): Crear metas de ahorro (viaje, fondo de emergencia, etc.) con fecha límite. La app proyecta si vas a llegar a tiempo y puedes registrar aportes.
 - **Plan de Acción / Retos** (/plan/retos): Retos dinámicos personalizados basados en tus patrones de gasto. Se auto-evalúan al final del mes.
-- **Deudas** (/plan?s=deudas, pestaña Plan › Deudas): Registrar y dar seguimiento a deudas. Muestra balance, tasa de interés y pago mínimo.
+- **Deudas** (/plan?s=deudas, pestaña Plan › Deudas): Registrar y dar seguimiento a deudas. Guarda saldo, deuda original, tasa de interés, pago mensual, día de pago y, en préstamos, para qué es (vehículo, inmueble o personal).
+- **Mi patrimonio** (/patrimonio): Lo que tienes menos lo que debes. Agrupa los activos en Efectivo y equivalentes, Inversiones, Vehículos e Inmuebles, y las deudas en corto y largo plazo. Las cuentas y bienes se agregan y actualizan desde ahí o en Mis cuentas (/mis-fuentes).
 - **Familia** (/familia): Invitar miembros del hogar para compartir presupuesto y ver gastos en conjunto.
 - **Análisis** (/analisis): Análisis profundo con tendencias históricas y comparaciones mes a mes.
 - **Guardar ingreso** (/guardar): Registrar ingresos (salario, freelance, etc.).
 - **Pregúntale a Zafi** (/chat): Este chat. Puedes preguntarme cualquier cosa sobre tus finanzas o sobre cómo usar la app.
 - **Voz**: En varias pantallas hay un botón de micrófono para dictar gastos o preguntas por voz.
 - **Importar estado de cuenta** (desde Capturar): Subir un PDF de estado de cuenta bancario y la app extrae las transacciones automáticamente.
+
+QUE DATOS TIENES Y CUALES NO:
+Solo conoces lo que aparece arriba: Plan del mes, gastos de este mes por categoría, movimientos de los últimos 3 meses en totales, Mi patrimonio, Deudas, plan de acción y puntaje. No ves el detalle de cada movimiento, ni metas, ni cuentas personales de otros miembros del hogar. Si te preguntan qué datos ves, enumera exactamente estos; nunca digas que ves todo. Si un dato no está arriba, dilo y explica dónde registrarlo en la app. Los saldos de Mi patrimonio los actualiza el usuario a mano; si alguno lleva más de 30 días sin actualizar, menciónalo cuando sea relevante.
 
 Si el usuario pregunta sobre la app, explicale paso a paso cómo usar la funcionalidad. Si no estás seguro de algo, decile que contacte soporte.
 

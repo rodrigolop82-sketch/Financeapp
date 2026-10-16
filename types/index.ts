@@ -155,6 +155,10 @@ export interface Debt {
   interest_rate: number;
   min_payment: number;
   due_day: number;
+  /** Cuánto se pidió prestado (opcional). */
+  original_amount?: number | null;
+  /** Para qué es un préstamo (opcional). */
+  purpose?: 'vehicle' | 'real_estate' | 'personal' | null;
   strategy: 'snowball' | 'avalanche';
   is_paid: boolean;
   created_at: string;

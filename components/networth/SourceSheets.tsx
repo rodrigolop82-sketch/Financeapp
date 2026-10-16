@@ -7,7 +7,7 @@ import { DANGER_TEXT_BUTTON, ErrorBox, FieldLabel, INPUT_48, SheetHeader } from 
 import { Switch } from '@/components/cuenta/AccountUI'
 import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
 import { GT_BANKS } from '@/lib/sources'
-import { KIND_EMOJI, KIND_LABEL, SOURCE_KINDS, hasStatements, type SourceKind } from '@/lib/networth/sources'
+import { ASSET_KINDS, KIND_EMOJI, KIND_LABEL, SOURCE_KINDS, hasStatements, type SourceKind } from '@/lib/networth/sources'
 import type { DebtRef, SourceView } from '@/lib/networth/data'
 import { sendJson } from './useNetWorth'
 
@@ -76,6 +76,7 @@ export function AccountSheet({ source, debts, onDone, onError }: {
       })
     } else {
       const body: Record<string, unknown> = {}
+      if (kind !== source!.kind) body.kind = kind
       if (name.trim() !== source!.name) body.name = name
       if ((institution.trim() || null) !== source!.institution) body.institution = institution
       if ((last4 || null) !== source!.last4) body.last4 = last4
@@ -127,8 +128,21 @@ export function AccountSheet({ source, debts, onDone, onError }: {
             ))}
           </div>
           {kind === 'other_liability' && (
-            <p className={`text-[13px] leading-[1.45] ${TEXT_MUTED}`}>Tus tarjetas y préstamos ya cuentan desde Plan › Deudas. Agrega aquí solo otras deudas.</p>
+            <p className={`text-[13px] leading-[1.45] ${TEXT_MUTED}`}>Tus tarjetas y préstamos ya cuentan desde Plan › Deudas. Agrega aquí solo otras deudas. Para registrar tasa y pago mensual, agrégala en Plan › Deudas.</p>
           )}
+        </div>
+      )}
+
+      {editing && (ASSET_KINDS as readonly SourceKind[]).includes(source!.kind) && (
+        <div className="flex flex-col gap-1.5">
+          <span className={LABEL}>Tipo</span>
+          <div className="flex flex-wrap gap-2">
+            {ASSET_KINDS.map((k) => (
+              <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={chip(kind === k)}>
+                {KIND_EMOJI[k]} {KIND_LABEL[k]}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
