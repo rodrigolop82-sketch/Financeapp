@@ -157,7 +157,13 @@ function SideTitle({ title, total, negative, fmt }: { title: string; total: numb
   )
 }
 
-function SourceRow({ s, fmt, onUpdate, canWrite }: { s: SourceView; fmt: (n: number) => string; onUpdate: () => void; canWrite: boolean }) {
+function SourceRow({ s, fmt, onUpdate, onEdit, canWrite }: {
+  s: SourceView
+  fmt: (n: number) => string
+  onUpdate: () => void
+  onEdit: () => void
+  canWrite: boolean
+}) {
   const liability = s.side === 'liability'
   const content = (
     <>
@@ -185,13 +191,19 @@ function SourceRow({ s, fmt, onUpdate, canWrite }: { s: SourceView; fmt: (n: num
   return (
     <div className={`flex flex-col gap-2 py-3 ${ROW_DIVIDER} ${s.stale ? '-mx-2 rounded-xl border border-warning px-2' : ''}`}>
       <div className="flex min-h-[44px] items-center gap-3">{content}</div>
-      {canWrite && (s.stale ? (
+      {canWrite && s.stale && (
         <button type="button" onClick={onUpdate} className="flex h-11 items-center justify-center rounded-full bg-warning-light text-sm font-bold text-warning-text dark:bg-warning/15 dark:text-warning">
           Actualizar
         </button>
-      ) : (
-        <button type="button" onClick={onUpdate} className={`-mt-1 self-end text-[13px] font-semibold ${LINK_TEXT} h-9`}>{s.balance === null ? 'Agregar saldo' : 'Actualizar saldo'}</button>
-      ))}
+      )}
+      {canWrite && (
+        <div className="-mt-1 flex justify-end gap-5">
+          <button type="button" onClick={onEdit} aria-label={`Editar ${s.name}`} className={`h-9 text-[13px] font-semibold ${LINK_TEXT}`}>Editar</button>
+          {!s.stale && (
+            <button type="button" onClick={onUpdate} className={`h-9 text-[13px] font-semibold ${LINK_TEXT}`}>{s.balance === null ? 'Agregar saldo' : 'Actualizar saldo'}</button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -242,7 +254,7 @@ export default function PatrimonioPage() {
   const fmt = useMaskedFmt(useFormatMoney())
   const privacy = usePrivacy()
   const { state, reload } = useNetWorth()
-  const [sheet, setSheet] = useState<{ kind: 'add' } | { kind: 'update'; source: SourceView } | null>(null)
+  const [sheet, setSheet] = useState<{ kind: 'add' } | { kind: 'update' | 'edit'; source: SourceView } | null>(null)
   const [message, setMessage] = useState<StatusMessage | null>(null)
   const clearMessage = useCallback(() => setMessage(null), [])
   const closeSheet = useCallback(() => setSheet(null), [])
@@ -320,7 +332,7 @@ export default function PatrimonioPage() {
                 {assetGroups.map((g) => (
                   <GroupCard key={g.id} group={g} side="asset" share={sm.assets > 0 ? g.total / sm.assets : 0} fmt={fmt}>
                     {g.items.map((s) => (
-                      <SourceRow key={s.id} s={s} fmt={fmt} canWrite={canWrite} onUpdate={() => setSheet({ kind: 'update', source: s })} />
+                      <SourceRow key={s.id} s={s} fmt={fmt} canWrite={canWrite} onUpdate={() => setSheet({ kind: 'update', source: s })} onEdit={() => setSheet({ kind: 'edit', source: s })} />
                     ))}
                   </GroupCard>
                 ))}
@@ -336,7 +348,7 @@ export default function PatrimonioPage() {
                   <GroupCard key={g.id} group={g} side="liability" share={sm.liabilities > 0 ? g.total / sm.liabilities : 0} fmt={fmt}>
                     {g.items.map((s) => (s.fromDebts
                       ? <DebtRow key={s.id} s={s} fmt={fmt} />
-                      : <SourceRow key={s.id} s={s} fmt={fmt} canWrite={canWrite} onUpdate={() => setSheet({ kind: 'update', source: s })} />
+                      : <SourceRow key={s.id} s={s} fmt={fmt} canWrite={canWrite} onUpdate={() => setSheet({ kind: 'update', source: s })} onEdit={() => setSheet({ kind: 'edit', source: s })} />
                     ))}
                   </GroupCard>
                 ))}
@@ -359,9 +371,18 @@ export default function PatrimonioPage() {
         )}
       </div>
 
-      <BottomSheet themed open={!!sheet} onClose={closeSheet} label={sheet?.kind === 'add' ? 'Agregar cuenta' : 'Actualizar saldo'}>
+      <BottomSheet themed open={!!sheet} onClose={closeSheet} label={sheet?.kind === 'add' ? 'Agregar cuenta' : sheet?.kind === 'edit' ? 'Editar cuenta' : 'Actualizar saldo'}>
         {sheet?.kind === 'add' && (
           <AccountSheet debts={data?.debts ?? []} onDone={(text) => { setSheet(null); setMessage({ text, tone: 'ok' }); void reload() }} />
+        )}
+        {sheet?.kind === 'edit' && (
+          <AccountSheet
+            key={sheet.source.id}
+            source={sheet.source}
+            debts={data?.debts ?? []}
+            onDone={(text) => { setSheet(null); setMessage({ text, tone: 'ok' }); void reload() }}
+            onError={(text) => setMessage({ text, tone: 'error' })}
+          />
         )}
         {sheet?.kind === 'update' && (
           <UpdateBalanceSheet source={sheet.source} onDone={() => { setSheet(null); setMessage({ text: 'Saldo actualizado', tone: 'ok' }); void reload() }} />

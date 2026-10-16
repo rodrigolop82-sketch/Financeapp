@@ -143,6 +143,7 @@ export function AccountSheet({ source, debts, onDone, onError }: {
               </button>
             ))}
           </div>
+          <span className={`text-[12.5px] ${TEXT_MUTED}`}>El tipo decide en qué grupo aparece en Mi patrimonio.</span>
         </div>
       )}
 
