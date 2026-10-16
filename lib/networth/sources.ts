@@ -32,6 +32,14 @@ export function hasStatements(kind: SourceKind): boolean {
   return kind === 'bank_account' || kind === 'credit_card'
 }
 
+/** Tipos que se ven en Mis cuentas: los que tienen movimientos. El resto
+ * (efectivo, inversiones, bienes y otras deudas) vive solo en Mi patrimonio. */
+export const ACCOUNT_KINDS = ['bank_account', 'credit_card'] as const
+
+export function isAccountKind(kind: SourceKind): boolean {
+  return (ACCOUNT_KINDS as readonly string[]).includes(kind)
+}
+
 /** Tipos de activo entre los que se puede cambiar una cuenta ya creada. */
 export const ASSET_KINDS = ['bank_account', 'cash', 'investment', 'vehicle', 'real_estate', 'other_asset'] as const
 

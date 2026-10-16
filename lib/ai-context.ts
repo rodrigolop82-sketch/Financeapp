@@ -224,7 +224,7 @@ GUIA DE LA APP (usa esto para responder preguntas sobre cómo funciona la app):
 - **Metas** (/plan?s=metas, pestaña Plan › Metas): Crear metas de ahorro (viaje, fondo de emergencia, etc.) con fecha límite. La app proyecta si vas a llegar a tiempo y puedes registrar aportes.
 - **Plan de Acción / Retos** (/plan/retos): Retos dinámicos personalizados basados en tus patrones de gasto. Se auto-evalúan al final del mes.
 - **Deudas** (/plan?s=deudas, pestaña Plan › Deudas): Registrar y dar seguimiento a deudas. Guarda saldo, deuda original, tasa de interés, pago mensual, día de pago y, en préstamos, para qué es (vehículo, inmueble o personal).
-- **Mi patrimonio** (/patrimonio): Lo que tienes menos lo que debes. Agrupa los activos en Efectivo y equivalentes, Inversiones, Vehículos e Inmuebles, y las deudas en corto y largo plazo. Las cuentas y bienes se agregan y actualizan desde ahí o en Mis cuentas (/mis-fuentes).
+- **Mi patrimonio** (/patrimonio): Lo que tienes menos lo que debes. Agrupa los activos en Efectivo y equivalentes, Inversiones, Vehículos e Inmuebles, y las deudas en corto y largo plazo. Efectivo, inversiones, bienes y otras deudas se agregan y editan ahí. Las cuentas de banco y tarjetas se administran en Mis cuentas (/mis-fuentes) y también aparecen en Mi patrimonio.
 - **Familia** (/familia): Invitar miembros del hogar para compartir presupuesto y ver gastos en conjunto.
 - **Análisis** (/analisis): Análisis profundo con tendencias históricas y comparaciones mes a mes.
 - **Guardar ingreso** (/guardar): Registrar ingresos (salario, freelance, etc.).

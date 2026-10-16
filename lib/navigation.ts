@@ -39,7 +39,7 @@ export const MORE_GROUPS: MoreGroup[] = [
   {
     title: 'Tu cuenta',
     items: [
-      { emoji: '🏦', name: 'Mis cuentas', description: 'Bancos, tarjetas y tu patrimonio', href: '/mis-fuentes' },
+      { emoji: '🏦', name: 'Mis cuentas', description: 'Cuentas de banco y tarjetas', href: '/mis-fuentes' },
       { emoji: '👪', name: 'Familia', description: 'Comparte con tu pareja o familia', href: '/familia' },
       { emoji: '⚙️', name: 'Cuenta y privacidad', description: 'Perfil, apariencia, datos', href: '/cuenta' },
     ],
