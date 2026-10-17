@@ -25,6 +25,8 @@ export interface ScoreRaw {
   txs: MetricasTx[]
   /** Intereses de los pagos a deudas del mes (lib/metricas-mes). */
   intereses?: InteresesDeuda
+  /** El hogar confirmó "No hubo ingresos" este mes (Cerrar el mes). */
+  sinIngresos?: boolean
   emergencyGoal: { id: string; current_amount: number | string } | null
   /** Deudas del hogar (lib/deudas-data: solo cuentan las activas). */
   debts: DeudaBase[]
@@ -59,11 +61,14 @@ export function buildScoreInput(raw: ScoreRaw): ScoreInput {
   const planned = plan.income > 0 ? plan.income : num(raw.profile?.total_income)
   const deudas = resumenDeudas(raw.debts)
 
+  // Sin ingresos registrados: el del plan y el ahorro pendiente (provisional),
+  // salvo que el hogar confirmó que no hubo ingresos: entonces el ahorro es
+  // lo que se gastó de más (0 %) y el puntaje ya no es provisional.
+  const confirmadoSinIngresos = !m.tieneIngresos && !!raw.sinIngresos
   return {
-    // Sin ingresos registrados: el del plan, y el ahorro queda pendiente.
     income: m.tieneIngresos ? m.ingresos : planned,
-    saved: m.ahorro ?? 0,
-    provisional: !m.tieneIngresos,
+    saved: m.ahorro ?? (confirmadoSinIngresos ? -m.consumo : 0),
+    provisional: !m.tieneIngresos && !confirmadoSinIngresos,
     debtPayments: deudas.cuotaMensual,
     emergencyFund: raw.emergencyGoal ? num(raw.emergencyGoal.current_amount) : num(raw.profile?.total_savings),
     fixedExpenses: plan.fixed > 0 ? plan.fixed : num(raw.profile?.total_fixed_expenses),
@@ -85,7 +90,7 @@ export async function loadScoreInput(
 ): Promise<{ input: ScoreInput; raw: ScoreRaw }> {
   const { from, to } = monthRange(month)
   const since = monthRange(prevMonth(month, 3)).from
-  const [profileRes, catsRes, subsRes, incomesRes, txRes, goalsRes, debtsRes, intereses] = await Promise.all([
+  const [profileRes, catsRes, subsRes, incomesRes, txRes, goalsRes, debtsRes, intereses, sinIngresosRes] = await Promise.all([
     supabase.from('financial_profiles')
       .select('total_income, total_fixed_expenses, total_savings, income_type')
       .eq('household_id', householdId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
@@ -97,6 +102,9 @@ export async function loadScoreInput(
     supabase.from('financial_goals').select('id, goal_type, status, current_amount, created_at').eq('user_id', userId),
     loadDeudas(supabase, householdId, { columns: 'balance, min_payment, is_paid' }),
     loadInteresesDeuda(supabase, householdId, from, to),
+    // Sin la columna (migración 20261101) la consulta falla y cuenta como false.
+    supabase.from('income_month_confirmations').select('sin_ingresos')
+      .eq('household_id', householdId).eq('year_month', month).maybeSingle(),
   ])
 
   const goals = (goalsRes.data ?? []) as { id: string; goal_type: string; status: string; current_amount: number }[]
@@ -110,6 +118,7 @@ export async function loadScoreInput(
     incomes: (incomesRes.data ?? []) as PlanIncome[],
     txs: (txRes.data ?? []) as ScoreRaw['txs'],
     intereses,
+    sinIngresos: !sinIngresosRes.error && !!(sinIngresosRes.data as { sin_ingresos?: boolean } | null)?.sin_ingresos,
     emergencyGoal: emergencyGoal ? { id: emergencyGoal.id, current_amount: emergencyGoal.current_amount } : null,
     debts: debtsRes ?? [],
   }
