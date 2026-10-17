@@ -18,6 +18,7 @@ import { addMonths, longMonth } from '../como-te-fue'
 import { monthRange } from '../movimientos'
 import { sendEmail } from '../email'
 import { resumenMensualEmail, type ResumenMensualInput } from './plantilla'
+import { loadDeudas } from '@/lib/deudas-data'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any>
@@ -60,7 +61,7 @@ export async function buildResumen(admin: Admin, user: ResumenUser, month: strin
   const [{ input, raw }, prevScore, debtsRes, goalsRes] = await Promise.all([
     loadScoreInput(admin, { householdId: hid, userId: user.id, month }),
     monthScore(admin, hid, user.id, addMonths(month, -1)),
-    admin.from('debts').select('id, name, balance, interest_rate, min_payment').eq('household_id', hid).eq('is_paid', false),
+    loadDeudas<DeudaPaso>(admin, hid, { columns: 'id, name, balance, interest_rate, min_payment, is_paid' }).then((data) => ({ data })),
     admin.from('financial_goals').select('id, name, emoji, target_amount, current_amount, status')
       .or(`user_id.eq.${user.id},and(shared.eq.true,household_id.eq.${hid})`),
   ])

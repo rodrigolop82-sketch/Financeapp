@@ -6,6 +6,7 @@ import { getNetWorth, type NetWorthData, type SourceView } from '@/lib/networth/
 import { groupAssets, groupLiabilities, PURPOSE_LABEL } from '@/lib/networth/groups'
 import { formatMonths } from '@/lib/deudas'
 import { formatNumber } from '@/lib/format'
+import { loadDeudas } from '@/lib/deudas-data'
 import { metricasMes, type InteresesDeuda, type MetricasCategoria } from '@/lib/metricas-mes'
 
 type Money = (n: number) => string
@@ -91,8 +92,7 @@ export async function buildZafiSystemPrompt(
             .select('*').eq('household_id', householdId).single()
         : Promise.resolve({ data: null }),
       householdId
-        ? supabase.from('debts')
-            .select('*').eq('household_id', householdId).eq('is_paid', false)
+        ? loadDeudas<{ name: string; balance: number; interest_rate: number; min_payment: number }>(supabase, householdId).then((data) => ({ data }))
         : Promise.resolve({ data: [] }),
       householdId
         ? supabase.from('action_plans')

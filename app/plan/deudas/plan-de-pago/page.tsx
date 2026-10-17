@@ -15,6 +15,7 @@ import { TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
 import { CARD, GREEN_TEXT } from '@/components/resumen/ctf-ui'
 import { Note } from '@/components/plan/ui'
 import { AmortizacionDetalle, CUOTA_NO_ALCANZA } from '@/components/deudas/AmortizacionDetalle'
+import { loadDeudas } from '@/lib/deudas-data'
 
 const BACK = { href: '/plan?s=deudas', label: 'Deudas' }
 const EXTRA_STEP = 50
@@ -36,13 +37,9 @@ export default function PlanDePagoPage() {
       if (!user) { router.push('/login'); return }
       const hh = await getUserHousehold(supabase, user.id)
       if (!hh) { router.push('/onboarding'); return }
-      const { data } = await supabase
-        .from('debts')
-        .select('id, name, balance, interest_rate, min_payment')
-        .eq('household_id', hh.id)
-        .eq('is_paid', false)
+      const data = await loadDeudas<DebtTermsInput & { is_paid: boolean }>(supabase, hh.id, { columns: 'id, name, balance, interest_rate, min_payment, is_paid' })
       if (cancelled) return
-      setDebts(((data ?? []) as DebtTermsInput[]).filter((d) => Number(d.balance) > 0))
+      setDebts(data ?? [])
     })()
     return () => { cancelled = true }
   }, [router])

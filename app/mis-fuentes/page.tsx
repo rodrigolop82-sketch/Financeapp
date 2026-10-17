@@ -33,7 +33,7 @@ function AccountRight({ s, fmt }: { s: SourceView; fmt: (n: number) => string })
   if (s.kind === 'credit_card') {
     return s.debt
       ? <span className={`flex-none font-outfit text-[15px] font-extrabold ${TEXT_STRONG}`}>−{fmt(s.debt.balance)}</span>
-      : <span className={`flex-none text-[13px] ${TEXT_MUTED}`}>Sin vincular</span>
+      : <span className={`flex-none text-[13px] ${TEXT_MUTED}`}>Sin deuda vinculada</span>
   }
   if (s.balance === null) return <span className={`flex-none text-[13px] ${TEXT_MUTED}`}>Sin saldo</span>
   return <span className={`flex-none font-outfit text-[15px] font-extrabold ${TEXT_STRONG}`}>{s.side === 'liability' ? '−' : ''}{fmt(s.balance)}</span>

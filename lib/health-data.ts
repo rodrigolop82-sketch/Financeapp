@@ -7,6 +7,7 @@ import { planSummary, type PlanCategory, type PlanIncome, type PlanSubItem } fro
 import { monthRange } from './movimientos'
 import { metricasMes, type InteresesDeuda, type MetricasTx } from './metricas-mes'
 import { loadInteresesDeuda, METRICAS_TX_COLUMNS } from './metricas-mes-data'
+import { loadDeudas, resumenDeudas, type DeudaBase } from './deudas-data'
 import type { IncomeType, ScoreInput } from './score-calculator'
 
 export interface ScoreRaw {
@@ -25,7 +26,8 @@ export interface ScoreRaw {
   /** Intereses de los pagos a deudas del mes (lib/metricas-mes). */
   intereses?: InteresesDeuda
   emergencyGoal: { id: string; current_amount: number | string } | null
-  debts: { min_payment: number | string }[]
+  /** Deudas del hogar (lib/deudas-data: solo cuentan las activas). */
+  debts: DeudaBase[]
 }
 
 function prevMonth(month: string, n: number): string {
@@ -55,13 +57,14 @@ export function buildScoreInput(raw: ScoreRaw): ScoreInput {
   // Todas las categorías: los movimientos de una archivada siguen contando.
   const m = metricasMes(raw.txs, raw.month, raw.categories, raw.intereses)
   const planned = plan.income > 0 ? plan.income : num(raw.profile?.total_income)
+  const deudas = resumenDeudas(raw.debts)
 
   return {
     // Sin ingresos registrados: el del plan, y el ahorro queda pendiente.
     income: m.tieneIngresos ? m.ingresos : planned,
     saved: m.ahorro ?? 0,
     provisional: !m.tieneIngresos,
-    debtPayments: raw.debts.reduce((s, d) => s + num(d.min_payment), 0),
+    debtPayments: deudas.cuotaMensual,
     emergencyFund: raw.emergencyGoal ? num(raw.emergencyGoal.current_amount) : num(raw.profile?.total_savings),
     fixedExpenses: plan.fixed > 0 ? plan.fixed : num(raw.profile?.total_fixed_expenses),
     spent: m.consumo,
@@ -69,7 +72,7 @@ export function buildScoreInput(raw: ScoreRaw): ScoreInput {
     incomeType: raw.profile?.income_type ?? 'fixed',
     incomeVariation: incomeVariation(raw.txs, raw.month),
     emergencyGoalId: raw.emergencyGoal?.id ?? null,
-    hasDebts: raw.debts.length > 0,
+    hasDebts: deudas.hayDeudas,
   }
 }
 
@@ -92,7 +95,7 @@ export async function loadScoreInput(
     supabase.from('transactions').select(METRICAS_TX_COLUMNS)
       .eq('household_id', householdId).gte('date', since).lte('date', to),
     supabase.from('financial_goals').select('id, goal_type, status, current_amount, created_at').eq('user_id', userId),
-    supabase.from('debts').select('min_payment').eq('household_id', householdId).eq('is_paid', false),
+    loadDeudas(supabase, householdId, { columns: 'balance, min_payment, is_paid' }),
     loadInteresesDeuda(supabase, householdId, from, to),
   ])
 
@@ -108,7 +111,7 @@ export async function loadScoreInput(
     txs: (txRes.data ?? []) as ScoreRaw['txs'],
     intereses,
     emergencyGoal: emergencyGoal ? { id: emergencyGoal.id, current_amount: emergencyGoal.current_amount } : null,
-    debts: (debtsRes.data ?? []) as ScoreRaw['debts'],
+    debts: debtsRes ?? [],
   }
   return { input: buildScoreInput(raw), raw }
 }

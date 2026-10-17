@@ -63,7 +63,7 @@ function pantallas(txs: CtfTx[]) {
     txs,
     intereses,
     emergencyGoal: null,
-    debts: [{ min_payment: 1000 }],
+    debts: [{ balance: 12000, min_payment: 1000 }],
   }
   const score = buildScoreInput(raw)
   // Cómo te fue (/resumen).

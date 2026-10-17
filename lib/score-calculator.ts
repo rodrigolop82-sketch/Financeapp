@@ -212,6 +212,7 @@ export function scoreFromProfile(profile: FinancialProfile, debtPayments?: numbe
     spent: fixed,
     planned: income * 0.8,
     incomeType: profile.income_type,
-    hasDebts: (Number(profile.total_debt) || 0) > 0,
+    // Con las cuotas reales (lib/deudas-data) manda eso; si no, lo que contó.
+    hasDebts: debtPayments !== undefined ? debtPayments > 0 : (Number(profile.total_debt) || 0) > 0,
   })
 }

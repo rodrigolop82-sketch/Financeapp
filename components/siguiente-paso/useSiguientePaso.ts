@@ -6,6 +6,7 @@ import { localMonth } from '@/lib/dates'
 import { loadScoreInput } from '@/lib/health-data'
 import { calculateScore, type HealthScoreResult, type ScoreInput } from '@/lib/score-calculator'
 import { categoriasPasadas, siguientesPasos, type DeudaPaso, type Paso, type PasosContexto } from '@/lib/siguiente-paso'
+import { loadDeudas } from '@/lib/deudas-data'
 
 export interface SiguientePasoState {
   loading: boolean
@@ -32,7 +33,7 @@ export function useSiguientePaso(householdId: string | null, reloadKey = 0): Sig
       const month = localMonth()
       const [{ input, raw }, debtsRes] = await Promise.all([
         loadScoreInput(supabase, { householdId, userId: user.id, month }),
-        supabase.from('debts').select('id, name, balance, interest_rate, min_payment').eq('household_id', householdId).eq('is_paid', false),
+        loadDeudas<DeudaPaso>(supabase, householdId, { columns: 'id, name, balance, interest_rate, min_payment, is_paid' }).then((data) => ({ data })),
       ])
       if (cancelled) return
       const ctx: PasosContexto = {

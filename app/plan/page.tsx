@@ -47,6 +47,7 @@ function PlanHub() {
   const section = planSection(params.get('s'));
   // /metas/nueva abre la hoja de nueva meta (crear se hace al final de cada lista).
   const [addMeta, setAddMeta] = useState(0);
+  const [addDeuda, setAddDeuda] = useState(0);
 
   function replaceQuery(edit: (q: URLSearchParams) => void) {
     const q = new URLSearchParams(params.toString());
@@ -75,11 +76,12 @@ function PlanHub() {
     replaceQuery((q) => { if (v === 'retos') q.set('v', 'retos'); else q.delete('v'); });
   }
 
-  // /metas/nueva llega con ?nueva=1: abre la hoja una vez.
+  // /metas/nueva llega con ?nueva=1: abre la hoja una vez (en Deudas, la de deuda nueva).
   const wantsNew = params.get('nueva') === '1';
   useEffect(() => {
     if (!wantsNew) return;
-    setAddMeta((n) => n + 1);
+    if (section === 'deudas') setAddDeuda((n) => n + 1);
+    else setAddMeta((n) => n + 1);
     replaceQuery((q) => q.delete('nueva'));
   }, [wantsNew]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -132,7 +134,7 @@ function PlanHub() {
         <MetasView addRequest={addMeta} deletedId={params.get('eliminada')} onDeletedHandled={clearDeleted} />
       )}
       {section === 'metas' && vista === 'retos' && <RetosView />}
-      {section === 'deudas' && <DeudasView />}
+      {section === 'deudas' && <DeudasView addRequest={addDeuda} />}
     </AppShell>
   );
 }

@@ -88,7 +88,7 @@ describe('buildScoreInput (datos vivos)', () => {
       { amount: 999, type: 'expense', category_id: 'w', date: '2026-09-20' },
     ],
     emergencyGoal: { id: 'g', current_amount: 8000 },
-    debts: [{ min_payment: 450 }, { min_payment: 1100 }],
+    debts: [{ balance: 9000, min_payment: 450 }, { balance: 30000, min_payment: 1100 }, { balance: 0, min_payment: 300 }, { balance: 500, min_payment: 50, is_paid: true }],
   }
 
   it('sin ingresos registrados: ingreso del plan, ahorro pendiente y provisional', () => {
