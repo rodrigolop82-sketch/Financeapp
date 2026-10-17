@@ -1,5 +1,7 @@
 'use client'
 
+import { formatMoney } from '@/lib/format'
+
 export type AlertType = 'warning' | 'positive' | 'info' | null
 
 export interface AlertData {
@@ -35,21 +37,21 @@ export function buildSmartAlert(params: {
       const extra = Math.round(savingsAlert.saved - savingsAlert.goal)
       return {
         type: 'positive',
-        title: `Superaste tu meta de ahorro${extra > 0 ? ` por Q ${extra.toLocaleString()}` : ''} este mes`,
-        subtitle: `${savingsAlert.name} — meta: Q ${savingsAlert.goal.toLocaleString()}, ahorrado: Q ${savingsAlert.saved.toLocaleString()}.`,
+        title: `Superaste tu meta de ahorro${extra > 0 ? ` por ${formatMoney(extra)}` : ''} este mes`,
+        subtitle: `${savingsAlert.name} — meta: ${formatMoney(savingsAlert.goal)}, ahorrado: ${formatMoney(savingsAlert.saved)}.`,
       }
     } else if (savingsAlert.saved > 0) {
       const pct = Math.round((savingsAlert.saved / savingsAlert.goal) * 100)
       return {
         type: 'info',
         title: `Vas al ${pct}% de tu meta de ahorro este mes`,
-        subtitle: `${savingsAlert.name} — llevas Q ${savingsAlert.saved.toLocaleString()} de Q ${savingsAlert.goal.toLocaleString()}.`,
+        subtitle: `${savingsAlert.name} — llevas ${formatMoney(savingsAlert.saved)} de ${formatMoney(savingsAlert.goal)}.`,
       }
     } else {
       return {
         type: 'info',
         title: `Aún no registras ahorro este mes`,
-        subtitle: `Tu meta de ${savingsAlert.name} es Q ${savingsAlert.goal.toLocaleString()} — un buen momento para empezar.`,
+        subtitle: `Tu meta de ${savingsAlert.name} es ${formatMoney(savingsAlert.goal)} — un buen momento para empezar.`,
       }
     }
   }
@@ -58,7 +60,7 @@ export function buildSmartAlert(params: {
     const overage = Math.round(projectedTotal - budget)
     return {
       type: 'warning',
-      title: `A este ritmo cerrarás el mes Q ${overage.toLocaleString()} sobre el presupuesto`,
+      title: `A este ritmo cerrarás el mes ${formatMoney(overage)} sobre el presupuesto`,
       subtitle: 'Aún puedes corregirlo — reduce gastos estos días.',
     }
   }
@@ -68,7 +70,7 @@ export function buildSmartAlert(params: {
     return {
       type: 'warning',
       title: `${topOverBudgetCategory.name} sobre el límite este mes`,
-      subtitle: `Gastaste Q ${extra.toLocaleString()} más de lo planeado.`,
+      subtitle: `Gastaste ${formatMoney(extra)} más de lo planeado.`,
       budgetAmount: topOverBudgetCategory.limit,
       spentAmount: topOverBudgetCategory.spent,
     }
@@ -94,7 +96,7 @@ export function buildSmartAlert(params: {
     const saving = Math.round(budget - spent)
     return {
       type: 'positive',
-      title: `Vas a cerrar el mes con Q ${saving.toLocaleString()} de sobra`,
+      title: `Vas a cerrar el mes con ${formatMoney(saving)} de sobra`,
       subtitle: 'Muévelos al fondo de emergencia o al pago extra de deudas.',
     }
   }

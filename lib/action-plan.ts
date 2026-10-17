@@ -1,5 +1,6 @@
 import type { FinancialProfile, HealthScoreResult, ScoreKey } from './score-calculator';
 import { ActionStep } from '@/types';
+import { formatMoney } from '@/lib/format';
 
 export function generateInitialPlan(
   profile: FinancialProfile,
@@ -29,7 +30,7 @@ export function generateInitialPlan(
     steps.push({
       id: String(id++),
       title: 'Empieza tu fondo de emergencia',
-      description: `Tu meta inicial: Q ${target.toLocaleString()}  (1 mes de gastos fijos). Separa aunque sea Q 100 esta semana.`,
+      description: `Tu meta inicial: ${formatMoney(target)} (1 mes de gastos fijos). Separa aunque sea Q 100 esta semana.`,
       priority: 'high',
     });
   }
@@ -66,7 +67,7 @@ export function generateInitialPlan(
     steps.push({
       id: String(id++),
       title: 'Establece un monto fijo de ahorro mensual',
-      description: `Meta: Q ${targetSaving.toLocaleString()} al mes (10% de tu ingreso). Sepáralo el día que recibas tu pago.`,
+      description: `Meta: ${formatMoney(targetSaving)} al mes (10% de tu ingreso). Sepáralo el día que recibas tu pago.`,
       priority: 'medium',
     });
   }

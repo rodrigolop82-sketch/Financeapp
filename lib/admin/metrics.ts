@@ -21,6 +21,7 @@ import {
   toMs,
 } from './dataset';
 import { firstName } from '../feedback';
+import { formatNumber } from '@/lib/format';
 
 export const PERIODS = [7, 30, 90] as const;
 export type PeriodDays = (typeof PERIODS)[number];
@@ -66,7 +67,7 @@ export function fmtPct(v: number | null): string {
 }
 
 export function fmtInt(n: number): string {
-  return n.toLocaleString('en-US');
+  return formatNumber(n);
 }
 
 // ── Contexto común ────────────────────────────────────────

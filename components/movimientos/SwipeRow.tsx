@@ -7,6 +7,7 @@ import { CARD_BG, TEXT_MUTED, TEXT_STRONG, TILE_BG } from './ui';
 import { PersonAvatar } from '@/components/hogar/PersonUI';
 import { BADGE_NEUTRAL } from '@/components/layout/Pantalla';
 import type { Person } from '@/lib/hogar';
+import { formatNumber } from '@/lib/format';
 
 const OPEN_X = -150;
 const SETTLE = 'transform .22s cubic-bezier(0.32,0.72,0,1)';
@@ -29,7 +30,7 @@ export function txRowData(tx: SearchTransaction, fmt: (n: number) => string, per
   const isIncome = tx.type === 'income';
   const symbol = tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : `${tx.original_currency} `;
   const forex = tx.original_currency
-    ? ` · ${symbol}${Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ? ` · ${symbol}${formatNumber(Number(tx.original_amount), 2)}`
     : '';
   return {
     id: tx.id,

@@ -1,3 +1,4 @@
+import { formatMoney } from '@/lib/format'
 export type PaceMode = 'linear' | 'fixed'
 
 export interface CategoryBudgetInput {
@@ -83,12 +84,7 @@ export function computeCategoryPace(
 }
 
 function formatQ(amount: number): string {
-  const rounded = Math.round(amount)
-  const formatted = new Intl.NumberFormat('es-GT', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(rounded)
-  return `Q ${formatted}`
+  return formatMoney(amount)
 }
 
 function plural(n: number, word: string): string {

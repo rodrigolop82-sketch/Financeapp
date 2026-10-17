@@ -1,3 +1,4 @@
+import { formatMoney } from '@/lib/format'
 export interface ProjectionInput {
   targetAmount: number
   currentAmount: number
@@ -77,7 +78,7 @@ export function projectGoal(input: ProjectionInput): ProjectionResult {
     monthsRemaining: months,
     estimatedDate,
     requiredMonthly,
-    message: `Necesitas ahorrar Q${requiredMonthly.toLocaleString('es-GT')}/mes para llegar en ${targetMonthName}`,
+    message: `Necesitas ahorrar ${formatMoney(requiredMonthly)}/mes para llegar en ${targetMonthName}`,
   }
 }
 

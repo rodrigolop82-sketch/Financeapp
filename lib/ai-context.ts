@@ -5,6 +5,7 @@ import { loadScoreInput, type ScoreRaw } from '@/lib/health-data'
 import { getNetWorth, type NetWorthData, type SourceView } from '@/lib/networth/data'
 import { groupAssets, groupLiabilities, PURPOSE_LABEL } from '@/lib/networth/groups'
 import { formatMonths } from '@/lib/deudas'
+import { formatNumber } from '@/lib/format'
 
 type Money = (n: number) => string
 
@@ -128,7 +129,7 @@ export async function buildZafiSystemPrompt(
 
   const currency = user?.currency ?? 'GTQ'
   const symbol = currency === 'GTQ' ? 'Q' : '$'
-  const money: Money = (n) => `${symbol} ${Math.round(n).toLocaleString()}`
+  const money: Money = (n) => `${symbol} ${formatNumber(n)}`
 
   const netWorthText = netWorth
     ? netWorthSummary(netWorth, money)
@@ -138,7 +139,7 @@ export async function buildZafiSystemPrompt(
   const debtsSummary = debts.length === 0
     ? 'Sin deudas activas.'
     : debts.map((d: { name: string; balance: number; interest_rate: number; min_payment: number }) =>
-        `- ${d.name}: ${symbol} ${Math.round(d.balance).toLocaleString()} al ${d.interest_rate}% anual (pago mínimo ${symbol} ${Math.round(d.min_payment).toLocaleString()})`
+        `- ${d.name}: ${money(d.balance)} al ${d.interest_rate}% anual (pago mínimo ${money(d.min_payment)})`
       ).join('\n')
 
   const monthStart = localMonthStart()
@@ -162,7 +163,7 @@ export async function buildZafiSystemPrompt(
       ? Math.round((spent / c.budgeted_amount) * 100)
       : 0
     const status = pct > 100 ? 'SUPERADO' : pct > 80 ? 'cerca del limite' : 'ok'
-    return `  ${c.name}: ${symbol} ${Math.round(spent).toLocaleString()} / ${symbol} ${Math.round(c.budgeted_amount).toLocaleString()} (${pct}%) ${status}`
+    return `  ${c.name}: ${money(spent)} / ${money(c.budgeted_amount)} (${pct}%) ${status}`
   }).join('\n')
 
   const planSteps = plan?.steps ?? []

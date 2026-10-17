@@ -1,3 +1,4 @@
+import { formatMoney, formatMonthCount } from '@/lib/format'
 // Salud financiera (puntaje Zafi): una sola fórmula de 5 partes de 20.
 // El puntaje es continuo (interpolación lineal entre umbrales) para que cada
 // aporte, cuota pagada o gasto mueva el número, no solo al cruzar un tramo.
@@ -62,7 +63,7 @@ export function lerp(x: number, x0: number, x1: number, y0: number, y1: number):
 }
 
 function q(n: number): string {
-  return `Q ${Math.round(n).toLocaleString('en-US')}`
+  return formatMoney(n)
 }
 
 const STABILITY_BASE: Record<IncomeType, number> = { fixed: 20, mixed: 14, variable: 8 }
@@ -105,7 +106,7 @@ export function calculateScore(input: ScoreInput): HealthScoreResult {
     {
       key: 'emergency', emoji: '🛡️', label: 'Fondo de emergencia', max: 20,
       score: lerp(months, 0, 6, 2, 20),
-      detail: `Cubre ${months.toFixed(1).replace('.', ',')} ${months === 1 ? 'mes' : 'meses'} de gastos fijos`,
+      detail: `Cubre ${formatMonthCount(months)} de gastos fijos`,
       tip: months < 3 ? `Lo recomendado es tener al menos 3 meses (${q(fixedExpenses * 3)}).` : 'Tienes un buen colchón.',
       action: months < 6
         ? { label: 'Aportar al fondo', href: input.emergencyGoalId ? `/metas/${input.emergencyGoalId}?from=score` : '/plan?s=metas' }
