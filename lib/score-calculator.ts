@@ -120,7 +120,7 @@ export function calculateScore(input: ScoreInput): HealthScoreResult {
       score: lerp(burden, 0.4, 0, 2, 20),
       detail: debtPayments > 0
         ? `Tus cuotas son ${q(debtPayments)} al mes · ${Math.round(burden * 100)}% de tu ingreso`
-        : 'No tienes cuotas de deudas',
+        : input.hasDebts ? 'Tus deudas no tienen pago fijo: no pesan en tus cuotas del mes' : 'No tienes cuotas de deudas',
       tip: burden > 0.15 ? 'Si bajas tus cuotas a menos de 15% del ingreso, este punto sube.' : 'Tu nivel de deuda está controlado.',
       action: input.hasDebts ?? debtPayments > 0 ? { label: 'Ver cómo salir más rápido', href: '/plan?s=deudas' } : null,
     },

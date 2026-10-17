@@ -59,8 +59,11 @@ function num(v: string): number {
 }
 
 /** Deudas: cuerpo de la sección "Deudas" en /plan. */
-/** `addRequest` > 0 abre la hoja de deuda nueva (llega con /plan?s=deudas&nueva=1). */
-export function DeudasView({ addRequest = 0 }: { addRequest?: number } = {}) {
+/**
+ * `addRequest` > 0 abre la hoja de deuda nueva (llega con /plan?s=deudas&nueva=1).
+ * `addType` ("informal" desde Mi patrimonio) es el tipo con que arranca.
+ */
+export function DeudasView({ addRequest = 0, addType = null }: { addRequest?: number; addType?: string | null } = {}) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const fmt = useFormatMoney();
@@ -102,8 +105,13 @@ export function DeudasView({ addRequest = 0 }: { addRequest?: number } = {}) {
     return () => { cancelled = true; };
   }, [supabase, router]);
 
-  const openNew = useCallback(() => setSheet({ debt: null, key: Date.now() }), []);
-  useEffect(() => { if (addRequest > 0) openNew(); }, [addRequest, openNew]);
+  const [newType, setNewType] = useState<DebtType>('credit');
+  const openNew = useCallback(() => { setNewType('credit'); setSheet({ debt: null, key: Date.now() }); }, []);
+  useEffect(() => {
+    if (addRequest <= 0) return;
+    setNewType(addType && addType in DEBT_TYPES ? (addType as DebtType) : 'credit');
+    setSheet({ debt: null, key: Date.now() });
+  }, [addRequest, addType]);
 
   const fail = () => setMessage({ text: 'No se pudo guardar. Intenta de nuevo.', tone: 'error' });
 
@@ -221,7 +229,7 @@ export function DeudasView({ addRequest = 0 }: { addRequest?: number } = {}) {
                           <div className={`grid grid-cols-2 gap-1 rounded-xl px-3 py-2.5 ${SOFT_BG}`}>
                             <span className={`text-[13px] ${TEXT_MUTED}`}>
                               {d.type === 'credit' ? 'Pago mínimo' : 'Pago mensual'}
-                              <b className={`block font-outfit text-[15px] ${TEXT_STRONG}`}>{fmt(Number(d.min_payment))}/mes</b>
+                              <b className={`block font-outfit text-[15px] ${TEXT_STRONG}`}>{Number(d.min_payment) > 0 ? `${fmt(Number(d.min_payment))}/mes` : 'Sin pago fijo'}</b>
                             </span>
                             <span className={`text-[13px] ${TEXT_MUTED}`}>
                               Interés al mes
@@ -357,6 +365,7 @@ export function DeudasView({ addRequest = 0 }: { addRequest?: number } = {}) {
           <DebtSheet
             key={sheet.key}
             debt={sheet.debt}
+            initialType={newType}
             onSave={(d) => saveDebt(sheet.debt, d)}
             onDelete={sheet.debt ? () => deleteDebt(sheet.debt!) : undefined}
           />
@@ -380,14 +389,15 @@ export function DeudasView({ addRequest = 0 }: { addRequest?: number } = {}) {
   );
 }
 
-function DebtSheet({ debt, onSave, onDelete }: {
+function DebtSheet({ debt, initialType = 'credit', onSave, onDelete }: {
   debt: Debt | null;
+  initialType?: DebtType;
   onSave: (d: Omit<Debt, 'id' | 'household_id' | 'strategy' | 'is_paid' | 'created_at'>) => Promise<void>;
   onDelete?: () => Promise<void>;
 }) {
   const [f, setF] = useState<DebtDraft>(() => ({
     name: debt?.name ?? '',
-    type: debt?.type ?? 'credit',
+    type: debt?.type ?? initialType,
     purpose: debt?.purpose ?? 'personal',
     original_amount: debt?.original_amount ? String(debt.original_amount) : '',
     balance: debt ? String(debt.balance) : '',
@@ -459,7 +469,7 @@ function DebtSheet({ debt, onSave, onDelete }: {
         {field('balance', 'Saldo de hoy', 'Q 0.00')}
       </div>
       <div className="flex gap-3">
-        {field('min_payment', f.type === 'credit' ? 'Pago mínimo' : 'Pago mensual', 'Q 0.00')}
+        {field('min_payment', f.type === 'credit' ? 'Pago mínimo' : f.type === 'informal' ? 'Pago mensual (opcional)' : 'Pago mensual', 'Q 0.00')}
         {field('interest_rate', 'Interés anual', '0 %')}
       </div>
       <div className="flex gap-3">
