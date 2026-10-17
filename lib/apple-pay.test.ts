@@ -105,6 +105,8 @@ describe('cardLabel', () => {
   it('etiqueta de la hoja', () => {
     expect(cardLabel('BI Visa ··4821')).toBe('Apple Pay · BI Visa ··4821');
     expect(cardLabel(null)).toBe('Apple Pay');
+    expect(cardLabel('BAM', 'android')).toBe('Android · BAM');
+    expect(cardLabel(null, 'android')).toBe('Android');
   });
 });
 

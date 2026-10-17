@@ -131,6 +131,11 @@ export default function MisCuentasPage() {
                 <Chevron />
               </Link>
 
+              <Link href="/mis-fuentes/android" className={`mt-2.5 flex items-center gap-3 p-3.5 transition-transform duration-150 active:scale-[0.98] ${CARD}`}>
+                <RowBody tile={<Tile>🤖</Tile>} name="Android" help="Comparte o registra solos los avisos de tu banco" />
+                <Chevron />
+              </Link>
+
               <Link href="/patrimonio" className={`mt-2.5 flex items-center gap-3 p-3.5 transition-transform duration-150 active:scale-[0.98] ${CARD}`}>
                 <RowBody tile={<Tile>📈</Tile>} name="Mi patrimonio" help="Lo que tienes menos lo que debes" />
                 <Chevron />

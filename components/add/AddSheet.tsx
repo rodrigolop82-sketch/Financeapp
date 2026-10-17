@@ -8,6 +8,7 @@ import { formatMoney } from '@/lib/format'
 import { deriveTransactionType } from '@/lib/transactions/transaction-type'
 import { categoryQuestion, getEmoji, paymentLabel, PAYMENT_OPTIONS, type PaymentMethod } from '@/lib/categories-ui'
 import { cleanAmountInput, dayLabel, topCategories } from '@/lib/movimientos'
+import { sharedNotice } from '@/lib/android'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
 import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow'
 import { BottomSheet } from '@/components/transactions/BottomSheet'
@@ -314,10 +315,12 @@ export function AddSheet() {
   useEffect(() => {
     const url = new URL(window.location.href)
     const action = url.searchParams.get('action')
-    const shared = url.searchParams.get('shared_text')
+    // Algunas apps mandan el banco en el título y el detalle en el texto.
+    const shared = sharedNotice(url.searchParams.get('shared_title'), url.searchParams.get('shared_text'))
     if (!action && !shared) return
     url.searchParams.delete('action')
     url.searchParams.delete('shared_text')
+    url.searchParams.delete('shared_title')
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
     if (viewOnlyRef.current) { openViewOnlySheet(); return }
     void ensureContext()
