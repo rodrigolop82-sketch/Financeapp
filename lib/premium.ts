@@ -120,13 +120,13 @@ export function meterColor(used: number, limit: number): string {
   return limit > 0 && used / limit >= 0.5 ? '#F59E0B' : '#2563EB'
 }
 
-/** "Hay 41 resultados más antes de agosto." — para el final de la lista. */
+/** "Hay 41 movimientos más antes de agosto." — arriba de la lista (C17). */
 export function hiddenHistoryText(count: number, before: string, today: string): { strong: string; rest: string } {
   const m = MONTHS[Number(before.slice(5, 7)) - 1]
   const y = before.slice(0, 4)
   const when = y === today.slice(0, 4) ? m : `${m} de ${y}`
   return {
-    strong: `Hay ${count} ${count === 1 ? 'resultado más' : 'resultados más'}`,
+    strong: `Hay ${count} ${count === 1 ? 'movimiento más' : 'movimientos más'}`,
     rest: `antes de ${when}. Siguen guardados; con Premium los ves todos.`,
   }
 }

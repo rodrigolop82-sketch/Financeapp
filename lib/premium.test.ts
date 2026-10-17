@@ -56,10 +56,10 @@ describe('historial de Gratis', () => {
   })
   it('texto de lo oculto', () => {
     expect(hiddenHistoryText(41, '2026-08-01', '2026-10-06')).toEqual({
-      strong: 'Hay 41 resultados más',
+      strong: 'Hay 41 movimientos más',
       rest: 'antes de agosto. Siguen guardados; con Premium los ves todos.',
     })
-    expect(hiddenHistoryText(1, '2025-11-01', '2026-01-06').strong).toBe('Hay 1 resultado más')
+    expect(hiddenHistoryText(1, '2025-11-01', '2026-01-06').strong).toBe('Hay 1 movimiento más')
     expect(hiddenHistoryText(1, '2025-11-01', '2026-01-06').rest).toContain('noviembre de 2025')
   })
 })

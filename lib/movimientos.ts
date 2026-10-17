@@ -2,6 +2,7 @@
 // Las fechas son strings locales 'YYYY-MM-DD' (ver lib/dates.ts).
 import { getMerchantKey } from './transactions/merchant-key';
 import { destinoDe } from './metricas-mes';
+import { PLAN_LIMITS } from './plans';
 
 const MONTHS = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -182,6 +183,18 @@ export function periodLabel(period: Period, today: string): string {
 /** "2026" o "julio": para "“uber” en julio" y "Buscar en todo 2026…". */
 export function periodInText(period: Period, today: string): string {
   return period === 'year' ? today.slice(0, 4) : monthLabel(period, today).toLowerCase();
+}
+
+/**
+ * Hasta dónde llega de verdad una búsqueda (C17): "todo 2026", "julio" o, en
+ * el plan gratis, "los últimos 3 meses" (no se promete todo el año si el
+ * historial está limitado). `historyStart` es el primer día visible o null.
+ */
+export function searchScopeText(period: Period, today: string, historyStart: string | null): string {
+  if (period !== 'year') return periodInText(period, today);
+  const year = today.slice(0, 4);
+  if (historyStart && historyStart > `${year}-01-01`) return `los últimos ${PLAN_LIMITS.FREE_HISTORY_MONTHS} meses`;
+  return `todo ${year}`;
 }
 
 export interface MonthGroup<T extends DayRow> {

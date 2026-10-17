@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   addDays, dayLabel, longDate, monthRange, monthLabel, recentMonths, recentDays,
   cleanAmountInput, groupByDay, sameMerchantOthers, topCategories,
-  periodRange, yearMonths, periodLabel, periodInText, groupByMonth,
+  periodRange, yearMonths, periodLabel, periodInText, searchScopeText, groupByMonth,
 } from './movimientos';
 
 const TODAY = '2026-10-03';
@@ -101,6 +101,15 @@ describe('periodos (búsqueda anual)', () => {
     expect(periodLabel('2026-07', today)).toBe('Julio');
     expect(periodInText('year', today)).toBe('2026');
     expect(periodInText('2026-07', today)).toBe('julio');
+  });
+
+  it('searchScopeText: dice hasta dónde busca de verdad (C17)', () => {
+    expect(searchScopeText('year', today, null)).toBe('todo 2026');
+    expect(searchScopeText('2026-07', today, '2026-08-01')).toBe('julio');
+    // Gratis: el historial empieza en agosto, no se promete todo el año.
+    expect(searchScopeText('year', today, '2026-08-01')).toBe('los últimos 3 meses');
+    // En febrero el límite cae el año anterior: el año completo sí se ve.
+    expect(searchScopeText('year', '2026-02-10', '2025-12-01')).toBe('todo 2026');
   });
 
   it('agrupa por mes y día', () => {
