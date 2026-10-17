@@ -2,7 +2,7 @@
 // sesión. Toda pantalla con datos del usuario debe estar aquí: la página
 // puede revisar la sesión en el cliente, pero para entonces ya se sirvió.
 export const PROTECTED_ROUTES = [
-  '/dashboard', '/presupuesto', '/deudas', '/plan', '/transacciones',
+  '/dashboard', '/presupuesto', '/deudas', '/plan', '/eventos', '/transacciones',
   '/familia', '/cuenta', '/onboarding', '/chat', '/admin', '/notificacion',
   '/resumen', '/metas', '/score', '/mas', '/planes', '/unir',
   '/cierre-mes', '/mis-fuentes', '/aprende', '/patrimonio', '/health-score',

@@ -13,6 +13,7 @@ import { PresupuestoView } from '@/components/presupuesto/PresupuestoView';
 import { MetasView } from '@/components/goals/MetasView';
 import { DeudasView } from '@/components/deudas/DeudasView';
 import { RetosView } from '@/components/retos/RetosView';
+import { EventosView } from '@/components/eventos/EventosView';
 import { ScorePill } from '@/components/score/ScoreUI';
 import { useHealthScore } from '@/hooks/useHealthScore';
 import { createClient } from '@/lib/supabase';
@@ -30,6 +31,7 @@ const SECTIONS: { value: PlanSection; label: string }[] = [
   { value: 'mes', label: 'Del mes' },
   { value: 'metas', label: 'Metas' },
   { value: 'deudas', label: 'Deudas' },
+  { value: 'eventos', label: 'Eventos' },
 ];
 
 export default function PlanPage() {
@@ -40,7 +42,7 @@ export default function PlanPage() {
   );
 }
 
-/** Pestaña Plan: Plan del mes, Metas y Deudas con un selector (?s=mes|metas|deudas). */
+/** Pestaña Plan: Plan del mes, Metas, Deudas y Eventos con un selector (?s=mes|metas|deudas|eventos). */
 function PlanHub() {
   const router = useRouter();
   const params = useSearchParams();
@@ -48,6 +50,7 @@ function PlanHub() {
   // /metas/nueva abre la hoja de nueva meta (crear se hace al final de cada lista).
   const [addMeta, setAddMeta] = useState(0);
   const [addDeuda, setAddDeuda] = useState(0);
+  const [addEvento, setAddEvento] = useState(0);
 
   function replaceQuery(edit: (q: URLSearchParams) => void) {
     const q = new URLSearchParams(params.toString());
@@ -83,6 +86,7 @@ function PlanHub() {
   useEffect(() => {
     if (!wantsNew) return;
     if (section === 'deudas') setAddDeuda((n) => n + 1);
+    else if (section === 'eventos') setAddEvento((n) => n + 1);
     else setAddMeta((n) => n + 1);
     replaceQuery((q) => { q.delete('nueva'); q.delete('tipo'); });
   }, [wantsNew]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -137,6 +141,7 @@ function PlanHub() {
       )}
       {section === 'metas' && vista === 'retos' && <RetosView />}
       {section === 'deudas' && <DeudasView addRequest={addDeuda} addType={addTipo} />}
+      {section === 'eventos' && <EventosView addRequest={addEvento} />}
     </AppShell>
   );
 }

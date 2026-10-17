@@ -17,8 +17,9 @@ import { CategorySheet } from './CategorySheet';
 import { DateSheet, OptionSheet } from './OptionSheet';
 import { StatusToast, type StatusMessage } from './StatusToast';
 import type { SubItemOption } from './SubItemPicker';
+import { etiquetaConcepto, loadOpcionesEventos, type OpcionConcepto } from '@/lib/eventos-data';
 
-type SheetView = 'detail' | 'category' | 'date' | 'payment';
+type SheetView = 'detail' | 'category' | 'date' | 'payment' | 'evento';
 
 interface SheetState {
   view: SheetView;
@@ -32,6 +33,7 @@ const SHEET_LABEL: Record<SheetView, string> = {
   category: 'Elegir categoría',
   date: 'Elegir fecha',
   payment: 'Forma de pago',
+  evento: 'Elegir evento',
 };
 
 const FLASH_MS = 1600;
@@ -82,6 +84,37 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
     return () => { cancelled = true; };
   }, [supabase, catIds]);
   const deletion = useUndoableDelete(setRows, onChanged);
+
+  // Plan › Eventos: conceptos de los eventos activos y el del movimiento abierto.
+  const [eventoOps, setEventoOps] = useState<OpcionConcepto[]>([]);
+  const [txEvento, setTxEvento] = useState<{ txId: string; conceptoId: string | null } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void loadOpcionesEventos(supabase).then((ops) => { if (!cancelled) setEventoOps(ops); });
+    return () => { cancelled = true; };
+  }, [supabase]);
+  const detailId = sheet?.view === 'detail' ? sheet.txId : null;
+  useEffect(() => {
+    if (!detailId || eventoOps.length === 0 || txEvento?.txId === detailId) return;
+    let cancelled = false;
+    supabase.from('transactions').select('evento_concepto_id').eq('id', detailId).maybeSingle()
+      .then(({ data }: { data: { evento_concepto_id: string | null } | null }) => {
+        if (!cancelled) setTxEvento({ txId: detailId, conceptoId: data?.evento_concepto_id ?? null });
+      });
+    return () => { cancelled = true; };
+  }, [supabase, detailId, eventoOps.length, txEvento?.txId]);
+
+  async function saveEvento(id: string, conceptoId: string | null) {
+    const prev = txEvento;
+    setTxEvento({ txId: id, conceptoId });
+    const { error } = await supabase.from('transactions').update({ evento_concepto_id: conceptoId }).eq('id', id);
+    if (error) {
+      setTxEvento(prev);
+      setMessage({ text: 'No se pudo guardar el cambio. Intenta de nuevo.', tone: 'error' });
+      return;
+    }
+    flash(id);
+  }
 
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Resalta una fila; `isNew`: además entra deslizando (recién agregada, llega al recargar). */
@@ -187,6 +220,20 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
             subItemName={subItems.find((p) => p.id === selected.budget_sub_item_id)?.name}
             people={household.shared ? household.people : undefined}
             onSaveHousehold={(id, patch) => { void updateTx(id, patch); }}
+            eventoLabel={eventoOps.length === 0 || txEvento?.txId !== selected.id ? undefined
+              : (() => { const o = eventoOps.find((x) => x.conceptoId === txEvento.conceptoId); return o ? etiquetaConcepto(o) : txEvento.conceptoId ? 'Un evento terminado' : null; })()}
+            onOpenEvento={() => setSheet({ view: 'evento', txId: selected.id, back: 'detail' })}
+          />
+        )}
+        {sheet?.view === 'evento' && selected && (
+          <OptionSheet<string>
+            title="¿Es para un evento?"
+            options={[{ value: '', label: 'No es de un evento' }, ...eventoOps.map((o) => ({ value: o.conceptoId, label: etiquetaConcepto(o) }))]}
+            selected={txEvento?.txId === selected.id ? txEvento.conceptoId ?? '' : ''}
+            onSelect={(id) => {
+              void saveEvento(selected.id, id || null);
+              setSheet({ view: 'detail', txId: selected.id, back: null });
+            }}
           />
         )}
         {sheet?.view === 'category' && selected && (

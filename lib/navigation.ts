@@ -91,6 +91,7 @@ const SIDEBAR_ALIASES: [string, string][] = [
   ['/presupuesto', '/plan'],
   ['/metas', '/plan'],
   ['/deudas', '/plan'],
+  ['/eventos', '/plan'],
   ['/importar', '/transacciones'],
   ['/notificacion', '/transacciones'],
   ['/familia', '/cuenta'],
@@ -115,7 +116,7 @@ export function activeTabFor(pathname: string): TabKey | null {
   if (matches(pathname, '/dashboard')) return 'inicio';
   if (['/transacciones', '/importar', '/notificacion'].some((p) => matches(pathname, p))) return 'movimientos';
   // Plan agrupa el plan del mes, las metas y las deudas.
-  if (['/plan', '/presupuesto', '/metas', '/deudas'].some((p) => matches(pathname, p))) return 'plan';
+  if (['/plan', '/presupuesto', '/metas', '/deudas', '/eventos'].some((p) => matches(pathname, p))) return 'plan';
   const moreRoutes = [
     '/mas', '/admin', '/planes', '/score', '/health-score', '/cierre-mes', '/familia', '/patrimonio',
     ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href.split('?')[0]] : []))),
@@ -149,6 +150,7 @@ const PARENTS: [string, ParentLink][] = [
   ['/importar', { label: 'Movimientos', href: '/transacciones' }],
   ['/notificacion', { label: 'Movimientos', href: '/transacciones' }],
   ['/metas', { label: 'Metas', href: '/plan?s=metas' }],
+  ['/eventos', { label: 'Eventos', href: '/plan?s=eventos' }],
   ['/cuenta', { label: 'Cuenta', href: '/cuenta' }],
   ['/mis-fuentes', { label: 'Mis cuentas', href: '/mis-fuentes' }],
   ['/aprende', { label: 'Aprende', href: '/aprende' }],
@@ -165,10 +167,10 @@ export function parentFor(pathname: string): ParentLink {
 }
 
 /** Secciones de la pestaña Plan (`/plan?s=…`). */
-export type PlanSection = 'mes' | 'metas' | 'deudas';
+export type PlanSection = 'mes' | 'metas' | 'deudas' | 'eventos';
 
 export function planSection(value: string | null | undefined): PlanSection {
-  return value === 'metas' || value === 'deudas' ? value : 'mes';
+  return value === 'metas' || value === 'deudas' || value === 'eventos' ? value : 'mes';
 }
 
 /**
