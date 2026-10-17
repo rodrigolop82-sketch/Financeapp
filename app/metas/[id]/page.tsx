@@ -28,7 +28,7 @@ import type { Person } from '@/lib/hogar'
 const ORIGINS: Record<string, { label: string; href: string }> = {
   plan: { label: 'Metas', href: '/plan?s=metas' },
   inicio: { label: 'Inicio', href: '/dashboard' },
-  score: { label: 'Salud financiera', href: '/score' },
+  score: { label: 'Cómo te fue', href: '/resumen#salud' },
 }
 
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']

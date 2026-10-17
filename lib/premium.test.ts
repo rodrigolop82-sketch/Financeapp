@@ -19,6 +19,13 @@ describe('premiumGate', () => {
     expect(g.plan).toBe('Con Premium Familiar')
     expect(g.cta).toBe('Ver Familiar')
     expect(g.perks[0]).toBe('Luis también registra sus gastos')
+    expect(g.subtitle).toContain('$ 2 más al mes')
+  })
+  it('con una sola persona en el hogar no dice que ya puede ver el plan', () => {
+    const g = premiumGate('familia', { today: '2026-10-06', memberName: 'Luis', memberCount: 1 })
+    expect(g.title).toBe('Comparte tu plan con tu pareja')
+    expect(g.subtitle).toContain('Cuando se una')
+    expect(premiumGate('familia', { today: '2026-10-06', memberName: 'Luis', memberCount: 2 }).title).toBe('Luis ya puede ver tu plan')
   })
   it('en un hogar de dos los beneficios son de Familiar', () => {
     const g = premiumGate('history', { today: '2026-10-06', family: true })
@@ -49,10 +56,10 @@ describe('historial de Gratis', () => {
   })
   it('texto de lo oculto', () => {
     expect(hiddenHistoryText(41, '2026-08-01', '2026-10-06')).toEqual({
-      strong: 'Hay 41 resultados más',
+      strong: 'Hay 41 movimientos más',
       rest: 'antes de agosto. Siguen guardados; con Premium los ves todos.',
     })
-    expect(hiddenHistoryText(1, '2025-11-01', '2026-01-06').strong).toBe('Hay 1 resultado más')
+    expect(hiddenHistoryText(1, '2025-11-01', '2026-01-06').strong).toBe('Hay 1 movimiento más')
     expect(hiddenHistoryText(1, '2025-11-01', '2026-01-06').rest).toContain('noviembre de 2025')
   })
 })

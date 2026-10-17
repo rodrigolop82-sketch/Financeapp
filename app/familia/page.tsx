@@ -250,7 +250,7 @@ export default function FamiliaPage() {
   return (
     <AppShell title="Familia" currentPath="/familia" hideMobileBar headerRight={invite}>
       <div className="mx-auto flex max-w-2xl flex-col pb-8 lg:mx-0">
-        <PageHeader back={{ href: '/mas', label: 'Más' }} title="Este mes en casa" subtitle={subtitle} right={invite} />
+        <PageHeader back={{ href: '/cuenta', label: 'Cuenta' }} title={pair ? 'Este mes en casa' : 'Familia'} subtitle={subtitle} right={invite} />
         <p className={`hidden text-sm lg:block ${TEXT_MUTED}`}>{subtitle}</p>
 
         <div className="mt-3.5 flex flex-col gap-[18px] zafi-stagger">
@@ -274,7 +274,8 @@ export default function FamiliaPage() {
             />
           )}
 
-          <section className={`flex flex-col gap-1.5 ${HERO}`} style={{ ...HERO_STYLE, padding: '22px 22px 20px' }}>
+          {/* Sola en el hogar: el total y en qué se va ya están en Inicio y Cómo te fue (C13). */}
+          {pair && <section className={`flex flex-col gap-1.5 ${HERO}`} style={{ ...HERO_STYLE, padding: '22px 22px 20px' }}>
             <span className={`text-[15px] ${HERO_MUTED}`}>
               {who !== 'all' ? `${personOf(who)?.name ?? ''} pagó en ${monthName}` : pair ? `Gastaron en ${monthName}` : `Gastaste en ${monthName}`}
             </span>
@@ -300,7 +301,7 @@ export default function FamiliaPage() {
                 </div>
               </>
             )}
-          </section>
+          </section>}
 
           {pair && who === 'all' && (
             balance && !justSettled ? (
@@ -331,9 +332,9 @@ export default function FamiliaPage() {
             )
           )}
 
-          <section>
+          {pair && <section>
             <div className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
-              <GroupTitle className="">En qué se va</GroupTitle>
+              <GroupTitle className="">Quién pagó qué</GroupTitle>
               {pair && who === 'all' && !readOnly && (
                 <button type="button" onClick={() => setSplitOpen(true)} className={`text-[13px] font-semibold ${LINK_TEXT}`}>Cómo reparten ›</button>
               )}
@@ -363,7 +364,7 @@ export default function FamiliaPage() {
             ) : (
               <p className={`px-1 text-sm ${TEXT_MUTED}`}>Todavía no hay gastos este mes.</p>
             )}
-          </section>
+          </section>}
 
           {pair && (
             <section>
@@ -501,7 +502,7 @@ export default function FamiliaPage() {
           </div>
         )}
       </BottomSheet>
-      <PremiumSheet reason="familia" open={familySheet !== null} onClose={() => setFamilySheet(null)} memberName={familySheet} family />
+      <PremiumSheet reason="familia" open={familySheet !== null} onClose={() => setFamilySheet(null)} memberName={familySheet} memberCount={people.length} family />
     </AppShell>
   );
 }

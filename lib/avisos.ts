@@ -173,12 +173,13 @@ export function monthStartCopy(month: string) {
 }
 
 /** Push de Apple Pay. Si ya llegó con categoría (regla del comercio), lo dice. */
-export function applePayCopy(amount: number, merchant: string, fmt: Fmt, categoryName?: string | null) {
+/** `via`: "con Apple Pay" o, en Android, "por el aviso de BAM" (C15). */
+export function applePayCopy(amount: number, merchant: string, fmt: Fmt, categoryName?: string | null, via = 'con Apple Pay') {
   return {
     title: 'Zafi',
     body: categoryName
-      ? `Registramos ${fmt(amount)} en ${merchant} con Apple Pay: ${categoryName}. Toca si quieres cambiarla.`
-      : `Registramos ${fmt(amount)} en ${merchant} con Apple Pay. Toca para elegir categoría.`,
+      ? `Registramos ${fmt(amount)} en ${merchant} ${via}: ${categoryName}. Toca si quieres cambiarla.`
+      : `Registramos ${fmt(amount)} en ${merchant} ${via}. Toca para elegir categoría.`,
   };
 }
 

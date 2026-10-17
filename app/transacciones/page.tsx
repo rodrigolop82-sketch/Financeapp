@@ -8,7 +8,7 @@ import type { BudgetCategory, SearchTransaction } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
 import {
-  groupByMonth, monthLabel, periodInText, periodLabel, periodRange, yearMonths, type Period,
+  groupByMonth, monthLabel, periodLabel, periodRange, searchScopeText, yearMonths, type Period,
 } from '@/lib/movimientos';
 import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow';
 import { AppShell } from '@/components/layout/AppShell';
@@ -341,6 +341,9 @@ export default function MovimientosPage() {
     if (lockedMonth(m)) { setPremiumOpen(true); return; }
     apply(m);
   };
+  // Hasta dónde busca de verdad (gratis: los últimos 3 meses, no todo el año).
+  const scopeText = searchScopeText(searchScope, today, historyStart);
+  const yearText = searchScopeText('year', today, historyStart);
   const hiddenText = hidden ? hiddenHistoryText(hidden.count, hidden.before, today) : null;
   const hiddenNotice = hiddenText && (
     <PremiumInline action="Ver todo ›" onClick={() => setPremiumOpen(true)}>
@@ -349,7 +352,7 @@ export default function MovimientosPage() {
   );
 
   const periodOptions = (current: Period) => [
-    { value: 'year', label: `Todo ${year}` },
+    { value: 'year', label: yearText.charAt(0).toUpperCase() + yearText.slice(1) },
     ...yearMonths(today).map((m, i) => ({ value: m, label: monthLabel(m, today) + (i === 0 ? ' (este mes)' : '') + (lockedMonth(m) ? ' 👑' : '') })),
     // Un mes de otro año (p. ej. tras importar un estado de cuenta viejo) sigue en la lista.
     ...(current !== 'year' && !current.startsWith(year) ? [{ value: current, label: monthLabel(current, today) }] : []),
@@ -377,7 +380,7 @@ export default function MovimientosPage() {
   const onlyIncome = foundSpent === 0 && foundReceived > 0;
   const searchSummary = (
     <div className={`flex flex-col gap-1 p-4 ${CARD}`}>
-      <span className={`text-[13px] ${TEXT_MUTED}`}>“{searchQuery}” en {periodInText(searchScope, today)}</span>
+      <span className={`text-[13px] ${TEXT_MUTED}`}>“{searchQuery}” en {scopeText}</span>
       <span className="flex flex-wrap items-baseline gap-x-2.5">
         <span className={`font-outfit text-[30px] font-extrabold tracking-[-0.02em] ${onlyIncome ? GREEN_TEXT : TEXT_STRONG}`}>
           {totals ? (onlyIncome ? `+${fmt(foundReceived)}` : fmt(foundSpent)) : '—'}
@@ -399,7 +402,7 @@ export default function MovimientosPage() {
       className="flex h-8 flex-none items-center gap-1.5 rounded-full bg-electric-ghost px-3 text-[13px] font-bold text-electric-dark dark:bg-[#1B2B4D] dark:text-electric-soft"
     >
       <Calendar size={14} aria-hidden />
-      En {searchScope === 'year' ? `todo ${year}` : periodInText(searchScope, today)} ▾
+      En {scopeText} ▾
     </button>
   ) : undefined;
 
@@ -461,7 +464,7 @@ export default function MovimientosPage() {
             onQueryChange={(q) => { setQuery(q); setOpenRowId(null); }}
             type={typeFilter}
             onTypeChange={(t) => { setTypeFilter(t); setOpenRowId(null); }}
-            placeholder={`Buscar en ${searching ? (searchScope === 'year' ? `todo ${year}` : periodInText(searchScope, today)) : `todo ${year}`}…`}
+            placeholder={`Buscar en ${searching ? scopeText : yearText}…`}
             scope={scopeChip}
             personOptions={personOptions}
             person={personFilter}
@@ -485,11 +488,11 @@ export default function MovimientosPage() {
               {filtered ? (
                 <>
                   <p className={`font-semibold ${TEXT_STRONG}`}>
-                    {searching ? `Nada con “${searchQuery}” en ${periodInText(searchScope, today)}` : 'Nada por aquí'}
+                    {searching ? `Nada con “${searchQuery}” en ${scopeText}` : 'Nada por aquí'}
                   </p>
                   {searching && searchScope !== 'year' ? (
                     <div className="mt-2 flex justify-center">
-                      <PillButton onClick={() => setSearchScope('year')}>Buscar en todo {year}</PillButton>
+                      <PillButton onClick={() => setSearchScope('year')}>Buscar en {yearText}</PillButton>
                     </div>
                   ) : (
                     <p className={`text-sm mt-1 ${TEXT_MUTED}`}>Prueba con otra palabra o quita el filtro.</p>
@@ -508,6 +511,8 @@ export default function MovimientosPage() {
             </div>
           ) : (
             <>
+              {/* Arriba, para que se vea antes de recorrer la lista (C17). */}
+              {hiddenNotice}
               {monthGroups.map((mg) => {
                 const t = totalOf(mg.month);
                 const sinceShort = familySince ? `${Number(familySince.date.slice(8, 10))} ${monthLabel(familySince.date.slice(0, 7), today).split(' ')[0].slice(0, 3).toLowerCase()}` : '';
@@ -573,7 +578,6 @@ export default function MovimientosPage() {
                   Ver más{remaining ? ` (${remaining})` : ''}
                 </button>
               )}
-              {!hasMore && hiddenNotice}
               {swipeCount < 3 && (
                 <p className="lg:hidden text-center text-[13px] px-4 text-ink-400">
                   Toca un movimiento para verlo · desliza a la izquierda para cambiar o borrar

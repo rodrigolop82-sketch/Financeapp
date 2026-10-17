@@ -69,7 +69,7 @@ export function ScoreHero({ score, label = 'Tu salud financiera', sub }: { score
   )
 }
 
-/** Línea discreta dentro del hero de Inicio (toda la fila lleva a /score). */
+/** Línea discreta dentro del hero de Inicio (toda la fila lleva a la salud en Cómo te fue). */
 export function ScoreHeroLine({ score, href }: { score: HealthScoreResult; href: string }) {
   return (
     <Link

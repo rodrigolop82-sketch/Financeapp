@@ -30,6 +30,7 @@
     "action": "/transacciones",
     "method": "GET",
     "params": {
+      "title": "shared_title",
       "text": "shared_text"
     }
   }

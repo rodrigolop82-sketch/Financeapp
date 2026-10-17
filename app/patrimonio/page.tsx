@@ -13,7 +13,7 @@ import { PremiumBadge, upgradeHref } from '@/components/premium/PremiumTag'
 import { NetWorthChart, SAMPLE_SERIES } from '@/components/networth/NetWorthChart'
 import { AccountSheet, UpdateBalanceSheet } from '@/components/networth/SourceSheets'
 import { sendJson, useNetWorth } from '@/components/networth/useNetWorth'
-import { KIND_EMOJI, KIND_LABEL, isAccountKind } from '@/lib/networth/sources'
+import { KIND_EMOJI, KIND_LABEL, NUEVA_DEUDA_HREF, isAccountKind } from '@/lib/networth/sources'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { useMaskedFmt, usePrivacy } from '@/components/privacidad/PrivacyProvider'
 import { AmortizacionDetalle } from '@/components/deudas/AmortizacionDetalle'
@@ -85,7 +85,7 @@ function DebtRow({ s, fmt }: { s: SourceView; fmt: (n: number) => string }) {
           )}
           <div className="grid grid-cols-2 gap-2">
             <Fact label="Tasa anual" value={t.interestRate ? `${t.interestRate}%` : 'Sin interés'} />
-            <Fact label="Pago mensual" value={t.monthlyPayment ? fmt(t.monthlyPayment) : '—'} />
+            <Fact label="Pago mensual" value={t.monthlyPayment ? fmt(t.monthlyPayment) : 'Sin pago fijo'} />
             <Fact label="Deuda original" value={original ? fmt(original) : '—'} />
             <Fact label="Vence el día" value={t.dueDay ? String(t.dueDay) : '—'} />
           </div>
@@ -365,13 +365,22 @@ export default function PatrimonioPage() {
             )}
 
             {canWrite && (
-              <button
-                type="button"
-                onClick={() => setSheet({ kind: 'add' })}
-                className="mt-3.5 flex h-[52px] items-center justify-center rounded-2xl border-[1.5px] border-dashed border-electric-soft text-[15px] font-semibold text-electric-dark dark:text-electric-soft"
-              >
-                + Agregar cuenta
-              </button>
+              <div className="mt-3.5 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setSheet({ kind: 'add' })}
+                  className="flex h-[52px] flex-1 items-center justify-center rounded-2xl border-[1.5px] border-dashed border-electric-soft text-[15px] font-semibold text-electric-dark dark:text-electric-soft"
+                >
+                  + Agregar cuenta
+                </button>
+                {/* Las deudas viven solo en Plan › Deudas (una sola fuente). */}
+                <Link
+                  href={NUEVA_DEUDA_HREF}
+                  className="flex h-[52px] flex-1 items-center justify-center rounded-2xl border-[1.5px] border-dashed border-electric-soft text-[15px] font-semibold text-electric-dark no-underline dark:text-electric-soft"
+                >
+                  + Agregar deuda
+                </Link>
+              </div>
             )}
 
             <GroupTitle>Evolución</GroupTitle>

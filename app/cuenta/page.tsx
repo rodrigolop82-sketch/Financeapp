@@ -40,6 +40,9 @@ import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { usePrivacy } from '@/components/privacidad/PrivacyProvider';
 import { biometricAvailable, readLockEnabled, writeLockEnabled } from '@/lib/biometria';
 
+/** Avisos detrás de "Más avisos": si dejo de registrar, resumen mensual, ingresos y consejos. */
+const MORE_AVISOS = 4;
+
 export default function CuentaPage() {
   return (
     <Suspense>
@@ -93,6 +96,7 @@ function CuentaContent() {
   const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [deleteText, setDeleteText] = useState('');
+  const [moreAvisos, setMoreAvisos] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -374,7 +378,7 @@ function CuentaContent() {
   ];
 
   return (
-    <AppShell title="Mi cuenta" currentPath="/cuenta" hideMobileBar>
+    <AppShell title="Cuenta" currentPath="/cuenta" hideMobileBar>
       <div className="mx-auto flex max-w-2xl flex-col pb-6 lg:mx-0 zafi-stagger">
         {/* Encabezado móvil */}
         <div className="-mx-4 flex flex-col items-start gap-0.5 px-5 pt-[env(safe-area-inset-top)] lg:hidden">
@@ -445,13 +449,12 @@ function CuentaContent() {
               </div>
             }
           />
-          <AccountRow emoji="🏦" title="Mis cuentas" hint="Cuentas de banco y tarjetas" href="/mis-fuentes" />
           <AccountRow emoji="🏷️" title="Categorías" hint="Crea y organiza las tuyas" href="/cuenta/categorias" last />
         </AccountGroup>
 
-        {/* Recordatorios */}
+        {/* Avisos: 4 a la vista y el resto en "Más avisos" (C12) */}
         <span id="recordatorios" aria-hidden />
-        <AccountGroup title="Recordatorios">
+        <AccountGroup title="Avisos">
           <AccountRow
             emoji="🔔"
             title="Avisos en el teléfono"
@@ -487,35 +490,27 @@ function CuentaContent() {
           />
           <AccountRow
             emoji="⚠️"
-            title="Cerca de mi tope"
+            title="Presupuesto casi agotado"
             hint="Cuando una categoría llega al 85%"
             right={
               <Switch
                 checked={notifPrefs.cap_enabled}
-                label="Cerca de mi tope"
+                label="Presupuesto casi agotado"
                 onChange={(v) => updateNotifPref({ cap_enabled: v }, v ? 'Te avisaremos cerca de tus topes' : 'Aviso de topes apagado')}
               />
             }
           />
           <AccountRow
-            emoji="⏰"
-            title="Si dejo de registrar"
-            hint="Avísame cuando pasen días sin gastos"
+            emoji="🗓️"
+            title="Resumen semanal"
+            hint="Los lunes, cómo te fue la semana"
             right={
               <Switch
-                checked={notifPrefs.inactivity_enabled}
-                label="Si dejo de registrar"
-                onChange={(v) => updateNotifPref({ inactivity_enabled: v }, v ? 'Te avisaremos si dejas de registrar' : 'Aviso de inactividad apagado')}
+                checked={notifPrefs.weekly_snapshot_enabled}
+                label="Resumen semanal"
+                onChange={(v) => updateNotifPref({ weekly_snapshot_enabled: v }, v ? 'Te mandaremos tu semana cada lunes' : 'Resumen semanal apagado')}
               />
             }
-            below={notifPrefs.inactivity_enabled && (
-              <div className={`flex items-center gap-2 pl-12 text-[13.5px] ${TEXT_SECONDARY}`}>
-                Después de
-                <PickerPill onClick={() => setSheet('inactivity')} label="Cambiar días sin registrar">
-                  {notifPrefs.inactivity_threshold_days} días
-                </PickerPill>
-              </div>
-            )}
           />
           <AccountRow
             emoji="✅"
@@ -538,17 +533,35 @@ function CuentaContent() {
               </div>
             )}
           />
+          <button
+            type="button"
+            onClick={() => setMoreAvisos((v) => !v)}
+            aria-expanded={moreAvisos}
+            className="flex h-11 w-full items-center text-[14px] font-semibold text-electric"
+          >
+            {moreAvisos ? 'Menos avisos' : `Más avisos (${MORE_AVISOS})`} <span aria-hidden className={`ml-1 inline-block transition-transform ${moreAvisos ? 'rotate-90' : ''}`}>›</span>
+          </button>
+          {moreAvisos && (
+            <>
           <AccountRow
-            emoji="🗓️"
-            title="Resumen semanal"
-            hint="Los lunes, cómo te fue la semana"
+            emoji="⏰"
+            title="Si dejo de registrar"
+            hint="Avísame cuando pasen días sin gastos"
             right={
               <Switch
-                checked={notifPrefs.weekly_snapshot_enabled}
-                label="Resumen semanal"
-                onChange={(v) => updateNotifPref({ weekly_snapshot_enabled: v }, v ? 'Te mandaremos tu semana cada lunes' : 'Resumen semanal apagado')}
+                checked={notifPrefs.inactivity_enabled}
+                label="Si dejo de registrar"
+                onChange={(v) => updateNotifPref({ inactivity_enabled: v }, v ? 'Te avisaremos si dejas de registrar' : 'Aviso de inactividad apagado')}
               />
             }
+            below={notifPrefs.inactivity_enabled && (
+              <div className={`flex items-center gap-2 pl-12 text-[13.5px] ${TEXT_SECONDARY}`}>
+                Después de
+                <PickerPill onClick={() => setSheet('inactivity')} label="Cambiar días sin registrar">
+                  {notifPrefs.inactivity_threshold_days} días
+                </PickerPill>
+              </div>
+            )}
           />
           <AccountRow
             emoji="✉️"
@@ -572,9 +585,10 @@ function CuentaContent() {
             emoji="📬"
             title="Recibir consejos y novedades por correo"
             hint="Ideas para tu dinero y lo nuevo de Zafi. Sin spam."
-            last
             right={<Switch checked={marketingOptIn} onChange={toggleMarketing} label="Recibir consejos y novedades por correo" />}
           />
+            </>
+          )}
         </AccountGroup>
 
         {/* Tu plan */}
@@ -615,14 +629,13 @@ function CuentaContent() {
           )}
         </AccountGroup>
 
-        {/* Ayuda */}
-        <AccountGroup title="Ayuda">
-          <AccountRow emoji="💡" title="Envíanos tu idea" hint="Sugerencias, errores o lo que quieras" onClick={openFeedback} accentTile />
-          <AccountRow emoji="💬" title="Pregúntale a Zafi" hint="Resuelve dudas de tu dinero" href="/chat" last />
+        {/* Familia (salió del menú: vive aquí) */}
+        <AccountGroup title="Familia">
+          <AccountRow emoji="👪" title="Familia" hint="Miembros, invitar y pagos compartidos" href="/familia" last />
         </AccountGroup>
 
-        {/* Privacidad y seguridad */}
-        <AccountGroup title="Privacidad y seguridad">
+        {/* Privacidad e ideas */}
+        <AccountGroup title="Privacidad e ideas">
           <AccountRow
             emoji="👁️"
             title="Ocultar saldos"
@@ -647,7 +660,8 @@ function CuentaContent() {
             busy={exporting}
           />
           <AccountRow emoji="📄" title="Política de privacidad" href="/privacidad" />
-          <AccountRow emoji="📄" title="Términos de servicio" href="/terminos" last />
+          <AccountRow emoji="📄" title="Términos de servicio" href="/terminos" />
+          <AccountRow emoji="💡" title="Enviar idea" hint="Sugerencias, errores o lo que quieras" onClick={openFeedback} accentTile last />
         </AccountGroup>
 
         {/* Al final */}
@@ -659,14 +673,25 @@ function CuentaContent() {
           >
             Cerrar sesión
           </button>
-          <button
-            type="button"
-            onClick={() => setSheet('delete')}
-            className={`h-11 text-[13.5px] font-semibold ${TEXT_SECONDARY}`}
-          >
-            Eliminar mi cuenta
-          </button>
         </div>
+
+        {/* Zona de cuidado (C5) */}
+        <section aria-label="Zona de cuidado" className="mt-[22px] flex flex-col gap-2">
+          <h2 className={`px-1 text-[17px] font-bold ${TEXT_STRONG}`}>Zona de cuidado</h2>
+          <div className="flex flex-col gap-2 rounded-2xl border border-danger-text/40 bg-[var(--zafi-card)] p-4">
+            <span className={`text-[15px] font-bold ${TEXT_STRONG}`}>Eliminar mi cuenta</span>
+            <span className={`text-[13.5px] leading-[1.45] ${TEXT_SECONDARY}`}>
+              Borra tu cuenta y tus datos desde aquí, sin esperar un correo. Te pediremos confirmar antes de hacerlo.
+            </span>
+            <button
+              type="button"
+              onClick={() => setSheet('delete')}
+              className="mt-1 h-11 self-start rounded-full border border-danger-text px-4 text-[14px] font-bold text-danger-text transition-transform active:scale-[0.98]"
+            >
+              Eliminar mi cuenta
+            </button>
+          </div>
+        </section>
       </div>
 
       <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />

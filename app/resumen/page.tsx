@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { RecurringCard } from '@/components/recurring/RecurringCard';
-import { addMonths, analyzeMonth, longMonth, monthSaved, monthTitle } from '@/lib/como-te-fue';
+import { addMonths, analyzeMonth, longMonth, monthSaved, monthTitle, vsMesAnteriorTexto } from '@/lib/como-te-fue';
 import { openAddSheet } from '@/components/dashboard/BottomNav';
 import { categoryPlan, monthName, subAmountFromMonthly } from '@/lib/plan-del-mes';
 import {
@@ -13,7 +13,6 @@ import {
 } from '@/lib/recomendaciones';
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete';
 import { AppShell } from '@/components/layout/AppShell';
-import { NavCard, NavRow } from '@/components/layout/NavRow';
 import { PageSkeleton } from '@/components/motion/PageSkeleton';
 import { BottomSheet } from '@/components/transactions/BottomSheet';
 import { UndoToast } from '@/components/transactions/UndoToast';
@@ -27,7 +26,9 @@ import { Proyeccion } from '@/components/resumen/Proyeccion';
 import { BucketsChart, FixedVarChart } from '@/components/resumen/Graficas';
 import { CapSheet } from '@/components/resumen/CapSheet';
 import { CARD } from '@/components/resumen/ctf-ui';
-import { GastoDiario } from '@/components/resumen/GastoDiario';
+import { CierreCard } from '@/components/resumen/CierreCard';
+import { SaludBlock } from '@/components/resumen/SaludBlock';
+import { DetalleDesplegable, DetalleLink, VerDetalle } from '@/components/resumen/VerDetalle';
 import { dailySpend } from '@/lib/resumen/daily-spend';
 import { localToday } from '@/lib/dates';
 import type { BudgetSubItem } from '@/types';
@@ -235,51 +236,62 @@ function ComoTeFue() {
               savedPct={a.savedPct}
               apartado={cur.savingsBucket}
               hasRecs={a.recs.over.length > 0}
+              daily={daily}
               onRegisterIncome={() => openAddSheet({ type: 'income' })}
               fmt={fmt}
             />
-            {daily && <GastoDiario data={daily} fmt={fmt} />}
             <Highlights good={a.highlights.good} bad={a.highlights.bad} />
-            <Oportunidades
-              over={a.recs.over}
-              ok={a.recs.ok}
-              potential={a.recs.potential}
-              selected={selected}
-              planAlert={a.planAlert}
-              planMonthName={planMonthName}
-              noIncome={!cur.hasIncome}
-              onToggle={(key) => setPicked((p) => ({ ...p, [key]: !selected.has(key) }))}
-              onEditCap={(key) => setCapSheet({ key, n: Date.now() })}
-              fmt={fmt}
-            />
-            {a.recs.over.length > 0 && (
-              <Proyeccion
-                horizon={effHorizon}
-                canYear={canYear}
-                onHorizon={setHorizon}
-                proj={proj}
-                selCount={selected.size}
-                planMonthName={planMonthName}
-                applying={applying}
-                onApply={() => void applyToPlan()}
-                fmt={fmt}
+            <SaludBlock householdId={data.householdId} month={month} />
+
+            <VerDetalle>
+              <DetalleLink
+                href={`/resumen/categoria?mes=${month}`}
+                title="Por categoría"
+                value={`${Object.values(a.spend).filter((c) => c.spent > 0).length} categorías`}
               />
-            )}
-            <BucketsChart series={a.series} fmt={fmt} />
-            <FixedVarChart series={a.series} fixedNames={topNames('fijo')} variableNames={topNames('variable')} fmt={fmt} />
-            <Link
-              href={`/resumen/categoria?mes=${month}`}
-              className={`mt-3 flex min-h-[52px] items-center justify-between px-4 py-3.5 transition-transform duration-150 active:scale-[0.98] ${CARD}`}
-            >
-              <span className={`text-[15px] font-semibold ${TEXT_STRONG}`}>Ver detalle por categoría</span>
-              <span aria-hidden className="font-bold text-electric">›</span>
-            </Link>
-            <RecurringCard fmt={fmt} />
-            <div className="mt-3">
-              <NavCard>
-                <NavRow href="/score?from=resumen" emoji="💚" name="Tu salud financiera" description="Tu puntaje Zafi y cómo mejorarlo" last />
-              </NavCard>
-            </div>
+              <RecurringCard fmt={fmt} />
+              <DetalleDesplegable
+                title={`Comparado con ${longMonth(addMonths(month, -1))}`}
+                value={vsMesAnteriorTexto(cur, a.series.find((t) => t.month === addMonths(month, -1)), fmt)}
+              >
+                <BucketsChart series={a.series} fmt={fmt} />
+                <FixedVarChart series={a.series} fixedNames={topNames('fijo')} variableNames={topNames('variable')} fmt={fmt} />
+              </DetalleDesplegable>
+              {(a.recs.over.length > 0 || a.recs.ok.length > 0 || a.planAlert.length > 0) && (
+                <DetalleDesplegable
+                  title="Dónde puedes ahorrar"
+                  value={a.recs.potential > 0 ? `hasta ${fmt(a.recs.potential)} al mes` : null}
+                >
+                  <Oportunidades
+                    over={a.recs.over}
+                    ok={a.recs.ok}
+                    potential={a.recs.potential}
+                    selected={selected}
+                    planAlert={a.planAlert}
+                    planMonthName={planMonthName}
+                    noIncome={!cur.hasIncome}
+                    onToggle={(key) => setPicked((p) => ({ ...p, [key]: !selected.has(key) }))}
+                    onEditCap={(key) => setCapSheet({ key, n: Date.now() })}
+                    fmt={fmt}
+                  />
+                  {a.recs.over.length > 0 && (
+                    <Proyeccion
+                      horizon={effHorizon}
+                      canYear={canYear}
+                      onHorizon={setHorizon}
+                      proj={proj}
+                      selCount={selected.size}
+                      planMonthName={planMonthName}
+                      applying={applying}
+                      onApply={() => void applyToPlan()}
+                      fmt={fmt}
+                    />
+                  )}
+                </DetalleDesplegable>
+              )}
+            </VerDetalle>
+
+            <CierreCard householdId={data.householdId} month={month} current={current} />
             <Link href="/resumen/semana" className="mx-auto mt-3 flex h-11 items-center text-[15px] font-semibold text-electric">
               Ver resumen semanal
             </Link>

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   addDays, dayLabel, longDate, monthRange, monthLabel, recentMonths, recentDays,
   cleanAmountInput, groupByDay, sameMerchantOthers, topCategories,
-  periodRange, yearMonths, periodLabel, periodInText, groupByMonth,
+  periodRange, yearMonths, periodLabel, periodInText, searchScopeText, groupByMonth,
 } from './movimientos';
 
 const TODAY = '2026-10-03';
@@ -103,6 +103,15 @@ describe('periodos (búsqueda anual)', () => {
     expect(periodInText('2026-07', today)).toBe('julio');
   });
 
+  it('searchScopeText: dice hasta dónde busca de verdad (C17)', () => {
+    expect(searchScopeText('year', today, null)).toBe('todo 2026');
+    expect(searchScopeText('2026-07', today, '2026-08-01')).toBe('julio');
+    // Gratis: el historial empieza en agosto, no se promete todo el año.
+    expect(searchScopeText('year', today, '2026-08-01')).toBe('los últimos 3 meses');
+    // En febrero el límite cae el año anterior: el año completo sí se ve.
+    expect(searchScopeText('year', '2026-02-10', '2025-12-01')).toBe('todo 2026');
+  });
+
   it('agrupa por mes y día', () => {
     const rows = [
       { id: 'a', date: '2026-10-05', amount: 10, type: 'expense' as const },
@@ -113,5 +122,18 @@ describe('periodos (búsqueda anual)', () => {
     expect(g.map((m) => m.month)).toEqual(['2026-10', '2026-07']);
     expect(g[0].days[0].rows).toHaveLength(2);
     expect(g[1].days[0].expenseTotal).toBe(7);
+  });
+});
+
+describe('parseAmountInput (C14)', async () => {
+  const { parseAmountInput } = await import('./movimientos');
+  it('acepta montos válidos con dos decimales', () => {
+    expect(parseAmountInput('300')).toBe(300);
+    expect(parseAmountInput('Q 1,250.555')).toBe(1250.56);
+  });
+  it('rechaza vacío, cero y basura', () => {
+    expect(parseAmountInput('')).toBeNull();
+    expect(parseAmountInput('0')).toBeNull();
+    expect(parseAmountInput('abc')).toBeNull();
   });
 });

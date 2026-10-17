@@ -29,6 +29,7 @@ import { ProvisionalTag, ScoreHero } from '@/components/score/ScoreUI'
 import { openAddSheet } from '@/components/dashboard/BottomNav'
 import { TRANSACTIONS_CHANGED_EVENT } from '@/components/add/AddSheet'
 import { lastDayOf } from '@/lib/cierre-ui'
+import { mejorParte } from '@/lib/salud-resumen'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
 import { PremiumSheet } from '@/components/premium/PremiumSheet'
 import { fetchEffectivePlan } from '@/lib/plan-client'
@@ -415,7 +416,7 @@ function ClosedMonth({ score, history, yearMonth, monthName }: {
     : d > 0 ? `Subiste ${d} ${d === 1 ? 'punto' : 'puntos'} este mes 🎉`
     : d < 0 ? `Bajaste ${-d} ${d === -1 ? 'punto' : 'puntos'} este mes.`
     : 'Te mantuviste igual.'
-  const best = score.components.filter((c) => !c.pending).sort((a, b) => b.score / b.max - a.score / a.max)[0]
+  const best = mejorParte(score.components)
   return (
     <div className="flex flex-col zafi-stagger">
       <ScoreHero score={{ ...shown, provisional: false }} label={`Tu salud financiera en ${monthName}`} sub={sub} />

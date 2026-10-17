@@ -3,6 +3,7 @@
 import { CountUp } from '@/components/motion/CountUp';
 import { DIVIDER, TEXT_STRONG } from '@/components/movimientos/ui';
 import { AMBER_TEXT, CARD, GREEN_TEXT, GROUP_LABEL } from './ctf-ui';
+import type { DailySpend } from '@/lib/resumen/daily-spend';
 
 interface VeredictoProps {
   monthName: string;
@@ -16,6 +17,8 @@ interface VeredictoProps {
   apartado: number;
   /** Hay recomendaciones abajo para cerrar la diferencia. */
   hasRecs: boolean;
+  /** Gasto promedio por día y días sin gastar (null si no aplica). */
+  daily?: DailySpend | null;
   onRegisterIncome: () => void;
   fmt: (n: number) => string;
 }
@@ -24,7 +27,7 @@ interface VeredictoProps {
  * Hero navy: "En {mes} ahorraste" + ingresos recibidos y gastaste. Sin
  * ingresos registrados no hay ahorro: "—" y "Falta registrar".
  */
-export function Veredicto({ monthName, isCurrent, income, spent, saved, savedPct, apartado, hasRecs, onRegisterIncome, fmt }: VeredictoProps) {
+export function Veredicto({ monthName, isCurrent, income, spent, saved, savedPct, apartado, hasRecs, daily, onRegisterIncome, fmt }: VeredictoProps) {
   const noIncome = saved === null;
   const negative = saved !== null && saved < 0;
   const lead = noIncome
@@ -42,7 +45,7 @@ export function Veredicto({ monthName, isCurrent, income, spent, saved, savedPct
   } else {
     sub = `Es el ${savedPct ?? 0}% de tus ingresos. Lo sano es 20% (${healthy}).`;
   }
-  if (!noIncome && (savedPct ?? 0) < 20 && hasRecs) sub += ' Abajo te mostramos de dónde sacar la diferencia.';
+  if (!noIncome && (savedPct ?? 0) < 20 && hasRecs) sub += ' En "Dónde puedes ahorrar" te mostramos de dónde sacar la diferencia.';
 
   return (
     <section
@@ -84,6 +87,11 @@ export function Veredicto({ monthName, isCurrent, income, spent, saved, savedPct
           </div>
         )}
       </div>
+      {daily?.enough && (
+        <span className="mt-2 text-[13.5px] text-[#9FB3CB]">
+          Promedio <b className="font-outfit text-white">{fmt(daily.avgPerDay)}/día</b> · <b className="font-outfit text-white">{daily.daysWithoutSpend}</b> {daily.daysWithoutSpend === 1 ? 'día' : 'días'} sin gastar
+        </span>
+      )}
     </section>
   );
 }

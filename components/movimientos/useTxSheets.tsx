@@ -126,7 +126,7 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
   /** Cambio optimista de un campo; si Supabase falla, se revierte. */
   const household = useHouseholdPeople();
 
-  async function updateTx(id: string, patch: Partial<Pick<SearchTransaction, 'date' | 'payment_method' | 'description' | 'note' | 'paid_by' | 'scope'>>) {
+  async function updateTx(id: string, patch: Partial<Pick<SearchTransaction, 'date' | 'payment_method' | 'description' | 'note' | 'paid_by' | 'scope' | 'amount'>>) {
     const prev = rows.find((r) => r.id === id);
     if (!prev) return;
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)).sort(byDateDesc));
@@ -137,7 +137,8 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
       return;
     }
     flash(id);
-    if (patch.date) onChanged();
+    // Fecha o monto cambian los totales del periodo.
+    if (patch.date || patch.amount !== undefined) onChanged();
   }
 
   async function saveCategory(
@@ -180,6 +181,7 @@ export function useTxSheets({ rows, setRows, categories, fmt, today, onChanged, 
             onOpenDate={() => setSheet({ view: 'date', txId: selected.id, back: 'detail' })}
             onOpenPayment={() => setSheet({ view: 'payment', txId: selected.id, back: 'detail' })}
             onSaveText={(id, patch) => { void updateTx(id, patch); }}
+            onSaveAmount={(id, amount) => { void updateTx(id, { amount }); }}
             onDelete={() => deleteTx(selected)}
             onDone={() => setSheet(null)}
             subItemName={subItems.find((p) => p.id === selected.budget_sub_item_id)?.name}

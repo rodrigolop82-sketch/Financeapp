@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { barKind, computeHome, headerDate, initials, pickHomeAlert, type HomeCategory, type HomeTx } from './inicio';
+import { barKind, computeHome, headerDate, initials, loQueSigue, type HomeCategory, type HomeTx, type LoQueSigueInput } from './inicio';
 
 const OCT_3 = new Date(2026, 9, 3, 12);
 
@@ -95,14 +95,44 @@ describe('barKind', () => {
   });
 });
 
-describe('pickHomeAlert', () => {
-  const over = { id: 'a', name: 'A', bucket: 'needs', excess: 10 };
-  const savings = { title: 'Ahorro', subtitle: '' };
-  it('prioridad: excedida > sin registrar > ahorro', () => {
-    expect(pickHomeAlert({ overCategory: over, daysSinceLastTransaction: 5, savings })?.kind).toBe('excedida');
-    expect(pickHomeAlert({ overCategory: null, daysSinceLastTransaction: 5, savings })?.kind).toBe('sin-registrar');
-    expect(pickHomeAlert({ overCategory: null, daysSinceLastTransaction: 1, savings })?.kind).toBe('ahorro');
-    expect(pickHomeAlert({ overCategory: null, daysSinceLastTransaction: null, savings: null })).toBeNull();
+describe('loQueSigue (C11)', () => {
+  const fmt = (n: number) => `Q ${n.toLocaleString('en-US')}`;
+  const base: LoQueSigueInput = {
+    today: '2026-10-03', monthName: 'octubre', prevMonth: '2026-09', prevMonthName: 'septiembre',
+    hasIncome: false, plannedIncome: 15000, incomeName: 'Salario', expectedDay: null,
+    prevMonthClosed: false, monthStartPending: true, daysSinceLast: 5,
+    paso: { title: 'Aporta Q 500 a tu fondo', efecto: 'Sube tu puntaje de 70 a 74' },
+    savings: { title: 'Ahorro', subtitle: '' }, fmt,
+  };
+
+  it('un aviso a la vez, por prioridad: ingreso › cierre › inicio de mes › sin registrar › paso › ahorro', () => {
+    expect(loQueSigue(base).map((i) => i.kind)).toEqual(['ingreso', 'cierre', 'inicio-mes', 'sin-registrar', 'paso', 'ahorro']);
+  });
+
+  it('el aviso de ingreso dice cuánto espera el plan', () => {
+    const [i] = loQueSigue(base);
+    expect(i.title).toBe('Registra tu salario de octubre');
+    expect(i.body).toContain('Q 15,000');
+  });
+
+  it('sin aviso de ingreso si ya hay ingresos, si el plan no espera nada o antes del día esperado', () => {
+    expect(loQueSigue({ ...base, hasIncome: true })[0].kind).toBe('cierre');
+    expect(loQueSigue({ ...base, plannedIncome: 0 })[0].kind).toBe('cierre');
+    expect(loQueSigue({ ...base, expectedDay: 15 })[0].kind).toBe('cierre');
+    expect(loQueSigue({ ...base, today: '2026-10-15', expectedDay: 15 })[0].kind).toBe('ingreso');
+  });
+
+  it('cerrar el mes solo del 1 al 5 y si el anterior sigue abierto', () => {
+    const kinds = (x: Partial<LoQueSigueInput>) => loQueSigue({ ...base, hasIncome: true, ...x }).map((i) => i.kind);
+    expect(kinds({ today: '2026-10-06' })).not.toContain('cierre');
+    expect(kinds({ prevMonthClosed: true })).not.toContain('cierre');
+    expect(loQueSigue({ ...base, hasIncome: true })[0].month).toBe('2026-09');
+  });
+
+  it('nada pendiente: lista vacía', () => {
+    expect(loQueSigue({
+      ...base, hasIncome: true, prevMonthClosed: true, monthStartPending: false, daysSinceLast: 0, paso: null, savings: null,
+    })).toEqual([]);
   });
 });
 

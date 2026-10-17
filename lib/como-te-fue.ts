@@ -597,3 +597,11 @@ export function analyzeMonth(
     planAlert: planOverCaps(planByCapKey(items), planIncome, caps),
   };
 }
+
+/** "Gastaste Q 640 menos" vs el mes anterior (null si ese mes no tiene datos). */
+export function vsMesAnteriorTexto(cur: MonthTotals, prev: MonthTotals | undefined, fmt: (n: number) => string): string | null {
+  if (!prev || !prev.hasData) return null;
+  const d = round2(cur.spent - prev.spent);
+  if (Math.abs(d) < 1) return `Gastaste igual que en ${longMonth(prev.month)}`;
+  return d < 0 ? `Gastaste ${fmt(-d)} menos` : `Gastaste ${fmt(d)} más`;
+}
