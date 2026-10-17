@@ -4,7 +4,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { isMasterUser } from '@/lib/master-user'
-import { isRootPath, parentFor, SIDEBAR_GROUPS, sidebarActiveHref, type SidebarIcon } from '@/lib/navigation'
+import { isRootPath, parentFor, sidebarActiveHref } from '@/lib/navigation'
+import { NAV_GROUPS, SidebarLinks, type NavItem } from '@/components/layout/SidebarLinks'
 import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav, openAddSheet } from '@/components/dashboard/BottomNav'
@@ -14,34 +15,7 @@ import { useViewOnly } from '@/lib/hooks/useEffectivePlan'
 import { PushOfferSheet } from '@/components/avisos/PushOfferSheet'
 import { ScoreWatcher } from '@/components/score/ScoreWatcher'
 import { signalAppReady } from '@/components/motion/Splash'
-import {
-  Home, List, Wallet, TrendingUp, MessageCircle, BookOpen, Landmark, Settings, ShieldCheck,
-  ChevronLeft, Plus, LogOut,
-} from 'lucide-react'
-
-interface NavItem {
-  href: string
-  icon: typeof Home
-  label: string
-}
-
-const ICONS: Record<SidebarIcon, typeof Home> = {
-  inicio: Home,
-  movimientos: List,
-  plan: Wallet,
-  resumen: TrendingUp,
-  chat: MessageCircle,
-  aprende: BookOpen,
-  cuentas: Landmark,
-  cuenta: Settings,
-}
-
-// Menú de 8 entradas (lib/navigation.ts). Salud financiera y Cerrar el mes
-// viven en Cómo te fue; Familia y Enviar idea, en Cuenta.
-const NAV_GROUPS: { label: string; items: NavItem[] }[] = SIDEBAR_GROUPS.map((g) => ({
-  label: g.label,
-  items: g.items.map((i) => ({ href: i.href, label: i.label, icon: ICONS[i.icon] })),
-}))
+import { ShieldCheck, ChevronLeft, Plus, LogOut } from 'lucide-react'
 
 const ADMIN_ITEM: NavItem = { href: '/admin', icon: ShieldCheck, label: 'Admin' }
 
@@ -174,55 +148,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
             )}
 
             {/* Nav groups */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
-              {navGroups.map((group) => (
-                <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <div style={{
-                    fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
-                    color: 'var(--zafi-sidebar-group)', padding: '0 12px 4px', textTransform: 'uppercase',
-                  }}>
-                    {group.label}
-                  </div>
-                  {group.items.map((item) => {
-                    const isActive = item.href === activeHref
-                    const style: React.CSSProperties = {
-                      display: 'flex', alignItems: 'center', gap: 11, width: '100%',
-                      padding: '8px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                      background: isActive ? 'var(--zafi-sidebar-active)' : 'transparent',
-                      color: isActive ? '#fff' : 'var(--zafi-sidebar-text)',
-                      fontWeight: isActive ? 600 : 500,
-                      fontSize: '14.5px', textDecoration: 'none', textAlign: 'left',
-                      transition: 'background 0.15s, color 0.15s',
-                    }
-                    const hover = {
-                      onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
-                        if (!isActive) {
-                          e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                          e.currentTarget.style.color = '#E2E8F0'
-                        }
-                      },
-                      onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
-                        if (!isActive) {
-                          e.currentTarget.style.background = 'transparent'
-                          e.currentTarget.style.color = 'var(--zafi-sidebar-text)'
-                        }
-                      },
-                    }
-                    const body = (
-                      <>
-                        <item.icon style={{ width: 17, height: 17, flexShrink: 0 }} />
-                        {item.label}
-                      </>
-                    )
-                    return (
-                      <Link key={item.href} href={item.href} aria-current={isActive ? 'page' : undefined} style={style} {...hover}>
-                        {body}
-                      </Link>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
+            <SidebarLinks groups={navGroups} activeHref={activeHref} />
           </div>
 
           {/* Pie: quién está conectado y cerrar sesión */}
