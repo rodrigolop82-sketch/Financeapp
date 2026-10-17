@@ -1,6 +1,7 @@
 // Cálculos de la pantalla Inicio: cuánto puedes gastar hoy, estado del mes,
 // alerta única y barras de "¿En qué se va?". Sin dependencias de React.
 import { computeCategoryPace, type PaceMode } from './resumen/pace';
+import { destinoDe, resumirMovimientos, type InteresesDeuda } from './metricas-mes';
 
 export interface HomeCategory {
   id: string;
@@ -14,9 +15,12 @@ export interface HomeCategory {
 }
 
 export interface HomeTx {
+  id?: string;
   category_id: string | null;
   amount: number | string;
   type: 'expense' | 'income';
+  date?: string;
+  transaction_type?: string | null;
 }
 
 export type HomeStatus = 'bien' | 'cuidado' | 'pasaste';
@@ -76,18 +80,20 @@ export function barKind(ratio: number): BarKind {
  * movimientos del mes (gastos e ingresos). `reserved` es lo apartado en el
  * inicio de mes para los fijos que faltan: no cuenta como disponible.
  */
-export function computeHome(categories: HomeCategory[], monthTx: HomeTx[], today: Date, reserved = 0): HomeSummary {
+export function computeHome(categories: HomeCategory[], monthTx: HomeTx[], today: Date, reserved = 0, intereses?: InteresesDeuda): HomeSummary {
   const active = categories.filter((c) => c.bucket !== 'income' && !c.archived_at);
   // "Hoy puedes gastar" sale de básico + gustos; lo que apartas para metas no se gasta.
   const spendable = active.filter((c) => c.bucket !== 'savings');
   const budget = spendable.reduce((s, c) => s + Math.max(0, Number(c.budgeted_amount) || 0), 0);
-  const savingsIds = new Set(active.filter((c) => c.bucket === 'savings').map((c) => c.id));
 
-  const expenses = monthTx.filter((t) => t.type !== 'income' && !(t.category_id && savingsIds.has(t.category_id)));
-  const spent = expenses.reduce((s, t) => s + Number(t.amount), 0);
+  // "Gastaste" del mes: la misma cuenta que Cómo te fue (lib/metricas-mes).
+  const txs = monthTx.map((t) => ({ ...t, date: t.date ?? '' }));
+  const spent = resumirMovimientos(txs, categories, intereses).consumo;
+  const bucketOf = new Map(categories.map((c) => [c.id, c.bucket]));
   const spentBy: Record<string, number> = {};
-  for (const t of expenses) {
-    if (t.category_id) spentBy[t.category_id] = (spentBy[t.category_id] ?? 0) + Number(t.amount);
+  for (const t of txs) {
+    const d = destinoDe(t, bucketOf, intereses);
+    if (t.category_id && (d === 'basico' || d === 'gustos')) spentBy[t.category_id] = (spentBy[t.category_id] ?? 0) + Number(t.amount);
   }
 
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();

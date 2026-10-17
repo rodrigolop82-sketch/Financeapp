@@ -9,30 +9,40 @@ interface VeredictoProps {
   isCurrent: boolean;
   income: number;
   spent: number;
-  saved: number;
+  /** Ahorro del mes (ingresos − gastaste); null sin ingresos registrados. */
+  saved: number | null;
   savedPct: number | null;
+  /** Lo que se fue a Ahorro y deudas (no está dentro de "Gastaste"). */
+  apartado: number;
   /** Hay recomendaciones abajo para cerrar la diferencia. */
   hasRecs: boolean;
+  onRegisterIncome: () => void;
   fmt: (n: number) => string;
 }
 
-/** Hero navy: "En {mes} ahorraste" + ingresos recibidos y gastaste. */
-export function Veredicto({ monthName, isCurrent, income, spent, saved, savedPct, hasRecs, fmt }: VeredictoProps) {
-  const negative = saved < 0;
-  const lead = negative
-    ? `En ${monthName} ${isCurrent ? 'llevas gastado de más' : 'gastaste de más'}`
-    : `En ${monthName} ${isCurrent ? 'llevas ahorrado' : 'ahorraste'}`;
+/**
+ * Hero navy: "En {mes} ahorraste" + ingresos recibidos y gastaste. Sin
+ * ingresos registrados no hay ahorro: "—" y "Falta registrar".
+ */
+export function Veredicto({ monthName, isCurrent, income, spent, saved, savedPct, apartado, hasRecs, onRegisterIncome, fmt }: VeredictoProps) {
+  const noIncome = saved === null;
+  const negative = saved !== null && saved < 0;
+  const lead = noIncome
+    ? `Tu ahorro de ${monthName}`
+    : negative
+      ? `En ${monthName} ${isCurrent ? 'llevas gastado de más' : 'gastaste de más'}`
+      : `En ${monthName} ${isCurrent ? 'llevas ahorrado' : 'ahorraste'}`;
   // Sin cortar el monto entre líneas ("(Q" / "3,900)").
   const healthy = fmt(income * 0.2).replace(/ /g, '\u00A0');
   let sub: string;
-  if (!(income > 0)) {
-    sub = `No registraste ingresos recibidos en ${monthName}. Regístralos para ver cuánto ahorraste.`;
+  if (noIncome) {
+    sub = `Falta registrar tus ingresos de ${monthName}. Sin ellos no se calcula tu ahorro.`;
   } else if (negative) {
     sub = `Gastaste más de lo que recibiste. Lo sano es ahorrar 20% (${healthy}).`;
   } else {
     sub = `Es el ${savedPct ?? 0}% de tus ingresos. Lo sano es 20% (${healthy}).`;
   }
-  if (income > 0 && (savedPct ?? 0) < 20 && hasRecs) sub += ' Abajo te mostramos de dónde sacar la diferencia.';
+  if (!noIncome && (savedPct ?? 0) < 20 && hasRecs) sub += ' Abajo te mostramos de dónde sacar la diferencia.';
 
   return (
     <section
@@ -45,22 +55,34 @@ export function Veredicto({ monthName, isCurrent, income, spent, saved, savedPct
         className="font-outfit text-[54px] font-extrabold leading-none tracking-[-0.02em]"
         style={negative ? { color: '#FCA5A5' } : undefined}
       >
-        <CountUp value={Math.abs(saved)} from={0} format={fmt} />
+        {saved === null ? <span aria-label="Sin calcular">—</span> : <CountUp value={Math.abs(saved)} from={0} format={fmt} />}
       </span>
       <span className="text-sm leading-[1.45] text-[#9FB3CB] [text-wrap:pretty]">
         {sub}
         {isCurrent && ' El mes sigue en curso.'}
       </span>
+      {noIncome && (
+        <button type="button" onClick={onRegisterIncome} className="btn-primary mt-2 self-start" style={{ borderRadius: 14 }}>
+          Registrar ingreso
+        </button>
+      )}
       <div className="mb-1.5 mt-3 h-px bg-white/10" />
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid gap-3 ${apartado > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
         <div className="flex flex-col gap-0.5">
           <span className="text-[13px] text-[#9FB3CB]">Ingresos recibidos</span>
           <span className="font-outfit text-[19px] font-bold">{fmt(income)}</span>
+          {noIncome && <span className="text-[12.5px] font-semibold text-[#FCD34D]">Falta registrar</span>}
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-[13px] text-[#9FB3CB]">Gastaste</span>
           <span className="font-outfit text-[19px] font-bold">{fmt(spent)}</span>
         </div>
+        {apartado > 0 && (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[13px] text-[#9FB3CB]">A ahorro y deudas</span>
+            <span className="font-outfit text-[19px] font-bold">{fmt(apartado)}</span>
+          </div>
+        )}
       </div>
     </section>
   );

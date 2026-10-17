@@ -33,6 +33,7 @@ import {
 import type { BudgetCategory, BudgetSubItem, IncomeEntry } from '@/types';
 import { SkeletonRows } from '@/components/motion/PageSkeleton';
 import { notifyScoreInputsChanged } from '@/lib/score-feedback';
+import { esCategoriaPagoDeuda, filaPagoDeuda, loadDeudas, resumenDeudas } from '@/lib/deudas-data';
 
 interface MonthTx {
   category_id: string | null;
@@ -104,6 +105,8 @@ export function PresupuestoView() {
   const [caps, setCaps] = useState<Record<CapKey, number>>(resolveCaps(null));
   // La alerta de topes aparece al guardar un cambio del plan.
   const [capAlertArmed, setCapAlertArmed] = useState(false);
+  /** Hay deudas activas en Plan › Deudas (lib/deudas-data). */
+  const [hayDeudas, setHayDeudas] = useState(true);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
@@ -114,7 +117,7 @@ export function PresupuestoView() {
     const hid = hh.id as string;
     const from = monthRange(prevMonth).from;
     const to = monthRange(month).to;
-    const [{ data: cats }, { data: subs }, { data: entries }, txRes, capsRes] = await Promise.all([
+    const [{ data: cats }, { data: subs }, { data: entries }, txRes, capsRes, debtRows] = await Promise.all([
       supabase.from('budget_categories').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
       supabase.from('budget_sub_items').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
       supabase.from('income_entries').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
@@ -126,8 +129,11 @@ export function PresupuestoView() {
         .lte('date', to),
       // Sin la migración de topes falla y se usan los recomendados.
       supabase.from('spending_caps').select('cap_key, pct').eq('household_id', hid),
+      loadDeudas(supabase, hid, { columns: 'balance, min_payment, is_paid' }),
     ]);
     setCaps(resolveCaps(capsRes.error ? null : capsRes.data));
+    // Si no se pudieron leer, no se esconde nada.
+    setHayDeudas(debtRows ? resumenDeudas(debtRows).hayDeudas : true);
     let monthTx = txRes.data as MonthTx[] | null;
     // Sin la migración del Plan del mes no existe budget_sub_item_id: se carga sin partes.
     if (txRes.error) {
@@ -571,13 +577,27 @@ export function PresupuestoView() {
     }),
   };
 
+  const debtRow = (c: BudgetCategory) => (esCategoriaPagoDeuda(c)
+    ? filaPagoDeuda(categoryPlan(c, subItems), derived.spentCat[c.id] ?? 0, hayDeudas)
+    : 'normal');
+  const noDebtStatus: RowStatus = { text: 'No tienes deudas registradas · Agrégala en Deudas o pásalo a tus metas', tone: 'warning', pct: 0, bar: 'normal' };
+
   const expenseGroups: PlanGroupVM[] = EXPENSE_GROUPS.map((g) => {
     const isGoal = g.bucket === 'savings';
-    const cats = planCats.filter((c) => c.bucket === g.bucket);
+    // "Pago de deudas extra" solo si hay deudas (lib/deudas-data).
+    const cats = planCats.filter((c) => c.bucket === g.bucket && debtRow(c) !== 'ocultar');
     const rows: PlanRowVM[] = cats.map((c) => {
       const parts = subsOf(c.id);
       const plan = categoryPlan(c, subItems);
       const spent = derived.spentCat[c.id] ?? 0;
+      if (debtRow(c) === 'aviso') {
+        return {
+          key: c.id, emoji: getEmoji(c), name: c.name, fixed: false, amount: fmt(plan),
+          status: noDebtStatus, hasBar: false,
+          onClick: () => openSheet({ kind: 'goal', id: c.id }),
+          flash: flashKey === c.id,
+        };
+      }
       if (parts.length === 0) {
         const fixed = !isGoal && c.pace_mode === 'fixed';
         return {

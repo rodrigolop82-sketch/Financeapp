@@ -2,6 +2,7 @@
 // poder probarlo con vitest.
 
 import type { Debt } from '@/types';
+import { formatMoney } from '@/lib/format';
 
 export type DebtStrategy = 'snowball' | 'avalanche';
 
@@ -29,7 +30,7 @@ export function simulatePayoff(
     const monthlyInterest = balance * monthlyRate;
 
     if (minPayment > 0 && minPayment <= monthlyInterest && annualRate > 0) {
-      warnings.push(`"${d.name}": el pago mínimo (Q ${minPayment.toLocaleString()}) no cubre los intereses mensuales (Q ${Math.round(monthlyInterest).toLocaleString()}). Necesitas pagar más para reducir esta deuda.`);
+      warnings.push(`"${d.name}": el pago mínimo (${formatMoney(minPayment)}) no cubre los intereses mensuales (${formatMoney(monthlyInterest)}). Necesitas pagar más para reducir esta deuda.`);
     }
 
     return {
@@ -121,16 +122,8 @@ export function simulatePayoff(
   return { totalMonths, totalInterest: Math.round(totalInterest), totalPaid: Math.round(totalPaid), order, warnings };
 }
 
-/** "8 meses", "1 año 4 m", "2 años", "+30 años". */
-export function formatMonths(months: number): string {
-  if (months >= 360) return '+30 años';
-  if (months > 12) {
-    const years = Math.floor(months / 12);
-    const rest = months % 12;
-    return `${years} ${years === 1 ? 'año' : 'años'}${rest ? ` ${rest} m` : ''}`;
-  }
-  return `${months} ${months === 1 ? 'mes' : 'meses'}`;
-}
+/** "8 meses", "1 año 4 m", "2 años", "+30 años". Vive en lib/format. */
+export { formatTerm as formatMonths } from '@/lib/format';
 
 /** Interés de un mes sobre el saldo actual. */
 export function monthlyInterest(debt: Pick<Debt, 'balance' | 'interest_rate'>): number {

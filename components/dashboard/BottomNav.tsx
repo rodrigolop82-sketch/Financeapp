@@ -12,8 +12,11 @@ const TABS: { key: TabKey; href: string; label: string; icon: typeof Home }[] = 
   { key: 'mas', href: '/mas', label: 'Más', icon: MoreHorizontal },
 ]
 
-/** Abre la hoja global de agregar (components/add/AddSheet). */
-export function openAddSheet(detail?: { text?: string }) {
+/**
+ * Abre la hoja global de agregar (components/add/AddSheet). Con { text }
+ * interpreta ese texto; con { type: 'income' } abre lista para un ingreso.
+ */
+export function openAddSheet(detail?: { text?: string; type?: 'income' }) {
   window.dispatchEvent(new CustomEvent('zafi:open-add', { detail }))
 }
 

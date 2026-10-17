@@ -4,7 +4,8 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { RecurringCard } from '@/components/recurring/RecurringCard';
-import { addMonths, analyzeMonth, longMonth, monthSaved, monthTitle, verdictSaved } from '@/lib/como-te-fue';
+import { addMonths, analyzeMonth, longMonth, monthSaved, monthTitle } from '@/lib/como-te-fue';
+import { openAddSheet } from '@/components/dashboard/BottomNav';
 import { categoryPlan, monthName, subAmountFromMonthly } from '@/lib/plan-del-mes';
 import {
   capListText, capPlanChanges, DEFAULT_CAPS, horizonMonths, projection,
@@ -67,7 +68,7 @@ function ComoTeFue() {
 
   const caps = useMemo(() => ({ ...(data?.caps ?? DEFAULT_CAPS), ...capsOverride }), [data, capsOverride]);
   const a = useMemo(() => (data ? analyzeMonth(data, month, caps, fmt) : null), [data, month, caps, fmt]);
-  const daily = useMemo(() => (data ? dailySpend(month, localToday(), data.txs, data.categories) : null), [data, month]);
+  const daily = useMemo(() => (data ? dailySpend(month, localToday(), data.txs, data.categories, data.intereses) : null), [data, month]);
 
   const selected = useMemo(() => new Set(
     (a?.recs.over ?? []).filter((r) => picked[r.key] ?? r.kind === 'variable').map((r) => r.key),
@@ -77,7 +78,7 @@ function ComoTeFue() {
   const effHorizon: Horizon = horizon === '12' || !canYear ? '12' : 'year';
   const extra = (a?.recs.over ?? []).filter((r) => selected.has(r.key)).reduce((s, r) => s + r.saving, 0);
   const proj = useMemo(
-    () => projection(a ? monthSaved(a.current) : 0, extra, horizonMonths(month, effHorizon)),
+    () => projection(a ? monthSaved(a.current) ?? 0 : 0, extra, horizonMonths(month, effHorizon)),
     [a, extra, month, effHorizon],
   );
 
@@ -230,9 +231,11 @@ function ComoTeFue() {
               isCurrent={isCurrent}
               income={cur.income}
               spent={cur.spent}
-              saved={verdictSaved(cur)}
+              saved={monthSaved(cur)}
               savedPct={a.savedPct}
+              apartado={cur.savingsBucket}
               hasRecs={a.recs.over.length > 0}
+              onRegisterIncome={() => openAddSheet({ type: 'income' })}
               fmt={fmt}
             />
             {daily && <GastoDiario data={daily} fmt={fmt} />}
@@ -244,7 +247,7 @@ function ComoTeFue() {
               selected={selected}
               planAlert={a.planAlert}
               planMonthName={planMonthName}
-              noIncome={!(cur.income > 0)}
+              noIncome={!cur.hasIncome}
               onToggle={(key) => setPicked((p) => ({ ...p, [key]: !selected.has(key) }))}
               onEditCap={(key) => setCapSheet({ key, n: Date.now() })}
               fmt={fmt}

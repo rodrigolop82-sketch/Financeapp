@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { ArrowRight, RotateCcw } from 'lucide-react';
 import { Wordmark } from '@/components/brand/Wordmark';
 import { sessionAnalisis, AnalisisData } from '@/lib/session-analisis';
+import { formatMoney } from '@/lib/format';
 
 type ScoreColor = 'red' | 'orange' | 'yellow' | 'green' | 'emerald';
 
@@ -84,7 +85,7 @@ function generarRecomendaciones(data: AnalisisData): Recomendacion[] {
     recs.push({
       area: 'emergencia',
       titulo: 'Construye tu fondo de emergencia',
-      descripcion: `Con Q${Math.round(gastos * 3).toLocaleString()} cubres 3 meses de gastos. Meta: ahorrar Q${Math.round(gastos * 0.1).toLocaleString()} extra al mes.`,
+      descripcion: `Con ${formatMoney(gastos * 3)} cubres 3 meses de gastos. Meta: ahorrar ${formatMoney(gastos * 0.1)} extra al mes.`,
       prioridad: 'alta',
     });
   }
@@ -111,7 +112,7 @@ function generarRecomendaciones(data: AnalisisData): Recomendacion[] {
     recs.push({
       area: 'ahorro',
       titulo: 'Aumenta tu tasa de ahorro',
-      descripcion: `Estás ahorrando menos del 10% de tus ingresos. Empieza con Q${Math.round(ingresos * 0.05).toLocaleString()} extra al mes como meta inicial.`,
+      descripcion: `Estás ahorrando menos del 10% de tus ingresos. Empieza con ${formatMoney(ingresos * 0.05)} extra al mes como meta inicial.`,
       prioridad: 'media',
     });
   }

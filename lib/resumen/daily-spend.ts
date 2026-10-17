@@ -4,17 +4,20 @@
 // Reglas:
 // - Solo cuentan días completos: en el mes en curso, hoy y los días futuros
 //   quedan fuera; en meses cerrados cuentan todos.
-// - "Gasto" es lo mismo que suma "Gastaste" (monthTotals): type='expense'
-//   fuera de Ahorro y deudas (savings) y de categorías de ingreso. Sin
-//   categoría cuenta como gasto.
+// - "Gasto" es lo mismo que suma "Gastaste" (lib/metricas-mes): Lo básico,
+//   Gustos y sin categoría, más los intereses de los pagos a deudas. Lo que
+//   va a Ahorro y deudas y los abonos a capital no cuentan.
 // - Un día sin gasto es un día completo sin ningún gasto; los ingresos no lo
 //   rompen.
 // - Las transferencias (transaction_type='transferencia', cuando existan) no
 //   cuentan. Los gastos de antes de usar Zafi sí cuentan como gasto real.
 
+import { destinoDe, type InteresesDeuda } from '../metricas-mes';
+
 export const MIN_COMPLETE_DAYS = 3;
 
 export interface DailySpendTx {
+  id?: string;
   amount: number | string;
   type: 'expense' | 'income';
   date: string; // YYYY-MM-DD
@@ -58,6 +61,7 @@ export function dailySpend(
   today: string,
   txs: DailySpendTx[],
   categories: DailySpendCategory[],
+  intereses?: InteresesDeuda,
 ): DailySpend {
   const completeDays = completeDaysOf(month, today);
   const bucketOf = new Map(categories.map((c) => [c.id, c.bucket]));
@@ -68,9 +72,11 @@ export function dailySpend(
   for (const tx of txs) {
     if (!tx.date.startsWith(month) || tx.date > lastDay) continue;
     if (tx.type !== 'expense' || tx.transaction_type === 'transferencia') continue;
-    const bucket = tx.category_id ? bucketOf.get(tx.category_id) ?? 'needs' : 'needs';
-    if (bucket === 'savings' || bucket === 'income') continue;
-    const amt = Number(tx.amount) || 0;
+    const destino = destinoDe(tx, bucketOf, intereses);
+    if (destino !== 'basico' && destino !== 'gustos' && destino !== 'deuda') continue;
+    const amount = Number(tx.amount) || 0;
+    // De un pago a deuda solo cuentan los intereses.
+    const amt = destino === 'deuda' ? Math.min(amount, (tx.id && intereses?.get(tx.id)) || 0) : amount;
     if (amt <= 0) continue;
     spent += amt;
     daysWithSpend.add(tx.date.slice(0, 10));

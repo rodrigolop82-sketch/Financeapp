@@ -3,6 +3,7 @@
 // Hojas de Mis cuentas: agregar o editar una cuenta y actualizar su saldo.
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { DANGER_TEXT_BUTTON, ErrorBox, FieldLabel, INPUT_48, SheetHeader } from '@/components/layout/Pantalla'
 import { Switch } from '@/components/cuenta/AccountUI'
 import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
@@ -178,7 +179,10 @@ export function AccountSheet({ source, debts, kinds = SOURCE_KINDS, onDone, onEr
         <div className="flex flex-col gap-1.5">
           <span className={LABEL}>Su deuda en Plan › Deudas</span>
           {debts.length === 0 ? (
-            <p className={`text-[13.5px] leading-[1.45] ${TEXT_MUTED}`}>Aún no tienes deudas registradas. Agrega la tarjeta en Plan › Deudas para que su saldo cuente en tu patrimonio.</p>
+            <p className={`text-[13.5px] leading-[1.45] ${TEXT_MUTED}`}>
+              Aún no tienes deudas registradas. Agrega la tarjeta en Plan › Deudas para que su saldo cuente en tu plan, tu puntaje y tu patrimonio.{' '}
+              <Link href="/plan?s=deudas&nueva=1" className="font-semibold text-electric">Agregar su deuda ›</Link>
+            </p>
           ) : (
             <div className="flex flex-wrap gap-2">
               <button type="button" aria-pressed={!debtId} onClick={() => setDebtId('')} className={chip(!debtId)}>Sin vincular</button>

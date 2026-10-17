@@ -82,6 +82,7 @@ export function BucketsChart({ series, fmt }: { series: MonthTotals[]; fmt: (n: 
   const sel = series[Math.min(selIdx, series.length - 1)];
   const now = bucketShares(sel);
   const saved = monthSaved(sel);
+  const leftover = monthLeftover(sel);
   const selName = longMonth(sel.month);
   const ideal = [
     { key: 'needs', label: 'Lo básico', className: NAVY_BG, value: now?.needs ?? 0, ideal: 50, bad: () => false },
@@ -138,27 +139,29 @@ export function BucketsChart({ series, fmt }: { series: MonthTotals[]; fmt: (n: 
       >
         <span className={`${GROUP_LABEL} ${TEXT_MUTED}`}>Tu ahorro de {selName}</span>
         <span className="flex items-center gap-2">
-          <span className={`font-outfit text-base font-extrabold ${GREEN_TEXT}`}>{fmt(saved)}</span>
+          <span className={`font-outfit text-base font-extrabold ${saved === null ? TEXT_MUTED : saved < 0 ? 'text-danger' : GREEN_TEXT}`}>{saved === null ? '—' : fmt(saved)}</span>
           <span aria-hidden className={`inline-block text-sm font-bold transition-transform duration-[250ms] ${TEXT_FAINT} ${open ? 'rotate-90' : ''}`}>›</span>
         </span>
       </button>
       {open && (
         <div className="flex flex-col gap-2">
-          <DetailRow label="Ingresos recibidos" value={fmt(sel.income)} />
-          <DetailRow label="Gastaste (lo básico + gustos)" value={fmt(sel.spent)} />
-          <DetailRow label={apartLabel} value={`+ ${fmt(sel.savingsBucket)}`} valueClass={GREEN_TEXT} />
-          <DetailRow label="Te sobró sin apartar" value={fmt(monthLeftover(sel))} />
+          <DetailRow label="Ingresos recibidos" value={sel.hasIncome ? fmt(sel.income) : 'Falta registrar'} valueClass={sel.hasIncome ? undefined : AMBER_TEXT} />
+          <DetailRow label="Gastaste (lo básico + gustos)" value={`− ${fmt(sel.spent)}`} />
           <div className={`flex items-baseline justify-between border-t pt-1.5 ${DIVIDER}`}>
             <span className={`text-[15px] font-bold ${TEXT_STRONG}`}>Ahorro del mes</span>
-            <span className={`font-outfit text-[19px] font-extrabold ${GREEN_TEXT}`}>{fmt(saved)}</span>
+            <span className={`font-outfit text-[19px] font-extrabold ${saved !== null && saved < 0 ? 'text-danger' : GREEN_TEXT}`}>{saved === null ? '—' : fmt(saved)}</span>
           </div>
+          {sel.savingsBucket > 0 && <DetailRow label={`De eso, ${apartLabel.charAt(0).toLowerCase()}${apartLabel.slice(1)}`} value={fmt(sel.savingsBucket)} />}
+          {leftover !== null && (
+            <DetailRow label={leftover >= 0 ? 'Te sobró sin apartar' : 'Apartaste más de lo que te sobró'} value={fmt(Math.abs(leftover))} />
+          )}
         </div>
       )}
-      {sel.hasData && !(sel.income > 0) && (
+      {sel.hasData && !sel.hasIncome && (
         <div className="flex items-start gap-2.5 rounded-xl bg-warning-light px-3.5 py-3 dark:bg-warning/15">
           <span aria-hidden className="text-base leading-[1.3]">⚠️</span>
           <span className={`text-[13.5px] leading-[1.4] [text-wrap:pretty] ${AMBER_TEXT}`}>
-            <b>No hay ingresos recibidos en {selName}.</b> El % se calcula sobre lo que gastaste y apartaste. Registra tu salario para verlo completo.
+            <b>Falta registrar tus ingresos de {selName}.</b> Sin ellos no se calcula tu ahorro ni el reparto. Registra tu salario para verlo completo.
           </span>
         </div>
       )}

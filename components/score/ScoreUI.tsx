@@ -25,12 +25,26 @@ export function changeText(total: number, prev: { score: number; name: string } 
   return `Igual que en ${prev.name}.`
 }
 
+/** Etiqueta ámbar "Provisional" (sin ingresos registrados el puntaje puede cambiar). */
+export function ProvisionalTag({ onHero = false }: { onHero?: boolean }) {
+  return (
+    <span
+      title="Sin ingresos registrados este mes: el puntaje puede cambiar."
+      className={`inline-flex flex-none items-center rounded-full px-[9px] py-[3px] text-[12px] font-bold ${onHero ? 'bg-[#F59E0B]/20 text-[#FCD34D]' : 'bg-warning-light text-warning-text dark:bg-warning/20 dark:text-warning'}`}
+    >
+      Provisional
+    </span>
+  )
+}
+
+export const PROVISIONAL_TEXT = 'Provisional: falta registrar tus ingresos del mes; el puntaje puede cambiar.'
+
 /** Hero navy con el número grande y la barra del color del puntaje. */
 export function ScoreHero({ score, label = 'Tu salud financiera', sub }: { score: HealthScoreResult; label?: string; sub: string }) {
   return (
     <section aria-label={label} className={`mt-3.5 flex flex-col gap-1.5 ${HERO}`} style={{ ...HERO_STYLE, padding: '22px 22px 20px' }}>
       <div className="flex items-center justify-between gap-3">
-        <span className={`text-[15px] ${HERO_MUTED}`}>{label}</span>
+        <span className={`flex items-center gap-2 text-[15px] ${HERO_MUTED}`}>{label}{score.provisional && <ProvisionalTag onHero />}</span>
         <span className="flex flex-none items-center gap-1.5 rounded-full bg-white/[0.08] px-[11px] py-[5px] text-[13px] font-semibold">
           <span aria-hidden className="h-[7px] w-[7px] rounded-full" style={{ background: score.color }} />
           {score.label}
@@ -40,7 +54,7 @@ export function ScoreHero({ score, label = 'Tu salud financiera', sub }: { score
         <span className="font-outfit text-[58px] font-extrabold leading-none tracking-[-0.02em]">{score.total}</span>
         <span className="text-base text-[#9FB3CB]">de 100</span>
       </p>
-      <p className="text-sm text-[#9FB3CB] [text-wrap:pretty]">{sub}</p>
+      <p className="text-sm text-[#9FB3CB] [text-wrap:pretty]">{score.provisional ? `${PROVISIONAL_TEXT} ${sub}` : sub}</p>
       <div
         className="mt-2.5 h-2 overflow-hidden rounded-[5px] bg-[#2A4A6E]"
         role="progressbar"
@@ -65,6 +79,7 @@ export function ScoreHeroLine({ score, href }: { score: HealthScoreResult; href:
       <span className="flex items-center gap-2">
         <span aria-hidden className="h-[7px] w-[7px] rounded-full" style={{ background: score.color }} />
         Salud financiera <b className="font-outfit text-[15px] font-bold text-white">{score.total}</b> · {score.label}
+        {score.provisional && <ProvisionalTag onHero />}
       </span>
       <span aria-hidden className="font-semibold text-white">›</span>
     </Link>
@@ -92,7 +107,7 @@ export function ScoreParts({ score, actions = true }: { score: HealthScoreResult
   return (
     <ListCard>
       {score.components.map((p) => {
-        const color = partColor(p.score, p.max)
+        const color = p.pending ? 'var(--zafi-border)' : partColor(p.score, p.max)
         return (
           <div key={p.key} className={`flex flex-col gap-2 py-3 ${ROW_DIVIDER}`}>
             <div className="flex items-center gap-3">
@@ -101,11 +116,15 @@ export function ScoreParts({ score, actions = true }: { score: HealthScoreResult
                 <span className={`text-[15px] font-semibold ${TEXT_STRONG}`}>{p.label}</span>
                 <span className={`text-[13px] leading-[1.35] ${TEXT_MUTED}`}>{p.detail}</span>
               </span>
-              <span className="flex-none font-outfit text-base font-bold" style={{ color }}>
-                {p.score}<span className={`text-[13px] font-semibold ${TEXT_FAINT}`}>/{p.max}</span>
-              </span>
+              {p.pending ? (
+                <span className={`flex-none text-[13px] font-semibold ${TEXT_FAINT}`}>Pendiente</span>
+              ) : (
+                <span className="flex-none font-outfit text-base font-bold" style={{ color }}>
+                  {p.score}<span className={`text-[13px] font-semibold ${TEXT_FAINT}`}>/{p.max}</span>
+                </span>
+              )}
             </div>
-            <ProgressBar ratio={p.score / p.max} color={color} />
+            <ProgressBar ratio={p.pending ? 0 : p.score / p.max} color={color} />
             <span className="flex items-center justify-between gap-2">
               <span className={`text-[13px] leading-[1.4] ${TEXT_MUTED}`}>{p.tip}</span>
               {actions && p.action && (

@@ -2,6 +2,7 @@
 // Supabase para poder probarla con vitest.
 
 import type { Currency } from './format';
+import { formatNumber } from '@/lib/format';
 
 export interface CurrencyOption {
   code: Currency;
@@ -27,11 +28,11 @@ export function currencyOption(code: string | null | undefined): CurrencyOption 
 
 /** Ayuda de "Mostrar centavos" con un monto de ejemplo en la moneda elegida. */
 export function decimalsHint(showDecimals: boolean, currency: Currency): string {
-  // Mismo formato que formatMoney (lib/format.ts), sin importar el hook que reexporta.
+  // Mismo formato que formatMoney (lib/format.ts).
   const symbol = currencyOption(currency).symbol;
   const n = showDecimals ? 8500.75 : 8501;
   const digits = showDecimals ? 2 : 0;
-  const sample = `${symbol} ${new Intl.NumberFormat('es-GT', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n)}`;
+  const sample = `${symbol} ${formatNumber(n, digits)}`;
   return showDecimals ? `${sample} · precisión total` : `${sample} · más fácil de leer`;
 }
 

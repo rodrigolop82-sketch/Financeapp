@@ -23,6 +23,7 @@ import {
 import { PRIMARY_BUTTON } from '@/components/movimientos/ui'
 import { useHealthScore } from '@/hooks/useHealthScore'
 import { saveMonthScore } from '@/lib/health-data'
+import { REGISTER_INCOME_HREF } from '@/lib/score-calculator'
 import { notifyScoreInputsChanged } from '@/lib/score-feedback'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { Note } from '@/components/plan/ui'
@@ -323,7 +324,9 @@ function MonthScore({ householdId, yearMonth, monthName, score, history, closed,
     : d > 0 ? `Subiste ${d} ${d === 1 ? 'punto' : 'puntos'} este mes 🎉`
     : d < 0 ? `Bajaste ${-d} ${d === -1 ? 'punto' : 'puntos'} este mes.`
     : 'Te mantuviste igual.'
-  const best = [...score.components].sort((a, b) => b.score / b.max - a.score / a.max)[0]
+  const best = score.components.filter((c) => !c.pending).sort((a, b) => b.score / b.max - a.score / a.max)[0]
+  // Un mes cerrado no puede quedar provisional: primero los ingresos.
+  const blocked = !closed && score.provisional
 
   async function close() {
     setSaving(true)
@@ -375,9 +378,15 @@ function MonthScore({ householdId, yearMonth, monthName, score, history, closed,
         </section>
       )}
 
-      <button type="button" onClick={() => void close()} disabled={closed || saving} className={`mt-3.5 ${PRIMARY_BUTTON}`}>
+      <button type="button" onClick={() => void close()} disabled={closed || saving || blocked} className={`mt-3.5 ${PRIMARY_BUTTON}`}>
         {closed ? 'Mes cerrado ✓' : saving ? 'Guardando…' : `Cerrar ${monthName}`}
       </button>
+      {blocked && (
+        <p className={`mt-2 text-[13px] leading-[1.4] ${TEXT_MUTED}`}>
+          Falta registrar tus ingresos de {monthName}. Sin ellos tu puntaje es provisional y el mes no se puede cerrar.{' '}
+          <Link href={REGISTER_INCOME_HREF} className="font-semibold text-electric">Registrar ingreso ›</Link>
+        </p>
+      )}
       <StatusToast message={message} onDone={() => setMessage(null)} />
     </div>
   )

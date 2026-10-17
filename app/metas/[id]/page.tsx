@@ -8,7 +8,7 @@ import { ContributionHistory } from '@/components/goals/ContributionHistory'
 import { AddContributionSheet } from '@/components/goals/AddContributionSheet'
 import { GOAL_TEMPLATES } from '@/components/goals/GoalForm'
 import { useGoals, type Goal, type Contribution } from '@/hooks/useGoals'
-import { formatMoney } from '@/lib/format'
+import { formatMoney, formatMonthCount } from '@/lib/format'
 import {
   DANGER_TEXT_BUTTON, ErrorBox, FieldLabel, INPUT_48, LINK_TEXT, PageHeader, PILL_OUTLINE, PillButton, Segmented, SheetHeader, Tile,
 } from '@/components/layout/Pantalla'
@@ -272,7 +272,7 @@ function Projection({ goal, pair, mode }: { goal: Goal; pair: [Person, Person] |
     warn = true
   } else if (p.estimatedDate && p.monthsRemaining) {
     title = `A este ritmo: ${p.estimatedDate.toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })}`
-    const months = `${p.monthsRemaining} ${p.monthsRemaining === 1 ? 'mes' : 'meses'}`
+    const months = formatMonthCount(p.monthsRemaining)
     help = monthly
       ? `Con tu aporte de ${formatMoney(monthly)} al mes llegas en ${months}.`
       : `Al ritmo de tu ahorro promedio llegas en ${months}.`
