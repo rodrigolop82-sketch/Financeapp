@@ -40,7 +40,12 @@ DECLARE
   months text[] := ARRAY['2026-07', '2026-08', '2026-09'];
 BEGIN
   SELECT id INTO v_user_id FROM users WHERE lower(email) = v_email;
-  IF v_user_id IS NULL THEN RAISE EXCEPTION '% no existe en users', v_email; END IF;
+  IF v_user_id IS NULL THEN
+    IF EXISTS (SELECT 1 FROM auth.users WHERE lower(email) = v_email) THEN
+      RAISE EXCEPTION '% está en auth.users pero no en public.users: entra una vez a la app con esa cuenta y termina el onboarding', v_email;
+    END IF;
+    RAISE EXCEPTION '% no existe todavía (ni en auth.users): revisa el correo exacto o confirma el registro', v_email;
+  END IF;
   SELECT id INTO v_hh FROM households WHERE owner_id = v_user_id LIMIT 1;
   IF v_hh IS NULL THEN RAISE EXCEPTION 'No hay hogar para % (termina el onboarding primero)', v_email; END IF;
 
