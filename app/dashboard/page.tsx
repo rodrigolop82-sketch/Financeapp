@@ -38,6 +38,8 @@ import { useMaskedFmt, usePrivacy } from '@/components/privacidad/PrivacyProvide
 import { OcultarSaldosButton } from '@/components/privacidad/OcultarSaldosButton'
 import { SiguientePasoCard } from '@/components/siguiente-paso/SiguientePasoCard'
 import type { BudgetCategory, BudgetSubItem, IncomeEntry, SearchTransaction } from '@/types'
+import { loadInteresesDeuda } from '@/lib/metricas-mes-data'
+import type { InteresesDeuda } from '@/lib/metricas-mes'
 
 interface HomeMonthTx {
   id: string
@@ -45,6 +47,8 @@ interface HomeMonthTx {
   type: 'expense' | 'income'
   category_id: string | null
   budget_sub_item_id?: string | null
+  transaction_type?: string | null
+  date?: string
 }
 
 interface HomeData {
@@ -55,6 +59,8 @@ interface HomeData {
   subItems: BudgetSubItem[]
   incomes: IncomeEntry[]
   monthTx: HomeMonthTx[]
+  /** Intereses de los pagos a deudas del mes (lib/metricas-mes). */
+  intereses: InteresesDeuda
   daysSinceLast: number | null
   savings: { title: string; subtitle: string } | null
 }
@@ -109,10 +115,10 @@ export default function InicioPage() {
 
       const monthQuery = (cols: string) =>
         supabase.from('transactions').select(cols).eq('household_id', hid).gte('date', from).lte('date', to)
-      const [profileRes, catsRes, monthRes0, latestRes, subsRes, incomesRes] = await Promise.all([
+      const [profileRes, catsRes, monthRes0, latestRes, subsRes, incomesRes, intereses] = await Promise.all([
         supabase.from('users').select('full_name').eq('id', user.id).single(),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
-        monthQuery('id, amount, type, category_id, budget_sub_item_id'),
+        monthQuery('id, amount, type, category_id, budget_sub_item_id, transaction_type, date'),
         supabase
           .from('transactions')
           .select('*, budget_categories(name, bucket, icon)')
@@ -122,15 +128,16 @@ export default function InicioPage() {
           .limit(4),
         supabase.from('budget_sub_items').select('*').eq('household_id', hid),
         supabase.from('income_entries').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
+        loadInteresesDeuda(supabase, hid, from, to),
       ])
       // Sin la migración del Plan del mes no existe budget_sub_item_id.
-      const monthRes = monthRes0.error ? await monthQuery('id, amount, type, category_id') : monthRes0
+      const monthRes = monthRes0.error ? await monthQuery('id, amount, type, category_id, date') : monthRes0
       if (cancelled) return
 
       const pendingId = getPendingDeleteId()
       const categories = (catsRes.data ?? []) as BudgetCategory[]
       const monthTx = ((monthRes.data ?? []) as unknown as HomeMonthTx[]).filter((t) => t.id !== pendingId)
-      const summary = computeHome(categories, monthTx, new Date())
+      const summary = computeHome(categories, monthTx, new Date(), 0, intereses)
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const latestRows: LatestRow[] = ((latestRes.data ?? []) as any[])
@@ -173,6 +180,7 @@ export default function InicioPage() {
         subItems: (subsRes.data ?? []) as BudgetSubItem[],
         incomes: (incomesRes.data ?? []) as IncomeEntry[],
         monthTx,
+        intereses,
         daysSinceLast,
         savings: savingsAlert ? { title: savingsAlert.title, subtitle: savingsAlert.subtitle } : null,
       })
@@ -214,7 +222,7 @@ export default function InicioPage() {
       received: receivedByIncome(data?.incomes ?? [], incomeCategoryOf, sum('income', (t) => t.category_id)),
     }
   }, [data])
-  const baseSummary = useMemo(() => (data ? computeHome(data.categories, data.monthTx, new Date()) : null), [data])
+  const baseSummary = useMemo(() => (data ? computeHome(data.categories, data.monthTx, new Date(), 0, data.intereses) : null), [data])
 
   const [toast, setToast] = useState<StatusMessage | null>(null)
   const monthStart = useMonthStart({
@@ -252,7 +260,7 @@ export default function InicioPage() {
     return <PageSkeleton variant="home" />
   }
 
-  const s: HomeSummary = computeHome(data.categories, data.monthTx, new Date(), monthStart.reserve.reserved)
+  const s: HomeSummary = computeHome(data.categories, data.monthTx, new Date(), monthStart.reserve.reserved, data.intereses)
   const alert: HomeAlert | null = pickHomeAlert({
     overCategory: s.overCategory,
     daysSinceLastTransaction: data.daysSinceLast,

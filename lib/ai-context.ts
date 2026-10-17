@@ -6,6 +6,7 @@ import { getNetWorth, type NetWorthData, type SourceView } from '@/lib/networth/
 import { groupAssets, groupLiabilities, PURPOSE_LABEL } from '@/lib/networth/groups'
 import { formatMonths } from '@/lib/deudas'
 import { formatNumber } from '@/lib/format'
+import { metricasMes, type InteresesDeuda, type MetricasCategoria } from '@/lib/metricas-mes'
 
 type Money = (n: number) => string
 
@@ -16,13 +17,12 @@ function prevMonth(month: string, n: number): string {
 }
 
 /** Ingresos y gastos registrados en los últimos meses completos (solo los meses con movimientos). */
-export function recordedMonths(txs: ScoreRaw['txs'], month: string, money: Money): string {
+export function recordedMonths(txs: ScoreRaw['txs'], month: string, money: Money, categories: MetricasCategoria[] = [], intereses?: InteresesDeuda): string {
   const lines = [1, 2, 3].map((n) => prevMonth(month, n)).map((m) => {
-    const inMonth = txs.filter((t) => t.date.startsWith(m))
-    if (inMonth.length === 0) return null
-    const income = inMonth.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
-    const expense = inMonth.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
-    return `  ${m}: ingresos ${money(income)} · gastos ${money(expense)}`
+    const r = metricasMes(txs, m, categories, intereses)
+    if (!r.hayMovimientos) return null
+    const ahorro = r.ahorro === null ? 'ahorro sin calcular (sin ingresos)' : `ahorro ${money(r.ahorro)}`
+    return `  ${m}: ingresos ${money(r.ingresos)} · gastos ${money(r.consumo)} · ${ahorro}`
   }).filter((l): l is string => l !== null)
   return lines.length ? lines.join('\n') : '  Sin movimientos registrados en los últimos 3 meses.'
 }
@@ -134,7 +134,7 @@ export async function buildZafiSystemPrompt(
   const netWorthText = netWorth
     ? netWorthSummary(netWorth, money)
     : householdId ? 'No se pudo leer Mi patrimonio en este momento.' : 'Sin hogar configurado.'
-  const recordedText = live ? recordedMonths(live.raw.txs, month, money) : '  No se pudieron leer los movimientos.'
+  const recordedText = live ? recordedMonths(live.raw.txs, month, money, live.raw.categories, live.raw.intereses) : '  No se pudieron leer los movimientos.'
 
   const debtsSummary = debts.length === 0
     ? 'Sin deudas activas.'
@@ -189,10 +189,12 @@ Puntaje Zafi: ${profile?.health_score ?? 0}/100 ${profile?.health_score >= 85 ? 
   profile?.health_score >= 25 ? 'Nivel: EN RIESGO' : 'Nivel: CRITICO'}
 ${scoreTrend}
 
-Ingreso mensual (Plan del mes): ${money(live?.input.income ?? profile?.total_income ?? 0)} (${profile?.income_type === 'fixed' ? 'fijo' : profile?.income_type === 'variable' ? 'variable' : 'mixto'})
+${live?.input.provisional
+  ? `Ingresos registrados este mes: ninguno todavía (falta registrar). Ingreso del plan: ${money(live.input.income)}`
+  : `Ingresos registrados este mes: ${money(live?.input.income ?? profile?.total_income ?? 0)}`} (${profile?.income_type === 'fixed' ? 'fijo' : profile?.income_type === 'variable' ? 'variable' : 'mixto'})
 Gastos fijos (Plan del mes): ${money(live?.input.fixedExpenses ?? profile?.total_fixed_expenses ?? 0)}
-Gastado este mes hasta hoy (sin ahorro): ${money(live?.input.spent ?? 0)}
-Ahorrado este mes (metas y categorías de ahorro): ${money(live?.input.saved ?? 0)}
+Gastado este mes hasta hoy (lo básico + gustos, sin ahorro ni abonos a deudas): ${money(live?.input.spent ?? 0)}
+Ahorro este mes (ingresos − gastado): ${live?.input.provisional ? 'sin calcular: falta registrar ingresos' : money(live?.input.saved ?? 0)}
 
 MOVIMIENTOS REGISTRADOS (meses completos recientes):
 ${recordedText}

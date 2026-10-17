@@ -36,6 +36,8 @@ import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet';
 import { useHouseholdPeople } from '@/lib/hooks/useHouseholdPeople';
 import { freeHistoryStart } from '@/lib/plans';
 import { hiddenHistoryText } from '@/lib/premium';
+import { resumirMovimientos, type Metricas } from '@/lib/metricas-mes';
+import { loadMetricasInput } from '@/lib/metricas-mes-data';
 
 const PAGE_SIZE = 40;
 const SWIPE_HINT_KEY = 'zafi:swipe-hint';
@@ -88,7 +90,7 @@ export default function MovimientosPage() {
   const [reloadGen, setReloadGen] = useState(0);
   const cursor = useRef<{ date: string; id: string } | null>(null);
   const [totals, setTotals] = useState<MonthTotal[] | null>(null);
-  const [summary, setSummary] = useState<{ spent: number; received: number } | null>(null);
+  const [summary, setSummary] = useState<Metricas | null>(null);
   // Gratis: primer día visible (null = sin límite) y cuántos quedan ocultos antes.
   const [historyStart, setHistoryStart] = useState<string | null>(null);
   const [hidden, setHidden] = useState<{ count: number; before: string } | null>(null);
@@ -256,17 +258,18 @@ export default function MovimientosPage() {
   }, [ready, fetchPage, reloadGen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Totales del periodo: no dependen de la búsqueda ni de las filas cargadas.
+  // Misma cuenta que Cómo te fue y el puntaje (lib/metricas-mes).
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !householdId) return;
     let cancelled = false;
     const summaryFrom = historyStart && browseRange.from < historyStart ? historyStart : browseRange.from;
-    supabase.rpc('transactions_month_summary', { p_from: summaryFrom, p_to: browseRange.to }).then(({ data }) => {
-      if (cancelled) return;
-      const r = Array.isArray(data) ? data[0] : data;
-      setSummary({ spent: Number(r?.sum_expense ?? 0), received: Number(r?.sum_income ?? 0) });
-    });
+    loadMetricasInput(supabase, householdId, summaryFrom, browseRange.to)
+      .then(({ txs, categories: cats, intereses }) => {
+        if (!cancelled) setSummary(resumirMovimientos(txs, cats, intereses));
+      })
+      .catch(() => { if (!cancelled) setSummary(null); });
     return () => { cancelled = true; };
-  }, [ready, supabase, browseRange.from, browseRange.to, reloadGen, historyStart]);
+  }, [ready, supabase, householdId, browseRange.from, browseRange.to, reloadGen, historyStart]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore || loading || !cursor.current) return;
@@ -411,9 +414,13 @@ export default function MovimientosPage() {
         <div className="mt-3.5">
           {searching ? searchSummary : (
             <MonthSummary
-              spent={summary ? fmt(summary.spent) : null}
-              received={summary ? fmt(summary.received) : null}
+              spent={summary ? fmt(summary.consumo) : null}
+              received={summary ? fmt(summary.ingresos) : null}
+              missingIncome={!!summary && !summary.tieneIngresos}
+              apartado={summary ? summary.apartado + summary.abonosDeuda : 0}
+              onRegisterIncome={viewOnly ? undefined : () => openAddSheet({ type: 'income' })}
               spentLabel={month === 'year' ? `Gastaste en ${year}` : 'Gastaste'}
+              fmt={fmt}
             />
           )}
         </div>

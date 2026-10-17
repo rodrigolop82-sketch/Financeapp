@@ -1,17 +1,26 @@
-import { formatMoney, formatMonthCount } from '@/lib/format'
 // Salud financiera (puntaje Zafi): una sola fórmula de 5 partes de 20.
 // El puntaje es continuo (interpolación lineal entre umbrales) para que cada
 // aporte, cuota pagada o gasto mueva el número, no solo al cruzar un tramo.
 // Las entradas vienen de lo que la persona ya registra (lib/health-data.ts);
 // el onboarding es solo la semilla del día 1 (scoreFromProfile).
 
+import { formatMoney, formatMonthCount } from '@/lib/format'
+
 export type IncomeType = 'fixed' | 'variable' | 'mixed'
 
 export interface ScoreInput {
-  /** Ingreso mensual (Plan del mes; si no hay, el del onboarding). */
+  /**
+   * Ingreso del mes: el registrado (lib/metricas-mes). Si el mes no tiene
+   * ingresos registrados, el del plan (o el del onboarding) y `provisional`.
+   */
   income: number
-  /** Lo que se guardó en el mes: aportes a metas + gastos en categorías de ahorro. */
+  /** Ahorro del mes: ingresos − gastaste (lib/metricas-mes). */
   saved: number
+  /**
+   * Sin ingresos registrados: el ahorro queda pendiente (no suma ni resta) y
+   * el puntaje se reescala con las otras partes.
+   */
+  provisional?: boolean
   /** Σ pagos mínimos al mes de las deudas activas (la cuota, no el saldo). */
   debtPayments: number
   /** Saldo del fondo de emergencia. */
@@ -42,6 +51,8 @@ export interface ScoreComponent {
   detail: string
   tip: string
   action: { label: string; href: string } | null
+  /** Sin datos para calcularla (ahorro sin ingresos): no cuenta en el total. */
+  pending?: boolean
 }
 
 export interface HealthScoreResult {
@@ -50,6 +61,8 @@ export interface HealthScoreResult {
   color: string
   emoji: string
   components: ScoreComponent[]
+  /** Calculado sin ingresos registrados: puede cambiar al registrarlos. */
+  provisional: boolean
 }
 
 function clamp(v: number, min: number, max: number) {
@@ -72,7 +85,7 @@ export function calculateScore(input: ScoreInput): HealthScoreResult {
   const { income, saved, debtPayments, emergencyFund, fixedExpenses, spent, incomeType } = input
 
   if (income <= 0) {
-    return { total: 0, label: 'Sin datos', color: '#6B7280', emoji: '📊', components: [] }
+    return { total: 0, label: 'Sin datos', color: '#6B7280', emoji: '📊', components: [], provisional: false }
   }
 
   const rate = Math.max(0, saved) / income
@@ -86,11 +99,19 @@ export function calculateScore(input: ScoreInput): HealthScoreResult {
   // Ingresos que varían más de 10% entre meses restan hasta la mitad.
   const stability = cv == null ? base : base - lerp(cv, 0.1, 0.5, 0, base / 2)
 
+  const provisional = !!input.provisional
   const components: ScoreComponent[] = [
-    {
+    provisional ? {
+      key: 'savings', emoji: '💰', label: 'Ahorro', max: 20, score: 0, pending: true,
+      detail: 'Pendiente: falta registrar tus ingresos del mes',
+      tip: 'Cuando registres tus ingresos calculamos cuánto ahorraste.',
+      action: { label: 'Registrar ingreso', href: REGISTER_INCOME_HREF },
+    } : {
       key: 'savings', emoji: '💰', label: 'Ahorro', max: 20,
       score: lerp(rate, 0, 0.2, 2, 20),
-      detail: `Este mes guardaste ${q(saved)} · ${Math.round(rate * 100)}% de tu ingreso`,
+      detail: saved < 0
+        ? `Este mes gastaste ${q(-saved)} más de lo que recibiste`
+        : `Este mes guardaste ${q(saved)} · ${Math.round(rate * 100)}% de tu ingreso`,
       tip: rate < 0.1 ? `La meta es guardar al menos 10% (${q(income * 0.1)}).` : '¡Buen nivel de ahorro! Sigue así.',
       action: rate < 0.2 ? { label: 'Aportar a una meta', href: '/plan?s=metas' } : null,
     },
@@ -130,9 +151,16 @@ export function calculateScore(input: ScoreInput): HealthScoreResult {
     },
   ].map((c) => ({ ...c, score: Math.round(c.score) })) as ScoreComponent[]
 
-  const total = clamp(components.reduce((s, c) => s + c.score, 0), 0, 100)
-  return { total, ...getScoreMeta(total), components }
+  // Provisional: las partes disponibles reescaladas a 100.
+  const counted = components.filter((c) => !c.pending)
+  const max = counted.reduce((s, c) => s + c.max, 0)
+  const sum = counted.reduce((s, c) => s + c.score, 0)
+  const total = clamp(max > 0 ? Math.round((sum / max) * 100) : 0, 0, 100)
+  return { total, ...getScoreMeta(total), components, provisional }
 }
+
+/** Abre la hoja de agregar lista para un ingreso (components/add/AddSheet). */
+export const REGISTER_INCOME_HREF = '/transacciones?action=income'
 
 export function getScoreMeta(score: number): { label: string; color: string; emoji: string } {
   if (score >= 80) return { label: 'Excelente', color: '#10B981', emoji: '🏆' }

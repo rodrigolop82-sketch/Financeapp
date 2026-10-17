@@ -25,7 +25,9 @@ export async function getRecommendedCapsules(
 ): Promise<CapsuleRecommendation[]> {
   if (components.length === 0) return []
 
-  const weakComponents = [...components]
+  // Una parte pendiente (ahorro sin ingresos) no es débil: no tiene datos.
+  const weakComponents = components
+    .filter(c => !c.pending)
     .sort((a, b) => (a.score / a.max) - (b.score / b.max))
     .slice(0, 3)
     .map(c => c.key)

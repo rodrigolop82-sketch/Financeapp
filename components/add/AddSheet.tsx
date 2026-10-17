@@ -131,7 +131,7 @@ function notifyTransactionsChanged(detail?: TxChangedDetail) {
 
 /**
  * Hoja global de agregar. Se monta una vez en AppShell y se abre con el
- * evento `zafi:open-add` (el botón +), con `?action=voice|manual|scan` o
+ * evento `zafi:open-add` (el botón +), con `?action=voice|manual|scan|income` o
  * con `?shared_text=` (Web Share Target), en cualquier ruta.
  */
 export function AddSheet() {
@@ -287,8 +287,13 @@ export function AddSheet() {
     function onOpen(e: Event) {
       // Solo ver: no registra; se le ofrece avisarle al dueño.
       if (viewOnlyRef.current) { openViewOnlySheet(); return }
-      const text = (e as CustomEvent<{ text?: string } | undefined>).detail?.text?.trim()
+      const detail = (e as CustomEvent<{ text?: string; type?: 'income' } | undefined>).detail
+      const text = detail?.text?.trim()
       openSheet()
+      if (detail?.type === 'income') {
+        setParsed(null)
+        setManual((d) => (d.type === 'income' ? d : { ...d, type: 'income', categoryId: null, subItemId: null }))
+      }
       if (text) {
         setQuick(text)
         void interpret(text)
@@ -318,6 +323,9 @@ export function AddSheet() {
       setImportActive(true)
     } else if (action === 'manual') {
       setOpen(true)
+    } else if (action === 'income') {
+      setOpen(true)
+      setManual((d) => ({ ...d, type: 'income', categoryId: null, subItemId: null }))
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
