@@ -287,13 +287,15 @@ export function AddSheet() {
     function onOpen(e: Event) {
       // Solo ver: no registra; se le ofrece avisarle al dueño.
       if (viewOnlyRef.current) { openViewOnlySheet(); return }
-      const detail = (e as CustomEvent<{ text?: string; type?: 'income' } | undefined>).detail
+      const detail = (e as CustomEvent<{ text?: string; type?: 'income'; date?: string } | undefined>).detail
       const text = detail?.text?.trim()
       openSheet()
       if (detail?.type === 'income') {
         setParsed(null)
         setManual((d) => (d.type === 'income' ? d : { ...d, type: 'income', categoryId: null, subItemId: null }))
       }
+      const date = detail?.date
+      if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) setManual((d) => ({ ...d, date }))
       if (text) {
         setQuick(text)
         void interpret(text)

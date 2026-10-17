@@ -18,12 +18,11 @@ import { useInstallTrigger } from '@/components/install/InstallPromptManager';
 import { useAppearance, type Appearance } from '@/hooks/useAppearance';
 import { planStatusRow, type Subscription } from '@/lib/planes';
 import type { Plan } from '@/lib/plans';
-import { logAuditEvent } from '@/lib/audit';
+import { CONFIRMACION, confirmacionValida } from '@/lib/eliminar-cuenta';
 import {
   CURRENCY_OPTIONS,
   INACTIVITY_DAY_OPTIONS,
   MONTH_CLOSE_DAY_OPTIONS,
-  accountDeletionMailto,
   currencyOption,
   decimalsHint,
   initialsFrom,
@@ -93,6 +92,9 @@ function CuentaContent() {
   });
   const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [deleteText, setDeleteText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null);
   const { appearance, setAppearance } = useAppearance();
@@ -329,14 +331,25 @@ function CuentaContent() {
     setFeedbackOpen(true);
   }
 
-  async function requestAccountDeletion() {
-    setSheet(null);
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (authUser) {
-      await logAuditEvent(supabase, authUser.id, 'account_deletion_requested', { via: 'mi_cuenta' });
+  // Eliminar mi cuenta (C5): borrado real con la ruta /api/cuenta/eliminar.
+  async function deleteAccount() {
+    if (!confirmacionValida(deleteText) || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch('/api/cuenta/eliminar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmacion: deleteText }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error || 'No pudimos eliminar tu cuenta. Intenta de nuevo.');
+      await supabase.auth.signOut().catch(() => {});
+      window.location.href = '/?cuenta=eliminada';
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'No pudimos eliminar tu cuenta. Intenta de nuevo.');
+      setDeleting(false);
     }
-    window.location.href = accountDeletionMailto(user?.email);
-    showToast('Te escribiremos para confirmar');
   }
 
   if (loading) {
@@ -682,24 +695,43 @@ function CuentaContent() {
         onClose={closeSheet}
       />
 
-      <BottomSheet open={sheet === 'delete'} onClose={closeSheet} label="Eliminar mi cuenta" themed>
+      <BottomSheet open={sheet === 'delete'} onClose={deleting ? () => {} : closeSheet} label="Eliminar mi cuenta" themed>
         <div className="flex flex-col gap-3 px-5 pb-[calc(28px+env(safe-area-inset-bottom))] pt-2">
           <h2 tabIndex={-1} className={`font-serif text-[24px] leading-tight outline-none ${TEXT_STRONG}`}>¿Eliminar tu cuenta?</h2>
           <p className={`text-[15px] leading-normal ${TEXT_SECONDARY}`}>
-            Borraremos tu cuenta y todos tus movimientos, planes y metas. No se puede deshacer.
-            Te recomendamos exportar tus datos antes.
+            Se borra ahora mismo y no se puede deshacer.
           </p>
-          <p className={`text-[14px] leading-normal ${TEXT_SECONDARY}`}>
-            Para confirmar que eres tú, nos escribes desde tu correo a hola@zafiapp.com y la eliminamos en menos de 48 horas.
-          </p>
+          <ul className={`flex list-disc flex-col gap-1 pl-5 text-[14px] leading-normal ${TEXT_SECONDARY}`}>
+            <li>Si vives solo en tu hogar, se borran tus movimientos, plan, deudas, metas y cuentas.</li>
+            <li>Si compartes tu hogar, queda para la otra persona con lo compartido. Tus movimientos personales, cuentas propias y metas privadas se borran.</li>
+            <li>Si tienes un plan pagado, lo cancelamos. El registro de pagos se guarda sin tus datos.</li>
+          </ul>
+          <button type="button" onClick={handleExport} disabled={exporting} className={`self-start text-[14px] font-semibold text-electric disabled:opacity-60`}>
+            {exporting ? 'Exportando…' : 'Exportar mis datos antes ›'}
+          </button>
+          <label htmlFor="confirmar-eliminar" className={`mt-1 text-[14px] font-semibold ${TEXT_STRONG}`}>
+            Escribe {CONFIRMACION} para confirmar
+          </label>
+          <input
+            id="confirmar-eliminar"
+            value={deleteText}
+            onChange={(e) => setDeleteText(e.target.value)}
+            autoComplete="off"
+            autoCapitalize="characters"
+            disabled={deleting}
+            placeholder={CONFIRMACION}
+            className="h-12 rounded-xl border border-[var(--zafi-border)] bg-[var(--zafi-card)] px-3.5 font-outfit text-[16px] tracking-[0.06em] text-ink-900 outline-none focus:border-danger-text dark:text-ink-100"
+          />
+          {deleteError && <p role="alert" className="text-[13.5px] font-semibold text-danger-text">{deleteError}</p>}
           <button
             type="button"
-            onClick={requestAccountDeletion}
-            className="mt-1 h-[50px] rounded-full bg-danger-text text-[15px] font-bold text-white transition-transform active:scale-[0.98]"
+            onClick={() => void deleteAccount()}
+            disabled={!confirmacionValida(deleteText) || deleting}
+            className="mt-1 h-[50px] rounded-full bg-danger-text text-[15px] font-bold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
           >
-            Pedir que eliminen mi cuenta
+            {deleting ? 'Eliminando…' : 'Eliminar mi cuenta'}
           </button>
-          <button type="button" onClick={closeSheet} className={`h-11 text-[15px] font-semibold ${TEXT_STRONG}`}>
+          <button type="button" onClick={closeSheet} disabled={deleting} className={`h-11 text-[15px] font-semibold ${TEXT_STRONG}`}>
             Cancelar
           </button>
         </div>
