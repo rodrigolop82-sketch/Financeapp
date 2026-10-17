@@ -27,16 +27,17 @@ export function PremiumCheck({ on = true }: { on?: boolean }) {
   )
 }
 
-export function PremiumSheet({ reason, open, onClose, used, limit, memberName, family }: {
+export function PremiumSheet({ reason, open, onClose, used, limit, memberName, memberCount, family }: {
   reason: PremiumReason
   open: boolean
   onClose: () => void
   used?: number
   limit?: number
   memberName?: string | null
+  memberCount?: number
   family?: boolean
 }) {
-  const g = premiumGate(reason, { today: localToday(), used, limit, memberName, family })
+  const g = premiumGate(reason, { today: localToday(), used, limit, memberName, memberCount, family })
   return (
     <BottomSheet open={open} onClose={onClose} label="Premium" themed>
       <div className="flex flex-col gap-4 px-5 pb-[calc(26px+env(safe-area-inset-bottom))] pt-2">

@@ -501,7 +501,7 @@ export default function FamiliaPage() {
           </div>
         )}
       </BottomSheet>
-      <PremiumSheet reason="familia" open={familySheet !== null} onClose={() => setFamilySheet(null)} memberName={familySheet} family />
+      <PremiumSheet reason="familia" open={familySheet !== null} onClose={() => setFamilySheet(null)} memberName={familySheet} memberCount={people.length} family />
     </AppShell>
   );
 }
