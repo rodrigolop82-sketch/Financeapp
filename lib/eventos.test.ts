@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  FREE_EVENTOS_ACTIVOS, PLANTILLAS, gastadoPorConcepto, metaParaEvento, montoConcepto, parseNuevoEvento, plantillaDe,
+  PLANTILLAS, gastadoPorConcepto, metaParaEvento, montoConcepto, parseNuevoEvento, plantillaDe,
   puedeCrearEvento, resumenEvento, textoCuenta, textoFechas,
 } from './eventos'
 
@@ -61,12 +61,10 @@ describe('resumen y gastado', () => {
   })
 })
 
-describe('límite de Gratis', () => {
-  it('un evento activo a la vez; Premium sin límite', () => {
-    expect(FREE_EVENTOS_ACTIVOS).toBe(1)
-    expect(puedeCrearEvento(false, 0)).toBe(true)
-    expect(puedeCrearEvento(false, 1)).toBe(false)
-    expect(puedeCrearEvento(true, 7)).toBe(true)
+describe('acceso', () => {
+  it('solo Premium (o la prueba) crea eventos', () => {
+    expect(puedeCrearEvento(false)).toBe(false)
+    expect(puedeCrearEvento(true)).toBe(true)
   })
 })
 

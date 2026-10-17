@@ -13,7 +13,7 @@ import { localToday } from '@/lib/dates'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { useEffectivePlan } from '@/lib/hooks/useEffectivePlan'
 import { isPremium } from '@/lib/plans'
-import { FREE_EVENTOS_ACTIVOS, plantillaDe, textoCuenta, textoFechas } from '@/lib/eventos'
+import { PLANTILLAS, plantillaDe, puedeCrearEvento, textoCuenta, textoFechas } from '@/lib/eventos'
 import { loadEventos, type Evento } from '@/lib/eventos-data'
 import { BADGE_NEUTRAL, BADGE_WARN, ErrorBox, GroupTitle, ListCard, ROW_DIVIDER, RowBody, Tile } from '@/components/layout/Pantalla'
 import { CARD } from '@/components/resumen/ctf-ui'
@@ -57,10 +57,11 @@ export function EventosView({ addRequest = 0 }: { addRequest?: number } = {}) {
   const premium = plan ? isPremium(plan.plan) : true
   const canWrite = plan?.access !== 'view'
 
+  // Eventos es de Premium: en Gratis, "Crear" abre la hoja de Premium.
   const openNew = useCallback(() => {
-    if (!premium && activos.length >= FREE_EVENTOS_ACTIVOS) { setPremiumOpen(true); return }
+    if (!puedeCrearEvento(premium)) { setPremiumOpen(true); return }
     setSheetKey(Date.now())
-  }, [premium, activos.length])
+  }, [premium])
   useEffect(() => { if (addRequest > 0) openNew() }, [addRequest]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fila = (e: Evento) => {
@@ -97,7 +98,13 @@ export function EventosView({ addRequest = 0 }: { addRequest?: number } = {}) {
             <p className={`text-sm leading-[1.45] [text-wrap:pretty] ${TEXT_MUTED}`}>
               Un cumpleaños, una graduación, unas vacaciones o una boda: arma el presupuesto con conceptos sugeridos y ve cuánto llevas gastado.
             </p>
-            {canWrite && <button type="button" onClick={openNew} className={`mt-1 ${PRIMARY_BUTTON}`}>Crear un evento</button>}
+            <p aria-hidden className="text-[22px] tracking-[0.2em]">{PLANTILLAS.map((t) => t.emoji).join('')}</p>
+            {!premium && <p className={`text-[13px] font-semibold ${TEXT_MUTED}`}>👑 Parte de Premium</p>}
+            {canWrite && (
+              <button type="button" onClick={openNew} className={`mt-1 ${PRIMARY_BUTTON}`}>
+                {premium ? 'Crear un evento' : 'Ver Premium'}
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -106,10 +113,10 @@ export function EventosView({ addRequest = 0 }: { addRequest?: number } = {}) {
               <ListCard>
                 {activos.map(fila)}
                 {activos.length === 0 && <p className={`py-3 text-sm ${TEXT_MUTED}`}>No tienes eventos activos.</p>}
-                {canWrite && <AddRow label="Crear un evento" onClick={openNew} />}
+                {canWrite && <AddRow label={premium ? 'Crear un evento' : 'Crear un evento 👑'} onClick={openNew} />}
               </ListCard>
               {!premium && (
-                <p className={`mx-1 mt-2 text-[13px] ${TEXT_MUTED}`}>Gratis: {FREE_EVENTOS_ACTIVOS} evento activo a la vez. Termina uno para crear otro.</p>
+                <p className={`mx-1 mt-2 text-[13px] ${TEXT_MUTED}`}>Crear eventos es parte de Premium. Los que ya tienes siguen aquí.</p>
               )}
             </section>
             {terminados.length > 0 && (

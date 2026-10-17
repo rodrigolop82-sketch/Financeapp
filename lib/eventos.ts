@@ -1,6 +1,6 @@
 // Eventos: presupuesto para una ocasión (cumpleaños, graduación, vacación,
-// boda o algo desde cero). Puro, para vitest: plantillas, totales, límite de
-// Gratis y la meta de "Ahorrar para esto". Tablas: migración 20261105.
+// boda o algo desde cero). Puro, para vitest: plantillas, totales, acceso
+// Premium y la meta de "Ahorrar para esto". Tablas: migración 20261105.
 
 export type EventoTipo = 'cumpleanos' | 'graduacion' | 'vacacion' | 'boda' | 'otro'
 
@@ -42,11 +42,12 @@ export function esTipoEvento(v: unknown): v is EventoTipo {
   return typeof v === 'string' && PLANTILLAS.some((p) => p.tipo === v)
 }
 
-/** En Gratis, un evento activo (sin archivar) a la vez. */
-export const FREE_EVENTOS_ACTIVOS = 1
-
-export function puedeCrearEvento(premium: boolean, activos: number): boolean {
-  return premium || activos < FREE_EVENTOS_ACTIVOS
+/**
+ * Eventos es de Premium (y de la prueba): solo Premium crea o reactiva
+ * eventos. En Gratis los que ya existan se pueden ver, no crear nuevos.
+ */
+export function puedeCrearEvento(premium: boolean): boolean {
+  return premium
 }
 
 export const MAX_NOMBRE = 80

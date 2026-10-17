@@ -6,7 +6,7 @@ import { parseNuevoEvento, puedeCrearEvento } from '@/lib/eventos'
 export const dynamic = 'force-dynamic'
 
 // Crear un evento con sus conceptos. Pasa por aquí (y no por el cliente)
-// para revisar el límite de Gratis: un evento activo a la vez.
+// para revisar que sea Premium: Eventos es parte de Premium.
 export async function POST(request: Request) {
   const ctx = await householdContext({ write: true })
   if (ctx instanceof NextResponse) return ctx
@@ -14,11 +14,8 @@ export async function POST(request: Request) {
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
   const v = parsed.value
 
-  const { count } = await ctx.admin
-    .from('eventos').select('id', { count: 'exact', head: true })
-    .eq('household_id', ctx.householdId).is('archived_at', null)
-  if (!puedeCrearEvento(isPremium(ctx.plan.plan), count ?? 0)) {
-    return NextResponse.json({ error: 'limite', limit: true }, { status: 402 })
+  if (!puedeCrearEvento(isPremium(ctx.plan.plan))) {
+    return NextResponse.json({ error: 'premium', limit: true }, { status: 402 })
   }
 
   const { data, error } = await ctx.admin.from('eventos').insert({
