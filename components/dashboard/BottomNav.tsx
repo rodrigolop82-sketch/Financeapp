@@ -12,8 +12,12 @@ const TABS: { key: TabKey; href: string; label: string; icon: typeof Home }[] = 
   { key: 'mas', href: '/mas', label: 'Más', icon: MoreHorizontal },
 ]
 
-/** Abre la hoja global de agregar (components/add/AddSheet). */
-export function openAddSheet(detail?: { text?: string }) {
+/**
+ * Abre la hoja global de agregar (components/add/AddSheet). Con { text }
+ * interpreta ese texto; con { type: 'income' } abre lista para un ingreso;
+ * con { date } (YYYY-MM-DD) propone esa fecha (p. ej. al cerrar un mes pasado).
+ */
+export function openAddSheet(detail?: { text?: string; type?: 'income'; date?: string }) {
   window.dispatchEvent(new CustomEvent('zafi:open-add', { detail }))
 }
 

@@ -12,6 +12,7 @@ import { applePayCopy } from '@/lib/avisos';
 import { sendPushToUser } from '@/lib/push-send';
 import { looksLikeShortcutToken, rateLimitStep, type ApplePayCharge } from '@/lib/apple-pay';
 import { hashShortcutToken } from '@/lib/apple-pay-token';
+import { DUPLICADO_MS } from '@/lib/android';
 
 export interface ShortcutTokenRow {
   id: string;
@@ -62,6 +63,15 @@ export interface RegisteredCharge {
   /** Llegó con la categoría que la persona pidió recordar para este comercio. */
   remembered: boolean;
   pushed: boolean;
+  /** Ya estaba registrado (el mismo aviso llegó dos veces): no se creó otro. */
+  duplicate?: boolean;
+}
+
+export interface ChargeOptions {
+  /** 'apple_pay' (atajo de iOS) o 'android' (MacroDroid/Tasker, C15). */
+  source?: 'apple_pay' | 'android';
+  /** Cómo llegó, para el push: "con Apple Pay" o "por el aviso de BAM". */
+  via?: string;
 }
 
 /**
@@ -73,6 +83,7 @@ export async function registerApplePayCharge(
   admin: SupabaseClient,
   userId: string,
   charge: ApplePayCharge,
+  { source = 'apple_pay', via = 'con Apple Pay' }: ChargeOptions = {},
 ): Promise<{ ok: true; value: RegisteredCharge } | { ok: false; status: number; error: string }> {
   const household = await getUserHousehold(admin, userId);
   if (!household) return { ok: false, status: 409, error: 'Tu cuenta no tiene un hogar todavía. Abre Zafi para terminar de configurarla.' };
@@ -97,6 +108,29 @@ export async function registerApplePayCharge(
 
   const isForex = charge.currency !== 'GTQ';
   const amount = isForex ? toGTQ(charge.amount, charge.currency) : charge.amount;
+
+  // Android: el mismo aviso puede llegar dos veces (se actualiza o se repite).
+  if (source === 'android') {
+    const { data: dup } = await admin
+      .from('transactions')
+      .select('id, category_id')
+      .eq('household_id', hh)
+      .eq('source', 'android')
+      .eq('amount', amount)
+      .eq('description', merchant)
+      .eq('date', charge.date)
+      .gte('created_at', new Date(Date.now() - DUPLICADO_MS).toISOString())
+      .limit(1)
+      .maybeSingle();
+    if (dup) {
+      const d = dup as { id: string; category_id: string | null };
+      const c = categories.find((x) => x.id === d.category_id) ?? null;
+      return {
+        ok: true,
+        value: { id: d.id, amount, merchant, date: charge.date, categoryId: c?.id ?? null, categoryName: c?.name ?? null, remembered, pushed: false, duplicate: true },
+      };
+    }
+  }
   const { data: inserted, error } = await admin
     .from('transactions')
     .insert({
@@ -105,7 +139,7 @@ export async function registerApplePayCharge(
       amount,
       description: merchant,
       date: charge.date,
-      source: 'apple_pay',
+      source,
       type: 'expense',
       transaction_type: deriveTransactionType('expense', cat?.bucket),
       payment_method: 'tarjeta',
@@ -125,7 +159,7 @@ export async function registerApplePayCharge(
 
   const id = (inserted as { id: string }).id;
   const categoryName = cat ? `${getEmoji(cat)} ${cat.name}` : null;
-  const copy = applePayCopy(amount, merchant, (n) => formatMoney(n, { showDecimals: true }), remembered ? categoryName : null);
+  const copy = applePayCopy(amount, merchant, (n) => formatMoney(n, { showDecimals: true }), remembered ? categoryName : null, via);
   const pushed = await sendPushToUser(
     userId,
     { ...copy, url: `/transacciones?applepay=${id}`, tag: `zafi-applepay-${id}`, key: `apple_pay:${id}` },

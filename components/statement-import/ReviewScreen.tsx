@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Check, ChevronDown, ChevronLeft, Copy } from 'lucide-react'
-import { formatMoney, type Currency } from '@/lib/format'
+import { formatMoney, formatNumber, type Currency } from '@/lib/format'
 import { localToday } from '@/lib/dates'
 import { dayLabel } from '@/lib/movimientos'
 import { getEmoji, paymentLabel } from '@/lib/categories-ui'
@@ -42,7 +42,7 @@ const fmtOriginal = (t: { original_amount: number | null; original_currency: str
   const cur = t.original_currency.toUpperCase()
   return (FOREX_CURRENCIES as string[]).includes(cur)
     ? formatMoney(t.original_amount, { currency: cur as Currency, showDecimals: true })
-    : `${cur} ${t.original_amount.toFixed(2)}`
+    : `${cur} ${formatNumber(t.original_amount, 2)}`
 }
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 

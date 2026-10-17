@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   analyzeMonth, averageOf, bucketShares, bucketsInsight, capGroups, categoryStatus, chartMonths, fixedResolver, fixedVarInsight,
   fixedVarShares, merchantGroups, monthHighlights, monthLeftover, monthSaved, monthTotals, planItems, roundShares, savingsPct, spendByCategory,
-  timesText, verdictSaved, vsPlanText, type CtfCategory, type CtfTx,
+  timesText, vsPlanText, type CtfCategory, type CtfTx,
 } from './como-te-fue';
 import { buildRecommendations, categoryCapKeys, DEFAULT_CAPS } from './recomendaciones';
 import type { PlanSubItem } from './plan-del-mes';
@@ -110,11 +110,11 @@ describe('monthTotals', () => {
     expect(fixedVarShares(s)).toEqual({ fixed: 69, variable: 31 });
   });
 
-  it('gastar de más sin apartar deja el ahorro en 0', () => {
+  it('gastar de más da ahorro negativo y 0% en el reparto', () => {
     const t = monthTotals([tx('sal', 1000, '2026-07-01', 'income'), tx('ali', 1500, '2026-07-02')], ['2026-07'], cats, fixed.tx)[0];
     expect(bucketShares(t)).toEqual({ needs: 100, wants: 0, savings: 0 });
-    expect(savingsPct(t)).toBe(0);
-    expect(verdictSaved(t)).toBe(-500);
+    expect(savingsPct(t)).toBe(-50);
+    expect(monthSaved(t)).toBe(-500);
     expect(bucketShares(monthTotals([], ['2026-06'], cats, fixed.tx)[0])).toBeNull();
   });
 });
@@ -123,13 +123,15 @@ describe('monthSaved', () => {
   const ib: CtfCategory = { id: 'ib', name: 'Interactive Brokers', bucket: 'savings', budgeted_amount: 2500 };
   const all = [...cats, ib];
 
-  it('mes sin ingresos con aporte de 3,000: el ahorro es 3,000', () => {
+  it('mes sin ingresos con aporte de 3,000: no hay ahorro calculado (falta registrar)', () => {
     const t = monthTotals([tx('viv', 7080, '2026-04-01'), tx('res', 4920, '2026-04-10'), tx('ib', 3000, '2026-04-15')], ['2026-04'], all, fixed.tx)[0];
-    expect(monthSaved(t)).toBe(3000);
-    expect(monthLeftover(t)).toBe(0);
-    expect(verdictSaved(t)).toBe(3000);
+    expect(t.hasIncome).toBe(false);
+    expect(t.spent).toBe(12000);
+    expect(t.savingsBucket).toBe(3000);
+    expect(monthSaved(t)).toBeNull();
+    expect(monthLeftover(t)).toBeNull();
     expect(t.savingsNames).toEqual(['Interactive Brokers']);
-    expect(bucketShares(t)!.savings).toBeGreaterThan(0);
+    expect(bucketShares(t)).toBeNull();
     expect(savingsPct(t)).toBeNull();
   });
 
@@ -146,10 +148,18 @@ describe('monthSaved', () => {
 
   it('el insight reconoce que apartaste todos los meses', () => {
     const series = monthTotals([
-      tx('viv', 7080, '2026-08-01'), tx('ib', 3000, '2026-08-15'),
+      tx('sal', 19500, '2026-08-01', 'income'), tx('viv', 7080, '2026-08-01'), tx('ib', 3000, '2026-08-15'),
       tx('sal', 19500, '2026-09-01', 'income'), tx('viv', 8580, '2026-09-01'), tx('res', 7215, '2026-09-10'), tx('ib', 2500, '2026-09-15'),
     ], ['2026-08', '2026-09'], all, fixed.tx);
     expect(bucketsInsight(series)).toBe('Apartaste para ahorro todos los meses. En septiembre llegaste a 19%; lo sano es 20%.');
+  });
+
+  it('un mes sin ingresos no cuenta para el insight de ahorro', () => {
+    const series = monthTotals([
+      tx('viv', 7080, '2026-08-01'), tx('ib', 3000, '2026-08-15'),
+      tx('sal', 19500, '2026-09-01', 'income'), tx('viv', 8580, '2026-09-01'),
+    ], ['2026-08', '2026-09'], all, fixed.tx);
+    expect(bucketsInsight(series)).toBe('Así se repartió tu dinero este mes. Lo sano: 50% lo básico, 30% gustos y 20% ahorro.');
   });
 });
 
@@ -315,5 +325,16 @@ describe('analyzeMonth', () => {
   it('el plan guardado al cerrar el mes manda sobre el vigente', () => {
     const a = analyzeMonth({ ...input, snapshots: { ali: 2500 } }, '2026-09', DEFAULT_CAPS, fmt);
     expect(a.planOf.ali).toBe(2500);
+  });
+});
+
+describe('vsMesAnteriorTexto', () => {
+  it('compara lo gastado con el mes anterior', async () => {
+    const { vsMesAnteriorTexto } = await import('./como-te-fue');
+    const [a, s] = monthTotals([...aug, ...sep], ['2026-08', '2026-09'], cats, fixed.tx);
+    expect(vsMesAnteriorTexto(s, a, fmt)).toBe(`Gastaste ${fmt(s.spent - a.spent)} más`);
+    expect(vsMesAnteriorTexto(a, s, fmt)).toBe(`Gastaste ${fmt(s.spent - a.spent)} menos`);
+    expect(vsMesAnteriorTexto(s, s, fmt)).toBe('Gastaste igual que en septiembre');
+    expect(vsMesAnteriorTexto(s, undefined, fmt)).toBeNull();
   });
 });

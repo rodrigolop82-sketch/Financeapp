@@ -12,7 +12,7 @@
 // - Cada aviso lleva una `key` que se guarda en notification_log.payload
 //   para no repetir el mismo (el mismo pago, el mismo tope en el mes…).
 
-import { analyzeMonth, longMonth, verdictSaved, type CtfCategory, type CtfTx } from './como-te-fue';
+import { analyzeMonth, longMonth, monthSaved, type CtfCategory, type CtfTx } from './como-te-fue';
 import { planLeaves, planSummary, type PlanIncome, type PlanSubItem } from './plan-del-mes';
 import { CAP_META, type CapKey } from './recomendaciones';
 
@@ -173,12 +173,13 @@ export function monthStartCopy(month: string) {
 }
 
 /** Push de Apple Pay. Si ya llegó con categoría (regla del comercio), lo dice. */
-export function applePayCopy(amount: number, merchant: string, fmt: Fmt, categoryName?: string | null) {
+/** `via`: "con Apple Pay" o, en Android, "por el aviso de BAM" (C15). */
+export function applePayCopy(amount: number, merchant: string, fmt: Fmt, categoryName?: string | null, via = 'con Apple Pay') {
   return {
     title: 'Zafi',
     body: categoryName
-      ? `Registramos ${fmt(amount)} en ${merchant} con Apple Pay: ${categoryName}. Toca si quieres cambiarla.`
-      : `Registramos ${fmt(amount)} en ${merchant} con Apple Pay. Toca para elegir categoría.`,
+      ? `Registramos ${fmt(amount)} en ${merchant} ${via}: ${categoryName}. Toca si quieres cambiarla.`
+      : `Registramos ${fmt(amount)} en ${merchant} ${via}. Toca para elegir categoría.`,
   };
 }
 
@@ -324,7 +325,7 @@ export function monthEndCandidate(d: AvisoData, closeDay: number, fmt: Fmt): Avi
   );
   if (!(a.current.income > 0)) return null;
   return {
-    kind: 'month_end', ...monthEndCopy(prev, verdictSaved(a.current), a.recs.potential, fmt),
+    kind: 'month_end', ...monthEndCopy(prev, monthSaved(a.current) ?? 0, a.recs.potential, fmt),
     url: `/resumen?mes=${prev}`, key: `month_end:${prev}`, tag: 'zafi-month-end',
   };
 }

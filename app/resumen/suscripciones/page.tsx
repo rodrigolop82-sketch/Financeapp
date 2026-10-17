@@ -28,8 +28,11 @@ export default function SuscripcionesPage() {
   const plan = data?.plan
   const byKey = useMemo(() => new Map((data?.charges ?? []).map((c) => [c.merchantKey, c])), [data])
   const inPlan = useMemo(() => new Set((plan?.lines ?? []).map((l) => l.merchantKey).filter(Boolean)), [plan])
-  // Detectados que no están en el plan.
-  const outside = (data?.charges ?? []).filter((c) => c.status === 'active' && !inPlan.has(c.merchantKey))
+  // Una sola definición (lib/recurring/definicion): suscripciones fuera del
+  // plan y pagos fijos (cobros que se repiten pero no son suscripciones).
+  const tipoOf = (key: string) => data?.tipos[key] ?? 'pago_fijo'
+  const outside = (data?.charges ?? []).filter((c) => c.status === 'active' && !inPlan.has(c.merchantKey) && tipoOf(c.merchantKey) === 'suscripcion')
+  const fixedCharges = (data?.charges ?? []).filter((c) => c.status === 'active' && tipoOf(c.merchantKey) === 'pago_fijo')
   const cancelled = (data?.charges ?? []).filter((c) => c.status === 'possibly_cancelled' && !inPlan.has(c.merchantKey))
 
   if (state.status === 'loading') return <PageSkeleton variant="list" />
@@ -69,7 +72,7 @@ export default function SuscripcionesPage() {
           </div>
         )}
 
-        {data && count === 0 && cancelled.length === 0 && (
+        {data && count === 0 && cancelled.length === 0 && fixedCharges.length === 0 && (
           <div className={`mt-3.5 flex flex-col gap-1.5 p-5 ${CARD}`}>
             <span className={`text-[17px] font-bold ${TEXT_STRONG}`}>Aún no tienes suscripciones</span>
             <span className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>
@@ -82,7 +85,7 @@ export default function SuscripcionesPage() {
         {data && count > 0 && (
           <>
             <section className={`mt-3.5 flex flex-col gap-1 border border-electric/30 p-5 ${HERO}`} style={HERO_STYLE}>
-              <span className={`text-[13px] font-semibold ${HERO_MUTED}`}>Total mensual</span>
+              <span className={`text-[13px] font-semibold ${HERO_MUTED}`}>Suscripciones al mes</span>
               <span className="flex items-baseline gap-1.5">
                 <span className="font-outfit text-[40px] font-extrabold leading-none">{fmt(data.monthlyTotal)}</span>
                 <span className={`text-sm ${HERO_MUTED}`}>/ mes</span>
@@ -172,11 +175,47 @@ export default function SuscripcionesPage() {
                   ))}
                 </ListCard>
                 <p className={`mx-1 mt-2 text-[13px] leading-[1.45] ${TEXT_MUTED}`}>
-                  Cobros que se repiten cada mes y no encontramos en tu plan. Si son tuyos,{' '}
-                  <Link href={PLAN_HREF} className={`font-semibold ${LINK_TEXT}`}>agrégalos a tu categoría Suscripciones</Link>.
+                  Cobros de tu categoría Suscripciones que no están como parte en tu plan. Si quieres verlos ahí,{' '}
+                  <Link href={PLAN_HREF} className={`font-semibold ${LINK_TEXT}`}>agrégalos como partes</Link>.
                 </p>
               </>
             )}
+          </>
+        )}
+
+        {data && fixedCharges.length > 0 && (
+          <>
+            <GroupTitle>Pagos fijos · {fmt(data.pagosFijos.mensual)}/mes</GroupTitle>
+            <ListCard>
+              {fixedCharges.map((c) => (
+                <Link
+                  key={c.merchantKey}
+                  href={detailHref(c.merchantKey)}
+                  className={`flex min-h-[60px] items-center gap-3 py-3 ${ROW_DIVIDER}`}
+                >
+                  <MerchantAvatar name={c.displayName} />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{c.displayName}</span>
+                      <PriceUpBadge charge={c} fmt={fmt} />
+                    </span>
+                    <span className={`truncate text-[13px] ${TEXT_MUTED}`}>
+                      {shortDate(`${c.nextExpectedDate}T12:00:00`)}{c.categoryName ? ` · ${c.categoryName}` : ''}
+                    </span>
+                  </span>
+                  <span className={`flex-none font-outfit text-[15px] font-extrabold ${TEXT_STRONG}`}>{fmt(c.typicalAmount)}</span>
+                  <Chevron />
+                </Link>
+              ))}
+            </ListCard>
+            <p className={`mx-1 mt-2 text-[13px] leading-[1.45] ${TEXT_MUTED}`}>
+              Cobros que se repiten cada mes y no son suscripciones (servicios, colegiaturas…). No suman en el total de suscripciones.
+            </p>
+          </>
+        )}
+
+        {data && count > 0 && (
+          <>
 
             {top2.length === 2 && (
               <div className={`mt-3.5 flex flex-col gap-2 p-4 ${CARD}`}>

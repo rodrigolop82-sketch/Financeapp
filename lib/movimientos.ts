@@ -1,6 +1,8 @@
 // Helpers puros de la pantalla Movimientos y la hoja de agregar.
 // Las fechas son strings locales 'YYYY-MM-DD' (ver lib/dates.ts).
 import { getMerchantKey } from './transactions/merchant-key';
+import { destinoDe } from './metricas-mes';
+import { PLAN_LIMITS } from './plans';
 
 const MONTHS = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -82,17 +84,37 @@ export function cleanAmountInput(value: string): string {
   return dot === -1 ? only : only.slice(0, dot + 1) + only.slice(dot + 1).replace(/\./g, '');
 }
 
+/** Monto escrito a mano → número válido (> 0, dos decimales) o null. */
+export function parseAmountInput(value: string): number | null {
+  const n = Number(cleanAmountInput(value));
+  if (!Number.isFinite(n) || n <= 0 || n >= 1e9) return null;
+  return Math.round(n * 100) / 100;
+}
+
 export interface DayRow {
   id: string;
   date: string;
   amount: number | string;
   type: 'expense' | 'income';
+  category_id?: string | null;
+  category_bucket?: string | null;
+  transaction_type?: string | null;
+}
+
+/**
+ * ¿El movimiento suma en "Gastaste"? La misma regla de lib/metricas-mes:
+ * fuera ingresos, lo que va a Ahorro y deudas y los pagos a deudas.
+ */
+export function cuentaComoGasto(row: DayRow): boolean {
+  const bucketOf = new Map<string, string>(row.category_id && row.category_bucket ? [[row.category_id, row.category_bucket]] : []);
+  const d = destinoDe({ ...row, category_id: row.category_id ?? null }, bucketOf);
+  return d === 'basico' || d === 'gustos';
 }
 
 export interface DayGroup<T extends DayRow> {
   date: string;
   label: string;
-  /** Total de gastos del día (los ingresos no suman). */
+  /** "Gastaste" del día: sin ingresos, ahorro ni pagos a deudas. */
   expenseTotal: number;
   rows: T[];
 }
@@ -107,7 +129,7 @@ export function groupByDay<T extends DayRow>(rows: T[], today: string): DayGroup
       groups.push(g);
     }
     g.rows.push(row);
-    if (row.type !== 'income') g.expenseTotal += Number(row.amount);
+    if (cuentaComoGasto(row)) g.expenseTotal += Number(row.amount);
   }
   return groups;
 }
@@ -161,6 +183,18 @@ export function periodLabel(period: Period, today: string): string {
 /** "2026" o "julio": para "“uber” en julio" y "Buscar en todo 2026…". */
 export function periodInText(period: Period, today: string): string {
   return period === 'year' ? today.slice(0, 4) : monthLabel(period, today).toLowerCase();
+}
+
+/**
+ * Hasta dónde llega de verdad una búsqueda (C17): "todo 2026", "julio" o, en
+ * el plan gratis, "los últimos 3 meses" (no se promete todo el año si el
+ * historial está limitado). `historyStart` es el primer día visible o null.
+ */
+export function searchScopeText(period: Period, today: string, historyStart: string | null): string {
+  if (period !== 'year') return periodInText(period, today);
+  const year = today.slice(0, 4);
+  if (historyStart && historyStart > `${year}-01-01`) return `los últimos ${PLAN_LIMITS.FREE_HISTORY_MONTHS} meses`;
+  return `todo ${year}`;
 }
 
 export interface MonthGroup<T extends DayRow> {

@@ -1,4 +1,7 @@
 import { createClient } from '@/lib/supabase'
+import { monthRange } from '@/lib/movimientos'
+import { resumirMovimientos } from '@/lib/metricas-mes'
+import { loadMetricasInput } from '@/lib/metricas-mes-data'
 
 interface StatementSource { id: string; kind: string; name: string; institution: string | null; last4: string | null }
 interface StatementStatus { source_id: string; loaded: boolean }
@@ -17,27 +20,66 @@ export interface ChecklistItem {
   done: boolean
   sourceId?: string
   sourceType?: string
-  /** income item only: true when the household hasn't configured any income entries yet */
-  needsSetup?: boolean
+}
+
+/** Estado del paso de ingresos (lib/metricas-mes: ingresos registrados). */
+export interface IngresosPaso {
+  /** Ingresos registrados en el mes. */
+  registrados: number
+  /** La persona confirmó que no hubo ingresos ese mes. */
+  sinIngresos: boolean
 }
 
 export interface MonthCloseChecklist {
   yearMonth: string
+  /** Pasos obligatorios: ingresos + un estado de cuenta por banco. */
   items: ChecklistItem[]
+  ingresos: IngresosPaso
   completedCount: number
   totalCount: number
-  percentComplete: number
-  isFullyClosed: boolean
+  /** Todos los pasos obligatorios listos: se puede cerrar. */
+  canClose: boolean
+}
+
+/**
+ * Pasos obligatorios del cierre (puro). El de ingresos está listo si hay
+ * ingresos registrados o si la persona marcó "No hubo ingresos"; cada banco
+ * con cierre de mes, cuando su estado de cuenta está cargado. Los ahorros
+ * fuera de Zafi son opcionales y no cuentan.
+ */
+export function pasosCierre(
+  yearMonth: string,
+  ingresos: IngresosPaso,
+  sources: { id: string; label: string; sourceType: string; done: boolean }[],
+): MonthCloseChecklist {
+  const items: ChecklistItem[] = [
+    {
+      id: 'income',
+      label: 'Ingresos del mes',
+      type: 'income',
+      done: ingresos.registrados > 0 || ingresos.sinIngresos,
+    },
+    ...sources.map((s) => ({
+      id: `source-${s.id}`,
+      label: s.label,
+      type: 'source' as const,
+      done: s.done,
+      sourceId: s.id,
+      sourceType: s.sourceType,
+    })),
+  ]
+  const completedCount = items.filter((i) => i.done).length
+  return { yearMonth, items, ingresos, completedCount, totalCount: items.length, canClose: completedCount === items.length }
 }
 
 export async function getMonthCloseChecklist(
-  userId: string,
   householdId: string,
   yearMonth: string,
 ): Promise<MonthCloseChecklist> {
   const supabase = createClient()
+  const { from, to } = monthRange(yearMonth)
 
-  const [{ data: sources }, { data: statuses }, { data: incomeEntries }, { data: incomeConfirmation }] = await Promise.all([
+  const [{ data: sources }, { data: statuses }, metricas, sinIngresos] = await Promise.all([
     // Mis cuentas con cierre de mes (RLS: propias y compartidas del hogar).
     supabase
       .from('financial_sources')
@@ -50,65 +92,42 @@ export async function getMonthCloseChecklist(
       .from('source_statement_status')
       .select('source_id, loaded')
       .eq('year_month', yearMonth),
-    supabase
-      .from('income_entries')
-      .select('id, amount')
-      .eq('household_id', householdId),
-    supabase
-      .from('income_month_confirmations')
-      .select('id')
-      .eq('household_id', householdId)
-      .eq('year_month', yearMonth)
-      .eq('confirmed', true)
-      .maybeSingle(),
+    loadMetricasInput(supabase, householdId, from, to),
+    loadSinIngresos(householdId, yearMonth),
   ])
 
-  const activeSources = (sources ?? []) as StatementSource[]
-  const monthStatuses = (statuses ?? []) as StatementStatus[]
+  const statusMap = new Map(((statuses ?? []) as StatementStatus[]).map((s) => [s.source_id, s]))
+  const m = resumirMovimientos(metricas.txs, metricas.categories, metricas.intereses)
 
-  const statusMap = new Map(monthStatuses.map(s => [s.source_id, s]))
-
-  const items: ChecklistItem[] = activeSources.map(source => {
-    const status = statusMap.get(source.id)
-    return {
-      id: `source-${source.id}`,
-      label: source.institution && !source.name.includes(source.institution) ? `${source.institution} (${source.name})` : source.name,
-      type: 'source' as const,
-      done: status?.loaded === true,
-      sourceId: source.id,
-      sourceType: CHECKLIST_TYPE[source.kind] ?? 'cuenta_bancaria',
-    }
-  })
-
-  // Having income entries configured at all is necessary (there's something
-  // to confirm) but not sufficient — "done" for a given month means the
-  // household explicitly confirmed their income for THAT month, tracked in
-  // income_month_confirmations. Without this, switching months in the
-  // checklist always showed the same (global) status.
-  const hasIncomeEntries = (incomeEntries ?? []).length > 0 &&
-    (incomeEntries ?? []).some((e: { amount: number }) => e.amount > 0)
-  const confirmedThisMonth = !!incomeConfirmation
-
-  items.push({
-    id: 'income',
-    label: 'Ingresos del mes confirmados',
-    type: 'income',
-    done: hasIncomeEntries && confirmedThisMonth,
-    needsSetup: !hasIncomeEntries,
-  })
-
-  const completedCount = items.filter(i => i.done).length
-  const totalCount = items.length
-  const percentComplete = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 100
-
-  return {
+  return pasosCierre(
     yearMonth,
-    items,
-    completedCount,
-    totalCount,
-    percentComplete,
-    isFullyClosed: percentComplete === 100,
-  }
+    { registrados: m.ingresos, sinIngresos },
+    ((sources ?? []) as StatementSource[]).map((source) => ({
+      id: source.id,
+      label: source.institution && !source.name.includes(source.institution) ? `${source.institution} (${source.name})` : source.name,
+      sourceType: CHECKLIST_TYPE[source.kind] ?? 'cuenta_bancaria',
+      done: statusMap.get(source.id)?.loaded === true,
+    })),
+  )
+}
+
+/** ¿El hogar marcó "No hubo ingresos" ese mes? (false sin la migración). */
+export async function loadSinIngresos(householdId: string, yearMonth: string): Promise<boolean> {
+  const { data, error } = await createClient()
+    .from('income_month_confirmations')
+    .select('sin_ingresos')
+    .eq('household_id', householdId)
+    .eq('year_month', yearMonth)
+    .maybeSingle()
+  return !error && !!(data as { sin_ingresos?: boolean } | null)?.sin_ingresos
+}
+
+/** Marca o desmarca "No hubo ingresos" para el mes. */
+export async function setSinIngresos(householdId: string, yearMonth: string, value: boolean) {
+  return createClient().from('income_month_confirmations').upsert(
+    { household_id: householdId, year_month: yearMonth, confirmed: true, sin_ingresos: value, confirmed_at: new Date().toISOString() },
+    { onConflict: 'household_id,year_month' },
+  )
 }
 
 export function formatYearMonth(yearMonth: string): string {

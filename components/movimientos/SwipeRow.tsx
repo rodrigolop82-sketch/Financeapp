@@ -3,10 +3,11 @@
 import { useRef, useState } from 'react';
 import type { SearchTransaction } from '@/types';
 import { getEmoji } from '@/lib/categories-ui';
-import { CARD_BG, TEXT_MUTED, TEXT_STRONG, TILE_BG } from './ui';
+import { CARD_BG, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG } from './ui';
 import { PersonAvatar } from '@/components/hogar/PersonUI';
-import { BADGE_NEUTRAL } from '@/components/layout/Pantalla';
+import { BADGE_INFO, BADGE_NEUTRAL } from '@/components/layout/Pantalla';
 import type { Person } from '@/lib/hogar';
+import { formatNumber } from '@/lib/format';
 
 const OPEN_X = -150;
 const SETTLE = 'transform .22s cubic-bezier(0.32,0.72,0,1)';
@@ -22,14 +23,16 @@ export interface SwipeRowData {
   /** Quién pagó (solo en hogares de 2). */
   payer?: Person | null;
   personal?: boolean;
+  /** "Suscripción" o "Pago fijo" (lib/recurring/definicion). */
+  tag?: string | null;
 }
 
 /** Datos de fila a partir de un movimiento: emoji, nombre, categoría y monto. */
-export function txRowData(tx: SearchTransaction, fmt: (n: number) => string, personOf?: (id: string | null | undefined) => Person | null): SwipeRowData {
+export function txRowData(tx: SearchTransaction, fmt: (n: number) => string, personOf?: (id: string | null | undefined) => Person | null, tag?: string | null): SwipeRowData {
   const isIncome = tx.type === 'income';
   const symbol = tx.original_currency === 'USD' ? '$' : tx.original_currency === 'EUR' ? '€' : `${tx.original_currency} `;
   const forex = tx.original_currency
-    ? ` · ${symbol}${Number(tx.original_amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ? ` · ${symbol}${formatNumber(Number(tx.original_amount), 2)}`
     : '';
   return {
     id: tx.id,
@@ -38,6 +41,7 @@ export function txRowData(tx: SearchTransaction, fmt: (n: number) => string, per
     sub: (tx.category_name || 'Sin categoría') + (tx.source === 'statement' ? ' · del banco' : '') + forex,
     amountLabel: `${isIncome ? '+' : ''}${fmt(Number(tx.amount))}`,
     isIncome,
+    tag: tag ?? null,
     ...(personOf ? (() => {
       const payer = personOf(tx.paid_by);
       return { payer, personal: tx.scope === 'personal', sub: (tx.category_name || 'Sin categoría') + (payer ? ` · ${payer.name}` : '') + forex };
@@ -63,12 +67,15 @@ function RowContent({ row, amountClassName = '' }: { row: SwipeRowData; amountCl
         <span className="flex min-w-0 items-center gap-1.5">
           <span className={`truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{row.name}</span>
           {row.personal && <span className={BADGE_NEUTRAL}>Personal</span>}
+          {row.tag && <span className={BADGE_INFO}>{row.tag}</span>}
         </span>
         <span className={`truncate text-[13px] ${TEXT_MUTED}`}>{row.sub}</span>
       </span>
       <span className={`flex-none font-outfit font-bold text-base ${row.isIncome ? 'text-success-dark' : TEXT_STRONG} ${amountClassName}`}>
         {row.amountLabel}
       </span>
+      {/* Pista de que se toca para ver el detalle, editar o borrar (C14). */}
+      <span aria-hidden className={`-ml-1 flex-none text-lg ${TEXT_FAINT} ${amountClassName}`}>›</span>
     </>
   );
 }

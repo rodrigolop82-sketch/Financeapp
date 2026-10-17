@@ -8,7 +8,7 @@ import type { BudgetCategory, SearchTransaction } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
 import {
-  groupByMonth, monthLabel, periodInText, periodLabel, periodRange, yearMonths, type Period,
+  groupByMonth, monthLabel, periodLabel, periodRange, searchScopeText, yearMonths, type Period,
 } from '@/lib/movimientos';
 import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow';
 import { AppShell } from '@/components/layout/AppShell';
@@ -36,6 +36,10 @@ import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet';
 import { useHouseholdPeople } from '@/lib/hooks/useHouseholdPeople';
 import { freeHistoryStart } from '@/lib/plans';
 import { hiddenHistoryText } from '@/lib/premium';
+import { resumirMovimientos, type Metricas } from '@/lib/metricas-mes';
+import { loadMetricasInput } from '@/lib/metricas-mes-data';
+import { useRecurring } from '@/components/recurring/useRecurring';
+import { TIPO_LABEL, tipoDeMovimiento } from '@/lib/recurring/definicion';
 
 const PAGE_SIZE = 40;
 const SWIPE_HINT_KEY = 'zafi:swipe-hint';
@@ -88,7 +92,18 @@ export default function MovimientosPage() {
   const [reloadGen, setReloadGen] = useState(0);
   const cursor = useRef<{ date: string; id: string } | null>(null);
   const [totals, setTotals] = useState<MonthTotal[] | null>(null);
-  const [summary, setSummary] = useState<{ spent: number; received: number } | null>(null);
+  const [summary, setSummary] = useState<Metricas | null>(null);
+  // Suscripción / Pago fijo de cada movimiento (lib/recurring/definicion).
+  const { state: recurring } = useRecurring();
+  const recurringTag = useMemo(() => {
+    if (recurring.status !== 'ok') return () => null;
+    const subCats = new Set(recurring.data.subscriptionCategoryIds);
+    const byTx = recurring.data.tiposPorMovimiento;
+    return (tx: SearchTransaction) => {
+      const t = tipoDeMovimiento(tx, byTx, subCats);
+      return t ? TIPO_LABEL[t] : null;
+    };
+  }, [recurring]);
   // Gratis: primer día visible (null = sin límite) y cuántos quedan ocultos antes.
   const [historyStart, setHistoryStart] = useState<string | null>(null);
   const [hidden, setHidden] = useState<{ count: number; before: string } | null>(null);
@@ -256,17 +271,18 @@ export default function MovimientosPage() {
   }, [ready, fetchPage, reloadGen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Totales del periodo: no dependen de la búsqueda ni de las filas cargadas.
+  // Misma cuenta que Cómo te fue y el puntaje (lib/metricas-mes).
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !householdId) return;
     let cancelled = false;
     const summaryFrom = historyStart && browseRange.from < historyStart ? historyStart : browseRange.from;
-    supabase.rpc('transactions_month_summary', { p_from: summaryFrom, p_to: browseRange.to }).then(({ data }) => {
-      if (cancelled) return;
-      const r = Array.isArray(data) ? data[0] : data;
-      setSummary({ spent: Number(r?.sum_expense ?? 0), received: Number(r?.sum_income ?? 0) });
-    });
+    loadMetricasInput(supabase, householdId, summaryFrom, browseRange.to)
+      .then(({ txs, categories: cats, intereses }) => {
+        if (!cancelled) setSummary(resumirMovimientos(txs, cats, intereses));
+      })
+      .catch(() => { if (!cancelled) setSummary(null); });
     return () => { cancelled = true; };
-  }, [ready, supabase, browseRange.from, browseRange.to, reloadGen, historyStart]);
+  }, [ready, supabase, householdId, browseRange.from, browseRange.to, reloadGen, historyStart]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore || loading || !cursor.current) return;
@@ -325,6 +341,9 @@ export default function MovimientosPage() {
     if (lockedMonth(m)) { setPremiumOpen(true); return; }
     apply(m);
   };
+  // Hasta dónde busca de verdad (gratis: los últimos 3 meses, no todo el año).
+  const scopeText = searchScopeText(searchScope, today, historyStart);
+  const yearText = searchScopeText('year', today, historyStart);
   const hiddenText = hidden ? hiddenHistoryText(hidden.count, hidden.before, today) : null;
   const hiddenNotice = hiddenText && (
     <PremiumInline action="Ver todo ›" onClick={() => setPremiumOpen(true)}>
@@ -333,7 +352,7 @@ export default function MovimientosPage() {
   );
 
   const periodOptions = (current: Period) => [
-    { value: 'year', label: `Todo ${year}` },
+    { value: 'year', label: yearText.charAt(0).toUpperCase() + yearText.slice(1) },
     ...yearMonths(today).map((m, i) => ({ value: m, label: monthLabel(m, today) + (i === 0 ? ' (este mes)' : '') + (lockedMonth(m) ? ' 👑' : '') })),
     // Un mes de otro año (p. ej. tras importar un estado de cuenta viejo) sigue en la lista.
     ...(current !== 'year' && !current.startsWith(year) ? [{ value: current, label: monthLabel(current, today) }] : []),
@@ -361,7 +380,7 @@ export default function MovimientosPage() {
   const onlyIncome = foundSpent === 0 && foundReceived > 0;
   const searchSummary = (
     <div className={`flex flex-col gap-1 p-4 ${CARD}`}>
-      <span className={`text-[13px] ${TEXT_MUTED}`}>“{searchQuery}” en {periodInText(searchScope, today)}</span>
+      <span className={`text-[13px] ${TEXT_MUTED}`}>“{searchQuery}” en {scopeText}</span>
       <span className="flex flex-wrap items-baseline gap-x-2.5">
         <span className={`font-outfit text-[30px] font-extrabold tracking-[-0.02em] ${onlyIncome ? GREEN_TEXT : TEXT_STRONG}`}>
           {totals ? (onlyIncome ? `+${fmt(foundReceived)}` : fmt(foundSpent)) : '—'}
@@ -383,7 +402,7 @@ export default function MovimientosPage() {
       className="flex h-8 flex-none items-center gap-1.5 rounded-full bg-electric-ghost px-3 text-[13px] font-bold text-electric-dark dark:bg-[#1B2B4D] dark:text-electric-soft"
     >
       <Calendar size={14} aria-hidden />
-      En {searchScope === 'year' ? `todo ${year}` : periodInText(searchScope, today)} ▾
+      En {scopeText} ▾
     </button>
   ) : undefined;
 
@@ -411,9 +430,13 @@ export default function MovimientosPage() {
         <div className="mt-3.5">
           {searching ? searchSummary : (
             <MonthSummary
-              spent={summary ? fmt(summary.spent) : null}
-              received={summary ? fmt(summary.received) : null}
+              spent={summary ? fmt(summary.consumo) : null}
+              received={summary ? fmt(summary.ingresos) : null}
+              missingIncome={!!summary && !summary.tieneIngresos}
+              apartado={summary ? summary.apartado + summary.abonosDeuda : 0}
+              onRegisterIncome={viewOnly ? undefined : () => openAddSheet({ type: 'income' })}
               spentLabel={month === 'year' ? `Gastaste en ${year}` : 'Gastaste'}
+              fmt={fmt}
             />
           )}
         </div>
@@ -441,7 +464,7 @@ export default function MovimientosPage() {
             onQueryChange={(q) => { setQuery(q); setOpenRowId(null); }}
             type={typeFilter}
             onTypeChange={(t) => { setTypeFilter(t); setOpenRowId(null); }}
-            placeholder={`Buscar en ${searching ? (searchScope === 'year' ? `todo ${year}` : periodInText(searchScope, today)) : `todo ${year}`}…`}
+            placeholder={`Buscar en ${searching ? scopeText : yearText}…`}
             scope={scopeChip}
             personOptions={personOptions}
             person={personFilter}
@@ -465,11 +488,11 @@ export default function MovimientosPage() {
               {filtered ? (
                 <>
                   <p className={`font-semibold ${TEXT_STRONG}`}>
-                    {searching ? `Nada con “${searchQuery}” en ${periodInText(searchScope, today)}` : 'Nada por aquí'}
+                    {searching ? `Nada con “${searchQuery}” en ${scopeText}` : 'Nada por aquí'}
                   </p>
                   {searching && searchScope !== 'year' ? (
                     <div className="mt-2 flex justify-center">
-                      <PillButton onClick={() => setSearchScope('year')}>Buscar en todo {year}</PillButton>
+                      <PillButton onClick={() => setSearchScope('year')}>Buscar en {yearText}</PillButton>
                     </div>
                   ) : (
                     <p className={`text-sm mt-1 ${TEXT_MUTED}`}>Prueba con otra palabra o quita el filtro.</p>
@@ -488,6 +511,8 @@ export default function MovimientosPage() {
             </div>
           ) : (
             <>
+              {/* Arriba, para que se vea antes de recorrer la lista (C17). */}
+              {hiddenNotice}
               {monthGroups.map((mg) => {
                 const t = totalOf(mg.month);
                 const sinceShort = familySince ? `${Number(familySince.date.slice(8, 10))} ${monthLabel(familySince.date.slice(0, 7), today).split(' ')[0].slice(0, 3).toLowerCase()}` : '';
@@ -528,7 +553,7 @@ export default function MovimientosPage() {
                         {g.rows.map((tx) => (
                           <SwipeRow
                             key={tx.id}
-                            row={txRowData(tx, fmt, personOf)}
+                            row={txRowData(tx, fmt, personOf, recurringTag(tx))}
                             isOpen={openRowId === tx.id}
                             anyOpen={openRowId !== null}
                             flash={sheets.flashFor(tx.id)}
@@ -553,7 +578,6 @@ export default function MovimientosPage() {
                   Ver más{remaining ? ` (${remaining})` : ''}
                 </button>
               )}
-              {!hasMore && hiddenNotice}
               {swipeCount < 3 && (
                 <p className="lg:hidden text-center text-[13px] px-4 text-ink-400">
                   Toca un movimiento para verlo · desliza a la izquierda para cambiar o borrar
