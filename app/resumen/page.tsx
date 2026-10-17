@@ -13,7 +13,6 @@ import {
 } from '@/lib/recomendaciones';
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete';
 import { AppShell } from '@/components/layout/AppShell';
-import { NavCard, NavRow } from '@/components/layout/NavRow';
 import { PageSkeleton } from '@/components/motion/PageSkeleton';
 import { BottomSheet } from '@/components/transactions/BottomSheet';
 import { UndoToast } from '@/components/transactions/UndoToast';
@@ -29,6 +28,7 @@ import { CapSheet } from '@/components/resumen/CapSheet';
 import { CARD } from '@/components/resumen/ctf-ui';
 import { GastoDiario } from '@/components/resumen/GastoDiario';
 import { CierreCard } from '@/components/resumen/CierreCard';
+import { SaludBlock } from '@/components/resumen/SaludBlock';
 import { dailySpend } from '@/lib/resumen/daily-spend';
 import { localToday } from '@/lib/dates';
 import type { BudgetSubItem } from '@/types';
@@ -241,6 +241,7 @@ function ComoTeFue() {
             />
             {daily && <GastoDiario data={daily} fmt={fmt} />}
             <Highlights good={a.highlights.good} bad={a.highlights.bad} />
+            <SaludBlock householdId={data.householdId} month={month} />
             <Oportunidades
               over={a.recs.over}
               ok={a.recs.ok}
@@ -276,11 +277,6 @@ function ComoTeFue() {
               <span aria-hidden className="font-bold text-electric">›</span>
             </Link>
             <RecurringCard fmt={fmt} />
-            <div className="mt-3">
-              <NavCard>
-                <NavRow href="/score?from=resumen" emoji="💚" name="Tu salud financiera" description="Tu puntaje Zafi y cómo mejorarlo" last />
-              </NavCard>
-            </div>
             <CierreCard householdId={data.householdId} month={month} current={current} />
             <Link href="/resumen/semana" className="mx-auto mt-3 flex h-11 items-center text-[15px] font-semibold text-electric">
               Ver resumen semanal

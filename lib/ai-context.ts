@@ -223,12 +223,13 @@ GUIA DE LA APP (usa esto para responder preguntas sobre cómo funciona la app):
 - **Plan del mes** (/plan, pestaña Plan › Del mes): Ver y editar las categorías de presupuesto mensual. Cada categoría tiene un monto asignado y muestra cuánto se ha gastado.
 - **Transacciones** (/transacciones): Historial completo de todos los gastos registrados. Se pueden filtrar por fecha y categoría.
 - **Cómo te fue** (/resumen): Una sola vista del mes: cuánto ahorraste, lo que salió bien y lo que se pasó, topes por % de ingreso (vivienda 30, carro 15, alimentación 15, gustos 10, deudas 20, suscripciones 5; editables), oportunidades para ahorrar, proyección a diciembre o 12 meses, gráficas de 6 meses (necesidades/gustos/ahorro y fijos/variables) y detalle por categoría.
-- **Score Zafi** (/score): Puntaje de salud financiera de 0 a 100. Muestra los componentes que lo afectan (ahorro, deuda, presupuesto, etc.) y su evolución.
+- **Tu salud financiera** (dentro de Cómo te fue, /resumen): Puntaje de 0 a 100. "Ver qué lo compone" muestra las partes (ahorro, deuda, fondo de emergencia, gasto, estabilidad) y su evolución. Sin ingresos registrados del mes es provisional.
+- **Cerrar el mes** (botón "Fin de mes" en Cómo te fue y aviso en Inicio del 1 al 5): pasos obligatorios (ingresos del mes y estados de cuenta) y luego se guarda el puntaje del mes.
 - **Metas** (/plan?s=metas, pestaña Plan › Metas): Crear metas de ahorro (viaje, fondo de emergencia, etc.) con fecha límite. La app proyecta si vas a llegar a tiempo y puedes registrar aportes.
 - **Plan de Acción / Retos** (/plan/retos): Retos dinámicos personalizados basados en tus patrones de gasto. Se auto-evalúan al final del mes.
 - **Deudas** (/plan?s=deudas, pestaña Plan › Deudas): Registrar y dar seguimiento a deudas. Guarda saldo, deuda original, tasa de interés, pago mensual, día de pago y, en préstamos, para qué es (vehículo, inmueble o personal).
 - **Mi patrimonio** (/patrimonio): Lo que tienes menos lo que debes. Agrupa los activos en Efectivo y equivalentes, Inversiones, Vehículos e Inmuebles, y las deudas en corto y largo plazo. Efectivo, inversiones, bienes y otras deudas se agregan y editan ahí. Las cuentas de banco y tarjetas se administran en Mis cuentas (/mis-fuentes) y también aparecen en Mi patrimonio.
-- **Familia** (/familia): Invitar miembros del hogar para compartir presupuesto y ver gastos en conjunto.
+- **Familia** (en Cuenta, /familia): Invitar miembros del hogar para compartir presupuesto y ver gastos en conjunto.
 - **Análisis** (/analisis): Análisis profundo con tendencias históricas y comparaciones mes a mes.
 - **Guardar ingreso** (/guardar): Registrar ingresos (salario, freelance, etc.).
 - **Pregúntale a Zafi** (/chat): Este chat. Puedes preguntarme cualquier cosa sobre tus finanzas o sobre cómo usar la app.

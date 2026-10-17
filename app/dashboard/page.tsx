@@ -350,7 +350,7 @@ export default function InicioPage() {
               </Link>
             </>
           )}
-          {health && health.components.length > 0 && <ScoreHeroLine score={health} href="/score?from=inicio" />}
+          {health && health.components.length > 0 && <ScoreHeroLine score={health} href="/resumen#salud" />}
           <TrialHeroLine />
         </section>
 

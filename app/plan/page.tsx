@@ -110,7 +110,7 @@ function PlanHub() {
   const month = monthName(localMonth());
   const right = (
     <div className="flex flex-none items-center gap-2">
-      {score && score.components.length > 0 && <ScorePill score={score} href="/score?from=plan" />}
+      {score && score.components.length > 0 && <ScorePill score={score} href="/resumen#salud" />}
       {section === 'mes' && (
         <span className={`flex h-9 flex-none items-center rounded-full border bg-[var(--zafi-card)] px-3.5 text-sm font-semibold capitalize ${BORDER} ${TEXT_STRONG}`}>
           {month}
