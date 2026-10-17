@@ -83,6 +83,13 @@ export function cleanAmountInput(value: string): string {
   return dot === -1 ? only : only.slice(0, dot + 1) + only.slice(dot + 1).replace(/\./g, '');
 }
 
+/** Monto escrito a mano → número válido (> 0, dos decimales) o null. */
+export function parseAmountInput(value: string): number | null {
+  const n = Number(cleanAmountInput(value));
+  if (!Number.isFinite(n) || n <= 0 || n >= 1e9) return null;
+  return Math.round(n * 100) / 100;
+}
+
 export interface DayRow {
   id: string;
   date: string;

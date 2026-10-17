@@ -115,3 +115,16 @@ describe('periodos (búsqueda anual)', () => {
     expect(g[1].days[0].expenseTotal).toBe(7);
   });
 });
+
+describe('parseAmountInput (C14)', async () => {
+  const { parseAmountInput } = await import('./movimientos');
+  it('acepta montos válidos con dos decimales', () => {
+    expect(parseAmountInput('300')).toBe(300);
+    expect(parseAmountInput('Q 1,250.555')).toBe(1250.56);
+  });
+  it('rechaza vacío, cero y basura', () => {
+    expect(parseAmountInput('')).toBeNull();
+    expect(parseAmountInput('0')).toBeNull();
+    expect(parseAmountInput('abc')).toBeNull();
+  });
+});
