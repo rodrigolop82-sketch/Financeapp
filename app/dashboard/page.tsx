@@ -10,8 +10,8 @@ import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { getEmoji } from '@/lib/categories-ui'
 import { monthRange } from '@/lib/movimientos'
 import {
-  computeHome, headerDate, initials, pickHomeAlert, STATUS_META,
-  type BarKind, type HomeAlert, type HomeSummary,
+  computeHome, headerDate, initials, loQueSigue, STATUS_META,
+  type BarKind, type HomeSummary,
 } from '@/lib/inicio'
 import { buildSmartAlert } from '@/components/dashboard/SmartAlert'
 import { AppShell } from '@/components/layout/AppShell'
@@ -23,9 +23,8 @@ import { TxRow, txRowData } from '@/components/movimientos/SwipeRow'
 import { useTxSheets } from '@/components/movimientos/useTxSheets'
 import { CARD_BG, DIVIDER, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
-import { MonthStartNotice } from '@/components/inicio-de-mes/MonthStartNotice'
 import { useMonthStart } from '@/components/inicio-de-mes/useMonthStart'
-import { incomeCategoryIds, monthName, receivedByIncome } from '@/lib/plan-del-mes'
+import { incomeCategoryIds, monthName, planSummary, receivedByIncome } from '@/lib/plan-del-mes'
 import { useGoals, type Goal } from '@/hooks/useGoals'
 import { AddContributionSheet } from '@/components/goals/AddContributionSheet'
 import { PillButton } from '@/components/layout/Pantalla'
@@ -36,7 +35,10 @@ import { ScoreHeroLine } from '@/components/score/ScoreUI'
 import { TrialHeroLine } from '@/components/premium/TrialHeroLine'
 import { useMaskedFmt, usePrivacy } from '@/components/privacidad/PrivacyProvider'
 import { OcultarSaldosButton } from '@/components/privacidad/OcultarSaldosButton'
-import { SiguientePasoCard } from '@/components/siguiente-paso/SiguientePasoCard'
+import { useSiguientePaso } from '@/components/siguiente-paso/useSiguientePaso'
+import { pasoEfecto, pasoTitulo } from '@/lib/siguiente-paso/texto'
+import { LoQueSigue } from '@/components/dashboard/LoQueSigue'
+import { addMonths } from '@/lib/como-te-fue'
 import type { BudgetCategory, BudgetSubItem, IncomeEntry, SearchTransaction } from '@/types'
 import { loadInteresesDeuda } from '@/lib/metricas-mes-data'
 import type { InteresesDeuda } from '@/lib/metricas-mes'
@@ -63,6 +65,8 @@ interface HomeData {
   intereses: InteresesDeuda
   daysSinceLast: number | null
   savings: { title: string; subtitle: string } | null
+  /** El mes anterior ya se cerró (Cerrar el mes guardó su puntaje). */
+  prevMonthClosed: boolean
 }
 
 const BAR_STYLE: Record<BarKind, { bar: string; text: string }> = {
@@ -115,7 +119,7 @@ export default function InicioPage() {
 
       const monthQuery = (cols: string) =>
         supabase.from('transactions').select(cols).eq('household_id', hid).gte('date', from).lte('date', to)
-      const [profileRes, catsRes, monthRes0, latestRes, subsRes, incomesRes, intereses] = await Promise.all([
+      const [profileRes, catsRes, monthRes0, latestRes, subsRes, incomesRes, intereses, prevSnapRes] = await Promise.all([
         supabase.from('users').select('full_name').eq('id', user.id).single(),
         supabase.from('budget_categories').select('*').eq('household_id', hid),
         monthQuery('id, amount, type, category_id, budget_sub_item_id, transaction_type, date'),
@@ -129,6 +133,8 @@ export default function InicioPage() {
         supabase.from('budget_sub_items').select('*').eq('household_id', hid),
         supabase.from('income_entries').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
         loadInteresesDeuda(supabase, hid, from, to),
+        supabase.from('monthly_snapshots').select('health_score')
+          .eq('household_id', hid).eq('month', `${addMonths(month, -1)}-01`).maybeSingle(),
       ])
       // Sin la migración del Plan del mes no existe budget_sub_item_id.
       const monthRes = monthRes0.error ? await monthQuery('id, amount, type, category_id, date') : monthRes0
@@ -183,6 +189,7 @@ export default function InicioPage() {
         intereses,
         daysSinceLast,
         savings: savingsAlert ? { title: savingsAlert.title, subtitle: savingsAlert.subtitle } : null,
+        prevMonthClosed: (prevSnapRes.data as { health_score: number | null } | null)?.health_score != null,
       })
       setLatest(latestRows)
     })()
@@ -225,6 +232,7 @@ export default function InicioPage() {
   const baseSummary = useMemo(() => (data ? computeHome(data.categories, data.monthTx, new Date(), 0, data.intereses) : null), [data])
 
   const [toast, setToast] = useState<StatusMessage | null>(null)
+  const siguiente = useSiguientePaso(data?.householdId ?? null, reloadGen)
   const monthStart = useMonthStart({
     supabase,
     householdId: data?.householdId ?? '',
@@ -261,12 +269,28 @@ export default function InicioPage() {
   }
 
   const s: HomeSummary = computeHome(data.categories, data.monthTx, new Date(), monthStart.reserve.reserved, data.intereses)
-  const alert: HomeAlert | null = pickHomeAlert({
-    overCategory: s.overCategory,
-    daysSinceLastTransaction: data.daysSinceLast,
-    savings: data.savings,
-  })
   const hasPlan = s.budget > 0
+  const paso = siguiente.pasos[0]
+  const prevMonth = addMonths(month, -1)
+  const expectedDays = data.incomes.map((e) => e.expected_day).filter((d): d is number => typeof d === 'number' && d > 0)
+  const queue = loQueSigue({
+    today,
+    monthName: monthName(month),
+    prevMonth,
+    prevMonthName: monthName(prevMonth),
+    hasIncome: data.monthTx.some((t) => t.type === 'income' && Number(t.amount) > 0),
+    plannedIncome: planSummary(data.categories.filter((c) => !c.archived_at), data.subItems, data.incomes).income,
+    incomeName: data.incomes.length === 1 ? data.incomes[0].source || null : null,
+    expectedDay: expectedDays.length ? Math.min(...expectedDays) : null,
+    prevMonthClosed: data.prevMonthClosed,
+    monthStartPending: hasPlan && monthStart.loaded && !monthStart.done,
+    daysSinceLast: data.daysSinceLast,
+    paso: paso && siguiente.score && siguiente.score.components.length > 0
+      ? { title: pasoTitulo(paso, fmt), efecto: pasoEfecto(paso) }
+      : null,
+    savings: data.savings,
+    fmt,
+  })
   const status = STATUS_META[s.status]
 
   const avatar = (
@@ -354,19 +378,16 @@ export default function InicioPage() {
           <TrialHeroLine />
         </section>
 
-        {/* F1: Tu siguiente mejor paso (debajo de la tarjeta principal) */}
-        <SiguientePasoCard householdId={data.householdId} fmt={fmt} reloadKey={reloadGen} />
+        {/* Lo que sigue: un solo aviso a la vez (C11) */}
+        <LoQueSigue
+          items={queue}
+          onRegisterIncome={() => openAddSheet({ type: 'income' })}
+          onStartMonth={monthStart.open}
+          onAdd={() => openAddSheet()}
+        />
 
-        {/* Inicio de mes pendiente */}
-        {hasPlan && monthStart.loaded && !monthStart.done && (
-          <MonthStartNotice variant="home" monthName={monthName(month)} done={false} onOpen={monthStart.open} />
-        )}
-
-        {/* Alerta única */}
-        {alert && <HomeAlertCard alert={alert} fmt={fmt} />}
-
-        {/* Tarjeta destacada (resumen semanal, reto o patrimonio): un solo slot */}
-        <FeaturedCard fmt={fmt} reloadKey={reloadGen} />
+        {/* Sin nada pendiente: la tarjeta destacada (resumen semanal, reto o patrimonio) */}
+        {queue.length === 0 && <FeaturedCard fmt={fmt} reloadKey={reloadGen} />}
 
         {/* Tu meta principal */}
         {mainGoal && <MainGoalCard goal={mainGoal} fmt={fmt} onContribute={() => setContributing(true)} />}
@@ -384,23 +405,27 @@ export default function InicioPage() {
               <div className={`rounded-2xl px-4 py-0.5 ${CARD_BG}`}>
                 {s.catBars.map((b, i) => {
                   const style = BAR_STYLE[b.kind]
+                  const over = b.ratio > 1
                   return (
-                    <Link
-                      key={b.id}
-                      href={`/resumen/categoria/${b.id}?mes=${month}`}
-                      className={`flex flex-col gap-[7px] py-3 ${i < s.catBars.length - 1 ? `border-b ${DIVIDER}` : ''}`}
-                    >
+                    <div key={b.id} className={`flex flex-col gap-[7px] py-3 ${i < s.catBars.length - 1 ? `border-b ${DIVIDER}` : ''}`}>
                       <span className="flex items-center gap-2">
-                        <span aria-hidden className="text-lg leading-none">{getEmoji(b)}</span>
-                        <span className={`flex-1 min-w-0 truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{b.name}</span>
+                        <Link href={`/resumen/categoria/${b.id}?mes=${month}`} className="flex flex-1 min-w-0 items-center gap-2">
+                          <span aria-hidden className="text-lg leading-none">{getEmoji(b)}</span>
+                          <span className={`flex-1 min-w-0 truncate text-[15px] font-semibold ${TEXT_STRONG}`}>{b.name}</span>
+                        </Link>
                         <span className={`text-[13px] font-semibold ${style.text}`}>
-                          {b.ratio > 1 ? `${fmt(b.spent - b.budget)} de más` : `Quedan ${fmt(b.budget - b.spent)}`}
+                          {over ? `${fmt(b.spent - b.budget)} de más` : `Quedan ${fmt(b.budget - b.spent)}`}
                         </span>
+                        {over && (
+                          <Link href={`/transacciones?q=${encodeURIComponent(b.name)}`} className="text-[13px] font-semibold text-electric">
+                            Ver movimientos ›
+                          </Link>
+                        )}
                       </span>
-                      <span className="h-1.5 rounded bg-[var(--zafi-border-light)] overflow-hidden">
+                      <Link href={`/resumen/categoria/${b.id}?mes=${month}`} aria-hidden tabIndex={-1} className="h-1.5 rounded bg-[var(--zafi-border-light)] overflow-hidden">
                         <span className="block h-full rounded transition-[width,background-color] [transition-duration:600ms]" style={{ width: `${Math.min(100, b.ratio * 100)}%`, background: style.bar }} />
-                      </span>
-                    </Link>
+                      </Link>
+                    </div>
                   )
                 })}
               </div>
@@ -512,41 +537,5 @@ function MainGoalCard({ goal, fmt, onContribute }: { goal: Goal; fmt: (n: number
         <ProgressBar ratio={ratio} className="mt-3" />
       </div>
     </section>
-  )
-}
-
-function HomeAlertCard({ alert, fmt }: { alert: HomeAlert; fmt: (n: number) => string }) {
-  const base = 'mt-3 flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left w-full'
-  if (alert.kind === 'excedida') {
-    return (
-      <Link href={`/transacciones?q=${encodeURIComponent(alert.name)}`} className={`${base} bg-warning-light`}>
-        <span aria-hidden className="text-[22px] leading-none">{getEmoji(alert)}</span>
-        <span className="flex-1 text-sm text-warning-text">
-          <b>{alert.name}</b> va {fmt(alert.excess)} arriba de lo planeado.
-        </span>
-        <span className="text-sm font-semibold text-warning-text">Ver ›</span>
-      </Link>
-    )
-  }
-  if (alert.kind === 'sin-registrar') {
-    return (
-      <button type="button" onClick={() => openAddSheet()} className={`${base} bg-electric-ghost`}>
-        <span aria-hidden className="text-[22px] leading-none">✍️</span>
-        <span className="flex-1 text-sm text-electric-dark">
-          Hace <b>{alert.days} días</b> que no registras un movimiento.
-        </span>
-        <span className="text-sm font-semibold text-electric-dark">Agregar ›</span>
-      </button>
-    )
-  }
-  return (
-    <Link href="/plan" className={`${base} bg-success-light`}>
-      <span aria-hidden className="text-[22px] leading-none">🐷</span>
-      <span className="flex-1 text-sm text-success-text">
-        <b>{alert.title}</b>
-        {alert.subtitle && <span className="block">{alert.subtitle}</span>}
-      </span>
-      <span className="text-sm font-semibold text-success-text">Ver ›</span>
-    </Link>
   )
 }
