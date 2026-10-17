@@ -38,6 +38,8 @@ import { freeHistoryStart } from '@/lib/plans';
 import { hiddenHistoryText } from '@/lib/premium';
 import { resumirMovimientos, type Metricas } from '@/lib/metricas-mes';
 import { loadMetricasInput } from '@/lib/metricas-mes-data';
+import { useRecurring } from '@/components/recurring/useRecurring';
+import { TIPO_LABEL, tipoDeMovimiento } from '@/lib/recurring/definicion';
 
 const PAGE_SIZE = 40;
 const SWIPE_HINT_KEY = 'zafi:swipe-hint';
@@ -91,6 +93,17 @@ export default function MovimientosPage() {
   const cursor = useRef<{ date: string; id: string } | null>(null);
   const [totals, setTotals] = useState<MonthTotal[] | null>(null);
   const [summary, setSummary] = useState<Metricas | null>(null);
+  // Suscripción / Pago fijo de cada movimiento (lib/recurring/definicion).
+  const { state: recurring } = useRecurring();
+  const recurringTag = useMemo(() => {
+    if (recurring.status !== 'ok') return () => null;
+    const subCats = new Set(recurring.data.subscriptionCategoryIds);
+    const byTx = recurring.data.tiposPorMovimiento;
+    return (tx: SearchTransaction) => {
+      const t = tipoDeMovimiento(tx, byTx, subCats);
+      return t ? TIPO_LABEL[t] : null;
+    };
+  }, [recurring]);
   // Gratis: primer día visible (null = sin límite) y cuántos quedan ocultos antes.
   const [historyStart, setHistoryStart] = useState<string | null>(null);
   const [hidden, setHidden] = useState<{ count: number; before: string } | null>(null);
@@ -535,7 +548,7 @@ export default function MovimientosPage() {
                         {g.rows.map((tx) => (
                           <SwipeRow
                             key={tx.id}
-                            row={txRowData(tx, fmt, personOf)}
+                            row={txRowData(tx, fmt, personOf, recurringTag(tx))}
                             isOpen={openRowId === tx.id}
                             anyOpen={openRowId !== null}
                             flash={sheets.flashFor(tx.id)}

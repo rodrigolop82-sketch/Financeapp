@@ -34,6 +34,8 @@ export interface RecurringCharge {
   priceChange: { from: number; to: number } | null
   /** Cobros del grupo, del más reciente al más viejo. */
   history: { date: string; amount: number }[]
+  /** Ids de los movimientos del grupo (para etiquetarlos en Movimientos). */
+  transactionIds: string[]
 }
 
 export const MIN_OCCURRENCES = 3
@@ -204,6 +206,7 @@ export function detectRecurringCharges(txs: RecurringTxInput[], opts: DetectOpti
       status: sinceLast > CANCELLED_AFTER_DAYS ? 'possibly_cancelled' : 'active',
       priceChange,
       history: sorted.slice().reverse().map((t) => ({ date: t.date, amount: round2(Number(t.amount)) })),
+      transactionIds: sorted.map((t) => t.id),
     })
   }
 

@@ -12,6 +12,7 @@ export interface PlanSubscription {
   /** Id de la parte, o de la categoría si no tiene partes. */
   id: string
   name: string
+  categoryId: string
   categoryName: string
   /** Equivalente mensual (una parte anual cuenta 1/12). */
   monthly: number
@@ -43,6 +44,13 @@ export function namesMatch(lineKey: string, merchantKey: string): boolean {
   return first.length >= 4 && first === merchantKey.split(' ')[0]
 }
 
+/** Categorías de suscripciones del plan (tope "suscripciones"). */
+export function subscriptionCategoryIds(categories: Category[]): string[] {
+  const live = categories.filter((c) => !c.archived_at)
+  const caps = categoryCapKeys(live)
+  return live.filter((c) => caps[c.id] === 'suscripciones').map((c) => c.id)
+}
+
 export function planSubscriptions(
   categories: Category[],
   subs: PlanSubItem[],
@@ -66,6 +74,7 @@ export function planSubscriptions(
       return {
         id: l.id,
         name,
+        categoryId: cat.id,
         categoryName: cat.name,
         monthly: r2(l.plan),
         expectedDay: l.expectedDay,

@@ -6,7 +6,7 @@ const fmt = (n: number) => `Q ${n}`
 const base: RecurringCharge & { remindDaysBefore: 1 | 2 | 3 | null } = {
   merchantKey: 'netflix', displayName: 'Netflix', categoryId: null, typicalAmount: 99, lastAmount: 99,
   lastDate: '2026-09-15', nextExpectedDate: '2026-10-15', occurrences: 4, status: 'active', priceChange: null,
-  history: [], remindDaysBefore: 2,
+  history: [], transactionIds: [], remindDaysBefore: 2,
 }
 const all = { reminders: true, priceAlerts: true }
 

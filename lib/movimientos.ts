@@ -1,6 +1,7 @@
 // Helpers puros de la pantalla Movimientos y la hoja de agregar.
 // Las fechas son strings locales 'YYYY-MM-DD' (ver lib/dates.ts).
 import { getMerchantKey } from './transactions/merchant-key';
+import { destinoDe } from './metricas-mes';
 
 const MONTHS = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -87,12 +88,25 @@ export interface DayRow {
   date: string;
   amount: number | string;
   type: 'expense' | 'income';
+  category_id?: string | null;
+  category_bucket?: string | null;
+  transaction_type?: string | null;
+}
+
+/**
+ * ¿El movimiento suma en "Gastaste"? La misma regla de lib/metricas-mes:
+ * fuera ingresos, lo que va a Ahorro y deudas y los pagos a deudas.
+ */
+export function cuentaComoGasto(row: DayRow): boolean {
+  const bucketOf = new Map<string, string>(row.category_id && row.category_bucket ? [[row.category_id, row.category_bucket]] : []);
+  const d = destinoDe({ ...row, category_id: row.category_id ?? null }, bucketOf);
+  return d === 'basico' || d === 'gustos';
 }
 
 export interface DayGroup<T extends DayRow> {
   date: string;
   label: string;
-  /** Total de gastos del día (los ingresos no suman). */
+  /** "Gastaste" del día: sin ingresos, ahorro ni pagos a deudas. */
   expenseTotal: number;
   rows: T[];
 }
@@ -107,7 +121,7 @@ export function groupByDay<T extends DayRow>(rows: T[], today: string): DayGroup
       groups.push(g);
     }
     g.rows.push(row);
-    if (row.type !== 'income') g.expenseTotal += Number(row.amount);
+    if (cuentaComoGasto(row)) g.expenseTotal += Number(row.amount);
   }
   return groups;
 }

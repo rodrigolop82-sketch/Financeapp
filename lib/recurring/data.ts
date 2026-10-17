@@ -14,7 +14,8 @@ import {
   type RecurringTotals,
   type RecurringTxInput,
 } from './detect'
-import { planSubscriptions, type PlanSubscriptions } from './plan'
+import { planSubscriptions, subscriptionCategoryIds, type PlanSubscriptions } from './plan'
+import { clasificarRecurrentes, tiposPorMovimiento, type TipoRecurrente } from './definicion'
 import type { PlanCategory, PlanSubItem } from '../plan-del-mes'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,10 +42,18 @@ export interface RecurringData {
   totals: RecurringTotals
   /** Suscripciones del Plan del mes, cruzadas por nombre con `charges`. */
   plan: PlanSubscriptions
-  /** Plan + cobros activos detectados que no están en el plan. */
+  /** Total mensual de suscripciones (lib/recurring/definicion): plan + cobros, sin contar dos veces. */
   monthlyTotal: number
   /** ≈ % del gasto mensual (promedio de 3 meses completos) de `monthlyTotal`. null si no aplica. */
   pctOfSpending: number | null
+  /** Suscripción o pago fijo, por cobro (merchantKey). */
+  tipos: Record<string, TipoRecurrente>
+  /** Suscripción o pago fijo, por movimiento (id). */
+  tiposPorMovimiento: Record<string, TipoRecurrente>
+  /** Categorías de suscripciones del plan. */
+  subscriptionCategoryIds: string[]
+  suscripciones: { mensual: number; cantidad: number }
+  pagosFijos: { mensual: number; cantidad: number }
 }
 
 const PAGE = 1000
@@ -143,10 +152,17 @@ export async function getRecurringCharges(
   const earliest = (earliestRes.data?.[0]?.date as string | undefined)?.slice(0, 7) ?? null
   const avg = averageCompleteMonthSpending(monthTotals, today, earliest)
   const plan = planSubscriptions(categories, (subsRes.data ?? []) as PlanSubItem[], detected)
-  const inPlan = new Set(plan.lines.map((l) => l.merchantKey).filter(Boolean))
-  const outsidePlan = detected.filter((c) => c.status === 'active' && !inPlan.has(c.merchantKey)).reduce((s, c) => s + c.typicalAmount, 0)
-  const monthlyTotal = Math.round((plan.monthlyTotal + outsidePlan) * 100) / 100
+  const subCatIds = subscriptionCategoryIds(categories)
+  const r = clasificarRecurrentes(plan, detected, subCatIds)
+  const monthlyTotal = r.suscripciones.mensual
   const pctOfSpending = avg && avg > 0 && monthlyTotal > 0 ? Math.round((monthlyTotal / avg) * 100) : null
 
-  return { today, charges, totals, plan, monthlyTotal, pctOfSpending }
+  return {
+    today, charges, totals, plan, monthlyTotal, pctOfSpending,
+    tipos: r.tipos,
+    tiposPorMovimiento: tiposPorMovimiento(detected, r.tipos),
+    subscriptionCategoryIds: subCatIds,
+    suscripciones: { mensual: r.suscripciones.mensual, cantidad: r.suscripciones.cantidad },
+    pagosFijos: { mensual: r.pagosFijos.mensual, cantidad: r.pagosFijos.cantidad },
+  }
 }
