@@ -615,6 +615,11 @@ function CuentaContent() {
           )}
         </AccountGroup>
 
+        {/* Familia (salió del menú: vive aquí) */}
+        <AccountGroup title="Familia">
+          <AccountRow emoji="👪" title="Familia" hint="Miembros, invitar y pagos compartidos" href="/familia" last />
+        </AccountGroup>
+
         {/* Ayuda */}
         <AccountGroup title="Ayuda">
           <AccountRow emoji="💡" title="Envíanos tu idea" hint="Sugerencias, errores o lo que quieras" onClick={openFeedback} accentTile />

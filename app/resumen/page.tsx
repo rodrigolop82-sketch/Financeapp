@@ -28,6 +28,7 @@ import { BucketsChart, FixedVarChart } from '@/components/resumen/Graficas';
 import { CapSheet } from '@/components/resumen/CapSheet';
 import { CARD } from '@/components/resumen/ctf-ui';
 import { GastoDiario } from '@/components/resumen/GastoDiario';
+import { CierreCard } from '@/components/resumen/CierreCard';
 import { dailySpend } from '@/lib/resumen/daily-spend';
 import { localToday } from '@/lib/dates';
 import type { BudgetSubItem } from '@/types';
@@ -280,6 +281,7 @@ function ComoTeFue() {
                 <NavRow href="/score?from=resumen" emoji="💚" name="Tu salud financiera" description="Tu puntaje Zafi y cómo mejorarlo" last />
               </NavCard>
             </div>
+            <CierreCard householdId={data.householdId} month={month} current={current} />
             <Link href="/resumen/semana" className="mx-auto mt-3 flex h-11 items-center text-[15px] font-semibold text-electric">
               Ver resumen semanal
             </Link>

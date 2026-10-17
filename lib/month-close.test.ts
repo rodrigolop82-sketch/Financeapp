@@ -73,3 +73,20 @@ describe('lastDayOf', () => {
     expect(lastDayOf('2028-02')).toBe('2028-02-29')
   })
 })
+
+describe('avisos de cierre', async () => {
+  const { debeAvisarCierre, textoCierre } = await import('./cierre-ui')
+  it('Inicio avisa del 1 al 5 si el mes anterior sigue abierto', () => {
+    expect(debeAvisarCierre('2026-10-01', false)).toBe(true)
+    expect(debeAvisarCierre('2026-10-05', false)).toBe(true)
+    expect(debeAvisarCierre('2026-10-06', false)).toBe(false)
+    expect(debeAvisarCierre('2026-10-03', true)).toBe(false)
+  })
+  it('texto de la tarjeta Fin de mes', () => {
+    expect(textoCierre('septiembre', [{ type: 'income', label: '' }, { type: 'source', label: 'Banrural' }])).toEqual({
+      title: 'Cerrar septiembre: faltan 2 pasos',
+      body: 'Registra tus ingresos y carga tu estado de cuenta de Banrural para dejar el mes en orden.',
+    })
+    expect(textoCierre('septiembre', []).title).toBe('Septiembre está listo para cerrar')
+  })
+})

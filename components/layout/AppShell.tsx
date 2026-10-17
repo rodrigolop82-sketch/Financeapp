@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { isMasterUser } from '@/lib/master-user'
-import { isRootPath, parentFor } from '@/lib/navigation'
+import { isRootPath, parentFor, SIDEBAR_GROUPS, sidebarActiveHref, type SidebarIcon } from '@/lib/navigation'
 import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav, openAddSheet } from '@/components/dashboard/BottomNav'
@@ -14,61 +14,34 @@ import { useViewOnly } from '@/lib/hooks/useEffectivePlan'
 import { PushOfferSheet } from '@/components/avisos/PushOfferSheet'
 import { ScoreWatcher } from '@/components/score/ScoreWatcher'
 import { signalAppReady } from '@/components/motion/Splash'
-import { FeedbackSheet } from '@/components/feedback/FeedbackSheet'
 import {
-  Home, List, Wallet, TrendingUp, HeartPulse, ClipboardCheck,
-  MessageCircle, BookOpen, Landmark, Users, Settings, ShieldCheck,
-  ChevronLeft, Plus, Lightbulb, LogOut,
+  Home, List, Wallet, TrendingUp, MessageCircle, BookOpen, Landmark, Settings, ShieldCheck,
+  ChevronLeft, Plus, LogOut,
 } from 'lucide-react'
 
 interface NavItem {
   href: string
   icon: typeof Home
   label: string
-  /** Acción en la misma página en vez de navegar (p. ej. la hoja de feedback). */
-  action?: 'feedback'
 }
 
-interface NavGroup {
-  label: string
-  items: NavItem[]
+const ICONS: Record<SidebarIcon, typeof Home> = {
+  inicio: Home,
+  movimientos: List,
+  plan: Wallet,
+  resumen: TrendingUp,
+  chat: MessageCircle,
+  aprende: BookOpen,
+  cuentas: Landmark,
+  cuenta: Settings,
 }
 
-// Mismos grupos que la página "Más" (lib/navigation.ts), más las pestañas principales.
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Principal',
-    items: [
-      { href: '/dashboard', icon: Home, label: 'Inicio' },
-      { href: '/transacciones', icon: List, label: 'Movimientos' },
-      { href: '/plan', icon: Wallet, label: 'Plan' },
-    ],
-  },
-  {
-    label: 'Tu dinero',
-    items: [
-      { href: '/resumen', icon: TrendingUp, label: 'Cómo te fue' },
-      { href: '/score', icon: HeartPulse, label: 'Tu salud financiera' },
-      { href: '/cierre-mes', icon: ClipboardCheck, label: 'Cerrar el mes' },
-    ],
-  },
-  {
-    label: 'Ayuda',
-    items: [
-      { href: '/chat', icon: MessageCircle, label: 'Pregúntale a Zafi' },
-      { href: '/aprende', icon: BookOpen, label: 'Aprende' },
-      { href: '#feedback', icon: Lightbulb, label: 'Envíanos tu idea', action: 'feedback' },
-    ],
-  },
-  {
-    label: 'Tu cuenta',
-    items: [
-      { href: '/mis-fuentes', icon: Landmark, label: 'Mis cuentas' },
-      { href: '/familia', icon: Users, label: 'Familia' },
-      { href: '/cuenta', icon: Settings, label: 'Cuenta y privacidad' },
-    ],
-  },
-]
+// Menú de 8 entradas (lib/navigation.ts). Salud financiera y Cerrar el mes
+// viven en Cómo te fue; Familia y Enviar idea, en Cuenta.
+const NAV_GROUPS: { label: string; items: NavItem[] }[] = SIDEBAR_GROUPS.map((g) => ({
+  label: g.label,
+  items: g.items.map((i) => ({ href: i.href, label: i.label, icon: ICONS[i.icon] })),
+}))
 
 const ADMIN_ITEM: NavItem = { href: '/admin', icon: ShieldCheck, label: 'Admin' }
 
@@ -90,7 +63,6 @@ interface AppShellProps {
 
 export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight, titleRight, mobileHeader, hideMobileBar = false }: AppShellProps) {
   const [isMaster, setIsMaster] = useState(false)
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const viewOnly = useViewOnly()
   // Nombre del pie del sidebar: el de la página o, si no lo pasa, el del perfil.
   const [loadedName, setLoadedName] = useState('')
@@ -98,6 +70,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
   const router = useRouter()
   const pathname = usePathname() ?? currentPath
   const isRoot = isRootPath(pathname)
+  const activeHref = sidebarActiveHref(pathname) ?? currentPath
   const parent = parentFor(pathname)
 
   // La página ya tiene sus datos (pinta AppShell): el splash puede salir.
@@ -211,7 +184,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
                     {group.label}
                   </div>
                   {group.items.map((item) => {
-                    const isActive = item.href === currentPath
+                    const isActive = item.href === activeHref
                     const style: React.CSSProperties = {
                       display: 'flex', alignItems: 'center', gap: 11, width: '100%',
                       padding: '8px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
@@ -241,11 +214,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
                         {item.label}
                       </>
                     )
-                    return item.action === 'feedback' ? (
-                      <button key={item.href} type="button" onClick={() => setFeedbackOpen(true)} style={style} {...hover}>
-                        {body}
-                      </button>
-                    ) : (
+                    return (
                       <Link key={item.href} href={item.href} aria-current={isActive ? 'page' : undefined} style={style} {...hover}>
                         {body}
                       </Link>
@@ -332,7 +301,6 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
       <AddSheet />
       <ViewOnlySheet />
       <PushOfferSheet />
-      <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <ScoreWatcher />
     </div>
   )
