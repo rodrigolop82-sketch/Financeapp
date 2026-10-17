@@ -19,13 +19,14 @@ export interface MoreGroup {
   items: MoreItem[];
 }
 
+// "Más" (móvil): lo mismo que el menú lateral fuera de la barra inferior.
+// Tu salud financiera y Cerrar el mes viven dentro de Cómo te fue; Familia y
+// Enviar idea, dentro de Cuenta.
 export const MORE_GROUPS: MoreGroup[] = [
   {
     title: 'Tu dinero',
     items: [
-      { emoji: '📊', name: 'Cómo te fue', description: 'Cuánto ahorraste y dónde ajustar', href: '/resumen' },
-      { emoji: '💚', name: 'Tu salud financiera', description: 'Tu puntaje Zafi y cómo mejorarlo', href: '/score?from=mas' },
-      { emoji: '✅', name: 'Cerrar el mes', description: 'Repasa cómo te fue', href: '/cierre-mes' },
+      { emoji: '📊', name: 'Cómo te fue', description: 'Tu mes, tu salud financiera y el cierre', href: '/resumen' },
     ],
   },
   {
@@ -33,18 +34,74 @@ export const MORE_GROUPS: MoreGroup[] = [
     items: [
       { emoji: '💬', name: 'Pregúntale a Zafi', description: 'Resuelve dudas de tu dinero', href: '/chat' },
       { emoji: '📚', name: 'Aprende', description: 'Lecciones cortas', href: '/aprende' },
-      { emoji: '💡', name: 'Envíanos tu idea', description: 'Sugerencias, errores o lo que quieras', action: 'feedback' },
     ],
   },
   {
     title: 'Tu cuenta',
     items: [
       { emoji: '🏦', name: 'Mis cuentas', description: 'Cuentas de banco y tarjetas', href: '/mis-fuentes' },
-      { emoji: '👪', name: 'Familia', description: 'Comparte con tu pareja o familia', href: '/familia' },
-      { emoji: '⚙️', name: 'Cuenta y privacidad', description: 'Perfil, apariencia, datos', href: '/cuenta' },
+      { emoji: '⚙️', name: 'Cuenta', description: 'Perfil, avisos, familia y privacidad', href: '/cuenta' },
     ],
   },
 ];
+
+export type SidebarIcon = 'inicio' | 'movimientos' | 'plan' | 'resumen' | 'chat' | 'aprende' | 'cuentas' | 'cuenta';
+
+export interface SidebarItem {
+  href: string;
+  label: string;
+  icon: SidebarIcon;
+}
+
+/** Menú lateral (escritorio): 8 entradas. */
+export const SIDEBAR_GROUPS: { label: string; items: SidebarItem[] }[] = [
+  {
+    label: 'Principal',
+    items: [
+      { href: '/dashboard', icon: 'inicio', label: 'Inicio' },
+      { href: '/transacciones', icon: 'movimientos', label: 'Movimientos' },
+      { href: '/plan', icon: 'plan', label: 'Plan' },
+      { href: '/resumen', icon: 'resumen', label: 'Cómo te fue' },
+    ],
+  },
+  {
+    label: 'Ayuda',
+    items: [
+      { href: '/chat', icon: 'chat', label: 'Pregúntale a Zafi' },
+      { href: '/aprende', icon: 'aprende', label: 'Aprende' },
+    ],
+  },
+  {
+    label: 'Tu cuenta',
+    items: [
+      { href: '/mis-fuentes', icon: 'cuentas', label: 'Mis cuentas' },
+      { href: '/cuenta', icon: 'cuenta', label: 'Cuenta' },
+    ],
+  },
+];
+
+/**
+ * Entrada del menú lateral que se marca para `pathname`: la propia o la de
+ * la sección donde vive ahora (p. ej. /cierre-mes → Cómo te fue).
+ */
+const SIDEBAR_ALIASES: [string, string][] = [
+  ['/score', '/resumen'],
+  ['/health-score', '/resumen'],
+  ['/cierre-mes', '/resumen'],
+  ['/presupuesto', '/plan'],
+  ['/metas', '/plan'],
+  ['/deudas', '/plan'],
+  ['/importar', '/transacciones'],
+  ['/notificacion', '/transacciones'],
+  ['/familia', '/cuenta'],
+  ['/patrimonio', '/mis-fuentes'],
+];
+
+export function sidebarActiveHref(pathname: string): string | null {
+  for (const [prefix, href] of SIDEBAR_ALIASES) if (matches(pathname, prefix)) return href;
+  for (const g of SIDEBAR_GROUPS) for (const i of g.items) if (matches(pathname, i.href)) return i.href;
+  return null;
+}
 
 /** Rutas raíz de cada pestaña: en móvil no llevan barra superior. */
 export const ROOT_PATHS = ['/dashboard', '/transacciones', '/plan', '/mas'];
@@ -55,11 +112,14 @@ function matches(pathname: string, prefix: string): boolean {
 
 /** Pestaña de la barra inferior que se marca como activa para `pathname`. */
 export function activeTabFor(pathname: string): TabKey | null {
-  if (['/dashboard', '/resumen', '/health-score', '/score'].some((p) => matches(pathname, p))) return 'inicio';
+  if (matches(pathname, '/dashboard')) return 'inicio';
   if (['/transacciones', '/importar', '/notificacion'].some((p) => matches(pathname, p))) return 'movimientos';
   // Plan agrupa el plan del mes, las metas y las deudas.
   if (['/plan', '/presupuesto', '/metas', '/deudas'].some((p) => matches(pathname, p))) return 'plan';
-  const moreRoutes = ['/mas', '/admin', '/planes', ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href.split('?')[0]] : [])))];
+  const moreRoutes = [
+    '/mas', '/admin', '/planes', '/score', '/health-score', '/cierre-mes', '/familia', '/patrimonio',
+    ...MORE_GROUPS.flatMap((g) => g.items.flatMap((i) => (i.href ? [i.href.split('?')[0]] : []))),
+  ];
   if (moreRoutes.some((p) => matches(pathname, p))) return 'mas';
   return null;
 }
@@ -83,6 +143,8 @@ const PARENTS: [string, ParentLink][] = [
   ['/patrimonio', { label: 'Mi patrimonio', href: '/patrimonio' }],
   ['/health-score', { label: 'Cómo te fue', href: '/resumen' }],
   ['/score', { label: 'Cómo te fue', href: '/resumen' }],
+  ['/cierre-mes', { label: 'Cómo te fue', href: '/resumen' }],
+  ['/familia', { label: 'Cuenta', href: '/cuenta' }],
   ['/plan', { label: 'Plan', href: '/plan' }],
   ['/importar', { label: 'Movimientos', href: '/transacciones' }],
   ['/notificacion', { label: 'Movimientos', href: '/transacciones' }],

@@ -32,6 +32,13 @@ describe('parseNewSource', () => {
   })
 })
 
+describe('deudas solo en Plan › Deudas', () => {
+  it('ya no se crea "Otra deuda" ni préstamo como cuenta', () => {
+    expect(parseNewSource({ kind: 'other_liability', name: 'Préstamo del tío', balance: '4500' }).ok).toBe(false)
+    expect(parseNewSource({ kind: 'loan', name: 'Préstamo', balance: '4500' }).ok).toBe(false)
+  })
+})
+
 describe('parseSourceUpdate', () => {
   it('actualización parcial', () => {
     expect(parseSourceUpdate({ balance: 50 }, 'bank_account')).toEqual({ ok: true, value: { balance: 50 } })

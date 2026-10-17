@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import type { SearchTransaction } from '@/types';
 import { getEmoji } from '@/lib/categories-ui';
-import { CARD_BG, TEXT_MUTED, TEXT_STRONG, TILE_BG } from './ui';
+import { CARD_BG, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG } from './ui';
 import { PersonAvatar } from '@/components/hogar/PersonUI';
 import { BADGE_INFO, BADGE_NEUTRAL } from '@/components/layout/Pantalla';
 import type { Person } from '@/lib/hogar';
@@ -74,6 +74,8 @@ function RowContent({ row, amountClassName = '' }: { row: SwipeRowData; amountCl
       <span className={`flex-none font-outfit font-bold text-base ${row.isIncome ? 'text-success-dark' : TEXT_STRONG} ${amountClassName}`}>
         {row.amountLabel}
       </span>
+      {/* Pista de que se toca para ver el detalle, editar o borrar (C14). */}
+      <span aria-hidden className={`-ml-1 flex-none text-lg ${TEXT_FAINT} ${amountClassName}`}>›</span>
     </>
   );
 }

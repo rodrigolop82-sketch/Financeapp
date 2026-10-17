@@ -80,10 +80,3 @@ export const INACTIVITY_DAY_OPTIONS = [3, 5, 7, 10, 14];
 export const MONTH_CLOSE_DAY_OPTIONS = [1, 2, 3, 5, 7];
 
 export const SUPPORT_EMAIL = 'hola@zafiapp.com';
-
-/** Correo para pedir que eliminemos la cuenta (no hay borrado automático). */
-export function accountDeletionMailto(email: string | null | undefined): string {
-  const subject = 'Eliminar mi cuenta';
-  const body = `Hola, quiero eliminar mi cuenta de Zafi y todos mis datos.\n\nCorreo de la cuenta: ${email ?? ''}`;
-  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}

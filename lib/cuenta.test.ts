@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   CURRENCY_OPTIONS,
-  accountDeletionMailto,
   currencyOption,
   decimalsHint,
   initialsFrom,
@@ -63,10 +62,3 @@ describe('usageMeter', () => {
   });
 });
 
-describe('mailto', () => {
-  it('eliminar cuenta lleva el correo del usuario', () => {
-    const url = accountDeletionMailto('r@x.com');
-    expect(url.startsWith('mailto:hola@zafiapp.com?subject=Eliminar%20mi%20cuenta&body=')).toBe(true);
-    expect(decodeURIComponent(url.split('body=')[1])).toContain('Correo de la cuenta: r@x.com');
-  });
-});

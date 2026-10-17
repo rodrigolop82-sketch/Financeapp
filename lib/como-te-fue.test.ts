@@ -327,3 +327,14 @@ describe('analyzeMonth', () => {
     expect(a.planOf.ali).toBe(2500);
   });
 });
+
+describe('vsMesAnteriorTexto', () => {
+  it('compara lo gastado con el mes anterior', async () => {
+    const { vsMesAnteriorTexto } = await import('./como-te-fue');
+    const [a, s] = monthTotals([...aug, ...sep], ['2026-08', '2026-09'], cats, fixed.tx);
+    expect(vsMesAnteriorTexto(s, a, fmt)).toBe(`Gastaste ${fmt(s.spent - a.spent)} más`);
+    expect(vsMesAnteriorTexto(a, s, fmt)).toBe(`Gastaste ${fmt(s.spent - a.spent)} menos`);
+    expect(vsMesAnteriorTexto(s, s, fmt)).toBe('Gastaste igual que en septiembre');
+    expect(vsMesAnteriorTexto(s, undefined, fmt)).toBeNull();
+  });
+});

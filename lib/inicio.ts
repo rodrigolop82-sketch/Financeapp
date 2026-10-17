@@ -145,29 +145,81 @@ export function computeHome(categories: HomeCategory[], monthTx: HomeTx[], today
   return { budget, reserved, spent, left, daysLeft, perDay, pct, status, overCategory, catBars, spendByCategory };
 }
 
-export type HomeAlert =
-  | { kind: 'excedida'; categoryId: string; name: string; icon?: string | null; bucket: string; excess: number }
-  | { kind: 'sin-registrar'; days: number }
-  | { kind: 'ahorro'; title: string; subtitle: string };
+export type LoQueSigueKind = 'ingreso' | 'cierre' | 'inicio-mes' | 'sin-registrar' | 'paso' | 'ahorro';
+
+export interface LoQueSigueItem {
+  kind: LoQueSigueKind;
+  /** Para "Ahora no" (se guarda por mes). */
+  key: string;
+  title: string;
+  body: string;
+  /** Mes a cerrar (solo `cierre`). */
+  month?: string;
+}
+
+export interface LoQueSigueInput {
+  /** Hoy, 'YYYY-MM-DD'. */
+  today: string;
+  monthName: string;
+  prevMonth: string;
+  prevMonthName: string;
+  /** Hay ingresos registrados este mes (lib/metricas-mes). */
+  hasIncome: boolean;
+  /** Ingreso mensual del plan (0 si no hay). */
+  plannedIncome: number;
+  /** Nombre de la fuente de ingreso del plan ("Salario") o null. */
+  incomeName: string | null;
+  /** Primer día esperado de ingreso del plan (null si no se sabe). */
+  expectedDay: number | null;
+  prevMonthClosed: boolean;
+  monthStartPending: boolean;
+  daysSinceLast: number | null;
+  paso: { title: string; efecto: string } | null;
+  savings: { title: string; subtitle: string } | null;
+  fmt: (n: number) => string;
+}
 
 /**
- * Una sola alerta, por prioridad: categoría excedida > 3 o más días sin
- * registrar > ahorro del mes.
+ * "Lo que sigue" en Inicio (C11): un solo aviso a la vez, por prioridad:
+ * registrar ingreso › cerrar el mes anterior (días 1–5) › empezar el mes
+ * (fijos) › días sin registrar › siguiente mejor paso › ahorro del mes.
  */
-export function pickHomeAlert(params: {
-  overCategory: HomeSummary['overCategory'];
-  daysSinceLastTransaction: number | null;
-  savings: { title: string; subtitle: string } | null;
-}): HomeAlert | null {
-  const { overCategory, daysSinceLastTransaction, savings } = params;
-  if (overCategory) {
-    return { kind: 'excedida', categoryId: overCategory.id, name: overCategory.name, icon: overCategory.icon, bucket: overCategory.bucket, excess: overCategory.excess };
+export function loQueSigue(i: LoQueSigueInput): LoQueSigueItem[] {
+  const out: LoQueSigueItem[] = [];
+  const month = i.today.slice(0, 7);
+  const day = Number(i.today.slice(8, 10));
+  if (!i.hasIncome && i.plannedIncome > 0 && (i.expectedDay === null || day >= i.expectedDay)) {
+    const fuente = (i.incomeName ?? 'ingreso').toLowerCase();
+    out.push({
+      kind: 'ingreso', key: `ingreso:${month}`,
+      title: `Registra tu ${fuente} de ${i.monthName}`,
+      body: `Tu plan espera ${i.fmt(i.plannedIncome)}. Sin un ingreso registrado, Zafi no puede calcular tu ahorro ni tu puntaje del mes.`,
+    });
   }
-  if (daysSinceLastTransaction !== null && daysSinceLastTransaction >= 3 && daysSinceLastTransaction <= 90) {
-    return { kind: 'sin-registrar', days: daysSinceLastTransaction };
+  if (day >= 1 && day <= 5 && !i.prevMonthClosed) {
+    out.push({
+      kind: 'cierre', key: `cierre:${i.prevMonth}`, month: i.prevMonth,
+      title: `Cierra ${i.prevMonthName}`,
+      body: 'Confirma tus ingresos y tus estados de cuenta para guardar tu puntaje del mes.',
+    });
   }
-  if (savings) return { kind: 'ahorro', ...savings };
-  return null;
+  if (i.monthStartPending) {
+    out.push({
+      kind: 'inicio-mes', key: `inicio-mes:${month}`,
+      title: `Empieza ${i.monthName}`,
+      body: 'Confirma tu salario y aparta tus pagos fijos para que "Hoy puedes gastar" sea real.',
+    });
+  }
+  if (i.daysSinceLast !== null && i.daysSinceLast >= 3 && i.daysSinceLast <= 90) {
+    out.push({
+      kind: 'sin-registrar', key: `sin-registrar:${i.today}`,
+      title: `Hace ${i.daysSinceLast} días que no registras un movimiento`,
+      body: 'Anota lo que has gastado para que tus números sigan al día.',
+    });
+  }
+  if (i.paso) out.push({ kind: 'paso', key: `paso:${month}`, title: i.paso.title, body: i.paso.efecto });
+  if (i.savings) out.push({ kind: 'ahorro', key: `ahorro:${month}`, title: i.savings.title, body: i.savings.subtitle });
+  return out;
 }
 
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];

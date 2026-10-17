@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase'
 import { getUserHousehold } from '@/lib/household'
 import { AppShell } from '@/components/layout/AppShell'
 import {
-  getMonthCloseChecklist, getPreviousYearMonth,
+  getMonthCloseChecklist, getPreviousYearMonth, setSinIngresos,
   type ChecklistItem, type MonthCloseChecklist,
 } from '@/lib/month-close'
 import { addMonths, longMonth, monthTitle } from '@/lib/como-te-fue'
@@ -17,26 +17,28 @@ import { MonthPill } from '@/components/resumen/MonthPill'
 import { CARD } from '@/components/resumen/ctf-ui'
 import { TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
 import {
-  FieldLabel, GroupTitle, HERO, HERO_MUTED, HERO_STYLE, INPUT_48, ListCard, PageHeader, PILL_OUTLINE, PillButton,
-  ROW_DIVIDER, RowBody, Tile,
+  FieldLabel, INPUT_48, PageHeader, PILL_OUTLINE, PillButton,
 } from '@/components/layout/Pantalla'
 import { PRIMARY_BUTTON } from '@/components/movimientos/ui'
 import { useHealthScore } from '@/hooks/useHealthScore'
 import { saveMonthScore } from '@/lib/health-data'
-import { REGISTER_INCOME_HREF } from '@/lib/score-calculator'
 import { notifyScoreInputsChanged } from '@/lib/score-feedback'
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney'
 import { Note } from '@/components/plan/ui'
-import { ScoreHero } from '@/components/score/ScoreUI'
+import { ProvisionalTag, ScoreHero } from '@/components/score/ScoreUI'
+import { openAddSheet } from '@/components/dashboard/BottomNav'
+import { TRANSACTIONS_CHANGED_EVENT } from '@/components/add/AddSheet'
+import { lastDayOf } from '@/lib/cierre-ui'
+import { mejorParte } from '@/lib/salud-resumen'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
 import { PremiumSheet } from '@/components/premium/PremiumSheet'
 import { fetchEffectivePlan } from '@/lib/plan-client'
 import { freeHistoryStart } from '@/lib/plans'
 
-const SOURCE_META: Record<string, { emoji: string; label: string }> = {
-  tarjeta_credito: { emoji: '💳', label: 'Tarjeta de crédito' },
-  cuenta_bancaria: { emoji: '🏦', label: 'Cuenta bancaria' },
-  efectivo: { emoji: '💵', label: 'Efectivo' },
+const SOURCE_META: Record<string, { label: string; help: string; cta: string }> = {
+  tarjeta_credito: { label: 'Estado de cuenta', help: 'Carga el movimiento del mes para que tus gastos queden completos.', cta: 'Cargar' },
+  cuenta_bancaria: { label: 'Estado de cuenta', help: 'Carga el movimiento del mes para que tus gastos queden completos.', cta: 'Cargar' },
+  efectivo: { label: 'Gastos en efectivo', help: 'Anota lo que pagaste en efectivo este mes.', cta: 'Anotar' },
 }
 
 export default function CierreMesPage() {
@@ -45,10 +47,6 @@ export default function CierreMesPage() {
       <CierreMesContent />
     </Suspense>
   )
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 function CierreMesContent() {
@@ -65,7 +63,9 @@ function CierreMesContent() {
   const { score, history, recalculate } = useHealthScore(householdId, { month: yearMonth, history: true })
   const router = useRouter()
   const supabase = createClient()
+  const fmt = useFormatMoney()
   const current = localToday().slice(0, 7)
+  const [message, setMessage] = useState<StatusMessage | null>(null)
   // Gratis: los meses antes de los últimos 3 no se abren (siguen guardados).
   const [firstMonth, setFirstMonth] = useState<string | null>(null)
   const [premiumOpen, setPremiumOpen] = useState(false)
@@ -91,30 +91,38 @@ function CierreMesContent() {
       .eq('household_id', householdId).order('updated_at', { ascending: false }).limit(1).maybeSingle()
     setOutsideSavings(profile ? Number(profile.total_savings) || 0 : null)
 
-    const result = await getMonthCloseChecklist(user.id, householdId, yearMonth)
+    const result = await getMonthCloseChecklist(householdId, yearMonth)
     setChecklist(result)
     setLoading(false)
   }, [supabase, router, yearMonth])
 
   useEffect(() => { load() }, [load])
 
+  // Un ingreso o gasto nuevo (desde "Registrar ingreso") recalcula pasos y puntaje.
+  useEffect(() => {
+    function onChanged() { void load(); void recalculate() }
+    window.addEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged)
+    return () => window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, onChanged)
+  }, [load, recalculate])
+
   async function markSourceLoaded(sourceId: string) {
     setMarking(sourceId)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
     await supabase.from('source_statement_status').upsert(
-      {
-        source_id: sourceId,
-        year_month: yearMonth,
-        loaded: true,
-        loaded_at: new Date().toISOString(),
-      },
+      { source_id: sourceId, year_month: yearMonth, loaded: true, loaded_at: new Date().toISOString() },
       { onConflict: 'source_id,year_month' },
     )
-
     setMarking(null)
-    load()
+    void load()
+  }
+
+  async function toggleSinIngresos(value: boolean) {
+    if (!householdId) return
+    setMarking('income')
+    const { error } = await setSinIngresos(householdId, yearMonth, value)
+    setMarking(null)
+    if (error) { setMessage({ text: 'No se pudo guardar. Intenta de nuevo.', tone: 'error' }); return }
+    void load()
+    void recalculate()
   }
 
   if (loading) {
@@ -136,199 +144,196 @@ function CierreMesContent() {
     />
   )
 
-  const sources = checklist?.items.filter((i) => i.type === 'source') ?? []
-  const plan = checklist?.items.filter((i) => i.type === 'income') ?? []
-
   const closed = history.some((h) => h.month === yearMonth)
+  const back = { href: `/resumen?mes=${yearMonth}`, label: 'Cómo te fue' }
 
   return (
     <AppShell title={`Cerrar ${monthName}`} currentPath="/cierre-mes" hideMobileBar headerRight={<div className="self-center">{pill}</div>}>
       <div className="mx-auto flex max-w-2xl flex-col lg:mx-0">
-        <PageHeader
-          back={{ href: '/mas', label: 'Más' }}
-          title={`Cerrar ${monthName}`}
-          subtitle="Repasa cómo te fue y guarda tu puntaje del mes"
-          right={pill}
-        />
+        <PageHeader back={back} title={`Cerrar ${monthName}`} right={pill} />
 
-        {householdId && score && score.components.length > 0 && (
-          <MonthScore
-            key={yearMonth}
-            householdId={householdId}
-            yearMonth={yearMonth}
-            monthName={monthName}
-            score={score}
-            history={history}
-            closed={closed}
-            outsideSavings={outsideSavings}
-            onSaved={(savings) => {
-              if (savings !== null) setOutsideSavings(savings)
-              void recalculate()
-            }}
-          />
-        )}
-
-        {!checklist || sources.length === 0 ? (
-          <div className={`mt-3.5 flex flex-col gap-1.5 p-5 ${CARD}`}>
-            <span className={`text-[17px] font-bold ${TEXT_STRONG}`}>Agrega tus bancos</span>
-            <span className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>
-              Así Zafi sabe qué estados de cuenta te faltan para cerrar {monthName}.
-            </span>
-            <Link href="/mis-fuentes" className="mt-2 flex h-11 items-center self-start rounded-full bg-electric px-5 text-[15px] font-bold text-white transition-transform duration-150 active:scale-[0.97]">
-              Agregar mis bancos
-            </Link>
-          </div>
-        ) : (
+        {closed ? (
+          score && score.components.length > 0 && <ClosedMonth score={score} history={history} yearMonth={yearMonth} monthName={monthName} />
+        ) : checklist && householdId && (
           <div key={yearMonth} className="flex flex-col zafi-stagger">
-            <Hero checklist={checklist} monthName={monthName} yearMonth={yearMonth} />
+            <Progress checklist={checklist} />
 
-            <GroupTitle>Carga tus bancos</GroupTitle>
-            <ListCard>
-              {sources.map((item) => (
-                <Row
-                  key={item.id}
-                  item={item}
-                  busy={marking === item.sourceId}
-                  onAct={() => item.sourceId && markSourceLoaded(item.sourceId)}
-                />
-              ))}
-            </ListCard>
+            {checklist.items.map((item, i) => item.type === 'income' ? (
+              <IncomeStep
+                key={item.id}
+                n={i + 1}
+                item={item}
+                checklist={checklist}
+                monthName={monthName}
+                busy={marking === 'income'}
+                fmt={fmt}
+                onRegister={() => openAddSheet({ type: 'income', date: yearMonth === current ? localToday() : lastDayOf(yearMonth) })}
+                onSinIngresos={(v) => void toggleSinIngresos(v)}
+              />
+            ) : (
+              <SourceStep
+                key={item.id}
+                n={i + 1}
+                item={item}
+                busy={marking === item.sourceId}
+                onImport={() => router.push('/transacciones?importar=1')}
+                onDone={() => item.sourceId && void markSourceLoaded(item.sourceId)}
+              />
+            ))}
 
-            <GroupTitle>Confirma tu plan</GroupTitle>
-            <ListCard>
-              {plan.map((item) => (
-                <Row
-                  key={item.id}
-                  item={item}
-                  monthName={monthName}
-                  onAct={() => router.push(`/plan?confirmMonth=${yearMonth}`)}
-                />
-              ))}
-            </ListCard>
-            <p className={`mx-1 mt-3 text-[13px] leading-[1.45] [text-wrap:pretty] ${TEXT_MUTED}`}>
-              Cuando todo esté listo, guardamos tu plan de {monthName} y sus números pasan a Cómo te fue.
-            </p>
+            {checklist.items.every((i) => i.type !== 'source') && (
+              <Step n={null} done={false} title="Tus bancos" optional>
+                <span className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>
+                  Agrega tus cuentas y tarjetas en Mis cuentas para que Zafi te recuerde cargar sus estados de cuenta.
+                </span>
+                <Link href="/mis-fuentes" className="flex h-11 items-center self-start text-sm font-semibold text-electric">Agregar mis bancos ›</Link>
+              </Step>
+            )}
+
+            <CloseBlock
+              householdId={householdId}
+              yearMonth={yearMonth}
+              monthName={monthName}
+              checklist={checklist}
+              score={score}
+              outsideSavings={outsideSavings}
+              fmt={fmt}
+              onClosed={(savings) => {
+                if (savings !== null) setOutsideSavings(savings)
+                void recalculate()
+              }}
+              onMessage={setMessage}
+            />
           </div>
         )}
       </div>
+      <StatusToast message={message} onDone={() => setMessage(null)} />
       <PremiumSheet reason="history" open={premiumOpen} onClose={() => setPremiumOpen(false)} />
     </AppShell>
   )
 }
 
-function itemName(item: ChecklistItem): string {
-  return item.type === 'income' ? 'tus ingresos' : item.label
-}
-
-function Hero({ checklist, monthName, yearMonth }: { checklist: MonthCloseChecklist; monthName: string; yearMonth: string }) {
-  const { completedCount: done, totalCount: total, isFullyClosed: all } = checklist
-  const missing = checklist.items.filter((i) => !i.done).map(itemName)
-  const pct = total > 0 ? (done / total) * 100 : 100
+/** "0 de 2 pasos obligatorios" con barra. */
+function Progress({ checklist }: { checklist: MonthCloseChecklist }) {
+  const { completedCount: done, totalCount: total } = checklist
   return (
-    <section aria-label="Avance del cierre" className={`mt-3.5 flex flex-col gap-1.5 p-[22px] ${HERO}`} style={HERO_STYLE}>
-      <span className={`text-[15px] ${HERO_MUTED}`}>{all ? capitalize(monthName) : `Para cerrar ${monthName}`}</span>
-      <span className="font-outfit text-[54px] font-extrabold leading-none tracking-[-0.02em]">
-        {all ? 'Cerrado' : `${done} de ${total}`}
-      </span>
-      <span className={`text-sm leading-[1.45] [text-wrap:pretty] ${HERO_MUTED}`}>
-        {all
-          ? 'Tus números ya cuentan para Cómo te fue.'
-          : `Te falta${missing.length > 1 ? 'n' : ''}: ${missing.join(', ')}.`}
-      </span>
-      <div
-        className="mt-2 h-2 overflow-hidden rounded-[5px] bg-white/[0.14]"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={done}
-      >
-        <div
-          className={`h-full rounded-[5px] transition-[width,background-color] duration-[400ms] ${all ? 'bg-[#4ADE80]' : 'bg-electric-pale'}`}
-          style={{ width: `${pct}%` }}
-        />
+    <section aria-label="Avance del cierre" className={`mt-3.5 flex flex-col gap-2.5 px-5 py-4 ${CARD}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className={`text-[15px] font-bold ${TEXT_STRONG}`}>{done} de {total} {total === 1 ? 'paso obligatorio' : 'pasos obligatorios'}</span>
+        <span className={`text-[13px] ${TEXT_MUTED}`}>
+          {done === total ? 'Listo para cerrar' : total === 1 ? 'Cierra cuando lo completes' : total === 2 ? 'Cierra cuando completes ambos' : 'Cierra cuando completes todos'}
+        </span>
       </div>
-      {all && (
-        <Link
-          href={`/resumen?mes=${yearMonth}`}
-          className="mt-2.5 flex h-[46px] items-center justify-center rounded-full bg-white text-[15px] font-bold text-navy transition-transform duration-150 active:scale-[0.97]"
-        >
-          Ver cómo te fue ›
-        </Link>
-      )}
+      <div className="h-2 overflow-hidden rounded-[5px] bg-[var(--zafi-border-light)]" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
+        <div className="h-full rounded-[5px] bg-electric transition-[width] duration-[400ms]" style={{ width: `${Math.max(4, (done / Math.max(1, total)) * 100)}%` }} />
+      </div>
     </section>
   )
 }
 
-function Row({ item, busy, monthName, onAct }: {
-  item: ChecklistItem
-  busy?: boolean
-  monthName?: string
-  onAct: () => void
-}) {
-  const isSource = item.type === 'source'
-  const meta = SOURCE_META[item.sourceType ?? ''] ?? SOURCE_META.tarjeta_credito
-  const isCash = item.sourceType === 'efectivo'
-
-  let emoji: string, name: string, help: string, cta: string
-  if (isSource) {
-    emoji = meta.emoji
-    name = item.label
-    help = item.done
-      ? `Cargado · ${meta.label.toLowerCase()}`
-      : isCash ? 'Anota lo que pagaste en efectivo' : meta.label
-    cta = isCash ? 'Ya está' : 'Cargar'
-  } else {
-    emoji = '💰'
-    name = `Tus ingresos de ${monthName}`
-    help = item.done ? 'Confirmados' : item.needsSetup ? 'Agrega tus ingresos en tu plan' : 'Confirma lo que recibiste'
-    cta = item.needsSetup ? 'Configurar' : 'Revisar'
-  }
-
+/** Tarjeta de un paso: número (o ✓), título y contenido. */
+function Step({ n, done, title, optional = false, children }: { n: number | null; done: boolean; title: string; optional?: boolean; children: React.ReactNode }) {
   return (
-    <div className={`flex items-center gap-3 py-3 ${ROW_DIVIDER}`}>
-      <RowBody tile={<Tile>{emoji}</Tile>} name={name} help={help} />
-      {item.done ? (
-        <span
-          aria-label="Listo"
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-success-light text-sm font-extrabold text-[#15803D] dark:bg-[var(--zafi-success-bg)] dark:text-[var(--zafi-success-text)]"
-        >
-          ✓
-        </span>
+    <section className={`mt-3 flex gap-3.5 p-5 ${CARD}`}>
+      {done ? (
+        <span aria-label="Listo" className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-success-light text-sm font-extrabold text-[#15803D] dark:bg-[var(--zafi-success-bg)] dark:text-[var(--zafi-success-text)]">✓</span>
+      ) : n === null ? (
+        <span aria-hidden className={`flex h-9 w-9 flex-none items-center justify-center rounded-full border border-dashed border-[var(--zafi-border)] text-sm ${TEXT_MUTED}`}>+</span>
       ) : (
-        <PillButton onClick={onAct} disabled={busy}>{busy ? '…' : cta}</PillButton>
+        <span aria-hidden className="flex h-9 w-9 flex-none items-center justify-center rounded-full border-2 border-electric text-sm font-bold text-electric">{n}</span>
       )}
-    </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <h2 className={`text-[17px] font-bold ${TEXT_STRONG}`}>
+          {title}{optional && <span className={`text-[13px] font-normal ${TEXT_MUTED}`}> · opcional</span>}
+        </h2>
+        {children}
+      </div>
+    </section>
   )
 }
 
-function MonthScore({ householdId, yearMonth, monthName, score, history, closed, outsideSavings, onSaved }: {
+function IncomeStep({ n, item, checklist, monthName, busy, fmt, onRegister, onSinIngresos }: {
+  n: number
+  item: ChecklistItem
+  checklist: MonthCloseChecklist
+  monthName: string
+  busy: boolean
+  fmt: (n: number) => string
+  onRegister: () => void
+  onSinIngresos: (value: boolean) => void
+}) {
+  const { registrados, sinIngresos } = checklist.ingresos
+  return (
+    <Step n={n} done={item.done} title={`Ingresos de ${monthName}`}>
+      {registrados > 0 ? (
+        <>
+          <span className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>Registraste {fmt(registrados)} en ingresos este mes.</span>
+          <button type="button" onClick={onRegister} className="flex h-11 items-center self-start text-sm font-semibold text-electric">Registrar otro ingreso ›</button>
+        </>
+      ) : sinIngresos ? (
+        <>
+          <span className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>Marcaste que no hubo ingresos en {monthName}. Tu ahorro del mes cuenta como 0 %.</span>
+          <div className="flex flex-wrap gap-2">
+            <PillButton onClick={onRegister}>Registrar ingreso</PillButton>
+            <PillButton className={PILL_OUTLINE} onClick={() => onSinIngresos(false)} disabled={busy}>Deshacer</PillButton>
+          </div>
+        </>
+      ) : (
+        <>
+          <span className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>Aún no hay ingresos registrados este mes. Sin ellos no se calcula tu ahorro.</span>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <button type="button" onClick={onRegister} className="btn-primary" style={{ borderRadius: 14 }}>Registrar ingreso</button>
+            <PillButton className={PILL_OUTLINE} onClick={() => onSinIngresos(true)} disabled={busy}>{busy ? '…' : 'No hubo ingresos'}</PillButton>
+          </div>
+        </>
+      )}
+    </Step>
+  )
+}
+
+function SourceStep({ n, item, busy, onImport, onDone }: {
+  n: number
+  item: ChecklistItem
+  busy: boolean
+  onImport: () => void
+  onDone: () => void
+}) {
+  const meta = SOURCE_META[item.sourceType ?? ''] ?? SOURCE_META.cuenta_bancaria
+  const cash = item.sourceType === 'efectivo'
+  return (
+    <Step n={n} done={item.done} title={cash ? meta.label : `${meta.label} de ${item.label}`}>
+      <span className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>{item.done ? 'Cargado.' : meta.help}</span>
+      {!item.done && (
+        <div className="mt-1 flex flex-wrap gap-2">
+          {!cash && <button type="button" onClick={onImport} className="btn-primary" style={{ borderRadius: 14 }}>{meta.cta}</button>}
+          <PillButton className={cash ? undefined : PILL_OUTLINE} onClick={onDone} disabled={busy}>{busy ? '…' : cash ? 'Ya está' : 'Ya lo cargué'}</PillButton>
+        </div>
+      )}
+    </Step>
+  )
+}
+
+/** Ahorros fuera de Zafi (opcional), botón Cerrar y "Así quedaría {mes}". */
+function CloseBlock({ householdId, yearMonth, monthName, checklist, score, outsideSavings, fmt, onClosed, onMessage }: {
   householdId: string
   yearMonth: string
   monthName: string
-  score: NonNullable<ReturnType<typeof useHealthScore>['score']>
-  history: ReturnType<typeof useHealthScore>['history']
-  closed: boolean
+  checklist: MonthCloseChecklist
+  score: ReturnType<typeof useHealthScore>['score']
   outsideSavings: number | null
-  onSaved: (savings: number | null) => void
+  fmt: (n: number) => string
+  onClosed: (savings: number | null) => void
+  onMessage: (m: StatusMessage) => void
 }) {
-  const fmt = useFormatMoney()
   const [answer, setAnswer] = useState<'same' | 'changed' | null>(null)
   const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<StatusMessage | null>(null)
-
-  const prev = [...history].reverse().find((h) => h.month < yearMonth) ?? null
-  const d = prev ? score.total - prev.score : 0
-  const sub = !prev
-    ? `Así terminas ${monthName}.`
-    : d > 0 ? `Subiste ${d} ${d === 1 ? 'punto' : 'puntos'} este mes 🎉`
-    : d < 0 ? `Bajaste ${-d} ${d === -1 ? 'punto' : 'puntos'} este mes.`
-    : 'Te mantuviste igual.'
-  const best = score.components.filter((c) => !c.pending).sort((a, b) => b.score / b.max - a.score / a.max)[0]
-  // Un mes cerrado no puede quedar provisional: primero los ingresos.
-  const blocked = !closed && score.provisional
+  const missing = checklist.totalCount - checklist.completedCount
+  // Un mes cerrado no puede quedar provisional: el paso de ingresos lo evita.
+  const canClose = checklist.canClose && !!score && score.components.length > 0 && !score.provisional
 
   async function close() {
+    if (!score) return
     setSaving(true)
     const supabase = createClient()
     let savings: number | null = null
@@ -341,53 +346,86 @@ function MonthScore({ householdId, yearMonth, monthName, score, history, closed,
     }
     const { error } = await saveMonthScore(supabase, householdId, yearMonth, score.total)
     setSaving(false)
-    if (error) { setMessage({ text: 'No se pudo cerrar el mes. Intenta de nuevo.', tone: 'error' }); return }
-    setMessage({ text: `Guardamos tu puntaje de ${monthName}`, tone: 'ok' })
+    if (error) { onMessage({ text: 'No se pudo cerrar el mes. Intenta de nuevo.', tone: 'error' }); return }
+    onMessage({ text: `Cerraste ${monthName}`, tone: 'ok' })
     if (savings !== null) notifyScoreInputsChanged()
-    onSaved(savings)
+    onClosed(savings)
   }
 
   return (
+    <>
+      {outsideSavings !== null && (
+        <Step n={null} done={answer !== null} title="Ahorros fuera de Zafi" optional>
+          <span className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>
+            Si guardaste dinero en otra cuenta o en efectivo, actualízalo aquí. Hoy tienes {fmt(outsideSavings)}.
+          </span>
+          <div className="flex gap-1.5">
+            <PillButton className={answer === 'same' ? undefined : PILL_OUTLINE} onClick={() => setAnswer('same')}>Sigue igual</PillButton>
+            <PillButton className={answer === 'changed' ? undefined : PILL_OUTLINE} onClick={() => setAnswer('changed')}>Cambió</PillButton>
+          </div>
+          {answer === 'changed' && (
+            <div className="flex flex-col gap-1.5">
+              <FieldLabel htmlFor="ahorros-fuera">Ahorros fuera de Zafi</FieldLabel>
+              <input id="ahorros-fuera" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Q 0.00" className={INPUT_48} />
+            </div>
+          )}
+        </Step>
+      )}
+
+      <button type="button" onClick={() => void close()} disabled={!canClose || saving} className={`mt-4 ${PRIMARY_BUTTON}`}>
+        {saving ? 'Guardando…' : `Cerrar ${monthName}`}
+      </button>
+      {!checklist.canClose && (
+        <p className={`mt-2 text-[13px] leading-[1.4] ${TEXT_MUTED}`}>
+          Se activa al completar {missing === 1 && checklist.totalCount > 1 ? 'el paso obligatorio que falta' : checklist.totalCount === 1 ? 'el paso obligatorio' : `los ${checklist.totalCount} pasos obligatorios`}.
+        </p>
+      )}
+
+      {score && score.components.length > 0 && (
+        <section className={`mt-4 flex items-center gap-4 px-5 py-4 ${CARD}`}>
+          <span className={`font-outfit text-[40px] font-extrabold leading-none ${TEXT_STRONG}`}>{score.total}</span>
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className={`flex items-center gap-2 text-[13px] font-bold uppercase tracking-[0.04em] ${TEXT_MUTED}`}>
+              Así quedaría {monthName}{score.provisional && <ProvisionalTag />}
+            </span>
+            <span className={`text-sm leading-[1.45] ${TEXT_MUTED}`}>
+              {score.provisional
+                ? 'Salud financiera provisional. Se confirma al cerrar el mes con tus ingresos reales.'
+                : `Salud financiera de ${monthName} · ${score.label}. Queda guardada al cerrar.`}
+            </span>
+          </span>
+        </section>
+      )}
+    </>
+  )
+}
+
+/** Mes ya cerrado: el puntaje guardado y lo que más ayudó. */
+function ClosedMonth({ score, history, yearMonth, monthName }: {
+  score: NonNullable<ReturnType<typeof useHealthScore>['score']>
+  history: ReturnType<typeof useHealthScore>['history']
+  yearMonth: string
+  monthName: string
+}) {
+  const saved = history.find((h) => h.month === yearMonth)
+  const shown = saved ? { ...score, total: saved.score } : score
+  const prev = [...history].reverse().find((h) => h.month < yearMonth) ?? null
+  const d = prev ? shown.total - prev.score : 0
+  const sub = !prev
+    ? `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} está cerrado.`
+    : d > 0 ? `Subiste ${d} ${d === 1 ? 'punto' : 'puntos'} este mes 🎉`
+    : d < 0 ? `Bajaste ${-d} ${d === -1 ? 'punto' : 'puntos'} este mes.`
+    : 'Te mantuviste igual.'
+  const best = mejorParte(score.components)
+  return (
     <div className="flex flex-col zafi-stagger">
-      <ScoreHero score={score} label={`Tu salud financiera en ${monthName}`} sub={sub} />
+      <ScoreHero score={{ ...shown, provisional: false }} label={`Tu salud financiera en ${monthName}`} sub={sub} />
       {best && (
         <Note tone="ok">
           Lo que más te ayudó: <b>{best.emoji} {best.label}</b> ({best.score}/{best.max}).
         </Note>
       )}
-
-      {outsideSavings !== null && !closed && (
-        <section>
-          <GroupTitle>Confirma un dato</GroupTitle>
-          <div className={`flex flex-col gap-3 px-3.5 py-4 ${CARD}`}>
-            <span className={`text-[15px] font-semibold ${TEXT_STRONG}`}>
-              ¿Tus ahorros fuera de Zafi siguen en {fmt(outsideSavings)}?
-            </span>
-            <span className={`text-[13px] ${TEXT_MUTED}`}>Cuentas o efectivo que no registras aquí. Es opcional.</span>
-            <div className="flex gap-1.5">
-              <PillButton className={answer === 'same' ? undefined : PILL_OUTLINE} onClick={() => setAnswer('same')}>Sí, igual</PillButton>
-              <PillButton className={answer === 'changed' ? undefined : PILL_OUTLINE} onClick={() => setAnswer('changed')}>Cambió</PillButton>
-            </div>
-            {answer === 'changed' && (
-              <div className="flex flex-col gap-1.5">
-                <FieldLabel htmlFor="ahorros-fuera">Ahorros fuera de Zafi</FieldLabel>
-                <input id="ahorros-fuera" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Q 0.00" className={INPUT_48} />
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      <button type="button" onClick={() => void close()} disabled={closed || saving || blocked} className={`mt-3.5 ${PRIMARY_BUTTON}`}>
-        {closed ? 'Mes cerrado ✓' : saving ? 'Guardando…' : `Cerrar ${monthName}`}
-      </button>
-      {blocked && (
-        <p className={`mt-2 text-[13px] leading-[1.4] ${TEXT_MUTED}`}>
-          Falta registrar tus ingresos de {monthName}. Sin ellos tu puntaje es provisional y el mes no se puede cerrar.{' '}
-          <Link href={REGISTER_INCOME_HREF} className="font-semibold text-electric">Registrar ingreso ›</Link>
-        </p>
-      )}
-      <StatusToast message={message} onDone={() => setMessage(null)} />
+      <Link href={`/resumen?mes=${yearMonth}`} className={`mt-3.5 ${PRIMARY_BUTTON} flex items-center justify-center`}>Ver cómo te fue ›</Link>
     </div>
   )
 }

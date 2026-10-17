@@ -100,7 +100,7 @@ export function ApplePaySheet({ txId, householdId, categories, onClose, onSaved,
     return first ? [first, ...top] : top;
   }, [pool, tx, usage]);
 
-  const merchant = tx?.description || 'Apple Pay';
+  const merchant = tx?.description || cardLabel(null, tx?.source);
   const amount = formatMoney(Number(tx?.amount ?? 0), { showDecimals: true });
   const chosen = pool.find((c) => c.id === categoryId) ?? null;
   const parts = chosen ? subItems.filter((p) => p.category_id === chosen.id) : [];
@@ -149,7 +149,7 @@ export function ApplePaySheet({ txId, householdId, categories, onClose, onSaved,
   const open = !!txId;
 
   return (
-    <BottomSheet themed open={open} onClose={() => { if (!done) onClose(); }} label="Pago con Apple Pay">
+    <BottomSheet themed open={open} onClose={() => { if (!done) onClose(); }} label={tx?.source === 'android' ? 'Pago desde un aviso del banco' : 'Pago con Apple Pay'}>
       <div className="flex min-h-[400px] flex-col gap-3.5 overflow-y-auto px-5 pt-2 pb-[calc(24px+env(safe-area-inset-bottom))]">
         {!tx ? (
           <div className="flex flex-1 items-center justify-center" aria-busy="true">
@@ -168,7 +168,7 @@ export function ApplePaySheet({ txId, householdId, categories, onClose, onSaved,
           <>
             <div className="flex flex-col items-center gap-0.5">
               <span className="rounded-full bg-ink-900 px-2.5 py-1 text-[13px] font-bold text-white dark:bg-white dark:text-ink-900">
-                {cardLabel(tx.payment_card)}
+                {cardLabel(tx.payment_card, tx.source)}
               </span>
               <h2 tabIndex={-1} className={`font-outfit text-[46px] font-extrabold leading-[1.15] outline-none ${TEXT_STRONG}`}>{amount}</h2>
               <span className={`text-[15px] ${TEXT_MUTED}`}>{merchant} · {dayLabel(tx.date, localToday()).toLowerCase()}</span>

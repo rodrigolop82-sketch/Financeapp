@@ -64,6 +64,18 @@ describe('deudas coherentes: puntaje y lecciones leen las mismas deudas', () => 
     expect(componentesDebiles(score.components)).not.toContain('debt')
   })
 
+  it('deuda informal sin pago fijo: cuenta como deuda activa, sin sumar cuota', () => {
+    const debts = [{ balance: 4500, min_payment: 0, type: 'informal' }]
+    expect(resumenDeudas(debts)).toEqual({ hayDeudas: true, cantidad: 1, cuotaMensual: 0, saldoTotal: 4500 })
+    const input = buildScoreInput({ ...raw, debts })
+    expect(input.hasDebts).toBe(true)
+    expect(input.debtPayments).toBe(0)
+    const debt = calculateScore(input).components.find((c) => c.key === 'debt')!
+    expect(debt.score).toBe(20)
+    expect(debt.detail).toBe('Tus deudas no tienen pago fijo: no pesan en tus cuotas del mes')
+    expect(debt.action?.href).toBe('/plan?s=deudas')
+  })
+
   it('con deudas activas que pesan: sí recomienda lecciones de deudas', () => {
     const input = buildScoreInput({ ...raw, debts: [{ balance: 40000, min_payment: 3000 }] })
     expect(input.hasDebts).toBe(true)
