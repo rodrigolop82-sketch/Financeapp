@@ -9,6 +9,7 @@ import { deriveTransactionType } from '@/lib/transactions/transaction-type'
 import { categoryQuestion, getEmoji, paymentLabel, PAYMENT_OPTIONS, type PaymentMethod } from '@/lib/categories-ui'
 import { cleanAmountInput, dayLabel, topCategories } from '@/lib/movimientos'
 import { sharedNotice } from '@/lib/android'
+import { etiquetaConcepto, loadOpcionesEventos, type OpcionConcepto } from '@/lib/eventos-data'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
 import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow'
 import { BottomSheet } from '@/components/transactions/BottomSheet'
@@ -57,6 +58,8 @@ interface Draft {
   /** Quién pagó (null = quien registra). */
   paidBy: string | null
   scope: Scope
+  /** Concepto de un evento (Plan › Eventos) al que se asigna el gasto. */
+  eventoConceptoId: string | null
 }
 
 interface AddContext {
@@ -67,9 +70,11 @@ interface AddContext {
   usage: Record<string, number>
   /** Partes del Plan del mes. */
   subItems: SubItemOption[]
+  /** Conceptos de los eventos activos (vacío si no hay). */
+  eventos: OpcionConcepto[]
 }
 
-type SubView = 'category' | 'date' | 'payment'
+type SubView = 'category' | 'date' | 'payment' | 'evento'
 
 /** Pantalla de éxito dentro de la hoja después de guardar. */
 interface SaveSuccess {
@@ -103,7 +108,7 @@ type Target = 'manual' | number
 const STICKY_FOOTER = 'sticky bottom-[calc(-30px-env(safe-area-inset-bottom))] z-10 -mx-5 px-5 pt-2.5 pb-[calc(30px+env(safe-area-inset-bottom))] -mb-[calc(30px+env(safe-area-inset-bottom))] bg-[var(--zafi-card)] shadow-[0_-8px_16px_-12px_rgba(13,31,54,0.25)]'
 
 function blankDraft(): Draft {
-  return { type: 'expense', amount: '', name: '', categoryId: null, subItemId: null, date: localToday(), pay: 'efectivo', originalAmount: null, originalCurrency: null, paidBy: null, scope: 'shared' }
+  return { type: 'expense', amount: '', name: '', categoryId: null, subItemId: null, date: localToday(), pay: 'efectivo', originalAmount: null, originalCurrency: null, paidBy: null, scope: 'shared', eventoConceptoId: null }
 }
 
 function draftFromExtracted(t: ExtractedTransaction): Draft {
@@ -119,6 +124,7 @@ function draftFromExtracted(t: ExtractedTransaction): Draft {
     originalCurrency: t.original_currency ?? null,
     paidBy: null,
     scope: 'shared',
+    eventoConceptoId: null,
   }
 }
 
@@ -179,7 +185,7 @@ export function AddSheet() {
         if (!user) return null
         const household = await getUserHousehold(supabase, user.id)
         if (!household) return null
-        const [{ data: cats }, { data: recent }, { data: subs }] = await Promise.all([
+        const [{ data: cats }, { data: recent }, { data: subs }, eventos] = await Promise.all([
           supabase.from('budget_categories').select('*').eq('household_id', household.id),
           supabase
             .from('transactions')
@@ -192,6 +198,7 @@ export function AddSheet() {
             .select('id, category_id, name')
             .eq('household_id', household.id)
             .order('created_at', { ascending: true }),
+          loadOpcionesEventos(supabase, household.id),
         ])
         const usage: Record<string, number> = {}
         for (const r of (recent ?? []) as { category_id: string | null }[]) {
@@ -203,6 +210,7 @@ export function AddSheet() {
           categories: ((cats ?? []) as BudgetCategory[]).filter((c) => !c.archived_at),
           usage,
           subItems: (subs ?? []) as SubItemOption[],
+          eventos,
         }
         setCtx(loaded)
         return loaded
@@ -391,6 +399,7 @@ export function AddSheet() {
         ...(household.shared && d.type === 'expense' ? { paid_by: d.paidBy ?? context.userId, scope: d.scope } : {}),
         // Solo se manda con parte: así funciona aunque falte la migración del Plan del mes.
         ...(d.subItemId ? { budget_sub_item_id: d.subItemId } : {}),
+        ...(d.eventoConceptoId && d.type === 'expense' ? { evento_concepto_id: d.eventoConceptoId } : {}),
       }
     })
     const { data, error } = await createClient().from('transactions').insert(rows).select('id, date')
@@ -512,6 +521,11 @@ export function AddSheet() {
   const softChip = `h-[38px] px-3.5 rounded-full text-[13.5px] font-semibold ${TILE_BG} text-navy dark:text-ink-100`
 
   const sub = subView ? draftFor(subView.target) : undefined
+  /** "🎉 Evento" o "🎂 Pastel" (el concepto elegido). */
+  const eventoChip = (id: string | null) => {
+    const o = id ? ctx?.eventos.find((x) => x.conceptoId === id) : null
+    return o ? `${o.emoji} ${o.concepto}` : '🎉 Evento'
+  }
 
   function closeSubOrSheet() {
     if (finishRef.current) finishRef.current()
@@ -566,6 +580,15 @@ export function AddSheet() {
           />
         )}
 
+        {!success && subView?.view === 'evento' && sub && (
+          <OptionSheet<string>
+            title="¿Es para un evento?"
+            options={[{ value: '', label: 'No es de un evento' }, ...(ctx?.eventos ?? []).map((o) => ({ value: o.conceptoId, label: etiquetaConcepto(o) }))]}
+            selected={sub.eventoConceptoId ?? ''}
+            onSelect={(id) => { patchDraft(subView.target, { eventoConceptoId: id || null }); setSubView(null) }}
+          />
+        )}
+
         {/* Estado "entendí esto" */}
         {!success && !subView && parsed && (
           <div ref={contentRef} className="flex flex-col gap-4 px-5 pt-1.5 pb-[calc(30px+env(safe-area-inset-bottom))] overflow-y-auto [&>*]:shrink-0">
@@ -610,6 +633,11 @@ export function AddSheet() {
                     <button type="button" onClick={() => setSubView({ view: 'payment', target: i })} className={softChip}>
                       {paymentLabel(d.pay)} ▾
                     </button>
+                    {!isIncome && (ctx?.eventos.length ?? 0) > 0 && (
+                      <button type="button" onClick={() => setSubView({ view: 'evento', target: i })} className={softChip}>
+                        {eventoChip(d.eventoConceptoId)} ▾
+                      </button>
+                    )}
                   </div>
                   <SubItemPicker
                     options={partsOf(d.categoryId)}
@@ -801,6 +829,11 @@ export function AddSheet() {
                 {paymentLabel(manual.pay)} ▾
               </button>
             </div>
+            {manual.type === 'expense' && (ctx?.eventos.length ?? 0) > 0 && (
+              <button type="button" onClick={() => setSubView({ view: 'evento', target: 'manual' })} className={`${chip} self-start`}>
+                {eventoChip(manual.eventoConceptoId)} ▾
+              </button>
+            )}
 
             {household.shared && manual.type === 'expense' && (
               <WhoPaidFields

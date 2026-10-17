@@ -3,7 +3,7 @@
 
 import { PRICES_CENTS } from './plans'
 
-export type PremiumReason = 'import' | 'ia' | 'history' | 'familia'
+export type PremiumReason = 'import' | 'ia' | 'history' | 'familia' | 'eventos'
 
 /**
  * Lo que cuesta Familiar sobre Premium al mes, en la moneda en que cobra
@@ -81,6 +81,16 @@ export function premiumGate(reason: PremiumReason, ctx: {
         perks: ['Busca en todo tu historial', 'Compara este año con el anterior'],
         cta: 'Ver Premium',
         href: href('history'),
+      }
+    case 'eventos':
+      return {
+        emoji: '🎉',
+        title: 'Gratis permite 1 evento a la vez',
+        subtitle: 'Termina el evento actual para crear otro, o planea varios a la vez con Premium.',
+        plan,
+        perks: ['Todos los eventos que quieras al mismo tiempo', 'Cumpleaños, viajes y bodas sin esperar'],
+        cta: 'Ver Premium',
+        href: href('eventos'),
       }
     case 'familia': {
       const name = ctx.memberName || 'Tu pareja'

@@ -17,6 +17,9 @@ describe('activeTabFor', () => {
     expect(activeTabFor('/presupuesto')).toBe('plan');
     expect(activeTabFor('/metas/nueva')).toBe('plan');
     expect(activeTabFor('/deudas')).toBe('plan');
+    expect(activeTabFor('/eventos/abc')).toBe('plan');
+    expect(parentFor('/eventos/abc')).toEqual({ label: 'Eventos', href: '/plan?s=eventos' });
+    expect(sidebarActiveHref('/eventos/abc')).toBe('/plan');
     expect(activeTabFor('/mas')).toBe('mas');
     expect(activeTabFor('/familia')).toBe('mas');
     expect(activeTabFor('/cuenta/privacidad')).toBe('mas');
@@ -60,6 +63,7 @@ describe('planSection / planHref', () => {
   it('lee la sección de ?s= (por defecto, Del mes)', () => {
     expect(planSection('metas')).toBe('metas');
     expect(planSection('deudas')).toBe('deudas');
+    expect(planSection('eventos')).toBe('eventos');
     expect(planSection(null)).toBe('mes');
     expect(planSection('otra')).toBe('mes');
   });

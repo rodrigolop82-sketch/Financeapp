@@ -26,12 +26,15 @@ interface TxDetailSheetProps {
   /** Hogares de 2: quién pagó y para qué se cambian aquí. */
   people?: Person[];
   onSaveHousehold?: (id: string, patch: { paid_by?: string; scope?: 'shared' | 'personal' }) => void;
+  /** Plan › Eventos: a qué evento y concepto va el gasto (undefined: no se muestra). */
+  eventoLabel?: string | null;
+  onOpenEvento?: () => void;
 }
 
 const NOTE_DEBOUNCE_MS = 600;
 
 /** Contenido de hoja: detalle de un movimiento; cada dato se toca para cambiarlo. */
-export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOpenPayment, onSaveText, onSaveAmount, onDelete, onDone, subItemName, people, onSaveHousehold }: TxDetailSheetProps) {
+export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOpenPayment, onSaveText, onSaveAmount, onDelete, onDone, subItemName, people, onSaveHousehold, eventoLabel, onOpenEvento }: TxDetailSheetProps) {
   const isIncome = tx.type === 'income';
   const [editingAmount, setEditingAmount] = useState(false);
   const [amountText, setAmountText] = useState('');
@@ -151,6 +154,13 @@ export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOp
           <span className={value}>{paymentLabel(tx.payment_method)}</span>
           {chevron}
         </button>
+        {!isIncome && onOpenEvento && eventoLabel !== undefined && (
+          <button type="button" onClick={onOpenEvento} className={rowClass}>
+            <span className={label}>Evento</span>
+            <span className={eventoLabel ? value : `flex-1 min-w-0 truncate text-[15px] ${TEXT_MUTED}`}>{eventoLabel ?? 'Ninguno'}</span>
+            {chevron}
+          </button>
+        )}
         <label className="flex items-center gap-3 px-4 h-14">
           <span className={label}>Nota</span>
           <input
