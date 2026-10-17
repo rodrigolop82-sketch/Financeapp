@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { isAuthPath, isProtectedPath } from '@/lib/rutas-protegidas';
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
@@ -40,20 +41,20 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const protectedRoutes = ['/dashboard', '/presupuesto', '/deudas', '/plan', '/transacciones', '/familia', '/cuenta', '/onboarding', '/chat', '/admin', '/notificacion', '/resumen', '/metas', '/score', '/mas', '/planes', '/unir'];
-  const authRoutes = ['/login', '/registro'];
   const path = request.nextUrl.pathname;
 
   // Redirect unauthenticated users from protected routes to login
-  if (!user && protectedRoutes.some((route) => path.startsWith(route))) {
+  if (!user && isProtectedPath(path)) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    url.searchParams.set('next', path);
+    // Con la búsqueda: lo compartido a Zafi (?shared_text=) no se pierde al iniciar sesión.
+    url.search = '';
+    url.searchParams.set('next', path + request.nextUrl.search);
     return redirectWithCookies(url, response);
   }
 
   // Redirect authenticated users from auth routes to dashboard
-  if (user && authRoutes.some((route) => path.startsWith(route))) {
+  if (user && isAuthPath(path)) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return redirectWithCookies(url, response);

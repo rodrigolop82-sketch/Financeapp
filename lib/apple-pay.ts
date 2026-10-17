@@ -155,10 +155,11 @@ export function rateLimitStep(state: RateState, nowMs: number, limit = RATE_LIMI
   return { allowed: true, next: { start: state.start, count: state.count + 1 } };
 }
 
-/** "BI Visa ··4821" o "Apple Pay" para la etiqueta de la hoja. */
-export function cardLabel(card: string | null | undefined): string {
+/** "BI Visa ··4821" o "Apple Pay" para la etiqueta de la hoja; en Android, "Android · BAM". */
+export function cardLabel(card: string | null | undefined, source?: string | null): string {
   const c = (card ?? '').trim();
-  return c ? `Apple Pay · ${c}` : 'Apple Pay';
+  const via = source === 'android' ? 'Android' : 'Apple Pay';
+  return c ? `${via} · ${c}` : via;
 }
 
 const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];

@@ -74,7 +74,8 @@ export function aplicarPaso(input: ScoreInput, key: PasoKey, amount: number, ext
   const a = Math.max(0, amount)
   switch (key) {
     case 'emergency':
-      return { ...input, emergencyFund: input.emergencyFund + a, saved: input.saved + a }
+      // El ahorro del mes es ingresos − gastaste: aportar lo ya ahorrado no lo cambia.
+      return { ...input, emergencyFund: input.emergencyFund + a }
     case 'savings':
       return { ...input, saved: input.saved + a }
     case 'debt':
@@ -123,10 +124,11 @@ function candidatos(input: ScoreInput, ctx: PasosContexto): Candidato[] {
     }
   }
 
-  // Ahorro: hasta guardar 20% del ingreso.
+  // Ahorro: hasta guardar 20% del ingreso. Sin ingresos registrados el
+  // ahorro está pendiente y no se sugiere.
   const savingsGap = income * 0.2 - Math.max(0, input.saved)
   const savingsAmount = Math.min(round50(savingsGap), monthly)
-  if (savingsGap > 0 && savingsAmount > 0) {
+  if (!input.provisional && savingsGap > 0 && savingsAmount > 0) {
     out.push({
       key: 'savings', component: 'savings', amount: savingsAmount,
       next: aplicarPaso(input, 'savings', savingsAmount),

@@ -33,7 +33,7 @@ function AccountRight({ s, fmt }: { s: SourceView; fmt: (n: number) => string })
   if (s.kind === 'credit_card') {
     return s.debt
       ? <span className={`flex-none font-outfit text-[15px] font-extrabold ${TEXT_STRONG}`}>−{fmt(s.debt.balance)}</span>
-      : <span className={`flex-none text-[13px] ${TEXT_MUTED}`}>Sin vincular</span>
+      : <span className={`flex-none text-[13px] ${TEXT_MUTED}`}>Sin deuda vinculada</span>
   }
   if (s.balance === null) return <span className={`flex-none text-[13px] ${TEXT_MUTED}`}>Sin saldo</span>
   return <span className={`flex-none font-outfit text-[15px] font-extrabold ${TEXT_STRONG}`}>{s.side === 'liability' ? '−' : ''}{fmt(s.balance)}</span>
@@ -89,18 +89,6 @@ export default function MisCuentasPage() {
         <PageHeader back={{ href: '/mas', label: 'Más' }} title="Mis cuentas" subtitle={SUBTITLE} />
         <p className={`hidden text-sm lg:block ${TEXT_MUTED}`}>{SUBTITLE}</p>
 
-        {/* Apple Pay vía Atajos (fase 13) */}
-        <Link href="/mis-fuentes/apple-pay" className={`mt-3.5 flex items-center gap-3 p-3.5 transition-transform duration-150 active:scale-[0.98] ${CARD}`}>
-          <RowBody tile={<Tile>📲</Tile>} name="Apple Pay" help="Tus pagos con el iPhone llegan solos" />
-          {applePay && <span className={BADGE_OK}>Activo</span>}
-          <Chevron />
-        </Link>
-
-        <Link href="/patrimonio" className={`mt-2.5 flex items-center gap-3 p-3.5 transition-transform duration-150 active:scale-[0.98] ${CARD}`}>
-          <RowBody tile={<Tile>📈</Tile>} name="Mi patrimonio" help="Lo que tienes menos lo que debes" />
-          <Chevron />
-        </Link>
-
         {state.status === 'error' && (
           <div className="mt-3.5 flex flex-col gap-2">
             <ErrorBox>No pudimos cargar tus cuentas.</ErrorBox>
@@ -133,6 +121,26 @@ export default function MisCuentasPage() {
               Efectivo, inversiones, vehículos, inmuebles y otras deudas se agregan en{' '}
               <Link href="/patrimonio" className={`font-semibold ${LINK_TEXT}`}>Mi patrimonio</Link>.
             </p>
+
+            {/* Conexiones, aparte de las cuentas (C13) */}
+            <GroupTitle>Conexiones</GroupTitle>
+            <div className="flex flex-col">
+              <Link href="/mis-fuentes/apple-pay" className={`flex items-center gap-3 p-3.5 transition-transform duration-150 active:scale-[0.98] ${CARD}`}>
+                <RowBody tile={<Tile>📲</Tile>} name="Apple Pay" help="Tus pagos con el iPhone llegan solos" />
+                {applePay && <span className={BADGE_OK}>Activo</span>}
+                <Chevron />
+              </Link>
+
+              <Link href="/mis-fuentes/android" className={`mt-2.5 flex items-center gap-3 p-3.5 transition-transform duration-150 active:scale-[0.98] ${CARD}`}>
+                <RowBody tile={<Tile>🤖</Tile>} name="Android" help="Comparte o registra solos los avisos de tu banco" />
+                <Chevron />
+              </Link>
+
+              <Link href="/patrimonio" className={`mt-2.5 flex items-center gap-3 p-3.5 transition-transform duration-150 active:scale-[0.98] ${CARD}`}>
+                <RowBody tile={<Tile>📈</Tile>} name="Mi patrimonio" help="Lo que tienes menos lo que debes" />
+                <Chevron />
+              </Link>
+            </div>
 
             {archived.length > 0 && (
               <>

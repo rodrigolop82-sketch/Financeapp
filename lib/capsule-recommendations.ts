@@ -18,6 +18,20 @@ const REASON_MAP: Record<string, string> = {
   stability: 'Tu ingreso variable requiere planificación especial',
 }
 
+/**
+ * Las (hasta) 3 partes más bajas del puntaje para recomendar lecciones.
+ * Una parte pendiente (ahorro sin ingresos) no es débil: no tiene datos.
+ * Una parte al máximo tampoco: sin deudas activas la de deuda vale 20/20 y no
+ * se recomiendan lecciones "por tus deudas".
+ */
+export function componentesDebiles(components: ScoreComponent[]): string[] {
+  return components
+    .filter(c => !c.pending && c.score < c.max)
+    .sort((a, b) => (a.score / a.max) - (b.score / b.max))
+    .slice(0, 3)
+    .map(c => c.key)
+}
+
 export async function getRecommendedCapsules(
   userId: string,
   components: ScoreComponent[],
@@ -25,10 +39,7 @@ export async function getRecommendedCapsules(
 ): Promise<CapsuleRecommendation[]> {
   if (components.length === 0) return []
 
-  const weakComponents = [...components]
-    .sort((a, b) => (a.score / a.max) - (b.score / b.max))
-    .slice(0, 3)
-    .map(c => c.key)
+  const weakComponents = componentesDebiles(components)
 
   const dbComponents = weakComponents
     .map(k => KEY_TO_DB[k])

@@ -56,7 +56,7 @@ export default function PrivacidadPage() {
           <Section title="6. Tus derechos">
             <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
               <li><strong>Acceso:</strong> puedes exportar todos tus datos en cualquier momento desde tu cuenta.</li>
-              <li><strong>Eliminación:</strong> puedes solicitar la eliminación completa de tu cuenta y datos desde la sección &quot;Mi cuenta&quot;.</li>
+              <li><strong>Eliminación:</strong> puedes eliminar tu cuenta y tus datos en cualquier momento desde la sección &quot;Cuenta&quot;. Se borran al momento; el registro de pagos se conserva sin tus datos personales.</li>
               <li><strong>Portabilidad:</strong> la exportación genera un archivo JSON con toda tu información.</li>
             </ul>
           </Section>

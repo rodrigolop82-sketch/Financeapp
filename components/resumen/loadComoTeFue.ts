@@ -8,6 +8,8 @@ import { getUserHousehold } from '@/lib/household';
 import { monthRange } from '@/lib/movimientos';
 import { resolveCaps, type CapKey } from '@/lib/recomendaciones';
 import type { CtfCategory, CtfTx } from '@/lib/como-te-fue';
+import { loadInteresesDeuda } from '@/lib/metricas-mes-data';
+import type { InteresesDeuda } from '@/lib/metricas-mes';
 import type { BudgetSubItem, IncomeEntry } from '@/types';
 
 export interface CtfData {
@@ -25,6 +27,8 @@ export interface CtfData {
   snapshots: Record<string, number>;
   /** Primer mes con movimientos (null si no hay ninguno). */
   earliest: string | null;
+  /** Intereses de los pagos a deudas del rango (lib/metricas-mes). */
+  intereses: InteresesDeuda;
 }
 
 export type CtfLoad = { status: 'login' } | { status: 'onboarding' } | { status: 'ok'; data: CtfData };
@@ -50,7 +54,7 @@ async function fetchTxs(supabase: SupabaseClient, hid: string, from: string, to:
       if (!data || data.length < PAGE) return { rows, error: null };
     }
   };
-  const first = await run('id, category_id, budget_sub_item_id, amount, type, date, description');
+  const first = await run('id, category_id, budget_sub_item_id, amount, type, transaction_type, date, description');
   if (!first.error) return first.rows;
   // Sin la migración del Plan del mes no existe budget_sub_item_id.
   return (await run('id, category_id, amount, type, date, description')).rows;
@@ -66,7 +70,9 @@ export async function loadComoTeFue(
   if (!hh) return { status: 'onboarding' };
   const hid = hh.id as string;
 
-  const [profileRes, catsRes, subsRes, incomesRes, capsRes, earliestRes, txs, snapRes] = await Promise.all([
+  const rangeFrom = monthRange(opts.from).from;
+  const rangeTo = monthRange(opts.to).to;
+  const [profileRes, catsRes, subsRes, incomesRes, capsRes, earliestRes, txs, snapRes, intereses] = await Promise.all([
     supabase.from('users').select('full_name').eq('id', user.id).single(),
     supabase.from('budget_categories').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
     supabase.from('budget_sub_items').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
@@ -74,10 +80,11 @@ export async function loadComoTeFue(
     // Sin la migración de topes la consulta falla y se usan los recomendados.
     supabase.from('spending_caps').select('cap_key, pct').eq('household_id', hid),
     supabase.from('transactions').select('date').eq('household_id', hid).order('date', { ascending: true }).limit(1),
-    fetchTxs(supabase, hid, monthRange(opts.from).from, monthRange(opts.to).to),
+    fetchTxs(supabase, hid, rangeFrom, rangeTo),
     opts.snapshotMonth
       ? supabase.from('budget_snapshots').select('category_id, amount').eq('household_id', hid).eq('month', `${opts.snapshotMonth}-01`)
       : Promise.resolve({ data: [] as { category_id: string; amount: number }[] }),
+    loadInteresesDeuda(supabase, hid, rangeFrom, rangeTo),
   ]);
 
   const snapshots: Record<string, number> = {};
@@ -100,6 +107,7 @@ export async function loadComoTeFue(
       caps: resolveCaps(capsRes.error ? null : (capsRes.data as { cap_key: string; pct: number }[] | null)),
       snapshots,
       earliest: first ? first.slice(0, 7) : null,
+      intereses,
     },
   };
 }

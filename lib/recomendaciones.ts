@@ -50,12 +50,17 @@ const CAP_RULES: [CapKey, RegExp][] = [
   ['gustos', /entreten|salida|ropa|varios personales|diversion|ocio|viaje|compras|hobby|gusto/],
 ];
 
-/** Tope que le toca a una categoría de gasto por su nombre (null si ninguno). */
-export function inferCapKey(name: string, bucket: string): CapKey | null {
-  if (bucket !== 'needs' && bucket !== 'wants') return null;
+/** Grupo que le toca a un nombre de categoría, sin mirar el bucket (null si ninguno). */
+export function capKeyByName(name: string): CapKey | null {
   const n = norm(name);
   for (const [key, re] of CAP_RULES) if (re.test(n)) return key;
   return null;
+}
+
+/** Tope que le toca a una categoría de gasto por su nombre (null si ninguno). */
+export function inferCapKey(name: string, bucket: string): CapKey | null {
+  if (bucket !== 'needs' && bucket !== 'wants') return null;
+  return capKeyByName(name);
 }
 
 export interface CapCategory {

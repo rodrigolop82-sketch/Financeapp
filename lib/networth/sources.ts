@@ -5,10 +5,16 @@
 //   Plan › Deudas, que es la que cuenta (sin doble conteo).
 // · Cada cuenta es personal (de quien la creó) o compartida con el hogar.
 
+// Las deudas (tarjetas aparte) viven solo en Plan › Deudas: "Otra deuda" ya
+// no se crea como cuenta. 'loan' y 'other_liability' quedan en el tipo solo
+// para leer filas viejas (la migración 20261104 las pasa a debts).
 export const SOURCE_KINDS = [
-  'bank_account', 'credit_card', 'cash', 'investment', 'vehicle', 'real_estate', 'other_asset', 'other_liability',
+  'bank_account', 'credit_card', 'cash', 'investment', 'vehicle', 'real_estate', 'other_asset',
 ] as const
-export type SourceKind = (typeof SOURCE_KINDS)[number] | 'loan'
+export type SourceKind = (typeof SOURCE_KINDS)[number] | 'loan' | 'other_liability'
+
+/** Mi patrimonio › Agregar deuda: abre la hoja de Plan › Deudas como "Informal". */
+export const NUEVA_DEUDA_HREF = '/plan?s=deudas&nueva=1&tipo=informal'
 
 export const KIND_LABEL: Record<SourceKind, string> = {
   bank_account: 'Cuenta bancaria',

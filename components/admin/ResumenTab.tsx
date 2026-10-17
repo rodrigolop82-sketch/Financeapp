@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { PeriodDays, Resumen, Trend } from '@/lib/admin/metrics';
 import { CARD, LoadError, LoadingBlocks, PageTitle, StatCard, TEXT_SECONDARY, TEXT_STRONG, fetchJson } from './ui';
+import { formatNumber } from '@/lib/format'
 
 export interface ResumenData extends Resumen {
   accesos: { reactivar: number; nuncaCapturo: number; sinLeer: number };
@@ -167,7 +168,7 @@ function Activity({ data }: { data: ResumenData }) {
           <h2 className={`text-[17px] font-bold ${TEXT_STRONG}`}>{weekly ? 'Movimientos registrados por semana' : 'Movimientos registrados por día'}</h2>
           <span className={`text-[13.5px] ${TEXT_SECONDARY}`}>{subtitle}</span>
         </div>
-        <span className={`font-outfit text-2xl font-extrabold ${TEXT_STRONG}`}>{total.toLocaleString('en-US')}</span>
+        <span className={`font-outfit text-2xl font-extrabold ${TEXT_STRONG}`}>{formatNumber(total)}</span>
       </div>
       <div className={`flex h-[150px] items-end ${gap}`}>
         {bars.map((b, i) => (

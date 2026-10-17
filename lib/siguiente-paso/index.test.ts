@@ -71,10 +71,14 @@ describe('siguientesPasos', () => {
 })
 
 describe('aplicarPaso', () => {
-  it('aportar al fondo también cuenta como ahorro', () => {
+  it('aportar al fondo sube el fondo, no el ahorro del mes (ya está dentro)', () => {
     const n = aplicarPaso(apretado, 'emergency', 1000)
     expect(n.emergencyFund).toBe(3000)
-    expect(n.saved).toBe(1300)
+    expect(n.saved).toBe(apretado.saved)
+  })
+  it('sin ingresos registrados no sugiere ahorrar más', () => {
+    const pasos = siguientesPasos({ ...apretado, provisional: true }, { debts: [], overCategories: [] })
+    expect(pasos.every((p) => p.component !== 'savings')).toBe(true)
   })
   it('terminar una deuda quita su cuota', () => {
     expect(aplicarPaso(apretado, 'debt', 9000, { minPayment: 450 }).debtPayments).toBe(2050)

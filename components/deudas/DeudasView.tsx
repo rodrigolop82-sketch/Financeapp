@@ -20,6 +20,7 @@ import { StatusToast, type StatusMessage } from '@/components/movimientos/Status
 import { SkeletonRows } from '@/components/motion/PageSkeleton';
 import { notifyScoreInputsChanged } from '@/lib/score-feedback';
 import { NavCard, NavRow } from '@/components/layout/NavRow';
+import { deudasActivas, esCategoriaPagoDeuda, esDeudaActiva, loadDeudas } from '@/lib/deudas-data';
 
 type DebtType = Debt['type'];
 
@@ -58,7 +59,11 @@ function num(v: string): number {
 }
 
 /** Deudas: cuerpo de la sección "Deudas" en /plan. */
-export function DeudasView() {
+/**
+ * `addRequest` > 0 abre la hoja de deuda nueva (llega con /plan?s=deudas&nueva=1).
+ * `addType` ("informal" desde Mi patrimonio) es el tipo con que arranca.
+ */
+export function DeudasView({ addRequest = 0, addType = null }: { addRequest?: number; addType?: string | null } = {}) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const fmt = useFormatMoney();
@@ -81,19 +86,32 @@ export function DeudasView() {
       if (!user) { router.push('/login'); return; }
       const hh = await getUserHousehold(supabase, user.id);
       if (!hh) { router.push('/onboarding'); return; }
-      const { data } = await supabase
-        .from('debts').select('*').eq('household_id', hh.id).order('balance', { ascending: true });
+      const [data, { data: cats }] = await Promise.all([
+        loadDeudas<Debt>(supabase, hh.id, { todas: true }),
+        supabase.from('budget_categories').select('id, name, bucket, budgeted_amount, cap_key, archived_at').eq('household_id', hh.id),
+      ]);
       if (cancelled) return;
-      const rows = (data || []) as Debt[];
+      const rows = data ?? [];
+      // El pago extra arranca con lo que tu plan aparta para deudas ("Pago de deudas extra").
+      const planCats = ((cats ?? []) as { id: string; name: string; bucket: string; budgeted_amount: number; cap_key: string | null; archived_at: string | null }[])
+        .filter((c) => !c.archived_at);
+      const planned = planCats.filter(esCategoriaPagoDeuda).reduce((t, c) => t + (Number(c.budgeted_amount) || 0), 0);
+      if (planned > 0) setExtraInput(String(Math.round(planned)));
       setHouseholdId(hh.id);
       setDebts(rows);
-      setOpenId(rows.find((d) => !d.is_paid)?.id ?? null);
+      setOpenId(rows.find(esDeudaActiva)?.id ?? null);
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [supabase, router]);
 
-  const openNew = useCallback(() => setSheet({ debt: null, key: Date.now() }), []);
+  const [newType, setNewType] = useState<DebtType>('credit');
+  const openNew = useCallback(() => { setNewType('credit'); setSheet({ debt: null, key: Date.now() }); }, []);
+  useEffect(() => {
+    if (addRequest <= 0) return;
+    setNewType(addType && addType in DEBT_TYPES ? (addType as DebtType) : 'credit');
+    setSheet({ debt: null, key: Date.now() });
+  }, [addRequest, addType]);
 
   const fail = () => setMessage({ text: 'No se pudo guardar. Intenta de nuevo.', tone: 'error' });
 
@@ -144,8 +162,9 @@ export function DeudasView() {
 
   if (loading) return <SkeletonRows count={4} className="mt-3.5" />;
 
-  const active = debts.filter((d) => !d.is_paid);
-  const done = debts.filter((d) => d.is_paid);
+  // Activas: sin pagar y con saldo (lib/deudas-data, igual que el puntaje).
+  const active = deudasActivas(debts);
+  const done = debts.filter((d) => !esDeudaActiva(d));
   const extra = num(extraInput);
   const totalBalance = active.reduce((s, d) => s + Number(d.balance), 0);
   const totalMin = active.reduce((s, d) => s + Number(d.min_payment), 0);
@@ -210,7 +229,7 @@ export function DeudasView() {
                           <div className={`grid grid-cols-2 gap-1 rounded-xl px-3 py-2.5 ${SOFT_BG}`}>
                             <span className={`text-[13px] ${TEXT_MUTED}`}>
                               {d.type === 'credit' ? 'Pago mínimo' : 'Pago mensual'}
-                              <b className={`block font-outfit text-[15px] ${TEXT_STRONG}`}>{fmt(Number(d.min_payment))}/mes</b>
+                              <b className={`block font-outfit text-[15px] ${TEXT_STRONG}`}>{Number(d.min_payment) > 0 ? `${fmt(Number(d.min_payment))}/mes` : 'Sin pago fijo'}</b>
                             </span>
                             <span className={`text-[13px] ${TEXT_MUTED}`}>
                               Interés al mes
@@ -346,6 +365,7 @@ export function DeudasView() {
           <DebtSheet
             key={sheet.key}
             debt={sheet.debt}
+            initialType={newType}
             onSave={(d) => saveDebt(sheet.debt, d)}
             onDelete={sheet.debt ? () => deleteDebt(sheet.debt!) : undefined}
           />
@@ -369,14 +389,15 @@ export function DeudasView() {
   );
 }
 
-function DebtSheet({ debt, onSave, onDelete }: {
+function DebtSheet({ debt, initialType = 'credit', onSave, onDelete }: {
   debt: Debt | null;
+  initialType?: DebtType;
   onSave: (d: Omit<Debt, 'id' | 'household_id' | 'strategy' | 'is_paid' | 'created_at'>) => Promise<void>;
   onDelete?: () => Promise<void>;
 }) {
   const [f, setF] = useState<DebtDraft>(() => ({
     name: debt?.name ?? '',
-    type: debt?.type ?? 'credit',
+    type: debt?.type ?? initialType,
     purpose: debt?.purpose ?? 'personal',
     original_amount: debt?.original_amount ? String(debt.original_amount) : '',
     balance: debt ? String(debt.balance) : '',
@@ -448,7 +469,7 @@ function DebtSheet({ debt, onSave, onDelete }: {
         {field('balance', 'Saldo de hoy', 'Q 0.00')}
       </div>
       <div className="flex gap-3">
-        {field('min_payment', f.type === 'credit' ? 'Pago mínimo' : 'Pago mensual', 'Q 0.00')}
+        {field('min_payment', f.type === 'credit' ? 'Pago mínimo' : f.type === 'informal' ? 'Pago mensual (opcional)' : 'Pago mensual', 'Q 0.00')}
         {field('interest_rate', 'Interés anual', '0 %')}
       </div>
       <div className="flex gap-3">

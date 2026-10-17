@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-// Una sola pantalla de salud financiera: /score.
+// Tu salud financiera vive dentro de Cómo te fue (C8).
 export default function Page() {
-  redirect('/score?from=resumen');
+  redirect('/resumen#salud');
 }

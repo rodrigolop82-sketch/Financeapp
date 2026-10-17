@@ -10,6 +10,7 @@ import { daysSince, isStale, monthlyHistory, summarize, type BalancePoint, type 
 import { canSeeSource, type SourceKind } from './sources'
 import type { DebtPurpose, DebtTerms } from './groups'
 import { amortizar } from '@/lib/amortizacion'
+import { deudasActivas } from '@/lib/deudas-data'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any>
@@ -130,8 +131,7 @@ function debtTerms(d: DebtRow): DebtTerms {
 export async function getNetWorth(admin: Admin, hid: string, userId: string, nowIso: string): Promise<NetWorthData> {
   const { sources, debts, items, points } = await load(admin, hid, userId)
   const summary = summarize(items, points, nowIso)
-  const activeDebts: DebtRef[] = debts
-    .filter((d) => !d.is_paid && Number(d.balance) > 0)
+  const activeDebts: DebtRef[] = deudasActivas(debts)
     .map((d) => ({ id: d.id, name: d.name, balance: Number(d.balance) }))
   const debtById = new Map(activeDebts.map((d) => [d.id, d]))
 

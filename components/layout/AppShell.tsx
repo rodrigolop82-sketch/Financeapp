@@ -4,7 +4,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { isMasterUser } from '@/lib/master-user'
-import { isRootPath, parentFor } from '@/lib/navigation'
+import { isRootPath, parentFor, sidebarActiveHref } from '@/lib/navigation'
+import { NAV_GROUPS, SidebarLinks, type NavItem } from '@/components/layout/SidebarLinks'
 import { Wordmark } from '@/components/brand/Wordmark'
 import { AppIcon } from '@/components/brand/AppIcon'
 import { BottomNav, openAddSheet } from '@/components/dashboard/BottomNav'
@@ -14,61 +15,7 @@ import { useViewOnly } from '@/lib/hooks/useEffectivePlan'
 import { PushOfferSheet } from '@/components/avisos/PushOfferSheet'
 import { ScoreWatcher } from '@/components/score/ScoreWatcher'
 import { signalAppReady } from '@/components/motion/Splash'
-import { FeedbackSheet } from '@/components/feedback/FeedbackSheet'
-import {
-  Home, List, Wallet, TrendingUp, HeartPulse, ClipboardCheck,
-  MessageCircle, BookOpen, Landmark, Users, Settings, ShieldCheck,
-  ChevronLeft, Plus, Lightbulb, LogOut,
-} from 'lucide-react'
-
-interface NavItem {
-  href: string
-  icon: typeof Home
-  label: string
-  /** Acción en la misma página en vez de navegar (p. ej. la hoja de feedback). */
-  action?: 'feedback'
-}
-
-interface NavGroup {
-  label: string
-  items: NavItem[]
-}
-
-// Mismos grupos que la página "Más" (lib/navigation.ts), más las pestañas principales.
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Principal',
-    items: [
-      { href: '/dashboard', icon: Home, label: 'Inicio' },
-      { href: '/transacciones', icon: List, label: 'Movimientos' },
-      { href: '/plan', icon: Wallet, label: 'Plan' },
-    ],
-  },
-  {
-    label: 'Tu dinero',
-    items: [
-      { href: '/resumen', icon: TrendingUp, label: 'Cómo te fue' },
-      { href: '/score', icon: HeartPulse, label: 'Tu salud financiera' },
-      { href: '/cierre-mes', icon: ClipboardCheck, label: 'Cerrar el mes' },
-    ],
-  },
-  {
-    label: 'Ayuda',
-    items: [
-      { href: '/chat', icon: MessageCircle, label: 'Pregúntale a Zafi' },
-      { href: '/aprende', icon: BookOpen, label: 'Aprende' },
-      { href: '#feedback', icon: Lightbulb, label: 'Envíanos tu idea', action: 'feedback' },
-    ],
-  },
-  {
-    label: 'Tu cuenta',
-    items: [
-      { href: '/mis-fuentes', icon: Landmark, label: 'Mis cuentas' },
-      { href: '/familia', icon: Users, label: 'Familia' },
-      { href: '/cuenta', icon: Settings, label: 'Cuenta y privacidad' },
-    ],
-  },
-]
+import { ShieldCheck, ChevronLeft, Plus, LogOut } from 'lucide-react'
 
 const ADMIN_ITEM: NavItem = { href: '/admin', icon: ShieldCheck, label: 'Admin' }
 
@@ -90,7 +37,6 @@ interface AppShellProps {
 
 export function AppShell({ children, title, currentPath, userName = '', userEmail = '', householdName = '', headerRight, titleRight, mobileHeader, hideMobileBar = false }: AppShellProps) {
   const [isMaster, setIsMaster] = useState(false)
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const viewOnly = useViewOnly()
   // Nombre del pie del sidebar: el de la página o, si no lo pasa, el del perfil.
   const [loadedName, setLoadedName] = useState('')
@@ -98,6 +44,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
   const router = useRouter()
   const pathname = usePathname() ?? currentPath
   const isRoot = isRootPath(pathname)
+  const activeHref = sidebarActiveHref(pathname) ?? currentPath
   const parent = parentFor(pathname)
 
   // La página ya tiene sus datos (pinta AppShell): el splash puede salir.
@@ -201,59 +148,7 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
             )}
 
             {/* Nav groups */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
-              {navGroups.map((group) => (
-                <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <div style={{
-                    fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
-                    color: 'var(--zafi-sidebar-group)', padding: '0 12px 4px', textTransform: 'uppercase',
-                  }}>
-                    {group.label}
-                  </div>
-                  {group.items.map((item) => {
-                    const isActive = item.href === currentPath
-                    const style: React.CSSProperties = {
-                      display: 'flex', alignItems: 'center', gap: 11, width: '100%',
-                      padding: '8px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                      background: isActive ? 'var(--zafi-sidebar-active)' : 'transparent',
-                      color: isActive ? '#fff' : 'var(--zafi-sidebar-text)',
-                      fontWeight: isActive ? 600 : 500,
-                      fontSize: '14.5px', textDecoration: 'none', textAlign: 'left',
-                      transition: 'background 0.15s, color 0.15s',
-                    }
-                    const hover = {
-                      onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
-                        if (!isActive) {
-                          e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                          e.currentTarget.style.color = '#E2E8F0'
-                        }
-                      },
-                      onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
-                        if (!isActive) {
-                          e.currentTarget.style.background = 'transparent'
-                          e.currentTarget.style.color = 'var(--zafi-sidebar-text)'
-                        }
-                      },
-                    }
-                    const body = (
-                      <>
-                        <item.icon style={{ width: 17, height: 17, flexShrink: 0 }} />
-                        {item.label}
-                      </>
-                    )
-                    return item.action === 'feedback' ? (
-                      <button key={item.href} type="button" onClick={() => setFeedbackOpen(true)} style={style} {...hover}>
-                        {body}
-                      </button>
-                    ) : (
-                      <Link key={item.href} href={item.href} aria-current={isActive ? 'page' : undefined} style={style} {...hover}>
-                        {body}
-                      </Link>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
+            <SidebarLinks groups={navGroups} activeHref={activeHref} />
           </div>
 
           {/* Pie: quién está conectado y cerrar sesión */}
@@ -332,7 +227,6 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
       <AddSheet />
       <ViewOnlySheet />
       <PushOfferSheet />
-      <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <ScoreWatcher />
     </div>
   )

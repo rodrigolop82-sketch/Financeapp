@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { BottomNav } from '@/components/dashboard/BottomNav'
+import { SidebarSkeleton } from '@/components/layout/SidebarLinks'
 
 export type SkeletonVariant = 'home' | 'list' | 'detail'
 export type SkeletonTone = 'dark' | 'app'
@@ -61,13 +62,13 @@ interface PageSkeletonProps {
   variant?: SkeletonVariant
   /** `dark` (por defecto): fondo #0D1F36. `app`: el fondo de la app según el tema. */
   tone?: SkeletonTone
-  /** Muestra la barra inferior (móvil) mientras carga. Por defecto, sí. */
+  /** Muestra el menú (barra inferior en móvil, menú lateral en escritorio). Por defecto, sí. */
   nav?: boolean
 }
 
 /**
- * Siluetas de página completa mientras llegan los datos. Reemplaza al
- * spinner sobre fondo claro.
+ * Siluetas de página completa mientras llegan los datos, con el menú ya
+ * visible (C16): la página nunca se ve en blanco ni salta al cargar.
  */
 export function PageSkeleton({ variant = 'list', tone = 'dark', nav = true }: PageSkeletonProps) {
   const dark = tone === 'dark'
@@ -78,11 +79,15 @@ export function PageSkeleton({ variant = 'list', tone = 'dark', nav = true }: Pa
       className={`min-h-screen animate-fade-quick ${dark ? 'zafi-skel-dark bg-navy-deep' : ''}`}
       style={dark ? undefined : { background: 'var(--zafi-bg)' }}
     >
-      <div
-        className="mx-auto flex max-w-2xl flex-col gap-3 px-4 pb-28 lg:mx-0 lg:px-[52px]"
-        style={{ paddingTop: 'calc(16px + env(safe-area-inset-top))' }}
-      >
-        {variant === 'home' ? <HomeBlocks /> : variant === 'detail' ? <DetailBlocks /> : <ListBlocks />}
+      <div className="flex">
+        {nav && <SidebarSkeleton />}
+        <div
+          className="flex min-w-0 flex-1 flex-col gap-3 px-4 pb-28 pt-[calc(16px+env(safe-area-inset-top))] lg:px-[52px] lg:pt-[44px]"
+        >
+          <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 lg:mx-0">
+            {variant === 'home' ? <HomeBlocks /> : variant === 'detail' ? <DetailBlocks /> : <ListBlocks />}
+          </div>
+        </div>
       </div>
       <span className="sr-only">Cargando…</span>
       {nav && <BottomNav />}

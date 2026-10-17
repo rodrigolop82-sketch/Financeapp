@@ -3,11 +3,12 @@
 // Hojas de Mis cuentas: agregar o editar una cuenta y actualizar su saldo.
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { DANGER_TEXT_BUTTON, ErrorBox, FieldLabel, INPUT_48, SheetHeader } from '@/components/layout/Pantalla'
 import { Switch } from '@/components/cuenta/AccountUI'
 import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
 import { GT_BANKS } from '@/lib/sources'
-import { ASSET_KINDS, KIND_EMOJI, KIND_LABEL, SOURCE_KINDS, hasStatements, type SourceKind } from '@/lib/networth/sources'
+import { ASSET_KINDS, KIND_EMOJI, KIND_LABEL, NUEVA_DEUDA_HREF, SOURCE_KINDS, hasStatements, type SourceKind } from '@/lib/networth/sources'
 import type { DebtRef, SourceView } from '@/lib/networth/data'
 import { sendJson } from './useNetWorth'
 
@@ -117,7 +118,7 @@ export function AccountSheet({ source, debts, kinds = SOURCE_KINDS, onDone, onEr
 
   return (
     <div className={SHEET_BODY}>
-      <SheetHeader emoji={KIND_EMOJI[kind]} title={editing ? source!.name : 'Agregar cuenta'} subtitle={editing ? KIND_LABEL[kind] : kinds.length === SOURCE_KINDS.length ? 'Un banco, tarjeta, efectivo, inversión, bien o deuda' : 'Una cuenta de banco o una tarjeta'} />
+      <SheetHeader emoji={KIND_EMOJI[kind]} title={editing ? source!.name : 'Agregar cuenta'} subtitle={editing ? KIND_LABEL[kind] : kinds.length === SOURCE_KINDS.length ? 'Un banco, tarjeta, efectivo, inversión o bien' : 'Una cuenta de banco o una tarjeta'} />
 
       {!editing && (
         <div className="flex flex-col gap-1.5">
@@ -129,8 +130,11 @@ export function AccountSheet({ source, debts, kinds = SOURCE_KINDS, onDone, onEr
               </button>
             ))}
           </div>
-          {kind === 'other_liability' && (
-            <p className={`text-[13px] leading-[1.45] ${TEXT_MUTED}`}>Tus tarjetas y préstamos ya cuentan desde Plan › Deudas. Agrega aquí solo otras deudas. Para registrar tasa y pago mensual, agrégala en Plan › Deudas.</p>
+          {kinds.length === SOURCE_KINDS.length && (
+            <p className={`text-[13px] leading-[1.45] ${TEXT_MUTED}`}>
+              ¿Es una deuda? Todas viven en Plan › Deudas, también las que no tienen pago fijo.{' '}
+              <Link href={NUEVA_DEUDA_HREF} className="font-semibold text-electric-dark dark:text-electric-soft">Agregar deuda ›</Link>
+            </p>
           )}
         </div>
       )}
@@ -178,7 +182,10 @@ export function AccountSheet({ source, debts, kinds = SOURCE_KINDS, onDone, onEr
         <div className="flex flex-col gap-1.5">
           <span className={LABEL}>Su deuda en Plan › Deudas</span>
           {debts.length === 0 ? (
-            <p className={`text-[13.5px] leading-[1.45] ${TEXT_MUTED}`}>Aún no tienes deudas registradas. Agrega la tarjeta en Plan › Deudas para que su saldo cuente en tu patrimonio.</p>
+            <p className={`text-[13.5px] leading-[1.45] ${TEXT_MUTED}`}>
+              Aún no tienes deudas registradas. Agrega la tarjeta en Plan › Deudas para que su saldo cuente en tu plan, tu puntaje y tu patrimonio.{' '}
+              <Link href="/plan?s=deudas&nueva=1" className="font-semibold text-electric">Agregar su deuda ›</Link>
+            </p>
           ) : (
             <div className="flex flex-wrap gap-2">
               <button type="button" aria-pressed={!debtId} onClick={() => setDebtId('')} className={chip(!debtId)}>Sin vincular</button>

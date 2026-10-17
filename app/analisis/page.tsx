@@ -7,6 +7,7 @@ import { ArrowLeft, Lock } from 'lucide-react';
 import { Wordmark } from '@/components/brand/Wordmark';
 import { sessionAnalisis } from '@/lib/session-analisis';
 import { scoreFromProfile } from '@/lib/score-calculator';
+import { formatMoney } from '@/lib/format';
 
 const TOTAL_STEPS = 4;
 
@@ -25,7 +26,7 @@ const TIPO_INGRESO = [
 ];
 
 function formatQ(n: number) {
-  return 'Q ' + n.toLocaleString('es-GT', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return formatMoney(n);
 }
 
 export default function AnalisisPage() {

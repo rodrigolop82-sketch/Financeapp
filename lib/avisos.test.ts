@@ -199,5 +199,6 @@ describe('Apple Pay', () => {
   it('copy de la spec', () => {
     expect(applePayCopy(85, 'Starbucks', q).body).toBe('Registramos Q 85.00 en Starbucks con Apple Pay. Toca para elegir categoría.');
     expect(applePayCopy(85, 'Starbucks', q, '☕ Café').body).toContain('con Apple Pay: ☕ Café.');
+    expect(applePayCopy(85, 'Walmart', q, null, 'por el aviso de BAM').body).toBe('Registramos Q 85.00 en Walmart por el aviso de BAM. Toca para elegir categoría.');
   });
 });

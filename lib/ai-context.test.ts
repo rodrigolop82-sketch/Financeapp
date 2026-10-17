@@ -51,6 +51,15 @@ describe('recordedMonths', () => {
       { amount: 300, type: 'expense' as const, category_id: null, date: '2026-09-10' },
       { amount: 999, type: 'expense' as const, category_id: null, date: '2026-10-02' },
     ]
-    expect(recordedMonths(txs, '2026-10', money)).toBe('  2026-09: ingresos Q 1,000 · gastos Q 300')
+    expect(recordedMonths(txs, '2026-10', money)).toBe('  2026-09: ingresos Q 1,000 · gastos Q 300 · ahorro Q 700')
+  })
+
+  it('lo que va a ahorro no es gasto y sin ingresos no hay ahorro', () => {
+    const txs = [
+      { amount: 300, type: 'expense' as const, category_id: 'a', date: '2026-09-10' },
+      { amount: 200, type: 'expense' as const, category_id: null, date: '2026-09-11' },
+    ]
+    expect(recordedMonths(txs, '2026-10', money, [{ id: 'a', bucket: 'savings' }]))
+      .toBe('  2026-09: ingresos Q 0 · gastos Q 200 · ahorro sin calcular (sin ingresos)')
   })
 })

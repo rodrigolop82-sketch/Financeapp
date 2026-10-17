@@ -5,6 +5,9 @@ import { loadScoreInput, type ScoreRaw } from '@/lib/health-data'
 import { getNetWorth, type NetWorthData, type SourceView } from '@/lib/networth/data'
 import { groupAssets, groupLiabilities, PURPOSE_LABEL } from '@/lib/networth/groups'
 import { formatMonths } from '@/lib/deudas'
+import { formatNumber } from '@/lib/format'
+import { loadDeudas } from '@/lib/deudas-data'
+import { metricasMes, type InteresesDeuda, type MetricasCategoria } from '@/lib/metricas-mes'
 
 type Money = (n: number) => string
 
@@ -15,13 +18,12 @@ function prevMonth(month: string, n: number): string {
 }
 
 /** Ingresos y gastos registrados en los últimos meses completos (solo los meses con movimientos). */
-export function recordedMonths(txs: ScoreRaw['txs'], month: string, money: Money): string {
+export function recordedMonths(txs: ScoreRaw['txs'], month: string, money: Money, categories: MetricasCategoria[] = [], intereses?: InteresesDeuda): string {
   const lines = [1, 2, 3].map((n) => prevMonth(month, n)).map((m) => {
-    const inMonth = txs.filter((t) => t.date.startsWith(m))
-    if (inMonth.length === 0) return null
-    const income = inMonth.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
-    const expense = inMonth.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
-    return `  ${m}: ingresos ${money(income)} · gastos ${money(expense)}`
+    const r = metricasMes(txs, m, categories, intereses)
+    if (!r.hayMovimientos) return null
+    const ahorro = r.ahorro === null ? 'ahorro sin calcular (sin ingresos)' : `ahorro ${money(r.ahorro)}`
+    return `  ${m}: ingresos ${money(r.ingresos)} · gastos ${money(r.consumo)} · ${ahorro}`
   }).filter((l): l is string => l !== null)
   return lines.length ? lines.join('\n') : '  Sin movimientos registrados en los últimos 3 meses.'
 }
@@ -90,8 +92,7 @@ export async function buildZafiSystemPrompt(
             .select('*').eq('household_id', householdId).single()
         : Promise.resolve({ data: null }),
       householdId
-        ? supabase.from('debts')
-            .select('*').eq('household_id', householdId).eq('is_paid', false)
+        ? loadDeudas<{ name: string; balance: number; interest_rate: number; min_payment: number }>(supabase, householdId).then((data) => ({ data }))
         : Promise.resolve({ data: [] }),
       householdId
         ? supabase.from('action_plans')
@@ -128,17 +129,17 @@ export async function buildZafiSystemPrompt(
 
   const currency = user?.currency ?? 'GTQ'
   const symbol = currency === 'GTQ' ? 'Q' : '$'
-  const money: Money = (n) => `${symbol} ${Math.round(n).toLocaleString()}`
+  const money: Money = (n) => `${symbol} ${formatNumber(n)}`
 
   const netWorthText = netWorth
     ? netWorthSummary(netWorth, money)
     : householdId ? 'No se pudo leer Mi patrimonio en este momento.' : 'Sin hogar configurado.'
-  const recordedText = live ? recordedMonths(live.raw.txs, month, money) : '  No se pudieron leer los movimientos.'
+  const recordedText = live ? recordedMonths(live.raw.txs, month, money, live.raw.categories, live.raw.intereses) : '  No se pudieron leer los movimientos.'
 
   const debtsSummary = debts.length === 0
     ? 'Sin deudas activas.'
     : debts.map((d: { name: string; balance: number; interest_rate: number; min_payment: number }) =>
-        `- ${d.name}: ${symbol} ${Math.round(d.balance).toLocaleString()} al ${d.interest_rate}% anual (pago mínimo ${symbol} ${Math.round(d.min_payment).toLocaleString()})`
+        `- ${d.name}: ${money(d.balance)} al ${d.interest_rate}% anual (pago mínimo ${money(d.min_payment)})`
       ).join('\n')
 
   const monthStart = localMonthStart()
@@ -162,7 +163,7 @@ export async function buildZafiSystemPrompt(
       ? Math.round((spent / c.budgeted_amount) * 100)
       : 0
     const status = pct > 100 ? 'SUPERADO' : pct > 80 ? 'cerca del limite' : 'ok'
-    return `  ${c.name}: ${symbol} ${Math.round(spent).toLocaleString()} / ${symbol} ${Math.round(c.budgeted_amount).toLocaleString()} (${pct}%) ${status}`
+    return `  ${c.name}: ${money(spent)} / ${money(c.budgeted_amount)} (${pct}%) ${status}`
   }).join('\n')
 
   const planSteps = plan?.steps ?? []
@@ -188,10 +189,12 @@ Puntaje Zafi: ${profile?.health_score ?? 0}/100 ${profile?.health_score >= 85 ? 
   profile?.health_score >= 25 ? 'Nivel: EN RIESGO' : 'Nivel: CRITICO'}
 ${scoreTrend}
 
-Ingreso mensual (Plan del mes): ${money(live?.input.income ?? profile?.total_income ?? 0)} (${profile?.income_type === 'fixed' ? 'fijo' : profile?.income_type === 'variable' ? 'variable' : 'mixto'})
+${live?.input.provisional
+  ? `Ingresos registrados este mes: ninguno todavía (falta registrar). Ingreso del plan: ${money(live.input.income)}`
+  : `Ingresos registrados este mes: ${money(live?.input.income ?? profile?.total_income ?? 0)}`} (${profile?.income_type === 'fixed' ? 'fijo' : profile?.income_type === 'variable' ? 'variable' : 'mixto'})
 Gastos fijos (Plan del mes): ${money(live?.input.fixedExpenses ?? profile?.total_fixed_expenses ?? 0)}
-Gastado este mes hasta hoy (sin ahorro): ${money(live?.input.spent ?? 0)}
-Ahorrado este mes (metas y categorías de ahorro): ${money(live?.input.saved ?? 0)}
+Gastado este mes hasta hoy (lo básico + gustos, sin ahorro ni abonos a deudas): ${money(live?.input.spent ?? 0)}
+Ahorro este mes (ingresos − gastado): ${live?.input.provisional ? 'sin calcular: falta registrar ingresos' : money(live?.input.saved ?? 0)}
 
 MOVIMIENTOS REGISTRADOS (meses completos recientes):
 ${recordedText}
@@ -220,12 +223,13 @@ GUIA DE LA APP (usa esto para responder preguntas sobre cómo funciona la app):
 - **Plan del mes** (/plan, pestaña Plan › Del mes): Ver y editar las categorías de presupuesto mensual. Cada categoría tiene un monto asignado y muestra cuánto se ha gastado.
 - **Transacciones** (/transacciones): Historial completo de todos los gastos registrados. Se pueden filtrar por fecha y categoría.
 - **Cómo te fue** (/resumen): Una sola vista del mes: cuánto ahorraste, lo que salió bien y lo que se pasó, topes por % de ingreso (vivienda 30, carro 15, alimentación 15, gustos 10, deudas 20, suscripciones 5; editables), oportunidades para ahorrar, proyección a diciembre o 12 meses, gráficas de 6 meses (necesidades/gustos/ahorro y fijos/variables) y detalle por categoría.
-- **Score Zafi** (/score): Puntaje de salud financiera de 0 a 100. Muestra los componentes que lo afectan (ahorro, deuda, presupuesto, etc.) y su evolución.
+- **Tu salud financiera** (dentro de Cómo te fue, /resumen): Puntaje de 0 a 100. "Ver qué lo compone" muestra las partes (ahorro, deuda, fondo de emergencia, gasto, estabilidad) y su evolución. Sin ingresos registrados del mes es provisional.
+- **Cerrar el mes** (botón "Fin de mes" en Cómo te fue y aviso en Inicio del 1 al 5): pasos obligatorios (ingresos del mes y estados de cuenta) y luego se guarda el puntaje del mes.
 - **Metas** (/plan?s=metas, pestaña Plan › Metas): Crear metas de ahorro (viaje, fondo de emergencia, etc.) con fecha límite. La app proyecta si vas a llegar a tiempo y puedes registrar aportes.
 - **Plan de Acción / Retos** (/plan/retos): Retos dinámicos personalizados basados en tus patrones de gasto. Se auto-evalúan al final del mes.
 - **Deudas** (/plan?s=deudas, pestaña Plan › Deudas): Registrar y dar seguimiento a deudas. Guarda saldo, deuda original, tasa de interés, pago mensual, día de pago y, en préstamos, para qué es (vehículo, inmueble o personal).
 - **Mi patrimonio** (/patrimonio): Lo que tienes menos lo que debes. Agrupa los activos en Efectivo y equivalentes, Inversiones, Vehículos e Inmuebles, y las deudas en corto y largo plazo. Efectivo, inversiones, bienes y otras deudas se agregan y editan ahí. Las cuentas de banco y tarjetas se administran en Mis cuentas (/mis-fuentes) y también aparecen en Mi patrimonio.
-- **Familia** (/familia): Invitar miembros del hogar para compartir presupuesto y ver gastos en conjunto.
+- **Familia** (en Cuenta, /familia): Invitar miembros del hogar para compartir presupuesto y ver gastos en conjunto.
 - **Análisis** (/analisis): Análisis profundo con tendencias históricas y comparaciones mes a mes.
 - **Guardar ingreso** (/guardar): Registrar ingresos (salario, freelance, etc.).
 - **Pregúntale a Zafi** (/chat): Este chat. Puedes preguntarme cualquier cosa sobre tus finanzas o sobre cómo usar la app.

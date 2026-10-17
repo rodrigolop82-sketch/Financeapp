@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { activeTabFor, isRootPath, parentFor, planHref, planSection } from './navigation';
+import { activeTabFor, isRootPath, MORE_GROUPS, parentFor, planHref, planSection, SIDEBAR_GROUPS, sidebarActiveHref } from './navigation';
 
 describe('activeTabFor', () => {
-  it('marca Inicio en el dashboard y en Cómo te fue', () => {
+  it('marca Inicio en el dashboard; Cómo te fue vive en Más', () => {
     expect(activeTabFor('/dashboard')).toBe('inicio');
-    expect(activeTabFor('/resumen')).toBe('inicio');
-    expect(activeTabFor('/resumen/categoria/x')).toBe('inicio');
+    expect(activeTabFor('/resumen')).toBe('mas');
+    expect(activeTabFor('/resumen/categoria/x')).toBe('mas');
+    expect(activeTabFor('/score')).toBe('mas');
+    expect(activeTabFor('/cierre-mes')).toBe('mas');
   });
 
   it('marca Movimientos, Plan y Más', () => {
@@ -39,7 +41,8 @@ describe('isRootPath', () => {
 
 describe('parentFor', () => {
   it('vuelve a la pantalla padre', () => {
-    expect(parentFor('/familia')).toEqual({ label: 'Más', href: '/mas' });
+    expect(parentFor('/familia')).toEqual({ label: 'Cuenta', href: '/cuenta' });
+    expect(parentFor('/cierre-mes')).toEqual({ label: 'Cómo te fue', href: '/resumen' });
     expect(parentFor('/cuenta')).toEqual({ label: 'Más', href: '/mas' });
     expect(parentFor('/cuenta/privacidad')).toEqual({ label: 'Cuenta', href: '/cuenta' });
     expect(parentFor('/resumen')).toEqual({ label: 'Más', href: '/mas' });
@@ -67,5 +70,33 @@ describe('planSection / planHref', () => {
     expect(planHref('mes', { from: 'home' })).toBe('/plan');
     expect(planHref('mes', { confirmMonth: '2026-09' })).toBe('/plan?confirmMonth=2026-09');
     expect(planHref('deudas', { s: 'metas', x: ['a', 'b'] })).toBe('/plan?s=deudas');
+  });
+});
+
+describe('menú (C10)', () => {
+  it('8 entradas: Inicio, Movimientos, Plan, Cómo te fue | Pregúntale a Zafi, Aprende | Mis cuentas, Cuenta', () => {
+    const labels = SIDEBAR_GROUPS.flatMap((g) => g.items.map((i) => i.label));
+    expect(labels).toEqual(['Inicio', 'Movimientos', 'Plan', 'Cómo te fue', 'Pregúntale a Zafi', 'Aprende', 'Mis cuentas', 'Cuenta']);
+  });
+
+  it('"Más" en móvil empieza con Cómo te fue y no repite lo que salió del menú', () => {
+    const items = MORE_GROUPS.flatMap((g) => g.items);
+    expect(items[0].href).toBe('/resumen');
+    expect(items.map((i) => i.name)).not.toContain('Tu salud financiera');
+    expect(items.map((i) => i.name)).not.toContain('Cerrar el mes');
+    expect(items.map((i) => i.name)).not.toContain('Familia');
+    expect(items.some((i) => i.action === 'feedback')).toBe(false);
+  });
+
+  it('marca la entrada donde vive ahora cada pantalla', () => {
+    expect(sidebarActiveHref('/resumen')).toBe('/resumen');
+    expect(sidebarActiveHref('/resumen/suscripciones')).toBe('/resumen');
+    expect(sidebarActiveHref('/score')).toBe('/resumen');
+    expect(sidebarActiveHref('/cierre-mes')).toBe('/resumen');
+    expect(sidebarActiveHref('/familia')).toBe('/cuenta');
+    expect(sidebarActiveHref('/cuenta/privacidad')).toBe('/cuenta');
+    expect(sidebarActiveHref('/metas/1')).toBe('/plan');
+    expect(sidebarActiveHref('/patrimonio')).toBe('/mis-fuentes');
+    expect(sidebarActiveHref('/login')).toBeNull();
   });
 });

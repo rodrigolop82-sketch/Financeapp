@@ -2,6 +2,7 @@
 // Supabase para poder probarla con vitest.
 
 import type { Currency } from './format';
+import { formatNumber } from '@/lib/format';
 
 export interface CurrencyOption {
   code: Currency;
@@ -27,11 +28,11 @@ export function currencyOption(code: string | null | undefined): CurrencyOption 
 
 /** Ayuda de "Mostrar centavos" con un monto de ejemplo en la moneda elegida. */
 export function decimalsHint(showDecimals: boolean, currency: Currency): string {
-  // Mismo formato que formatMoney (lib/format.ts), sin importar el hook que reexporta.
+  // Mismo formato que formatMoney (lib/format.ts).
   const symbol = currencyOption(currency).symbol;
   const n = showDecimals ? 8500.75 : 8501;
   const digits = showDecimals ? 2 : 0;
-  const sample = `${symbol} ${new Intl.NumberFormat('es-GT', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n)}`;
+  const sample = `${symbol} ${formatNumber(n, digits)}`;
   return showDecimals ? `${sample} · precisión total` : `${sample} · más fácil de leer`;
 }
 
@@ -79,10 +80,3 @@ export const INACTIVITY_DAY_OPTIONS = [3, 5, 7, 10, 14];
 export const MONTH_CLOSE_DAY_OPTIONS = [1, 2, 3, 5, 7];
 
 export const SUPPORT_EMAIL = 'hola@zafiapp.com';
-
-/** Correo para pedir que eliminemos la cuenta (no hay borrado automático). */
-export function accountDeletionMailto(email: string | null | undefined): string {
-  const subject = 'Eliminar mi cuenta';
-  const body = `Hola, quiero eliminar mi cuenta de Zafi y todos mis datos.\n\nCorreo de la cuenta: ${email ?? ''}`;
-  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}

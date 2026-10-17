@@ -84,8 +84,9 @@ export async function sendWeeklySummaries(admin: Admin, today: string, fmt: Fmt)
       const weekAgo = new Date(Date.parse(today + 'T12:00:00Z') - 6 * 86_400_000).toISOString().slice(0, 10)
       const month = today.slice(0, 7)
       const [{ data: week }, { data: monthTx }, { data: cats }] = await Promise.all([
-        admin.from('transactions').select('amount').eq('household_id', hh).eq('type', 'expense').gte('date', weekAgo).lte('date', today),
-        admin.from('transactions').select('amount, category_id, scope').eq('household_id', hh).eq('type', 'expense').gte('date', `${month}-01`).lte('date', today),
+        // Solo gasto: lo que va a ahorro y los pagos a deudas no cuentan (lib/metricas-mes).
+        admin.from('transactions').select('amount').eq('household_id', hh).eq('type', 'expense').eq('transaction_type', 'gasto').gte('date', weekAgo).lte('date', today),
+        admin.from('transactions').select('amount, category_id, scope').eq('household_id', hh).eq('type', 'expense').eq('transaction_type', 'gasto').gte('date', `${month}-01`).lte('date', today),
         admin.from('budget_categories').select('id, name, budgeted_amount').eq('household_id', hh),
       ])
       const spent = (week ?? []).reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0)

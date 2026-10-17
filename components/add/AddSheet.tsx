@@ -8,6 +8,7 @@ import { formatMoney } from '@/lib/format'
 import { deriveTransactionType } from '@/lib/transactions/transaction-type'
 import { categoryQuestion, getEmoji, paymentLabel, PAYMENT_OPTIONS, type PaymentMethod } from '@/lib/categories-ui'
 import { cleanAmountInput, dayLabel, topCategories } from '@/lib/movimientos'
+import { sharedNotice } from '@/lib/android'
 import { VoiceOverlay } from '@/components/voice/VoiceOverlay'
 import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow'
 import { BottomSheet } from '@/components/transactions/BottomSheet'
@@ -95,6 +96,12 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** Qué borrador edita la sub-hoja: el formulario manual o una tarjeta de "entendí esto". */
 type Target = 'manual' | number
 
+/**
+ * Pie fijo con el botón de guardar: queda pegado abajo de la hoja mientras
+ * el contenido hace scroll (el padding inferior del contenedor lo compensa).
+ */
+const STICKY_FOOTER = 'sticky bottom-[calc(-30px-env(safe-area-inset-bottom))] z-10 -mx-5 px-5 pt-2.5 pb-[calc(30px+env(safe-area-inset-bottom))] -mb-[calc(30px+env(safe-area-inset-bottom))] bg-[var(--zafi-card)] shadow-[0_-8px_16px_-12px_rgba(13,31,54,0.25)]'
+
 function blankDraft(): Draft {
   return { type: 'expense', amount: '', name: '', categoryId: null, subItemId: null, date: localToday(), pay: 'efectivo', originalAmount: null, originalCurrency: null, paidBy: null, scope: 'shared' }
 }
@@ -131,7 +138,7 @@ function notifyTransactionsChanged(detail?: TxChangedDetail) {
 
 /**
  * Hoja global de agregar. Se monta una vez en AppShell y se abre con el
- * evento `zafi:open-add` (el botón +), con `?action=voice|manual|scan` o
+ * evento `zafi:open-add` (el botón +), con `?action=voice|manual|scan|income` o
  * con `?shared_text=` (Web Share Target), en cualquier ruta.
  */
 export function AddSheet() {
@@ -287,8 +294,15 @@ export function AddSheet() {
     function onOpen(e: Event) {
       // Solo ver: no registra; se le ofrece avisarle al dueño.
       if (viewOnlyRef.current) { openViewOnlySheet(); return }
-      const text = (e as CustomEvent<{ text?: string } | undefined>).detail?.text?.trim()
+      const detail = (e as CustomEvent<{ text?: string; type?: 'income'; date?: string } | undefined>).detail
+      const text = detail?.text?.trim()
       openSheet()
+      if (detail?.type === 'income') {
+        setParsed(null)
+        setManual((d) => (d.type === 'income' ? d : { ...d, type: 'income', categoryId: null, subItemId: null }))
+      }
+      const date = detail?.date
+      if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) setManual((d) => ({ ...d, date }))
       if (text) {
         setQuick(text)
         void interpret(text)
@@ -301,10 +315,12 @@ export function AddSheet() {
   useEffect(() => {
     const url = new URL(window.location.href)
     const action = url.searchParams.get('action')
-    const shared = url.searchParams.get('shared_text')
+    // Algunas apps mandan el banco en el título y el detalle en el texto.
+    const shared = sharedNotice(url.searchParams.get('shared_title'), url.searchParams.get('shared_text'))
     if (!action && !shared) return
     url.searchParams.delete('action')
     url.searchParams.delete('shared_text')
+    url.searchParams.delete('shared_title')
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
     if (viewOnlyRef.current) { openViewOnlySheet(); return }
     void ensureContext()
@@ -318,6 +334,9 @@ export function AddSheet() {
       setImportActive(true)
     } else if (action === 'manual') {
       setOpen(true)
+    } else if (action === 'income') {
+      setOpen(true)
+      setManual((d) => ({ ...d, type: 'income', categoryId: null, subItemId: null }))
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -610,6 +629,7 @@ export function AddSheet() {
             })}
 
             <p className={`text-[13.5px] ${TEXT_MUTED}`}>Toca cualquier dato para corregirlo.</p>
+            <div className={`${STICKY_FOOTER} flex flex-col`}>
             <button
               type="button"
               disabled={saving}
@@ -628,6 +648,7 @@ export function AddSheet() {
             >
               Corregir a mano
             </button>
+            </div>
           </div>
         )}
 
@@ -792,18 +813,6 @@ export function AddSheet() {
 
             <button
               type="button"
-              aria-disabled={!canSaveManual}
-              disabled={saving}
-              onClick={() => void save([manual], 'manual')}
-              className={`h-[54px] w-full rounded-[14px] font-semibold text-base flex items-center justify-center transition duration-150 ${
-                canSaveManual || saving ? 'bg-electric text-white hover:bg-electric-dark active:scale-[0.96]' : 'bg-ink-100 text-ink-400 dark:bg-white/10'
-              }`}
-            >
-              {saving ? <span className="inline-block w-[22px] h-[22px] border-[2.5px] border-white/40 border-t-white rounded-full animate-spin align-middle" role="status" aria-label="Guardando" /> : manual.type === 'income' ? 'Guardar ingreso' : 'Guardar gasto'}
-            </button>
-
-            <button
-              type="button"
               onClick={() => { void pasteFromClipboard() }}
               className={`h-[72px] w-full rounded-[14px] flex flex-col items-center justify-center gap-0.5 ${SOFT_BG}`}
             >
@@ -811,6 +820,21 @@ export function AddSheet() {
               <span className={`text-[13px] font-semibold ${TEXT_STRONG}`}>Mensaje</span>
               <span className={`text-[11.5px] ${TEXT_MUTED}`}>del banco</span>
             </button>
+
+            {/* Guardar fijo abajo: el formulario hace scroll detrás (C16). */}
+            <div className={STICKY_FOOTER}>
+              <button
+                type="button"
+                aria-disabled={!canSaveManual}
+                disabled={saving}
+                onClick={() => void save([manual], 'manual')}
+                className={`h-[54px] w-full rounded-[14px] font-semibold text-base flex items-center justify-center transition duration-150 ${
+                  canSaveManual || saving ? 'bg-electric text-white hover:bg-electric-dark active:scale-[0.96]' : 'bg-ink-100 text-ink-400 dark:bg-white/10'
+                }`}
+              >
+                {saving ? <span className="inline-block w-[22px] h-[22px] border-[2.5px] border-white/40 border-t-white rounded-full animate-spin align-middle" role="status" aria-label="Guardando" /> : manual.type === 'income' ? 'Guardar ingreso' : 'Guardar gasto'}
+              </button>
+            </div>
           </div>
         )}
       </BottomSheet>

@@ -87,21 +87,29 @@ describe('buildScoreInput (datos vivos)', () => {
       { amount: 700, type: 'expense', category_id: 's', date: '2026-10-04' },
       { amount: 999, type: 'expense', category_id: 'w', date: '2026-09-20' },
     ],
-    contributions: 300,
     emergencyGoal: { id: 'g', current_amount: 8000 },
-    debts: [{ min_payment: 450 }, { min_payment: 1100 }],
+    debts: [{ balance: 9000, min_payment: 450 }, { balance: 30000, min_payment: 1100 }, { balance: 0, min_payment: 300 }, { balance: 500, min_payment: 50, is_paid: true }],
   }
 
-  it('toma ingreso y plan del Plan del mes, y lo ahorrado de aportes + categorías de ahorro', () => {
+  it('sin ingresos registrados: ingreso del plan, ahorro pendiente y provisional', () => {
     const i = buildScoreInput(raw)
     expect(i.income).toBe(12000)
-    expect(i.saved).toBe(1000)
+    expect(i.provisional).toBe(true)
+    expect(i.saved).toBe(0)
     expect(i.spent).toBe(3700)
     expect(i.planned).toBe(4100)
     expect(i.fixedExpenses).toBe(3500)
     expect(i.debtPayments).toBe(1550)
     expect(i.emergencyFund).toBe(8000)
     expect(i.emergencyGoalId).toBe('g')
+  })
+
+  it('con ingresos registrados: ahorro = ingresos − gastaste (lo apartado va dentro)', () => {
+    const i = buildScoreInput({ ...raw, txs: [...raw.txs, { amount: 10000, type: 'income', category_id: null, date: '2026-10-15' }] })
+    expect(i.provisional).toBe(false)
+    expect(i.income).toBe(10000)
+    expect(i.spent).toBe(3700)
+    expect(i.saved).toBe(6300)
   })
 
   it('sin plan usa el onboarding', () => {
@@ -119,5 +127,30 @@ describe('buildScoreInput (datos vivos)', () => {
     ]
     expect(incomeVariation(txs, '2026-10')).toBe(0)
     expect(incomeVariation(txs.slice(0, 1), '2026-10')).toBeNull()
+  })
+})
+
+describe('puntaje provisional (sin ingresos registrados)', () => {
+  it('el ahorro queda pendiente y el total se reescala con las otras 4 partes', () => {
+    const full = calculateScore(base)
+    const prov = calculateScore({ ...base, provisional: true })
+    expect(prov.provisional).toBe(true)
+    const savings = prov.components.find((c) => c.key === 'savings')!
+    expect(savings.pending).toBe(true)
+    expect(savings.detail).toMatch(/Pendiente/)
+    const others = full.components.filter((c) => c.key !== 'savings')
+    expect(prov.total).toBe(Math.round((others.reduce((s, c) => s + c.score, 0) / 80) * 100))
+    expect(full.provisional).toBe(false)
+  })
+
+  it('no inventa un ahorro: cambiar `saved` no mueve el provisional', () => {
+    const a = calculateScore({ ...base, provisional: true, saved: 0 })
+    const b = calculateScore({ ...base, provisional: true, saved: 5000 })
+    expect(a.total).toBe(b.total)
+  })
+
+  it('el detalle de meses usa punto decimal', () => {
+    const r = calculateScore({ ...base, emergencyFund: 4.7 * base.fixedExpenses })
+    expect(r.components.find((c) => c.key === 'emergency')!.detail).toBe('Cubre 4.7 meses de gastos fijos')
   })
 })
