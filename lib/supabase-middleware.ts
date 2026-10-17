@@ -47,7 +47,9 @@ export async function updateSession(request: NextRequest) {
   if (!user && isProtectedPath(path)) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    url.searchParams.set('next', path);
+    // Con la búsqueda: lo compartido a Zafi (?shared_text=) no se pierde al iniciar sesión.
+    url.search = '';
+    url.searchParams.set('next', path + request.nextUrl.search);
     return redirectWithCookies(url, response);
   }
 

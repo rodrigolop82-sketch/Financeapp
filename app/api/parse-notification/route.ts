@@ -5,8 +5,10 @@ import { cleanTransactionName, formatMoney } from '@/lib/format'
 import { toGTQ, detectCurrency } from '@/lib/currency'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { parseApplePayBody } from '@/lib/apple-pay'
+import { parseApplePayBody, type ApplePayCharge } from '@/lib/apple-pay'
+import { IGNORADO_TEXTO, cobroDesdeExtraccion, esCuerpoAndroid, pareceCobro, parseAndroidBody, type AndroidNotice } from '@/lib/android'
 import { findShortcutToken, registerApplePayCharge, touchShortcutToken } from '@/lib/apple-pay-server'
+import { extraerNotificacion } from '@/lib/notificacion-ia'
 
 const BANK_PATTERNS = [
   // BAM Guatemala
@@ -23,12 +25,6 @@ const BANK_PATTERNS = [
   { bank: 'Banco', regex: /(?:compra|pago|cargo|débito|retiro|transacción).*?(Q|GTQ|\$)\s?([\d,]+\.?\d*)/i },
   // Generic fallback: any Q amount
   { bank: 'Notificación', regex: /(Q|GTQ)\s?([\d,]+\.?\d*)/i },
-]
-
-const ZAFI_CATEGORIES = [
-  'Vivienda/alquiler', 'Alimentación', 'Transporte', 'Salud/medicinas', 'Servicios',
-  'Educación', 'Restaurantes y salidas', 'Ropa', 'Entretenimiento', 'Suscripciones',
-  'Varios personales', 'Fondo de emergencia', 'Ahorro para metas', 'Pago extra de deudas',
 ]
 
 /**
@@ -81,38 +77,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Configuración de servidor incompleta' }, { status: 500 })
   }
 
-  const extractionResponse = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      system: `Extractor de transacciones de notificaciones bancarias en Guatemala y Apple Pay.
-Respondé SOLO con JSON válido. Fecha hoy: ${today}. Moneda principal: GTQ (Q).
-Categorías disponibles: ${ZAFI_CATEGORIES.join(', ')}.
+  const ia = await extraerNotificacion(rawText, today)
 
-Extraé de la notificación: monto, comercio/descripción, banco, categoría sugerida, nivel de confianza, currency (código ISO: GTQ, USD, EUR, MXN), y type ("expense" o "income").
-
-Formato de respuesta:
-{"amount":150.00,"merchant":"Walmart","bank":"BAM","category":"Alimentación","confidence":0.9,"currency":"GTQ","type":"expense"}
-
-Si no podés extraer datos, respondé: {"amount":0,"merchant":"","bank":"","category":"","confidence":0,"currency":"GTQ","type":"expense"}
-Reglas:
-- Si el texto menciona Apple Pay, Wallet o tarjeta Apple, el banco es "Apple Pay"
-- Si menciona compra/pago/cargo/débito, es type:"expense"
-- Si menciona depósito, abono, transferencia recibida o acreditado (dinero que ENTRA a la cuenta), es type:"income". Ante la duda, usá "expense".
-- Detectá el nombre del comercio cuando aparezca
-- Asigná la categoría más probable
-- Si el monto está en $ o USD, currency es "USD". Si está en Q o GTQ, currency es "GTQ".`,
-      messages: [{ role: 'user', content: `Notificación recibida:\n"${rawText}"` }],
-    }),
-  })
-
-  if (!extractionResponse.ok) {
+  if (ia.status === 'http_error') {
     // Fallback to regex result
     if (quickAmount && quickAmount > 0) {
       const isForexFb = quickCurrency !== 'GTQ'
@@ -130,11 +97,9 @@ Reglas:
     return NextResponse.json({ error: 'Error al procesar la notificación' }, { status: 500 })
   }
 
-  const extraction = await extractionResponse.json()
-
   try {
-    const responseText = extraction.content[0].type === 'text' ? extraction.content[0].text : ''
-    const result = JSON.parse(responseText.replace(/```json|```/g, '').trim())
+    if (ia.status !== 'ok') throw new Error('parse')
+    const result = ia.result
 
     if (!result.amount || result.amount <= 0) {
       // Fallback to regex
@@ -164,14 +129,15 @@ Reglas:
       .from('households').select('id').eq('owner_id', user.id).limit(1).single()
 
     let categoryId = ''
-    if (household && result.category) {
+    const suggested = (result.category ?? '').toLowerCase()
+    if (household && suggested) {
       const { data: categories } = await supabase
         .from('budget_categories').select('id, name').eq('household_id', household.id)
 
       if (categories) {
         const match = categories.find(c =>
-          c.name.toLowerCase().includes(result.category.toLowerCase()) ||
-          result.category.toLowerCase().includes(c.name.toLowerCase())
+          c.name.toLowerCase().includes(suggested) ||
+          suggested.includes(c.name.toLowerCase())
         )
         if (match) categoryId = match.id
       }
@@ -210,7 +176,12 @@ Reglas:
   }
 }
 
-/** Atajo de Apple Pay: clave personal → gasto con source 'apple_pay'. */
+/**
+ * Clave personal (Bearer zafi_…):
+ * - Atajo de Apple Pay: JSON { amount, merchant, card, date } → source 'apple_pay'.
+ * - Android (C15): MacroDroid/Tasker manda el texto del aviso (texto plano o
+ *   JSON { text, app }) → se interpreta con IA → source 'android'.
+ */
 async function handleShortcut(req: NextRequest, token: string) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceKey) {
@@ -223,17 +194,36 @@ async function handleShortcut(req: NextRequest, token: string) {
 
   const row = await findShortcutToken(admin, token)
   if (!row) {
-    return NextResponse.json({ error: 'Clave inválida o revocada. Genera una nueva en Zafi › Mis cuentas › Apple Pay.' }, { status: 401 })
+    return NextResponse.json({ error: 'Clave inválida o revocada. Genera una nueva en Zafi › Mis cuentas.' }, { status: 401 })
   }
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Manda un JSON con amount, merchant, card y date.' }, { status: 400 })
+  // JSON (atajo, o Android con { text }) o texto plano (Android).
+  const raw = await req.text().catch(() => '')
+  const isJson = (req.headers.get('content-type') ?? '').includes('json') || raw.trim().startsWith('{')
+  let body: unknown = raw
+  if (isJson) {
+    try {
+      body = JSON.parse(raw)
+    } catch {
+      return NextResponse.json({ error: 'Manda un JSON con amount, merchant, card y date, o el texto del aviso.' }, { status: 400 })
+    }
   }
-  const parsed = parseApplePayBody(body, localToday())
-  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+
+  const today = localToday()
+  const android = esCuerpoAndroid(body)
+  let charge: ApplePayCharge
+  let notice: AndroidNotice | null = null
+  if (android) {
+    const parsed = parseAndroidBody(body)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    notice = parsed.value
+    // Sin monto no se interpreta ni cuenta para el límite.
+    if (!pareceCobro(notice.text)) return ignored('no_es_cobro')
+  } else {
+    const parsed = parseApplePayBody(body, today)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    charge = parsed.value
+  }
 
   if (!(await touchShortcutToken(admin, row))) {
     return NextResponse.json({ error: 'Demasiados pagos seguidos con esta clave. Intenta en una hora.' }, { status: 429 })
@@ -244,7 +234,23 @@ async function handleShortcut(req: NextRequest, token: string) {
     return NextResponse.json({ error: 'Estás en modo solo ver: pídele al dueño del hogar que active Familiar.' }, { status: 403 })
   }
 
-  const result = await registerApplePayCharge(admin, row.user_id, parsed.value)
+  if (notice) {
+    const ia = await extraerNotificacion(notice.text, today)
+    const extraccion = ia.status === 'ok' ? {
+      amount: Number(ia.result.amount) || 0,
+      merchant: ia.result.merchant ?? '',
+      bank: ia.result.bank ?? '',
+      currency: (ia.result.currency ?? 'GTQ').toUpperCase(),
+      type: ia.result.type === 'income' ? 'income' as const : 'expense' as const,
+    } : null
+    if (ia.status !== 'ok') console.warn('[android] No se pudo interpretar el aviso:', ia.status)
+    const cobro = cobroDesdeExtraccion(extraccion, notice, today)
+    if (!cobro.ok) return ignored(cobro.reason)
+    charge = cobro.value
+  }
+
+  const via = notice ? (charge!.card ? `por el aviso de ${charge!.card}` : 'por un aviso del banco') : 'con Apple Pay'
+  const result = await registerApplePayCharge(admin, row.user_id, charge!, { source: notice ? 'android' : 'apple_pay', via })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
   const r = result.value
   const spent = `${formatMoney(r.amount, { showDecimals: true })} en ${r.merchant}`
@@ -257,8 +263,16 @@ async function handleShortcut(req: NextRequest, token: string) {
     category: r.categoryName,
     categorized: r.remembered,
     notified: r.pushed,
-    message: r.remembered && r.categoryName
-      ? `Registramos ${spent}: ${r.categoryName}.`
-      : `Registramos ${spent}. Abre Zafi para elegir la categoría.`,
-  }, { status: 201 })
+    duplicate: !!r.duplicate,
+    message: r.duplicate
+      ? `Ya estaba registrado: ${spent}.`
+      : r.remembered && r.categoryName
+        ? `Registramos ${spent}: ${r.categoryName}.`
+        : `Registramos ${spent}. Abre Zafi para elegir la categoría.`,
+  }, { status: r.duplicate ? 200 : 201 })
+}
+
+/** Aviso que no es un gasto: 200 para que MacroDroid no lo marque como error. */
+function ignored(reason: keyof typeof IGNORADO_TEXTO) {
+  return NextResponse.json({ ok: true, ignored: true, reason, message: IGNORADO_TEXTO[reason] })
 }

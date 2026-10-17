@@ -1,7 +1,19 @@
 // Textos del aviso único de Premium (PremiumSheet / PremiumInline / LimitMeter).
 // Sin React, para probarlos con vitest.
 
+import { PRICES_CENTS } from './plans'
+
 export type PremiumReason = 'import' | 'ia' | 'history' | 'familia'
+
+/**
+ * Lo que cuesta Familiar sobre Premium al mes, en la moneda en que cobra
+ * Recurrente (lib/plans PRICES_CENTS): "$ 2".
+ */
+export function familyExtraLabel(): string {
+  const cents = PRICES_CENTS.family.monthly - PRICES_CENTS.premium.monthly
+  const dollars = cents / 100
+  return `$ ${Number.isInteger(dollars) ? dollars : dollars.toFixed(2)}`
+}
 
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
@@ -23,6 +35,8 @@ export function premiumGate(reason: PremiumReason, ctx: {
   limit?: number
   /** Nombre de la otra persona del hogar (para 'familia'). */
   memberName?: string | null
+  /** Personas en el hogar (para 'familia'): con 1 todavía nadie ve el plan. */
+  memberCount?: number
   /** El hogar ya es de 2: los beneficios se dicen "Con Premium Familiar". */
   family?: boolean
 }): GateText {
@@ -70,10 +84,15 @@ export function premiumGate(reason: PremiumReason, ctx: {
       }
     case 'familia': {
       const name = ctx.memberName || 'Tu pareja'
+      const extra = `${familyExtraLabel()} más al mes`
+      // "Ya puede ver tu plan" solo es cierto si ya hay otra persona en el hogar.
+      const joined = (ctx.memberCount ?? 2) > 1
       return {
         emoji: '👪',
-        title: `${name} ya puede ver tu plan`,
-        subtitle: 'Para que también registre y reciba sus avisos, pasen a Familiar: $ 2 más al mes.',
+        title: joined ? `${name} ya puede ver tu plan` : 'Comparte tu plan con tu pareja',
+        subtitle: joined
+          ? `Para que también registre y reciba sus avisos, pasen a Familiar: ${extra}.`
+          : `Cuando se una a tu hogar podrá ver tu plan. Para que también registre y reciba sus avisos, pasen a Familiar: ${extra}.`,
         plan: 'Con Premium Familiar',
         perks: [`${name} también registra sus gastos`, 'Cada uno recibe sus recordatorios', 'Cuentas claras entre los dos'],
         cta: 'Ver Familiar',
@@ -101,13 +120,13 @@ export function meterColor(used: number, limit: number): string {
   return limit > 0 && used / limit >= 0.5 ? '#F59E0B' : '#2563EB'
 }
 
-/** "Hay 41 resultados más antes de agosto." — para el final de la lista. */
+/** "Hay 41 movimientos más antes de agosto." — arriba de la lista (C17). */
 export function hiddenHistoryText(count: number, before: string, today: string): { strong: string; rest: string } {
   const m = MONTHS[Number(before.slice(5, 7)) - 1]
   const y = before.slice(0, 4)
   const when = y === today.slice(0, 4) ? m : `${m} de ${y}`
   return {
-    strong: `Hay ${count} ${count === 1 ? 'resultado más' : 'resultados más'}`,
+    strong: `Hay ${count} ${count === 1 ? 'movimiento más' : 'movimientos más'}`,
     rest: `antes de ${when}. Siguen guardados; con Premium los ves todos.`,
   }
 }

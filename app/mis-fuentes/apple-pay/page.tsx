@@ -8,22 +8,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Copy, Check, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { localToday } from '@/lib/dates';
 import { AppShell } from '@/components/layout/AppShell';
-import { UndoToast } from '@/components/transactions/UndoToast';
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast';
-import { SHORTCUT_STEPS, tokenSummary } from '@/lib/apple-pay';
+import { SHORTCUT_STEPS } from '@/lib/apple-pay';
+import { ClaveAtajo } from '@/components/fuentes/ClaveAtajo';
 import { TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
 
 const SHORTCUT_URL = process.env.NEXT_PUBLIC_APPLE_PAY_SHORTCUT_URL || '';
 const STEPS_KEY = 'zafi:applepay-steps';
-
-interface TokenRow {
-  id: string;
-  created_at: string;
-  last_used_at: string | null;
-}
 
 function readSteps(): boolean[] {
   try {
@@ -37,32 +31,13 @@ function readSteps(): boolean[] {
 export default function ApplePayPage() {
   const router = useRouter();
   const [steps, setSteps] = useState<boolean[]>(() => SHORTCUT_STEPS.map(() => false));
-  const [tokens, setTokens] = useState<TokenRow[] | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
   const [fresh, setFresh] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [undo, setUndo] = useState<TokenRow | null>(null);
   const [message, setMessage] = useState<StatusMessage | null>(null);
-
-  const loadTokens = useCallback(async () => {
-    try {
-      const res = await fetch('/api/shortcut-tokens', { cache: 'no-store' });
-      if (res.status === 401) { router.push('/login?next=/mis-fuentes/apple-pay'); return; }
-      const data = await res.json();
-      setTokens((data.tokens ?? []) as TokenRow[]);
-      setUnavailable(!!data.unavailable || !res.ok);
-    } catch {
-      setTokens([]);
-      setUnavailable(true);
-    }
-  }, [router]);
 
   useEffect(() => {
     setSteps(readSteps());
-    void loadTokens();
-  }, [loadTokens]);
+  }, []);
 
   function toggleStep(i: number) {
     setSteps((prev) => {
@@ -70,57 +45,6 @@ export default function ApplePayPage() {
       try { localStorage.setItem(STEPS_KEY, JSON.stringify(next)); } catch { /* sin almacenamiento */ }
       return next;
     });
-  }
-
-  async function createToken() {
-    setCreating(true);
-    try {
-      const res = await fetch('/api/shortcut-tokens', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'No pudimos crear la clave.');
-      setFresh(data.token as string);
-      setCopied(false);
-      await loadTokens();
-    } catch (e) {
-      setMessage({ text: e instanceof Error ? e.message : 'No pudimos crear la clave.', tone: 'error' });
-    }
-    setCreating(false);
-  }
-
-  async function copyToken() {
-    if (!fresh) return;
-    try {
-      await navigator.clipboard.writeText(fresh);
-      setCopied(true);
-      setMessage({ text: 'Clave copiada. Pégala en el atajo.', tone: 'ok' });
-    } catch {
-      setMessage({ text: 'No pudimos copiarla: selecciónala y cópiala a mano.', tone: 'error' });
-    }
-  }
-
-  async function revoke(t: TokenRow) {
-    setTokens((prev) => prev?.filter((x) => x.id !== t.id) ?? prev);
-    const res = await fetch(`/api/shortcut-tokens/${t.id}`, { method: 'DELETE' }).catch(() => null);
-    if (!res?.ok) {
-      setMessage({ text: 'No pudimos revocar la clave. Intenta de nuevo.', tone: 'error' });
-      void loadTokens();
-      return;
-    }
-    setFresh(null);
-    setUndo(t);
-  }
-
-  async function undoRevoke() {
-    const t = undo;
-    setUndo(null);
-    if (!t) return;
-    const res = await fetch(`/api/shortcut-tokens/${t.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ restore: true }),
-    }).catch(() => null);
-    if (!res?.ok) setMessage({ text: 'Ya no se puede deshacer. Genera una clave nueva.', tone: 'error' });
-    void loadTokens();
   }
 
   /** Un gasto de prueba por el mismo camino que el atajo (con la clave recién creada). */
@@ -142,9 +66,7 @@ export default function ApplePayPage() {
     }
   }
 
-  const dismissUndo = useCallback(() => setUndo(null), []);
   const clearMessage = useCallback(() => setMessage(null), []);
-  const now = Date.now();
 
   return (
     <AppShell title="Apple Pay" currentPath="/mis-fuentes" hideMobileBar>
@@ -233,85 +155,13 @@ export default function ApplePayPage() {
         </div>
 
         {/* Clave personal */}
-        <section className="mt-5 flex flex-col gap-3 rounded-[18px] border border-[var(--zafi-border)] bg-[var(--zafi-card)] p-4">
-          <div className="flex flex-col gap-0.5">
-            <h2 className={`text-[15px] font-bold ${TEXT_STRONG}`}>Tu clave para el atajo</h2>
-            <p className={`text-[13.5px] leading-[1.4] ${TEXT_MUTED}`}>
-              El atajo la usa para registrar tus pagos en tu cuenta. No la compartas.
-            </p>
-          </div>
+        <ClaveAtajo usadaPor="el atajo" path="/mis-fuentes/apple-pay" fresh={fresh} onFresh={setFresh} onMessage={setMessage} />
 
-          {fresh && (
-            <div className="flex flex-col gap-2 rounded-[14px] bg-warning-light p-3 dark:bg-warning/15">
-              <code className="select-all break-all font-mono text-[13px] text-ink-900 dark:text-ink-100" aria-label="Tu clave nueva">
-                {fresh}
-              </code>
-              <button
-                type="button"
-                onClick={copyToken}
-                className="flex h-10 items-center justify-center gap-2 rounded-full bg-electric text-sm font-bold text-white transition-transform active:scale-[0.97]"
-              >
-                {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
-                {copied ? 'Copiada' : 'Copiar clave'}
-              </button>
-              <p className="text-[12.5px] text-warning-text dark:text-warning">
-                Pégala ahora en el atajo: por seguridad no la volveremos a mostrar.
-              </p>
-            </div>
-          )}
-
-          {tokens === null ? (
-            <span className={`text-sm ${TEXT_MUTED}`}>Cargando…</span>
-          ) : unavailable ? (
-            <p className={`text-sm ${TEXT_MUTED}`}>Las claves todavía no están disponibles. Intenta más tarde.</p>
-          ) : (
-            <>
-              {tokens.length > 0 && (
-                <ul className="flex flex-col">
-                  {tokens.map((t, i) => (
-                    <li
-                      key={t.id}
-                      className={`flex min-h-[52px] items-center gap-3 ${i < tokens.length - 1 ? 'border-b border-[var(--zafi-border-light)]' : ''}`}
-                    >
-                      <span aria-hidden className="text-lg">🔑</span>
-                      <span className={`flex-1 text-[13.5px] ${TEXT_STRONG}`}>{tokenSummary(t, now)}</span>
-                      <button
-                        type="button"
-                        onClick={() => revoke(t)}
-                        className="h-9 rounded-full px-3 text-[13.5px] font-semibold text-danger transition-transform active:scale-95"
-                      >
-                        Revocar
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <button
-                type="button"
-                onClick={createToken}
-                disabled={creating}
-                className={`flex h-11 items-center justify-center gap-2 rounded-full border border-ink-200 text-sm font-semibold transition-transform active:scale-[0.97] disabled:opacity-60 dark:border-white/15 ${TEXT_STRONG}`}
-              >
-                {creating && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-                {tokens.length > 0 ? 'Generar otra clave' : 'Generar mi clave'}
-              </button>
-            </>
-          )}
-        </section>
-
-        <div className="mt-3.5 rounded-[14px] bg-ink-100 px-3.5 py-3 text-[13.5px] leading-[1.4] text-ink-700 dark:bg-white/10 dark:text-ink-200">
-          <b>Android:</b> llega en una siguiente etapa. Leer los pagos de Google Wallet requiere una app nativa.
-        </div>
+        <Link href="/mis-fuentes/android" className="mt-3.5 rounded-[14px] bg-ink-100 px-3.5 py-3 text-[13.5px] leading-[1.4] text-ink-700 no-underline dark:bg-white/10 dark:text-ink-200">
+          <b>¿Usas Android?</b> Comparte los avisos del banco a Zafi o regístralos solos con MacroDroid ›
+        </Link>
       </div>
 
-      <UndoToast
-        visible={!!undo}
-        title="Clave revocada"
-        subtitle="El atajo dejará de registrar tus pagos"
-        onUndo={undoRevoke}
-        onDismiss={dismissUndo}
-        duration={6000}
-      />
       <StatusToast message={message} onDone={clearMessage} />
     </AppShell>
   );

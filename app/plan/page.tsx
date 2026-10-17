@@ -78,11 +78,13 @@ function PlanHub() {
 
   // /metas/nueva llega con ?nueva=1: abre la hoja una vez (en Deudas, la de deuda nueva).
   const wantsNew = params.get('nueva') === '1';
+  // Desde Mi patrimonio llega ?tipo=informal: la deuda nueva arranca como "Informal".
+  const [addTipo] = useState(() => params.get('tipo'));
   useEffect(() => {
     if (!wantsNew) return;
     if (section === 'deudas') setAddDeuda((n) => n + 1);
     else setAddMeta((n) => n + 1);
-    replaceQuery((q) => q.delete('nueva'));
+    replaceQuery((q) => { q.delete('nueva'); q.delete('tipo'); });
   }, [wantsNew]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // El detalle de meta llega con ?eliminada={id}: MetasView la quita con "Deshacer".
@@ -134,7 +136,7 @@ function PlanHub() {
         <MetasView addRequest={addMeta} deletedId={params.get('eliminada')} onDeletedHandled={clearDeleted} />
       )}
       {section === 'metas' && vista === 'retos' && <RetosView />}
-      {section === 'deudas' && <DeudasView addRequest={addDeuda} />}
+      {section === 'deudas' && <DeudasView addRequest={addDeuda} addType={addTipo} />}
     </AppShell>
   );
 }

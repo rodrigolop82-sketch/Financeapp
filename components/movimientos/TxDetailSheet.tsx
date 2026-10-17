@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SearchTransaction } from '@/types';
 import { getEmoji, paymentLabel } from '@/lib/categories-ui';
-import { dayLabel, longDate } from '@/lib/movimientos';
+import { cleanAmountInput, dayLabel, longDate, parseAmountInput } from '@/lib/movimientos';
 import { BORDER, DIVIDER, TEXT_BODY, TEXT_FAINT, TEXT_MUTED, TEXT_STRONG, TILE_BG } from './ui';
 import { WhoPaidFields } from '@/components/hogar/WhoPaidFields';
 import type { Person } from '@/lib/hogar';
@@ -17,6 +17,8 @@ interface TxDetailSheetProps {
   onOpenPayment: () => void;
   /** Guarda un cambio de texto (nombre o nota). */
   onSaveText: (id: string, patch: { description?: string | null; note?: string | null }) => void;
+  /** Guarda un monto nuevo (C14: el monto también se edita aquí). */
+  onSaveAmount?: (id: string, amount: number) => void;
   onDelete: () => void;
   onDone: () => void;
   /** Nombre de la parte del Plan del mes, si tiene. */
@@ -29,8 +31,21 @@ interface TxDetailSheetProps {
 const NOTE_DEBOUNCE_MS = 600;
 
 /** Contenido de hoja: detalle de un movimiento; cada dato se toca para cambiarlo. */
-export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOpenPayment, onSaveText, onDelete, onDone, subItemName, people, onSaveHousehold }: TxDetailSheetProps) {
+export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOpenPayment, onSaveText, onSaveAmount, onDelete, onDone, subItemName, people, onSaveHousehold }: TxDetailSheetProps) {
   const isIncome = tx.type === 'income';
+  const [editingAmount, setEditingAmount] = useState(false);
+  const [amountText, setAmountText] = useState('');
+
+  function startAmount() {
+    setAmountText(String(Number(tx.amount)));
+    setEditingAmount(true);
+  }
+
+  function commitAmount() {
+    setEditingAmount(false);
+    const n = parseAmountInput(amountText);
+    if (n !== null && n !== Number(tx.amount)) onSaveAmount?.(tx.id, n);
+  }
   const [name, setName] = useState(tx.description ?? '');
   const [note, setNote] = useState(tx.note ?? '');
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,9 +107,29 @@ export function TxDetailSheet({ tx, today, fmt, onOpenCategory, onOpenDate, onOp
           maxLength={80}
           className={`mt-1 w-full text-center bg-transparent outline-none rounded-lg font-semibold text-base focus:bg-[var(--zafi-card-alt)] ${TEXT_BODY}`}
         />
-        <p className={`font-outfit font-extrabold text-[44px] leading-none tracking-[-0.02em] ${isIncome ? 'text-success-dark' : TEXT_STRONG}`}>
-          {isIncome ? '+' : ''}{fmt(Number(tx.amount))}
-        </p>
+        {editingAmount ? (
+          <input
+            autoFocus
+            inputMode="decimal"
+            value={amountText}
+            onChange={(e) => setAmountText(cleanAmountInput(e.target.value))}
+            onBlur={commitAmount}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingAmount(false); }}
+            aria-label="Monto"
+            className={`w-full text-center bg-transparent outline-none rounded-lg font-outfit font-extrabold text-[44px] leading-none tracking-[-0.02em] focus:bg-[var(--zafi-card-alt)] ${TEXT_STRONG}`}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={onSaveAmount ? startAmount : undefined}
+            disabled={!onSaveAmount}
+            aria-label={onSaveAmount ? `Monto ${fmt(Number(tx.amount))}, tocar para cambiarlo` : undefined}
+            className={`font-outfit font-extrabold text-[44px] leading-none tracking-[-0.02em] rounded-lg ${isIncome ? 'text-success-dark' : TEXT_STRONG}`}
+          >
+            {isIncome ? '+' : ''}{fmt(Number(tx.amount))}
+          </button>
+        )}
+        {onSaveAmount && !editingAmount && <span className={`-mt-1 text-[12.5px] ${TEXT_FAINT}`}>Toca el monto para cambiarlo</span>}
         <p className={`text-sm ${TEXT_MUTED}`}>{longDate(tx.date, today)}</p>
       </div>
 
