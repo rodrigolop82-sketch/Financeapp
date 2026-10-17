@@ -85,10 +85,10 @@ export function premiumGate(reason: PremiumReason, ctx: {
     case 'eventos':
       return {
         emoji: '🎉',
-        title: 'Gratis permite 1 evento a la vez',
-        subtitle: 'Termina el evento actual para crear otro, o planea varios a la vez con Premium.',
+        title: 'Eventos es parte de Premium',
+        subtitle: 'Arma el presupuesto de un cumpleaños, una graduación, unas vacaciones o una boda, y ve cuánto llevas gastado.',
         plan,
-        perks: ['Todos los eventos que quieras al mismo tiempo', 'Cumpleaños, viajes y bodas sin esperar'],
+        perks: ['Plantillas con conceptos sugeridos', 'Lo gastado contra lo planeado, concepto por concepto', 'Una meta para ahorrar antes del evento'],
         cta: 'Ver Premium',
         href: href('eventos'),
       }

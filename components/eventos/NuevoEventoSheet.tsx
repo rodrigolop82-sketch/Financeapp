@@ -18,7 +18,7 @@ const draft = (nombre: string): ConceptoDraft => ({ key: nextKey++, nombre, pres
 
 export function NuevoEventoSheet({ onCreated, onLimit, onError }: {
   onCreated: (id: string, nombre: string) => void
-  /** Gratis ya tiene un evento activo. */
+  /** La cuenta es Gratis: Eventos es de Premium. */
   onLimit: () => void
   onError: (text: string) => void
 }) {
