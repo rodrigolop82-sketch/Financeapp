@@ -205,3 +205,38 @@ export function metaParaEvento(e: { tipo: EventoTipo; nombre: string; fechaInici
     monthlyContribution: Math.ceil(total / meses),
   }
 }
+
+export type EstadoAvance = 'sin_presupuesto' | 'dentro' | 'casi' | 'pasado'
+
+export interface Avance {
+  estado: EstadoAvance
+  /** Gastado / presupuesto en % (puede pasar de 100; null sin presupuesto). */
+  pct: number | null
+  /** Lo que queda (0 si se pasó). */
+  restante: number
+  /** Cuánto se pasó (0 si no). */
+  exceso: number
+  /** Ancho de cada tramo de la barra (0–1): lo gastado dentro del presupuesto y el exceso. */
+  barra: { dentro: number; exceso: number }
+}
+
+/** A partir del 90 % del presupuesto se avisa que ya casi se acaba. */
+export const CASI_PCT = 90
+
+/**
+ * Ejecución real contra el presupuesto, para la barra de avance. Si se pasó,
+ * la barra se reparte entre lo presupuestado y el exceso (el total es lo gastado).
+ */
+export function avance(presupuesto: number, gastado: number): Avance {
+  const p = Math.max(0, presupuesto)
+  const g = Math.max(0, gastado)
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  if (p === 0) {
+    return { estado: 'sin_presupuesto', pct: null, restante: 0, exceso: r2(g), barra: { dentro: 0, exceso: g > 0 ? 1 : 0 } }
+  }
+  const pct = Math.round((g / p) * 100)
+  if (g > p) {
+    return { estado: 'pasado', pct, restante: 0, exceso: r2(g - p), barra: { dentro: p / g, exceso: (g - p) / g } }
+  }
+  return { estado: pct >= CASI_PCT ? 'casi' : 'dentro', pct, restante: r2(p - g), exceso: 0, barra: { dentro: g / p, exceso: 0 } }
+}

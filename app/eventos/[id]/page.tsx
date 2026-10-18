@@ -25,6 +25,7 @@ import { useViewOnly } from '@/lib/hooks/useEffectivePlan'
 import { notifyScoreInputsChanged } from '@/lib/score-feedback'
 import { MAX_CONCEPTOS, metaParaEvento, montoConcepto, plantillaDe, textoCuenta, textoFechas } from '@/lib/eventos'
 import { loadEventos, type Evento } from '@/lib/eventos-data'
+import { AvanceBar } from '@/components/eventos/AvanceBar'
 
 const BACK = { label: 'Eventos', href: '/plan?s=eventos' }
 
@@ -99,7 +100,6 @@ export default function EventoPage() {
   const ev = evento
   const p = plantillaDe(ev.tipo)
   const r = ev.resumen
-  const over = r.presupuesto > 0 && r.gastado > r.presupuesto
   const cuenta = ev.archivedAt ? 'Terminado' : textoCuenta(ev.fechaInicio, ev.fechaFin, today)
   const canWrite = !viewOnly
   const nombreConcepto = new Map(ev.conceptos.map((c) => [c.id, c.nombre]))
@@ -191,10 +191,9 @@ export default function EventoPage() {
         <section className={`flex flex-col gap-2 p-5 ${HERO}`} style={HERO_STYLE}>
           <span className={`text-[13px] font-semibold ${HERO_MUTED}`}>Llevas gastado</span>
           <span className="font-outfit text-[34px] font-extrabold leading-none">{fmt(r.gastado)}</span>
-          <span className={`text-[14px] ${HERO_MUTED}`}>
-            de {fmt(r.presupuesto)} · {r.restante >= 0 ? `te quedan ${fmt(r.restante)}` : `te pasaste ${fmt(-r.restante)}`}
-          </span>
-          <ProgressBar ratio={r.presupuesto > 0 ? r.gastado / r.presupuesto : 0} color={over ? '#F59E0B' : '#60A5FA'} className="mt-1" />
+          <div className="mt-1.5">
+            <AvanceBar presupuesto={r.presupuesto} gastado={r.gastado} fmt={fmt} inverse />
+          </div>
         </section>
         {r.pasados > 0 && (
           <Note tone="warn">{r.pasados === 1 ? 'Un concepto ya pasó' : `${r.pasados} conceptos ya pasaron`} su presupuesto.</Note>
@@ -206,13 +205,20 @@ export default function EventoPage() {
             const pasado = c.presupuesto > 0 && c.gastado > c.presupuesto
             const body = (
               <>
-                <RowBody
-                  tile={<Tile>{p.emoji}</Tile>}
-                  name={c.nombre}
-                  badge={pasado ? <span className={BADGE_WARN}>Te pasaste</span> : null}
-                  help={c.gastado > 0 ? <>Gastado <b className={`font-semibold ${TEXT_STRONG}`}>{fmt(c.gastado)}</b></> : 'Sin gastos todavía'}
-                />
-                <RowAmount className={pasado ? 'text-warning-text dark:text-warning' : TEXT_STRONG}>{fmt(c.presupuesto)}</RowAmount>
+                <span className="flex w-full items-center gap-3">
+                  <RowBody
+                    tile={<Tile>{p.emoji}</Tile>}
+                    name={c.nombre}
+                    badge={pasado ? <span className={BADGE_WARN}>Te pasaste</span> : null}
+                    help={c.presupuesto > 0 ? 'Presupuesto' : 'Sin presupuesto'}
+                  />
+                  <RowAmount className={TEXT_STRONG}>{fmt(c.presupuesto)}</RowAmount>
+                </span>
+                {(c.presupuesto > 0 || c.gastado > 0) && (
+                  <span className="block w-full pl-[52px]">
+                    <AvanceBar presupuesto={c.presupuesto} gastado={c.gastado} fmt={fmt} />
+                  </span>
+                )}
               </>
             )
             return canWrite ? (
@@ -220,12 +226,12 @@ export default function EventoPage() {
                 key={c.id}
                 type="button"
                 onClick={() => setSheet({ kind: 'concepto', id: c.id, nombre: c.nombre, presupuesto: c.presupuesto ? String(c.presupuesto) : '' })}
-                className={`flex w-full items-center gap-3 py-3 text-left transition duration-150 active:scale-[0.98] ${ROW_DIVIDER}`}
+                className={`flex w-full flex-col gap-2.5 py-3 text-left transition duration-150 active:scale-[0.98] ${ROW_DIVIDER}`}
               >
                 {body}
               </button>
             ) : (
-              <div key={c.id} className={`flex items-center gap-3 py-3 ${ROW_DIVIDER}`}>{body}</div>
+              <div key={c.id} className={`flex flex-col gap-2.5 py-3 ${ROW_DIVIDER}`}>{body}</div>
             )
           })}
           {ev.conceptos.length === 0 && <p className={`py-3 text-sm ${TEXT_MUTED}`}>Agrega lo que piensas gastar, concepto por concepto.</p>}
