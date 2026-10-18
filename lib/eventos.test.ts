@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  PLANTILLAS, gastadoPorConcepto, metaParaEvento, montoConcepto, parseNuevoEvento, plantillaDe,
+  CASI_PCT, PLANTILLAS, avance, gastadoPorConcepto, metaParaEvento, montoConcepto, parseNuevoEvento, plantillaDe,
   puedeCrearEvento, resumenEvento, textoCuenta, textoFechas,
 } from './eventos'
 
@@ -91,5 +91,26 @@ describe('Ahorrar para esto', () => {
     const pronto = metaParaEvento({ tipo: 'otro', nombre: 'Fiesta', fechaInicio: '2026-10-25' }, 900, TODAY)
     expect(pronto).toMatchObject({ emoji: '🎯', goalType: 'custom', monthlyContribution: 900 })
     expect(metaParaEvento({ tipo: 'boda', nombre: 'Boda', fechaInicio: null }, 50000, TODAY).targetDate).toBeNull()
+  })
+})
+
+describe('avance (barra de ejecución)', () => {
+  it('dentro del presupuesto: cuánto queda', () => {
+    expect(avance(3500, 1840)).toEqual({ estado: 'dentro', pct: 53, restante: 1660, exceso: 0, barra: { dentro: 1840 / 3500, exceso: 0 } })
+    expect(avance(400, 0)).toMatchObject({ estado: 'dentro', pct: 0, restante: 400 })
+  })
+  it(`casi: desde ${CASI_PCT} %`, () => {
+    expect(avance(500, 450)).toMatchObject({ estado: 'casi', pct: 90, restante: 50 })
+    expect(avance(500, 500)).toMatchObject({ estado: 'casi', pct: 100, restante: 0, exceso: 0 })
+  })
+  it('se pasó: el exceso y la barra repartida', () => {
+    const a = avance(450, 600)
+    expect(a).toMatchObject({ estado: 'pasado', pct: 133, restante: 0, exceso: 150 })
+    expect(a.barra.dentro + a.barra.exceso).toBeCloseTo(1)
+    expect(a.barra.exceso).toBeCloseTo(0.25)
+  })
+  it('sin presupuesto', () => {
+    expect(avance(0, 80)).toEqual({ estado: 'sin_presupuesto', pct: null, restante: 0, exceso: 80, barra: { dentro: 0, exceso: 1 } })
+    expect(avance(0, 0).barra).toEqual({ dentro: 0, exceso: 0 })
   })
 })

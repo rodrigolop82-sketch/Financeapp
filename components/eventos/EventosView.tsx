@@ -18,12 +18,13 @@ import { loadEventos, type Evento } from '@/lib/eventos-data'
 import { BADGE_NEUTRAL, BADGE_WARN, ErrorBox, GroupTitle, ListCard, ROW_DIVIDER, RowBody, Tile } from '@/components/layout/Pantalla'
 import { CARD } from '@/components/resumen/ctf-ui'
 import { PRIMARY_BUTTON, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
-import { AddRow, ProgressBar, RowAmount } from '@/components/plan/ui'
+import { AddRow, RowAmount } from '@/components/plan/ui'
 import { BottomSheet } from '@/components/transactions/BottomSheet'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
 import { SkeletonRows } from '@/components/motion/PageSkeleton'
 import { PremiumSheet } from '@/components/premium/PremiumSheet'
 import { NuevoEventoSheet } from './NuevoEventoSheet'
+import { AvanceBar } from './AvanceBar'
 
 export function EventosView({ addRequest = 0 }: { addRequest?: number } = {}) {
   const router = useRouter()
@@ -76,11 +77,11 @@ export function EventosView({ addRequest = 0 }: { addRequest?: number } = {}) {
             tile={<Tile>{p.emoji}</Tile>}
             name={e.nombre}
             badge={over ? <span className={BADGE_WARN}>Te pasaste</span> : cuenta ? <span className={BADGE_NEUTRAL}>{cuenta}</span> : null}
-            help={<>{textoFechas(e.fechaInicio, e.fechaFin, today)} · <b className={`font-semibold ${TEXT_STRONG}`}>{fmt(r.gastado)}</b> de {fmt(r.presupuesto)}</>}
+            help={textoFechas(e.fechaInicio, e.fechaFin, today)}
           />
-          <RowAmount className={over ? 'text-warning-text dark:text-warning' : TEXT_STRONG}>{Math.min(999, r.pct)}%</RowAmount>
+          <RowAmount className={TEXT_STRONG}>{fmt(r.presupuesto)}</RowAmount>
         </span>
-        <ProgressBar ratio={r.presupuesto > 0 ? r.gastado / r.presupuesto : 0} color={over ? '#F59E0B' : '#2563EB'} />
+        <AvanceBar presupuesto={r.presupuesto} gastado={r.gastado} fmt={fmt} />
       </Link>
     )
   }
