@@ -24,7 +24,7 @@ import { useTxSheets } from '@/components/movimientos/useTxSheets'
 import { CARD_BG, DIVIDER, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui'
 import { StatusToast, type StatusMessage } from '@/components/movimientos/StatusToast'
 import { useMonthStart } from '@/components/inicio-de-mes/useMonthStart'
-import { incomeCategoryIds, monthName, planSummary, receivedByIncome } from '@/lib/plan-del-mes'
+import { incomeCategoryIds, monthName, planSummary, receivedByIncome, spentByPart } from '@/lib/plan-del-mes'
 import { useGoals, type Goal } from '@/hooks/useGoals'
 import { AddContributionSheet } from '@/components/goals/AddContributionSheet'
 import { PillButton } from '@/components/layout/Pantalla'
@@ -222,9 +222,10 @@ export default function InicioPage() {
     }
     const incomeCats = categories.filter((c) => c.bucket === 'income')
     const incomeCategoryOf = incomeCategoryIds(data?.incomes ?? [], incomeCats)
+    const spentByCategory = sum('expense', (t) => t.category_id)
     return {
-      spentByCategory: sum('expense', (t) => t.category_id),
-      spentBySub: sum('expense', (t) => t.budget_sub_item_id),
+      spentByCategory,
+      spentBySub: spentByPart(data?.subItems ?? [], spentByCategory, sum('expense', (t) => t.budget_sub_item_id)).bySub,
       incomeCategoryOf,
       received: receivedByIncome(data?.incomes ?? [], incomeCategoryOf, sum('income', (t) => t.category_id)),
     }
