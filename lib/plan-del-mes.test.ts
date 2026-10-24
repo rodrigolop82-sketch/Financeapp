@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   allocateReceived, categoryPlan, expenseStatus, impactText, incomeAmountFromMonthly, incomeStatus,
-  inferIncomeCategory, monthName, planSummary, previousMonth, stackedWidths, subAmountFromMonthly,
+  goalStatus, inferIncomeCategory, monthName, planSummary, previousMonth, stackedWidths, subAmountFromMonthly,
   suggestSubItem, unassignedCopy, type PlanCategory, type PlanIncome, type PlanSubItem,
 } from './plan-del-mes';
 
@@ -162,6 +162,22 @@ describe('inferIncomeCategory', () => {
     expect(inferIncomeCategory('Ventas', false, cats)?.id).toBe('o');
     expect(inferIncomeCategory('Bono', true, cats)?.id).toBe('s');
     expect(inferIncomeCategory('x', true, [])).toBeNull();
+  });
+  it('una renta fija no es salario', () => {
+    expect(inferIncomeCategory('renta casa los manzanillos', true, cats)?.id).toBe('o');
+    expect(inferIncomeCategory('Alquiler apartamento', true, cats)?.id).toBe('o');
+    expect(inferIncomeCategory('Intereses plazo fijo', true, cats)?.id).toBe('o');
+  });
+});
+
+describe('goalStatus', () => {
+  it('lo apartado este mes', () => {
+    expect(goalStatus(24500, 0, fmt)).toMatchObject({ text: 'Se aparta cuando te pagan', pct: 0 });
+    expect(goalStatus(24500, 10000, fmt)).toMatchObject({ text: 'Apartaste Q 10,000 · faltan Q 14,500', pct: 41 });
+    expect(goalStatus(24500, 24500, fmt)).toMatchObject({ text: 'Apartado ✓', pct: 100 });
+    expect(goalStatus(24500, 26950, fmt)).toMatchObject({
+      text: 'Apartaste Q 26,950 · Q 2,450 más de lo planeado ✓', pct: 100, bar: 'income',
+    });
   });
 });
 

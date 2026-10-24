@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   addDays, dayLabel, longDate, monthRange, monthLabel, recentMonths, recentDays,
-  cleanAmountInput, groupByDay, sameMerchantOthers, topCategories,
+  cleanAmountInput, dayTotalText, groupByDay, sameMerchantOthers, topCategories,
   periodRange, yearMonths, periodLabel, periodInText, searchScopeText, groupByMonth,
 } from './movimientos';
 
@@ -56,6 +56,19 @@ describe('groupByDay', () => {
       ['Hoy', 10, 2],
       ['Ayer', 5.5, 1],
     ]);
+    expect(groups[0].incomeTotal).toBe(500);
+  });
+
+  it('total del encabezado: ingresos con el filtro o en días solo de ingresos', () => {
+    const fmt = (n: number) => `Q ${n}`;
+    const [mixed, onlyIncome] = groupByDay([
+      { id: 'a', date: TODAY, amount: 10, type: 'expense' as const },
+      { id: 'b', date: TODAY, amount: 500, type: 'income' as const },
+      { id: 'c', date: '2026-10-02', amount: 5100, type: 'income' as const },
+    ], TODAY);
+    expect(dayTotalText(mixed, false, fmt)).toBe('Q 10');
+    expect(dayTotalText(mixed, true, fmt)).toBe('+Q 500');
+    expect(dayTotalText(onlyIncome, false, fmt)).toBe('+Q 5100');
   });
 });
 

@@ -12,7 +12,7 @@ import { getEmoji } from '@/lib/categories-ui';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete';
 import {
-  allocateReceived, categoryPlan, expenseStatus, incomeAmountFromMonthly, incomeMonthly, incomeStatus,
+  allocateReceived, categoryPlan, expenseStatus, goalStatus, incomeAmountFromMonthly, incomeMonthly, incomeStatus,
   inferIncomeCategory, monthName, planSummary, previousMonth, subAmountFromMonthly, subMonthly,
   type RowStatus,
 } from '@/lib/plan-del-mes';
@@ -238,12 +238,13 @@ export function PresupuestoView() {
         title: e ? 'Ingreso' : 'Nuevo ingreso',
         subtitle: rec ? `Te ha entrado ${fmt(rec)} este mes` : 'Nada recibido este mes',
         initial: e
-          ? { name: e.source, amount: incomeMonthly(e), fixed: e.is_fixed ?? true, day: e.expected_day ?? null }
-          : { name: '', amount: 0, fixed: false, day: null },
+          ? { name: e.source, amount: incomeMonthly(e), fixed: e.is_fixed ?? true, day: e.expected_day ?? null, categoryId: derived.incomeCatOf[e.id] }
+          : { name: '', amount: 0, fixed: false, day: null, categoryId: null },
         spent: 0,
         last: e && derived.prevReceived[e.id] ? { label: prevName, amount: Math.round(derived.prevReceived[e.id]) } : null,
         canSplit: false,
         canRemove: !!e,
+        incomeCategories: incomeCats.map((c) => ({ id: c.id, name: c.name, emoji: getEmoji(c) })),
       };
     } else if (ref.kind === 'part') {
       const cat = categories.find((c) => c.id === ref.categoryId)!;
@@ -372,7 +373,7 @@ export function PresupuestoView() {
     if (!(d.amount > 0)) { setMessage({ text: 'Falta el monto.', tone: 'error' }); return; }
     const name = d.name.trim() || 'Otro ingreso';
     const existing = id ? incomes.find((e) => e.id === id) : undefined;
-    const categoryId = existing?.category_id ?? inferIncomeCategory(name, d.fixed, incomeCats)?.id ?? null;
+    const categoryId = d.categoryId ?? existing?.category_id ?? inferIncomeCategory(name, d.fixed, incomeCats)?.id ?? null;
     const fields = { source: name, is_fixed: d.fixed, expected_day: d.fixed ? d.day : null, category_id: categoryId };
     const title = `${name}: esperas ${fmt(d.amount)} al mes`;
 
@@ -540,8 +541,6 @@ export function PresupuestoView() {
 
   // ── Vista ───────────────────────────────────────
 
-  const goalStatus: RowStatus = { text: 'Se aparta cuando te pagan', tone: 'muted', pct: 0, bar: 'normal' };
-
   function incomeRowStatus(e: IncomeEntry, monthly: number, fixed: boolean): RowStatus {
     const rec = derived.received[e.id] ?? 0;
     const st = incomeStatus(monthly, rec, fixed, e.expected_day ?? null, fmt);
@@ -602,20 +601,20 @@ export function PresupuestoView() {
         const fixed = !isGoal && c.pace_mode === 'fixed';
         return {
           key: c.id, emoji: getEmoji(c), name: c.name, fixed, amount: fmt(plan),
-          status: isGoal ? goalStatus : expenseStatus(plan, spent, fixed, fmt, fixed ? reservedLeaf(c.id, c.expected_day ?? null) : undefined),
-          hasBar: !isGoal,
+          status: isGoal ? goalStatus(plan, spent, fmt) : expenseStatus(plan, spent, fixed, fmt, fixed ? reservedLeaf(c.id, c.expected_day ?? null) : undefined),
+          hasBar: true,
           onClick: () => openSheet({ kind: isGoal ? 'goal' : 'category', id: c.id }),
           flash: flashKey === c.id,
         };
       }
-      const st = isGoal ? goalStatus : expenseStatus(plan, spent, false, fmt);
+      const st = isGoal ? goalStatus(plan, spent, fmt) : expenseStatus(plan, spent, false, fmt);
       const open = expanded.has(c.id);
       return {
         key: c.id, emoji: getEmoji(c), name: c.name,
         fixed: !isGoal && parts.every((p) => p.is_fixed),
         amount: fmt(plan),
         status: { ...st, text: `${parts.length} ${parts.length === 1 ? 'parte' : 'partes'} · ${st.text}` },
-        hasBar: !isGoal,
+        hasBar: true,
         open,
         onClick: () => setExpanded((s) => {
           const next = new Set(s);
@@ -628,7 +627,7 @@ export function PresupuestoView() {
           const pp = subMonthly(p);
           return {
             key: p.id, name: p.name, fixed: !isGoal && p.is_fixed, amount: fmt(pp),
-            status: isGoal ? goalStatus : expenseStatus(
+            status: isGoal ? goalStatus(pp, derived.spentSub[p.id] ?? 0, fmt) : expenseStatus(
               pp, derived.spentSub[p.id] ?? 0, p.is_fixed, fmt,
               p.is_fixed ? reservedLeaf(p.id, p.expected_day ?? null) : undefined,
             ),
