@@ -19,6 +19,10 @@ import { ShieldCheck, ChevronLeft, Plus, LogOut } from 'lucide-react'
 
 const ADMIN_ITEM: NavItem = { href: '/admin', icon: ShieldCheck, label: 'Admin' }
 
+// Cada pantalla monta su propio AppShell: el nombre del pie se pide una vez
+// por carga de la app, no en cada cambio de menú.
+let cachedName: { userId: string; name: string } | null = null
+
 interface AppShellProps {
   children: React.ReactNode
   title: string
@@ -58,9 +62,12 @@ export function AppShell({ children, title, currentPath, userName = '', userEmai
       if (!user) return
       if (user.email) setIsMaster(isMasterUser(user.email))
       if (userName) return
+      if (cachedName?.userId === user.id) { setLoadedName(cachedName.name); return }
       const { data } = await supabase.from('users').select('full_name').eq('id', user.id).maybeSingle()
       const full = ((data?.full_name as string | undefined) ?? '').trim()
-      setLoadedName(full ? full.split(/\s+/)[0] : (user.email ?? '').split('@')[0])
+      const name = full ? full.split(/\s+/)[0] : (user.email ?? '').split('@')[0]
+      cachedName = { userId: user.id, name }
+      setLoadedName(name)
     })
   }, [userEmail, userName])
 

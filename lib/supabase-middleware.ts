@@ -39,7 +39,12 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getClaims refresca el token si venció y verifica la firma del JWT. Con
+  // llaves asimétricas lo hace localmente (sin ir al servidor de auth en cada
+  // navegación); con la llave simétrica antigua pregunta al servidor, igual que
+  // getUser().
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? data.claims : null;
 
   const path = request.nextUrl.pathname;
 
