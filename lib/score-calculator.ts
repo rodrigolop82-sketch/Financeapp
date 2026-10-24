@@ -16,6 +16,8 @@ export interface ScoreInput {
   income: number
   /** Ahorro del mes: ingresos − gastaste (lib/metricas-mes). */
   saved: number
+  /** Parte del ahorro que se movió a metas y abonos a deudas (ya incluida en `saved`). */
+  setAside?: number
   /**
    * Sin ingresos registrados: el ahorro queda pendiente (no suma ni resta) y
    * el puntaje se reescala con las otras partes.
@@ -111,7 +113,8 @@ export function calculateScore(input: ScoreInput): HealthScoreResult {
       score: lerp(rate, 0, 0.2, 2, 20),
       detail: saved < 0
         ? `Este mes gastaste ${q(-saved)} más de lo que recibiste`
-        : `Este mes guardaste ${q(saved)} · ${Math.round(rate * 100)}% de tu ingreso`,
+        : `Este mes guardaste ${q(saved)} · ${Math.round(rate * 100)}% de tu ingreso${
+          (input.setAside ?? 0) > 0 ? ` · ${q(input.setAside!)} a ahorro y deudas` : ''}`,
       tip: rate < 0.1 ? `La meta es guardar al menos 10% (${q(income * 0.1)}).` : '¡Buen nivel de ahorro! Sigue así.',
       action: rate < 0.2 ? { label: 'Aportar a una meta', href: '/plan?s=metas' } : null,
     },

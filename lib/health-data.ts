@@ -68,6 +68,7 @@ export function buildScoreInput(raw: ScoreRaw): ScoreInput {
   return {
     income: m.tieneIngresos ? m.ingresos : planned,
     saved: m.ahorro ?? (confirmadoSinIngresos ? -m.consumo : 0),
+    setAside: m.apartado + m.abonosDeuda,
     provisional: !m.tieneIngresos && !confirmadoSinIngresos,
     debtPayments: deudas.cuotaMensual,
     emergencyFund: raw.emergencyGoal ? num(raw.emergencyGoal.current_amount) : num(raw.profile?.total_savings),

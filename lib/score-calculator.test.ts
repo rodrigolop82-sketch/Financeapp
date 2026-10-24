@@ -17,6 +17,13 @@ describe('lerp', () => {
 })
 
 describe('calculateScore', () => {
+  it('el detalle de ahorro muestra lo apartado', () => {
+    const detail = (setAside?: number) =>
+      calculateScore({ ...base, setAside }).components.find((c) => c.key === 'savings')!.detail
+    expect(detail()).not.toContain('ahorro y deudas')
+    expect(detail(0)).not.toContain('ahorro y deudas')
+    expect(detail(500)).toMatch(/· Q\s?500 a ahorro y deudas$/)
+  })
   it('suma 5 partes de 20 y pone etiqueta', () => {
     const r = calculateScore(base)
     expect(r.components).toHaveLength(5)
