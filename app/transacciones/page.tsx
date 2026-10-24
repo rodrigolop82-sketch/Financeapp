@@ -8,7 +8,7 @@ import type { BudgetCategory, SearchTransaction } from '@/types';
 import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { getUserHousehold } from '@/lib/household';
 import {
-  groupByMonth, monthLabel, periodLabel, periodRange, searchScopeText, yearMonths, type Period,
+  dayTotalText, groupByMonth, monthLabel, periodLabel, periodRange, searchScopeText, yearMonths, type Period,
 } from '@/lib/movimientos';
 import { StatementImportFlow } from '@/components/statement-import/StatementImportFlow';
 import { AppShell } from '@/components/layout/AppShell';
@@ -549,7 +549,7 @@ export default function MovimientosPage() {
                           </div>
                         </>
                       )}
-                      <TxDayGroup label={g.label} total={fmt(g.expenseTotal)}>
+                      <TxDayGroup label={g.label} total={dayTotalText(g, typeFilter === 'income', fmt)}>
                         {g.rows.map((tx) => (
                           <SwipeRow
                             key={tx.id}

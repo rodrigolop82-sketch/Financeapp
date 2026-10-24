@@ -219,6 +219,17 @@ export function incomeStatus(
   return { text, tone: 'muted', pct, bar: 'income' };
 }
 
+/** Sub-línea y barra (verde) de una meta o de una de sus partes: lo apartado este mes. */
+export function goalStatus(plan: number, saved: number, fmt: (n: number) => string): RowStatus {
+  const pct = plan > 0 ? Math.min(100, Math.round((saved / plan) * 100)) : saved > 0 ? 100 : 0;
+  let text: string;
+  if (saved <= 0) text = 'Se aparta cuando te pagan';
+  else if (saved > plan) text = `Apartaste ${fmt(saved)} · ${fmt(saved - plan)} más de lo planeado ✓`;
+  else if (saved >= plan) text = 'Apartado ✓';
+  else text = `Apartaste ${fmt(saved)} · faltan ${fmt(plan - saved)}`;
+  return { text, tone: 'muted', pct, bar: 'income' };
+}
+
 /**
  * Reparte lo recibido por categoría entre los ingresos que la comparten
  * (p. ej. "1ra quincena" y "2da quincena" en Salario): llena cada uno en
@@ -248,8 +259,8 @@ function norm(s: string): string {
 
 /**
  * Categoría de ingreso con la que se registra un ingreso del plan: la que
- * se llame como él, si no "Salario" para los fijos y "Otros ingresos" para
- * los variables, y si no la primera.
+ * se llame como él, si no "Salario" para los fijos (salvo rentas, intereses
+ * y similares) y "Otros ingresos" para el resto, y si no la primera.
  */
 export function inferIncomeCategory<T extends { id: string; name: string }>(
   name: string,
@@ -263,7 +274,9 @@ export function inferIncomeCategory<T extends { id: string; name: string }>(
     return cn.length > 2 && (n.includes(cn) || (n.length > 2 && cn.includes(n.split(' ')[0])));
   });
   if (byName) return byName;
-  const fallback = isFixed ? 'salario' : 'otros ingresos';
+  // Un fijo va a Salario, salvo que sea renta, intereses o similares.
+  const otherFixed = /\b(renta|alquiler|arrendamiento|inquilin|interes|dividendo|pension|remesa)/.test(n);
+  const fallback = isFixed && !otherFixed ? 'salario' : 'otros ingresos';
   return incomeCategories.find((c) => norm(c.name) === fallback) ?? incomeCategories[0];
 }
 

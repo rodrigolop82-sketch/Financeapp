@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { impactText } from '@/lib/plan-del-mes';
+import { impactText, inferIncomeCategory } from '@/lib/plan-del-mes';
 import { cleanAmountInput } from '@/lib/movimientos';
 import {
   BORDER, PRIMARY_BUTTON, SHEET_TITLE, SOFT_BG, TEXT_BODY, TEXT_MUTED, TEXT_STRONG, TILE_BG,
@@ -16,6 +16,8 @@ export interface PlanDraft {
   fixed: boolean;
   /** Se borra al guardar si no es fijo. */
   day: number | null;
+  /** Ingreso: categoría con la que se registra (sus movimientos cuentan como recibidos). */
+  categoryId?: string | null;
 }
 
 export interface EditPlanTarget {
@@ -31,6 +33,8 @@ export interface EditPlanTarget {
   last: { label: string; amount: number } | null;
   canSplit: boolean;
   canRemove: boolean;
+  /** Ingreso: categorías de ingreso entre las que se puede elegir. */
+  incomeCategories?: { id: string; name: string; emoji: string }[];
 }
 
 interface EditPlanSheetProps {
@@ -65,9 +69,13 @@ export function EditPlanSheet({ target, month, unassigned, fmt, saving, onSave, 
   const [amount, setAmount] = useState(amountText(target.initial.amount));
   const [fixed, setFixed] = useState(target.initial.fixed);
   const [day, setDay] = useState<number | null>(target.initial.day);
+  // Sin elegir (ingreso nuevo): la que Zafi deduce del nombre, en vivo.
+  const [pickedCat, setPickedCat] = useState<string | null>(target.initial.categoryId ?? null);
+  const incomeCats = target.incomeCategories ?? [];
+  const categoryId = isIncome ? pickedCat ?? inferIncomeCategory(name, fixed, incomeCats)?.id ?? null : null;
 
   const value = Number(amount) || 0;
-  const draft: PlanDraft = { name, amount: value, fixed, day };
+  const draft: PlanDraft = { name, amount: value, fixed, day, ...(isIncome ? { categoryId } : {}) };
   const delta = value - target.initial.amount;
   const newUnassigned = Math.round((isIncome ? unassigned + delta : unassigned - delta) * 100) / 100;
   const negative = newUnassigned < 0;
@@ -119,6 +127,37 @@ export function EditPlanSheet({ target, month, unassigned, fmt, saving, onSave, 
           placeholder={isIncome ? 'Nombre, por ej. Salario o Ventas' : 'Nombre, por ej. Cuota de mantenimiento'}
           className={`h-12 rounded-xl border-[1.5px] border-electric-soft bg-[var(--zafi-card)] px-3.5 text-[15.5px] font-semibold outline-none placeholder:font-normal placeholder:text-ink-400 focus:border-electric ${TEXT_STRONG}`}
         />
+      )}
+
+      {/* Categoría del ingreso */}
+      {isIncome && incomeCats.length > 1 && (
+        <div className="flex flex-col gap-1.5">
+          <span className={`text-[13px] font-semibold ${TEXT_MUTED}`}>Lo registras en</span>
+          <div role="radiogroup" aria-label="Categoría del ingreso" className="flex flex-wrap gap-2">
+            {incomeCats.map((c) => {
+              const on = categoryId === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setPickedCat(c.id)}
+                  className={`h-9 rounded-full border-[1.5px] px-3.5 text-[13.5px] font-semibold ${
+                    on
+                      ? 'border-electric bg-[#EFF6FF] text-electric-dark dark:bg-electric/20 dark:text-electric-pale'
+                      : `${BORDER} bg-[var(--zafi-card)] ${TEXT_BODY}`
+                  }`}
+                >
+                  <span aria-hidden>{c.emoji}</span> {c.name}
+                </button>
+              );
+            })}
+          </div>
+          <span className={`text-[13px] leading-[1.45] [text-wrap:pretty] ${TEXT_MUTED}`}>
+            Los ingresos que registres en esta categoría cuentan como recibidos aquí.
+          </span>
+        </div>
       )}
 
       {/* Monto */}

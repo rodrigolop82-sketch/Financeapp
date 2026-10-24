@@ -116,6 +116,8 @@ export interface DayGroup<T extends DayRow> {
   label: string;
   /** "Gastaste" del día: sin ingresos, ahorro ni pagos a deudas. */
   expenseTotal: number;
+  /** Ingresos del día. */
+  incomeTotal: number;
   rows: T[];
 }
 
@@ -125,13 +127,23 @@ export function groupByDay<T extends DayRow>(rows: T[], today: string): DayGroup
   for (const row of rows) {
     let g = groups[groups.length - 1];
     if (!g || g.date !== row.date) {
-      g = { date: row.date, label: dayLabel(row.date, today), expenseTotal: 0, rows: [] };
+      g = { date: row.date, label: dayLabel(row.date, today), expenseTotal: 0, incomeTotal: 0, rows: [] };
       groups.push(g);
     }
     g.rows.push(row);
     if (cuentaComoGasto(row)) g.expenseTotal += Number(row.amount);
+    else if (row.type === 'income') g.incomeTotal += Number(row.amount);
   }
   return groups;
+}
+
+/**
+ * Total del encabezado del día: lo gastado; con el filtro de ingresos, o en
+ * un día que solo tuvo ingresos, lo que entró (con "+").
+ */
+export function dayTotalText<T extends DayRow>(g: DayGroup<T>, onlyIncome: boolean, fmt: (n: number) => string): string {
+  if (onlyIncome || (g.expenseTotal === 0 && g.incomeTotal > 0)) return `+${fmt(g.incomeTotal)}`;
+  return fmt(g.expenseTotal);
 }
 
 /**
