@@ -13,7 +13,7 @@
 //   para no repetir el mismo (el mismo pago, el mismo tope en el mes…).
 
 import { analyzeMonth, longMonth, monthSaved, type CtfCategory, type CtfTx } from './como-te-fue';
-import { planLeaves, planSummary, type PlanIncome, type PlanSubItem } from './plan-del-mes';
+import { planLeaves, planSummary, spentByPart, type PlanIncome, type PlanSubItem } from './plan-del-mes';
 import { CAP_META, type CapKey } from './recomendaciones';
 
 /** Tipos que se guardan en notification_log.type. */
@@ -244,15 +244,17 @@ export function dueCandidates(d: AvisoData, fmt: Fmt): Aviso[] {
   const month = tomorrow.slice(0, 7);
   const sameMonth = month === d.today.slice(0, 7);
   const spentByCategory: Record<string, number> = {};
-  const spentBySub: Record<string, number> = {};
+  const rawBySub: Record<string, number> = {};
   if (sameMonth) {
     for (const t of d.txs) {
       if (t.type !== 'expense' || !t.date.startsWith(month)) continue;
       const amt = Number(t.amount) || 0;
-      if (t.budget_sub_item_id) spentBySub[t.budget_sub_item_id] = (spentBySub[t.budget_sub_item_id] ?? 0) + amt;
+      if (t.budget_sub_item_id) rawBySub[t.budget_sub_item_id] = (rawBySub[t.budget_sub_item_id] ?? 0) + amt;
       if (t.category_id) spentByCategory[t.category_id] = (spentByCategory[t.category_id] ?? 0) + amt;
     }
   }
+  // Un pago sin parte en una categoría de una sola parte cuenta para esa parte.
+  const spentBySub = spentByPart(d.subs, spentByCategory, rawBySub).bySub;
   const active = d.categories.filter((c) => !c.archived_at);
   const subById = new Map(d.subs.map((s) => [s.id, s]));
   const catById = new Map(active.map((c) => [c.id, c]));

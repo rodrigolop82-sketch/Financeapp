@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   allocateReceived, categoryPlan, expenseStatus, impactText, incomeAmountFromMonthly, incomeStatus,
-  goalStatus, inferIncomeCategory, monthName, planSummary, previousMonth, stackedWidths, subAmountFromMonthly,
+  goalStatus, inferIncomeCategory, spentByPart, monthName, planSummary, previousMonth, stackedWidths, subAmountFromMonthly,
   suggestSubItem, unassignedCopy, type PlanCategory, type PlanIncome, type PlanSubItem,
 } from './plan-del-mes';
 
@@ -167,6 +167,29 @@ describe('inferIncomeCategory', () => {
     expect(inferIncomeCategory('renta casa los manzanillos', true, cats)?.id).toBe('o');
     expect(inferIncomeCategory('Alquiler apartamento', true, cats)?.id).toBe('o');
     expect(inferIncomeCategory('Intereses plazo fijo', true, cats)?.id).toBe('o');
+  });
+});
+
+describe('spentByPart', () => {
+  const subs = [
+    { id: 'abarrotes', category_id: 'alim' },
+    { id: 'gas', category_id: 'transp' },
+    { id: 'seguro', category_id: 'transp' },
+  ];
+  it('una sola parte se lleva lo que no tiene parte', () => {
+    const r = spentByPart(subs, { alim: 3057.45 }, { abarrotes: 410.1 });
+    expect(r.bySub.abarrotes).toBe(3057.45);
+    expect(r.loose).toEqual({});
+  });
+  it('con varias partes queda como "sin parte"', () => {
+    const r = spentByPart(subs, { transp: 154.23 }, { gas: 23.08, seguro: 10 });
+    expect(r.bySub).toEqual({ gas: 23.08, seguro: 10 });
+    expect(r.loose).toEqual({ transp: 121.15 });
+  });
+  it('sin movimientos sueltos no cambia nada', () => {
+    const r = spentByPart(subs, { alim: 410.1, transp: 33.08 }, { abarrotes: 410.1, gas: 23.08, seguro: 10 });
+    expect(r.bySub).toEqual({ abarrotes: 410.1, gas: 23.08, seguro: 10 });
+    expect(r.loose).toEqual({});
   });
 });
 

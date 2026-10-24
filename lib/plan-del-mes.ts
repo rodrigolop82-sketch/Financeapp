@@ -219,6 +219,31 @@ export function incomeStatus(
   return { text, tone: 'muted', pct, bar: 'income' };
 }
 
+/**
+ * Lo gastado por parte, contando los movimientos sin parte: en una categoría
+ * de una sola parte van a esa parte; en una de varias quedan en `loose`
+ * (categoría → monto sin parte) para asignarlos. Así la suma de las partes
+ * cuadra con la categoría.
+ */
+export function spentByPart(
+  subs: Pick<PlanSubItem, 'id' | 'category_id'>[],
+  spentByCategory: Record<string, number>,
+  spentBySub: Record<string, number>,
+): { bySub: Record<string, number>; loose: Record<string, number> } {
+  const bySub: Record<string, number> = { ...spentBySub };
+  const loose: Record<string, number> = {};
+  const partsOf = new Map<string, string[]>();
+  for (const s of subs) partsOf.set(s.category_id, [...(partsOf.get(s.category_id) ?? []), s.id]);
+  partsOf.forEach((ids, catId) => {
+    const inParts = ids.reduce((a, id) => a + (spentBySub[id] ?? 0), 0);
+    const rest = round2((spentByCategory[catId] ?? 0) - inParts);
+    if (rest <= 0.005) return;
+    if (ids.length === 1) bySub[ids[0]] = round2((spentBySub[ids[0]] ?? 0) + rest);
+    else loose[catId] = rest;
+  });
+  return { bySub, loose };
+}
+
 /** Sub-línea y barra (verde) de una meta o de una de sus partes: lo apartado este mes. */
 export function goalStatus(plan: number, saved: number, fmt: (n: number) => string): RowStatus {
   const pct = plan > 0 ? Math.min(100, Math.round((saved / plan) * 100)) : saved > 0 ? 100 : 0;

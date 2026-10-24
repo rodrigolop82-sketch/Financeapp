@@ -10,6 +10,8 @@ export interface PlanPartVM {
   amount: string;
   status: RowStatus;
   onClick: () => void;
+  /** Fila "Sin parte": sin barra. */
+  hideBar?: boolean;
 }
 
 export interface PlanRowVM {
@@ -132,7 +134,7 @@ function PlanRow({ row, last }: { row: PlanRowVM; last: boolean }) {
                 <span className={`flex-none font-outfit text-[14.5px] font-bold ${TEXT_BODY}`}>{p.amount}</span>
                 <span aria-hidden className={`flex-none text-base ${TEXT_FAINT}`}>›</span>
               </span>
-              <Bar status={p.status} height={4} />
+              {!p.hideBar && <Bar status={p.status} height={4} />}
             </button>
           ))}
           <button

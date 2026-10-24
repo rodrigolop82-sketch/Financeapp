@@ -13,7 +13,7 @@ import { useFormatMoney } from '@/lib/hooks/useFormatMoney';
 import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete';
 import {
   allocateReceived, categoryPlan, expenseStatus, goalStatus, incomeAmountFromMonthly, incomeMonthly, incomeStatus,
-  inferIncomeCategory, monthName, planSummary, previousMonth, subAmountFromMonthly, subMonthly,
+  inferIncomeCategory, monthName, planSummary, previousMonth, spentByPart, subAmountFromMonthly, subMonthly,
   type RowStatus,
 } from '@/lib/plan-del-mes';
 import { BottomSheet } from '@/components/transactions/BottomSheet';
@@ -23,6 +23,7 @@ import { TEXT_MUTED } from '@/components/movimientos/ui';
 import { PlanSummaryCard } from '@/components/presupuesto/PlanSummaryCard';
 import { PlanGroups, type PlanGroupVM, type PlanRowVM } from '@/components/presupuesto/PlanGroups';
 import { EditPlanSheet, type EditPlanTarget, type PlanDraft } from '@/components/presupuesto/EditPlanSheet';
+import { LooseMovesSheet } from '@/components/presupuesto/LooseMovesSheet';
 import { daysLeftInMonth, isCounted, totalCountedIncome } from '@/lib/inicio-de-mes';
 import { MonthStartNotice } from '@/components/inicio-de-mes/MonthStartNotice';
 import { useMonthStart } from '@/components/inicio-de-mes/useMonthStart';
@@ -36,6 +37,8 @@ import { notifyScoreInputsChanged } from '@/lib/score-feedback';
 import { esCategoriaPagoDeuda, filaPagoDeuda, loadDeudas, resumenDeudas } from '@/lib/deudas-data';
 
 interface MonthTx {
+  id: string;
+  description?: string | null;
   category_id: string | null;
   budget_sub_item_id?: string | null;
   amount: number | string;
@@ -102,6 +105,9 @@ export function PresupuestoView() {
   const [message, setMessage] = useState<StatusMessage | null>(null);
   const [flashKey, setFlashKey] = useState<string | null>(null);
   const [confirmingIncome, setConfirmingIncome] = useState(false);
+  /** Categoría cuya hoja "Sin parte" está abierta. */
+  const [looseCat, setLooseCat] = useState<string | null>(null);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
   const [caps, setCaps] = useState<Record<CapKey, number>>(resolveCaps(null));
   // La alerta de topes aparece al guardar un cambio del plan.
   const [capAlertArmed, setCapAlertArmed] = useState(false);
@@ -123,7 +129,7 @@ export function PresupuestoView() {
       supabase.from('income_entries').select('*').eq('household_id', hid).order('created_at', { ascending: true }),
       supabase
         .from('transactions')
-        .select('category_id, budget_sub_item_id, amount, type, date')
+        .select('id, description, category_id, budget_sub_item_id, amount, type, date')
         .eq('household_id', hid)
         .gte('date', from)
         .lte('date', to),
@@ -139,7 +145,7 @@ export function PresupuestoView() {
     if (txRes.error) {
       const { data } = await supabase
         .from('transactions')
-        .select('category_id, amount, type, date')
+        .select('id, description, category_id, amount, type, date')
         .eq('household_id', hid)
         .gte('date', from)
         .lte('date', to);
@@ -169,16 +175,24 @@ export function PresupuestoView() {
     const incomeCat = (e: IncomeEntry) =>
       e.category_id ?? inferIncomeCategory(e.source, e.is_fixed ?? true, incomeCats)?.id ?? null;
     const incomeRows = incomes.map((e) => ({ ...e, categoryId: incomeCat(e) }));
+    const spentCat = sumBy(cur, 'expense', (t) => t.category_id);
+    const prevCat = sumBy(prev, 'expense', (t) => t.category_id);
+    // Lo que no tiene parte va a la única parte, o queda como "Sin parte".
+    const curParts = spentByPart(subItems, spentCat, sumBy(cur, 'expense', (t) => t.budget_sub_item_id));
+    const partIds = new Set(subItems.map((x) => x.id));
     return {
-      spentCat: sumBy(cur, 'expense', (t) => t.category_id),
-      spentSub: sumBy(cur, 'expense', (t) => t.budget_sub_item_id),
-      prevCat: sumBy(prev, 'expense', (t) => t.category_id),
-      prevSub: sumBy(prev, 'expense', (t) => t.budget_sub_item_id),
+      spentCat,
+      spentSub: curParts.bySub,
+      looseCat: curParts.loose,
+      /** Movimientos del mes sin parte (o con una que ya no existe), por categoría. */
+      looseMoves: cur.filter((t) => t.type === 'expense' && t.category_id && !(t.budget_sub_item_id && partIds.has(t.budget_sub_item_id))),
+      prevCat,
+      prevSub: spentByPart(subItems, prevCat, sumBy(prev, 'expense', (t) => t.budget_sub_item_id)).bySub,
       received: allocateReceived(incomeRows, sumBy(cur, 'income', (t) => t.category_id)),
       prevReceived: allocateReceived(incomeRows, sumBy(prev, 'income', (t) => t.category_id)),
       incomeCatOf: Object.fromEntries(incomeRows.map((e) => [e.id, e.categoryId])) as Record<string, string | null>,
     };
-  }, [txs, incomes, incomeCats, month, prevMonth]);
+  }, [txs, incomes, incomeCats, subItems, month, prevMonth]);
 
   const subsOf = (catId: string) => subItems.filter((s) => s.category_id === catId);
 
@@ -473,6 +487,15 @@ export function PresupuestoView() {
     });
   }
 
+  /** Hoja "Sin parte": asigna la parte a un movimiento. */
+  async function assignPart(txId: string, partId: string) {
+    setAssigningId(txId);
+    const { error } = await supabase.from('transactions').update({ budget_sub_item_id: partId }).eq('id', txId);
+    if (error) fail();
+    else await load();
+    setAssigningId(null);
+  }
+
   async function removeIncome(id: string) {
     const e = incomes.find((x) => x.id === id);
     if (!e) return;
@@ -623,17 +646,26 @@ export function PresupuestoView() {
         }),
         onAddPart: () => openSheet({ kind: 'part', id: null, categoryId: c.id }),
         flash: flashKey === c.id,
-        parts: parts.map((p) => {
-          const pp = subMonthly(p);
-          return {
-            key: p.id, name: p.name, fixed: !isGoal && p.is_fixed, amount: fmt(pp),
-            status: isGoal ? goalStatus(pp, derived.spentSub[p.id] ?? 0, fmt) : expenseStatus(
-              pp, derived.spentSub[p.id] ?? 0, p.is_fixed, fmt,
-              p.is_fixed ? reservedLeaf(p.id, p.expected_day ?? null) : undefined,
-            ),
-            onClick: () => openSheet({ kind: 'part', id: p.id, categoryId: c.id }),
-          };
-        }),
+        parts: [
+          ...parts.map((p) => {
+            const pp = subMonthly(p);
+            return {
+              key: p.id, name: p.name, fixed: !isGoal && p.is_fixed, amount: fmt(pp),
+              status: isGoal ? goalStatus(pp, derived.spentSub[p.id] ?? 0, fmt) : expenseStatus(
+                pp, derived.spentSub[p.id] ?? 0, p.is_fixed, fmt,
+                p.is_fixed ? reservedLeaf(p.id, p.expected_day ?? null) : undefined,
+              ),
+              onClick: () => openSheet({ kind: 'part', id: p.id, categoryId: c.id }),
+            };
+          }),
+          // Gastos de la categoría sin parte: suman arriba pero en ninguna parte.
+          ...(derived.looseCat[c.id] ? [{
+            key: `${c.id}:sin-parte`, name: 'Sin parte', fixed: false, amount: fmt(derived.looseCat[c.id]),
+            status: { text: 'Toca para elegirles parte', tone: 'warning' as const, pct: 0, bar: 'normal' as const },
+            hideBar: true,
+            onClick: () => setLooseCat(c.id),
+          }] : []),
+        ],
       };
     });
     return {
@@ -753,6 +785,26 @@ export function PresupuestoView() {
             onRemove={onRemove}
           />
         )}
+      </BottomSheet>
+
+      <BottomSheet themed open={!!looseCat} onClose={() => setLooseCat(null)} label="Movimientos sin parte">
+        {looseCat && (() => {
+          const cat = categories.find((c) => c.id === looseCat);
+          if (!cat) return null;
+          return (
+            <LooseMovesSheet
+              emoji={getEmoji(cat)}
+              categoryName={cat.name}
+              moves={derived.looseMoves
+                .filter((t) => t.category_id === looseCat)
+                .map((t) => ({ id: t.id, date: t.date, description: t.description ?? null, amount: Number(t.amount) }))}
+              parts={subsOf(looseCat).map((p) => ({ id: p.id, name: p.name }))}
+              fmt={fmt}
+              savingId={assigningId}
+              onAssign={(txId, partId) => void assignPart(txId, partId)}
+            />
+          );
+        })()}
       </BottomSheet>
 
       {monthStart.element}
