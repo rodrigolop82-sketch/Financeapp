@@ -5,16 +5,19 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import {
   BADGE_INFO, GroupTitle, HERO, HERO_MUTED, HERO_STYLE, LINK_TEXT, ListCard, PageHeader, RowBody, ROW_DIVIDER, Segmented, SheetHeader, Tile,
-  DANGER_TEXT_BUTTON, ErrorBox,
+  DANGER_TEXT_BUTTON, ErrorBox, INPUT_48, BADGE_OK,
 } from '@/components/layout/Pantalla';
 import { PRIMARY_BUTTON, SOFT_BG, TEXT_MUTED, TEXT_STRONG } from '@/components/movimientos/ui';
 import { Note } from '@/components/plan/ui';
 import { BottomSheet } from '@/components/transactions/BottomSheet';
 import { PageSkeleton } from '@/components/motion/PageSkeleton';
-import { PRICES_CENTS, type Cycle, type Plan, type Tier } from '@/lib/plans';
+import { PRICES_CENTS, priceLabel, type Cycle, type Plan, type Tier } from '@/lib/plans';
 import {
-  defaultTier, longDate, planAction, planBenefits, planFrom, planHero, planPrice, tierName, type Subscription,
+  codePlanText, defaultTier, longDate, planAction, planBenefits, planFrom, planHero, planPrice, tierName, type Subscription,
 } from '@/lib/planes';
+import {
+  codeMismatch, codePriceHelp, discountedCents, discountLabel, freeCodeHelp, isFree, normalizeCode, type PublicCode,
+} from '@/lib/descuentos';
 
 interface Status {
   plan: Plan;
@@ -34,10 +37,16 @@ export default function PlanesPage() {
   );
 }
 
-function PlanCard({ on, onClick, name, tier, cycle, badge }: {
-  on: boolean; onClick: () => void; name: string; tier: Tier; cycle: Cycle; badge?: string;
+function PlanCard({ on, onClick, name, tier, cycle, badge, code }: {
+  on: boolean; onClick: () => void; name: string; tier: Tier; cycle: Cycle; badge?: string; code?: PublicCode | null;
 }) {
   const p = planPrice(tier, cycle);
+  // Con un código que aplica a esta tarjeta: el precio tachado y el nuevo.
+  const fits = !!code && !codeMismatch(code, tier, cycle);
+  const deal = fits ? (isFree(code!) ? 'Gratis' : priceLabel(discountedCents(PRICES_CENTS[tier][cycle], code!.percentOff))) : null;
+  const help = !fits ? p.help
+    : isFree(code!) ? (code!.durationMonths ? `Por ${code!.durationMonths} ${code!.durationMonths === 1 ? 'mes' : 'meses'}` : 'Sin vencimiento')
+    : `${p.period} · ${discountLabel(code!)}`;
   return (
     <button
       type="button"
@@ -51,11 +60,18 @@ function PlanCard({ on, onClick, name, tier, cycle, badge }: {
         <span className={`text-[15px] font-bold ${TEXT_STRONG}`}>{name}</span>
         {badge && <span className={BADGE_INFO}>{badge}</span>}
       </span>
-      <span className="flex flex-wrap items-baseline gap-1">
-        <span className={`whitespace-nowrap font-outfit text-2xl font-extrabold ${TEXT_STRONG}`}>{p.amount}</span>
-        <span className={`text-[13px] ${TEXT_MUTED}`}>{p.period}</span>
-      </span>
-      <span className={`text-[12.5px] leading-[1.3] ${TEXT_MUTED}`}>{p.help}</span>
+      {deal ? (
+        <span className="flex flex-wrap items-baseline gap-1">
+          <span className={`whitespace-nowrap font-outfit text-2xl font-extrabold ${TEXT_STRONG}`}>{deal}</span>
+          <s className={`text-[13px] ${TEXT_MUTED}`}>{p.amount}</s>
+        </span>
+      ) : (
+        <span className="flex flex-wrap items-baseline gap-1">
+          <span className={`whitespace-nowrap font-outfit text-2xl font-extrabold ${TEXT_STRONG}`}>{p.amount}</span>
+          <span className={`text-[13px] ${TEXT_MUTED}`}>{p.period}</span>
+        </span>
+      )}
+      <span className={`text-[12.5px] leading-[1.3] ${TEXT_MUTED}`}>{help}</span>
     </button>
   );
 }
@@ -72,6 +88,41 @@ function PlanesContent() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
+  // Código de descuento: lo escrito, el ya revisado y su error.
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [code, setCode] = useState<PublicCode | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [redeemed, setRedeemed] = useState(false);
+
+  const applyCode = useCallback(async (raw: string) => {
+    const value = normalizeCode(raw);
+    if (!value) return;
+    setCodeBusy(true);
+    setCodeError(null);
+    try {
+      const res = await fetch('/api/billing/code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.code) {
+        const c = data.code as PublicCode;
+        setCode(c);
+        // Que se vea aplicado: si no sirve para el plan elegido, el primero que sí.
+        setTier((t) => (c.tiers.includes(t) ? t : c.tiers[0]));
+        if (!isFree(c)) setCycle((x) => (c.cycles.includes(x) ? x : c.cycles[0]));
+      } else {
+        setCode(null);
+        setCodeError(data.error || 'No pudimos revisar el código.');
+      }
+    } catch {
+      setCodeError('No pudimos revisar el código. Revisa tu conexión.');
+    }
+    setCodeBusy(false);
+  }, []);
 
   const load = useCallback(async () => {
     const res = await fetch('/api/billing/status', { cache: 'no-store' });
@@ -93,6 +144,13 @@ function PlanesContent() {
         param: params.get('tier'),
       }));
       if (sub?.cycle) setCycle(sub.cycle);
+      // /planes?code=AMIGOS50: el código ya puesto y revisado.
+      const shared = params.get('code');
+      if (shared && s.isOwner) {
+        setCodeOpen(true);
+        setCodeInput(normalizeCode(shared));
+        applyCode(shared);
+      }
     });
   }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -117,6 +175,17 @@ function PlanesContent() {
     tier, cycle, isOwner: status.isOwner, ownerName: status.ownerName,
     trialActive: status.trialActive, trialEndsAt: status.trialEndsAt, subscription: sub,
   });
+  // Los códigos son solo para la primera compra (no para cambiar de plan).
+  const canUseCode = action.kind === 'checkout';
+  const activeCode = canUseCode ? code : null;
+  const codeIssue = activeCode ? codeMismatch(activeCode, tier, cycle) : null;
+  const codeFits = !!activeCode && !codeIssue;
+  const freeByCode = codeFits && isFree(activeCode!);
+  const actionHelp = !codeFits || action.kind !== 'checkout'
+    ? (action.kind === 'checkout' || action.kind === 'change' ? action.help : '')
+    : freeByCode
+      ? freeCodeHelp(activeCode!)
+      : codePriceHelp(activeCode!, PRICES_CENTS[tier][cycle], planPrice(tier, cycle).period);
   const diff = PRICES_CENTS.family[cycle] - PRICES_CENTS.premium[cycle];
   const pastDue = sub?.status === 'past_due';
   const active = sub?.status === 'active' || pastDue;
@@ -126,11 +195,31 @@ function PlanesContent() {
     if (action.kind !== 'checkout' && action.kind !== 'change') return;
     setBusy(true);
     setError(null);
+    if (freeByCode) {
+      try {
+        const res = await fetch('/api/billing/redeem', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: activeCode!.code, tier }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setRedeemed(true);
+          setCode(null);
+          setCodeOpen(false);
+          await load();
+        } else setError(data.error || 'No pudimos activar tu código. Intenta de nuevo.');
+      } catch {
+        setError('No pudimos activar tu código. Revisa tu conexión.');
+      }
+      setBusy(false);
+      return;
+    }
     try {
       const res = await fetch(action.kind === 'change' ? '/api/billing/change-plan' : '/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier, cycle }),
+        body: JSON.stringify({ tier, cycle, ...(codeFits ? { code: activeCode!.code } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (data.url) { window.location.href = data.url; return; }
@@ -179,6 +268,12 @@ function PlanesContent() {
             </Note>
           )}
 
+          {redeemed && sub?.viaCode && (
+            <Note tone="ok" className="">
+              <b>Listo, tu plan {tierName(sub.tier ?? 'premium')} está activo.</b> {codePlanText(sub.currentPeriodEnd)}.
+            </Note>
+          )}
+
           {pastDue && status.isOwner && (
             <div role="alert" className="flex items-center gap-3 rounded-2xl bg-danger-light px-4 py-3.5 dark:bg-[var(--zafi-error-bg)]">
               <span aria-hidden className="text-[22px] leading-none">💳</span>
@@ -199,7 +294,7 @@ function PlanesContent() {
             <p className={`text-[14.5px] leading-[1.45] [text-wrap:pretty] ${HERO_MUTED}`}>{hero.text}</p>
           </section>
 
-          {status.isOwner && (
+          {status.isOwner && !freeByCode && (
             <Segmented
               label="Cobro"
               options={[{ value: 'annual', label: 'Anual · ahorra 33%' }, { value: 'monthly', label: 'Mensual' }]}
@@ -209,8 +304,8 @@ function PlanesContent() {
           )}
 
           <div className="grid grid-cols-2 gap-2.5">
-            <PlanCard on={tier === 'premium'} onClick={() => setTier('premium')} name="Premium" tier="premium" cycle={cycle} />
-            <PlanCard on={tier === 'family'} onClick={() => setTier('family')} name="Familiar" badge="Para 2" tier="family" cycle={cycle} />
+            <PlanCard on={tier === 'premium'} onClick={() => setTier('premium')} name="Premium" tier="premium" cycle={cycle} code={activeCode} />
+            <PlanCard on={tier === 'family'} onClick={() => setTier('family')} name="Familiar" badge="Para 2" tier="family" cycle={cycle} code={activeCode} />
           </div>
 
           <section>
@@ -224,7 +319,7 @@ function PlanesContent() {
             </ListCard>
           </section>
 
-          {tier === 'premium' && (
+          {tier === 'premium' && !freeByCode && (
             <button type="button" onClick={() => setTier('family')} className={`self-center px-2 py-1.5 text-sm font-semibold ${LINK_TEXT}`}>
               ¿Lo usan dos? Familiar es $ {Math.round(diff / 100)} más {cycle === 'annual' ? 'al año' : 'al mes'} ›
             </button>
@@ -233,6 +328,59 @@ function PlanesContent() {
           <div className={`rounded-2xl border border-[var(--zafi-border)] px-4 py-3.5 text-sm leading-[1.45] ${SOFT_BG} ${TEXT_MUTED}`}>
             <b className={TEXT_STRONG}>Siempre gratis:</b> registrar, Plan del mes, Metas, Deudas, Salud financiera y Cerrar el mes.
           </div>
+
+          {canUseCode && status.isOwner && (
+            activeCode ? (
+              <div className={`flex flex-col gap-1 rounded-2xl border border-[var(--zafi-border)] px-4 py-3 ${SOFT_BG}`}>
+                <div className="flex items-center gap-2.5">
+                  <span aria-hidden className="text-[20px] leading-none">🎟️</span>
+                  <span className={`flex-1 text-sm ${TEXT_STRONG}`}>
+                    <b>{activeCode.code}</b> · {discountLabel(activeCode)}
+                  </span>
+                  {codeFits && <span className={BADGE_OK}>Aplicado</span>}
+                  <button
+                    type="button"
+                    onClick={() => { setCode(null); setCodeInput(''); }}
+                    className={`text-sm font-semibold ${LINK_TEXT}`}
+                  >
+                    Quitar
+                  </button>
+                </div>
+                {codeIssue && <p className="text-[13px] text-warning-text dark:text-warning">{codeIssue}.</p>}
+              </div>
+            ) : codeOpen ? (
+              <form
+                className="flex flex-col gap-1.5"
+                onSubmit={(e) => { e.preventDefault(); applyCode(codeInput); }}
+              >
+                <div className="flex gap-2">
+                  <input
+                    aria-label="Código de descuento"
+                    placeholder="Escribe tu código"
+                    value={codeInput}
+                    onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={32}
+                    className={`${INPUT_48} uppercase`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={codeBusy || !normalizeCode(codeInput)}
+                    className={`h-12 flex-none rounded-[14px] px-4 text-[15px] font-semibold disabled:opacity-50 ${SOFT_BG} ${TEXT_STRONG}`}
+                  >
+                    {codeBusy ? 'Revisando…' : 'Aplicar'}
+                  </button>
+                </div>
+                {codeError && <p className="text-[13px] text-danger-text dark:text-[var(--zafi-error-text)]">{codeError}</p>}
+              </form>
+            ) : (
+              <button type="button" onClick={() => setCodeOpen(true)} className={`self-center px-2 py-1.5 text-sm font-semibold ${LINK_TEXT}`}>
+                ¿Tienes un código de descuento?
+              </button>
+            )
+          )}
 
           {error && <ErrorBox>{error}</ErrorBox>}
 
@@ -245,7 +393,7 @@ function PlanesContent() {
             {action.kind === 'current' && (
               <>
                 <p className={`rounded-[14px] py-4 text-center text-[15px] font-semibold ${SOFT_BG} ${TEXT_STRONG}`}>✓ {action.text}</p>
-                {sub?.cancelAtPeriodEnd ? (
+                {sub?.viaCode ? null : sub?.cancelAtPeriodEnd ? (
                   <button type="button" onClick={() => cancel(true)} disabled={busy} className={`h-11 text-[15px] font-semibold ${LINK_TEXT}`}>
                     Seguir con mi plan
                   </button>
@@ -259,9 +407,11 @@ function PlanesContent() {
             {(action.kind === 'checkout' || action.kind === 'change') && (
               <>
                 <button type="button" onClick={pay} disabled={busy} className={PRIMARY_BUTTON}>
-                  {busy ? 'Abriendo el pago…' : action.label}
+                  {busy
+                    ? (freeByCode ? 'Activando…' : 'Abriendo el pago…')
+                    : freeByCode ? `Activar ${tierName(tier)} gratis` : action.label}
                 </button>
-                <p className={`text-center text-[13px] ${TEXT_MUTED}`}>{action.help}</p>
+                <p className={`text-center text-[13px] ${TEXT_MUTED}`}>{actionHelp}</p>
               </>
             )}
           </div>

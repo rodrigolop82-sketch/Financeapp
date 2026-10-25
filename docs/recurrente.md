@@ -42,6 +42,27 @@ La app solo conoce `lib/billing` (`billing()` → `BillingProvider`). La única 
 - `POST /api/billing/cancel` marca `cancel_at_period_end`; el cron hace la cancelación real. Con `{ undo: true }` se deshace.
 - `GET /api/billing/update-card` da el link para cambiar la tarjeta, o 404. Sin link, la app abre un correo a soporte.
 
+## Códigos de descuento
+
+Se crean en **Admin → Códigos** (migración `supabase/migrations/20261106_codigos_descuento.sql`). Cada código tiene:
+
+- un % de 1 a 100;
+- una duración en meses, o indefinida;
+- los planes y ciclos a los que aplica;
+- usos máximos y fecha de vencimiento, ambos opcionales.
+
+Cada persona usa un código una sola vez, y solo en la primera compra: no aplica al cambiar de plan. Solo lo usa el dueño del hogar.
+
+- **100% (gratis):** no pasa por Recurrente.
+  - `POST /api/billing/redeem { code, tier }` crea una fila en `subscriptions` con `provider = 'code'`, que vence en `current_period_end` (`NULL` = sin vencimiento).
+  - El cron diario vence esas filas y baja a Gratis sin borrar nada.
+  - Si la persona paga un plan, el pagado reemplaza al gratis cuando se activa.
+- **1–99%:** lo cobra Recurrente con su cupón propio.
+  - **Crea en Recurrente un cupón con el mismo código, el mismo % y la misma duración.**
+  - `POST /api/billing/checkout { tier, cycle, code }` valida el código y manda `discount_code` en `POST /checkouts`. Sin ese cupón en Recurrente, el checkout falla.
+  - El uso se anota cuando el webhook confirma el pago (`billing_checkouts.discount_code_id`).
+- `POST /api/billing/code { code }` revisa un código desde Planes. El link `/planes?code=XYZ` llega con el código ya aplicado.
+
 ## Por confirmar en docs.recurrente.com
 
 Las docs no se pudieron leer desde el entorno donde se escribió la integración (la red las bloqueó). Lo de abajo salió del SDK no oficial de Laravel y del módulo de Odoo. Revísalo en el Sandbox antes de producción:
@@ -53,6 +74,7 @@ Las docs no se pudieron leer desde el entorno donde se escribió la integración
 - [ ] El reembolso parcial: `POST /refunds { intent_id, amount_in_cents }`. Solo con tarjeta, dentro de 30 días y según el procesador.
 - [ ] Si hay cambio nativo de producto o monto en una suscripción activa. Si existe, `change-plan` puede usarlo.
 - [ ] El link de "Cambiar tarjeta de suscripción".
+- [ ] Que `discount_code` en `POST /checkouts` aplique el cupón a una suscripción y respete su duración en meses (o "para siempre").
 
 ## Pruebas de aceptación (Sandbox + Test Clocks)
 
@@ -62,3 +84,5 @@ Las docs no se pudieron leer desde el entorno donde se escribió la integración
 - [ ] La cancelación baja a Gratis al final del periodo, y los miembros pasan a solo ver.
 - [ ] Un webhook repetido no duplica nada.
 - [ ] Premium→Familiar reembolsa el prorrateo.
+- [ ] Un código del 50% por 3 meses cobra la mitad 3 meses y después el precio completo.
+- [ ] Un código gratis activa el plan sin tarjeta y el cron lo vence en su fecha.

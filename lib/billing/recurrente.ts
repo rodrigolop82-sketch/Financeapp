@@ -209,6 +209,7 @@ export const recurrente: BillingProvider = {
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
       ...(customerId ? { user_id: customerId } : {}),
+      ...(input.discountCode ? { discount_code: input.discountCode } : {}),
       metadata: { user_id: input.userId, tier: input.tier, cycle: input.cycle },
     })
     const id = str(pick(data, ['id']))

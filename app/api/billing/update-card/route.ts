@@ -8,7 +8,7 @@ export async function GET() {
   const user = await sessionUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
   const current = await currentSubscription(adminClient(), user.id)
-  if (!current?.provider_subscription_id) return NextResponse.json({ url: null }, { status: 404 })
+  if (!current?.provider_subscription_id || current.provider === 'code') return NextResponse.json({ url: null }, { status: 404 })
   const url = await billing().updateCardUrl(current.provider_subscription_id).catch(() => null)
   return NextResponse.json({ url }, { status: url ? 200 : 404 })
 }

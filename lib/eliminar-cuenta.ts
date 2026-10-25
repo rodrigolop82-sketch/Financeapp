@@ -10,8 +10,9 @@ export function confirmacionValida(texto: unknown): boolean {
 }
 
 /** Suscripciones que hay que cancelar en el proveedor antes de borrar. */
-export function suscripcionesPorCancelar<T extends { provider_subscription_id: string | null; status: string | null }>(subs: T[]): string[] {
+export function suscripcionesPorCancelar<T extends { provider_subscription_id: string | null; status: string | null; provider?: string | null }>(subs: T[]): string[] {
   return subs
-    .filter((s) => s.provider_subscription_id && s.status !== 'cancelled' && s.status !== 'expired')
+    // Los planes gratis por código no existen en el proveedor.
+    .filter((s) => s.provider_subscription_id && s.provider !== 'code' && s.status !== 'cancelled' && s.status !== 'expired')
     .map((s) => s.provider_subscription_id!)
 }

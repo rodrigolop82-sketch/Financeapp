@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { billing } from '@/lib/billing'
 import { downgradeIfExpired } from '@/lib/billing/service'
+import { expireCodeGrants } from '@/lib/billing/codes'
 import { adminClient } from '@/lib/billing/server'
 import { sendEmail } from '@/lib/email'
 import { sendPushToUser } from '@/lib/push-send'
@@ -39,6 +40,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const codeExpired = await expireCodeGrants(admin, new Date(now))
+
   const { data: ended } = await admin
     .from('subscriptions')
     .select('user_id')
@@ -47,13 +50,13 @@ export async function GET(req: NextRequest) {
     .gt('current_period_end', new Date(now - 7 * 86_400_000).toISOString())
 
   let downgraded = 0
-  for (const userId of Array.from(new Set((ended ?? []).map((r) => r.user_id as string)))) {
+  for (const userId of Array.from(new Set([...codeExpired, ...(ended ?? []).map((r) => r.user_id as string)]))) {
     if (await downgradeIfExpired(admin, userId)) downgraded++
   }
 
   const trialWarned = await warnTrialEnding(admin, now)
 
-  return NextResponse.json({ cancelled, downgraded, trialWarned })
+  return NextResponse.json({ cancelled, codeExpired: codeExpired.length, downgraded, trialWarned })
 }
 
 /** Día 11: "Tu prueba termina en 3 días" por push y correo, una sola vez. */

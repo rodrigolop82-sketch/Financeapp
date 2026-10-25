@@ -97,6 +97,14 @@ export interface Subscription {
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
   creditCents: number
+  /** Plan gratis por código (no se cobra; sin cycle). */
+  viaCode?: boolean
+}
+
+/** "Gratis con código hasta el 9 de enero" / "Gratis con código, sin vencimiento". */
+export function codePlanText(periodEnd: string | null, now?: Date): string {
+  const date = longDate(periodEnd, now)
+  return date ? `Gratis con código hasta el ${date}` : 'Gratis con código, sin vencimiento'
 }
 
 export type PlanAction =
@@ -119,6 +127,15 @@ export function planAction(opts: {
   const price = planPrice(tier, cycle)
   if (!opts.isOwner) {
     return { kind: 'member', text: opts.ownerName ? `Tu plan lo paga ${opts.ownerName}` : 'Tu plan lo paga el dueño del hogar' }
+  }
+  if (sub?.viaCode && sub.status === 'active') {
+    // Gratis por código: el mismo plan no se cobra; otro se paga y lo reemplaza.
+    if (sub.tier === tier) return { kind: 'current', text: codePlanText(sub.currentPeriodEnd, opts.now) }
+    return {
+      kind: 'checkout',
+      label: `Activar ${tierName(tier)}`,
+      help: `Se cobra hoy · ${price.amount} ${price.period}. Tu plan gratis con código termina al pagar.`,
+    }
   }
   if (sub && (sub.status === 'active' || sub.status === 'past_due')) {
     if (sub.tier === tier && sub.cycle === cycle) {
@@ -166,6 +183,13 @@ export function planStatusRow(opts: {
   const names = opts.household && opts.household.members.length >= 2
     ? opts.household.members.map((m) => m.name).join(' y ')
     : ''
+  if (sub?.viaCode && sub.status === 'active' && sub.tier) {
+    return {
+      title: sub.tier === 'family' ? ['Familiar', opts.household?.name].filter(Boolean).join(' · ') : 'Premium',
+      hint: codePlanText(sub.currentPeriodEnd, now),
+      tone: 'normal',
+    }
+  }
   if (sub && sub.status === 'active' && sub.tier) {
     const cycle = sub.cycle === 'annual' ? 'Anual' : 'Mensual'
     const date = longDate(sub.currentPeriodEnd, now)

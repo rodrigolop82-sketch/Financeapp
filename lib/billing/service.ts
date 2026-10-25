@@ -21,6 +21,9 @@ export interface SubscriptionRow {
   cancel_at_period_end: boolean | null
   last_payment_id: string | null
   last_amount_cents: number | null
+  /** 'recurrente', o 'code' para un plan gratis por código. */
+  provider?: string | null
+  discount_code_id?: string | null
 }
 
 /** Suscripción vigente del usuario (activa o con cobro pendiente). */
@@ -113,6 +116,33 @@ async function completeChangePlan(admin: Admin, event: BillingEvent) {
     .eq('provider_subscription_id', row.replaces_subscription_id)
 }
 
+/**
+ * Con cada pago confirmado: si el checkout llevaba código, anota el uso (una
+ * vez por persona) y lo guarda en la suscripción; y termina cualquier plan
+ * gratis por código, porque ya lo reemplaza el pagado.
+ */
+async function settleCodes(admin: Admin, event: BillingEvent, userId: string, now: string) {
+  if (event.checkoutId) {
+    const { data } = await admin.from('billing_checkouts').select('discount_code_id').eq('id', event.checkoutId).maybeSingle()
+    const codeId = (data as { discount_code_id?: string | null } | null)?.discount_code_id
+    if (codeId) {
+      const { error } = await admin
+        .from('discount_redemptions')
+        .insert({ code_id: codeId, user_id: userId, checkout_id: event.checkoutId, redeemed_at: now })
+      if (error && error.code !== '23505') throw new Error(error.message)
+      if (event.providerSubscriptionId) {
+        await admin.from('subscriptions').update({ discount_code_id: codeId }).eq('provider_subscription_id', event.providerSubscriptionId)
+      }
+    }
+  }
+  await admin
+    .from('subscriptions')
+    .update({ status: 'cancelled', current_period_end: now, updated_at: now })
+    .eq('user_id', userId)
+    .eq('provider', 'code')
+    .eq('status', 'active')
+}
+
 export type ApplyResult = 'duplicate' | 'ignored' | 'applied' | 'unmatched'
 
 export async function applyBillingEvent(admin: Admin, event: BillingEvent): Promise<ApplyResult> {
@@ -152,6 +182,7 @@ export async function applyBillingEvent(admin: Admin, event: BillingEvent): Prom
           const { error } = await admin.from('subscriptions').upsert(row, { onConflict: 'provider_subscription_id' })
           if (error) throw new Error(error.message)
         }
+        await settleCodes(admin, event, event.userId, now)
         const tier = event.tier
           ?? ((await currentSubscription(admin, event.userId))?.tier as Tier | null)
           ?? 'premium'

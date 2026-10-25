@@ -18,10 +18,11 @@ export function appUrl(request: Request): string {
   return process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin
 }
 
-export async function readPlanChoice(request: Request): Promise<{ tier: Tier; cycle: Cycle } | null> {
-  const body = await request.json().catch(() => null) as { tier?: unknown; cycle?: unknown } | null
+/** Plan elegido y, opcional, el código de descuento escrito en Planes. */
+export async function readPlanChoice(request: Request): Promise<{ tier: Tier; cycle: Cycle; code: string | null } | null> {
+  const body = await request.json().catch(() => null) as { tier?: unknown; cycle?: unknown; code?: unknown } | null
   if (!body || !isTier(body.tier) || !isCycle(body.cycle)) return null
-  return { tier: body.tier, cycle: body.cycle }
+  return { tier: body.tier, cycle: body.cycle, code: typeof body.code === 'string' && body.code.trim() ? body.code : null }
 }
 
 /**
