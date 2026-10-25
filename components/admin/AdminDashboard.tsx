@@ -7,9 +7,10 @@ import { RetencionTab } from './RetencionTab';
 import { ReactivarTab } from './ReactivarTab';
 import { UsuariosTab } from './UsuariosTab';
 import { FeedbackTab } from './FeedbackTab';
+import { CodigosTab } from './CodigosTab';
 import { AdminToast, type ToastMsg } from './ui';
 
-type Tab = 'resumen' | 'ret' | 'users' | 'inact' | 'fb';
+type Tab = 'resumen' | 'ret' | 'users' | 'inact' | 'fb' | 'codigos';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'resumen', label: 'Resumen' },
@@ -17,6 +18,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'users', label: 'Usuarios' },
   { key: 'inact', label: 'Para reactivar' },
   { key: 'fb', label: 'Feedback' },
+  { key: 'codigos', label: 'Códigos' },
 ];
 
 function tabFromHash(): Tab {
@@ -125,6 +127,11 @@ export function AdminDashboard() {
         {visited.has('fb') && (
           <div hidden={tab !== 'fb'}>
             <FeedbackTab toast={showToast} onUnread={setUnread} />
+          </div>
+        )}
+        {visited.has('codigos') && (
+          <div hidden={tab !== 'codigos'}>
+            <CodigosTab toast={showToast} />
           </div>
         )}
       </main>

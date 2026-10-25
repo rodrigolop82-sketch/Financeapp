@@ -100,6 +100,7 @@ describe('reglas', () => {
       { provider_subscription_id: 'b', status: 'past_due' },
       { provider_subscription_id: 'c', status: 'cancelled' },
       { provider_subscription_id: null, status: 'active' },
+      { provider_subscription_id: 'code_r1', status: 'active', provider: 'code' },
     ])).toEqual(['a', 'b'])
   })
 })

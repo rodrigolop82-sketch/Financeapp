@@ -14,6 +14,7 @@ export async function POST(request: Request) {
   const admin = adminClient()
   const current = await currentSubscription(admin, user.id)
   if (!current?.provider_subscription_id) return NextResponse.json({ error: 'No tienes un plan activo' }, { status: 409 })
+  if (current.provider === 'code') return NextResponse.json({ error: 'Tu plan es gratis por código: no se cobra nada' }, { status: 409 })
 
   if (body.undo) {
     await admin.from('subscriptions').update({ cancel_at_period_end: false, updated_at: new Date().toISOString() }).eq('id', current.id)

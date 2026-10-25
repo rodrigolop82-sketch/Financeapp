@@ -54,6 +54,15 @@ describe('planAction', () => {
     expect(planAction({ ...base, tier: 'premium', subscription: sub })).toEqual({ kind: 'current', text: 'Es tu plan · se renueva el 1 de enero de 2027' })
     expect(planAction({ ...base, tier: 'premium', subscription: { ...sub, cancelAtPeriodEnd: true } })).toEqual({ kind: 'current', text: 'Tu plan sigue hasta el 1 de enero de 2027' })
   })
+  it('gratis por código: el mismo plan es el actual (cualquier ciclo); otro se paga y lo reemplaza', () => {
+    const sub = { tier: 'family' as const, cycle: null, status: 'active', currentPeriodEnd: null, cancelAtPeriodEnd: false, creditCents: 0, viaCode: true }
+    expect(planAction({ ...base, cycle: 'monthly', tier: 'family', subscription: sub })).toEqual({ kind: 'current', text: 'Gratis con código, sin vencimiento' })
+    expect(planAction({ ...base, tier: 'family', subscription: { ...sub, currentPeriodEnd: '2027-01-25T12:00:00Z' } }))
+      .toEqual({ kind: 'current', text: 'Gratis con código hasta el 25 de enero de 2027' })
+    const other = planAction({ ...base, tier: 'premium', subscription: sub })
+    expect(other).toMatchObject({ kind: 'checkout', label: 'Activar Premium' })
+    expect(other.kind === 'checkout' && other.help).toContain('Tu plan gratis con código termina al pagar')
+  })
 })
 
 describe('planStatusRow', () => {
@@ -68,6 +77,8 @@ describe('planStatusRow', () => {
       household: { name: 'Casa Pérez', members: [{ name: 'Ana' }, { name: 'Luis' }] },
     })).toEqual({ title: 'Familiar · Casa Pérez', hint: 'Anual · Ana y Luis · se renueva el 6 de octubre de 2027', tone: 'normal' })
     expect(planStatusRow({ ...base, plan: 'premium', subscription: { ...sub, status: 'past_due' } }).tone).toBe('danger')
+    expect(planStatusRow({ ...base, plan: 'premium', subscription: { ...sub, cycle: null, currentPeriodEnd: null, viaCode: true } }))
+      .toEqual({ title: 'Premium', hint: 'Gratis con código, sin vencimiento', tone: 'normal' })
   })
 })
 

@@ -28,6 +28,8 @@ export interface CheckoutInput {
   name?: string | null
   tier: Tier
   cycle: Cycle
+  /** Cupón de Recurrente con el mismo código (descuento parcial). */
+  discountCode?: string | null
   successUrl: string
   cancelUrl: string
 }

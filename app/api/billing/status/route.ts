@@ -50,6 +50,7 @@ export async function GET() {
       status: sub.status,
       currentPeriodEnd: sub.current_period_end,
       cancelAtPeriodEnd: !!sub.cancel_at_period_end,
+      viaCode: sub.provider === 'code',
       creditCents: prorationCreditCents({
         lastAmountCents: sub.last_amount_cents ?? 0,
         periodStart: sub.current_period_start,

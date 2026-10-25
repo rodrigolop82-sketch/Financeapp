@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const admin = adminClient()
 
   const { data: subs, error: subsError } = await admin
-    .from('subscriptions').select('provider_subscription_id, status').eq('user_id', user.id)
+    .from('subscriptions').select('provider_subscription_id, status, provider').eq('user_id', user.id)
   if (subsError) return NextResponse.json({ error: 'No pudimos revisar tu plan. Intenta de nuevo.' }, { status: 500 })
   try {
     for (const id of suscripcionesPorCancelar(subs ?? [])) {

@@ -26,7 +26,8 @@ function seed() {
     billing_checkouts: [{ id: 'ch_1', user_id: 'ana', tier: 'family', cycle: 'annual', replaces_subscription_id: null, credit_cents: 0, completed_at: null }],
     subscriptions: [],
     billing_events: [],
-  }, { billing_events: ['id'], subscriptions: ['provider_subscription_id'] })
+    discount_redemptions: [],
+  }, { billing_events: ['id'], subscriptions: ['provider_subscription_id'], discount_redemptions: ['checkout_id'] })
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,6 +97,24 @@ describe('applyBillingEvent', () => {
     db.rows('billing_checkouts').push({ id: 'ch_3', user_id: 'ana', tier: 'family', cycle: 'monthly', replaces_subscription_id: 'su_x', credit_cents: 100, completed_at: null })
     await expect(applyBillingEvent(asAdmin(db), event({ id: 'evt_f', checkoutId: 'ch_3', providerSubscriptionId: 'su_y' }))).rejects.toThrow('caído')
     expect(db.rows('billing_events')).toHaveLength(0)
+  })
+
+  it('checkout con código: anota el uso una vez y lo guarda en la suscripción', async () => {
+    const db = seed()
+    db.rows('billing_checkouts')[0].discount_code_id = 'c50'
+    await applyBillingEvent(asAdmin(db), event({ checkoutId: 'ch_1' }))
+    await applyBillingEvent(asAdmin(db), event({ id: 'evt_2', type: 'renewed', rawType: 'intent.succeeded', checkoutId: 'ch_1' }))
+    expect(db.rows('discount_redemptions')).toEqual([expect.objectContaining({ code_id: 'c50', user_id: 'ana', checkout_id: 'ch_1' })])
+    expect(db.rows('subscriptions')[0].discount_code_id).toBe('c50')
+  })
+
+  it('al pagar, el plan gratis por código termina', async () => {
+    const db = seed()
+    db.rows('subscriptions').push({ id: 's_code', user_id: 'ana', provider: 'code', provider_subscription_id: 'code_r1', tier: 'premium', status: 'active', current_period_end: null })
+    await applyBillingEvent(asAdmin(db), event({ checkoutId: 'ch_1', periodEnd: '2027-10-06T00:00:00.000Z' }))
+    expect(db.rows('subscriptions').find((s) => s.id === 's_code')).toMatchObject({ status: 'cancelled' })
+    expect(db.rows('subscriptions').find((s) => s.provider_subscription_id === 'su_1')).toMatchObject({ status: 'active', tier: 'family' })
+    expect(db.rows('users').find((u) => u.id === 'ana')?.plan).toBe('family')
   })
 
   it('sin usuario que lo reclame: unmatched', async () => {
