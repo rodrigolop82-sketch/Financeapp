@@ -21,8 +21,14 @@ import { Splash } from "@/components/motion/Splash";
 import { SPLASH_BOOT_SCRIPT } from "@/lib/motion";
 import { PrivacyProvider } from "@/components/privacidad/PrivacyProvider";
 import { BiometricGate } from "@/components/privacidad/BiometricGate";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
+  // Sin URL canónica, Google ve como duplicadas las variantes de una misma
+  // página (www, ?next= del redirect a /login, etc.). './' se resuelve con la
+  // ruta de cada página y deja fuera la búsqueda.
+  metadataBase: new URL(SITE_URL),
+  alternates: { canonical: './' },
   title: "Zafi — Ordena tu dinero. Construye tu futuro.",
   description:
     "Tu planner financiero personal para Latinoamérica. Diagnóstico honesto, plan de acción priorizado, y acompañamiento proactivo mes a mes.",
