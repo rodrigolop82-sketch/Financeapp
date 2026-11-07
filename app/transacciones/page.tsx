@@ -29,6 +29,10 @@ import { PageSkeleton, SkeletonRows } from '@/components/motion/PageSkeleton';
 import { IMPORT_BANNER_EVENT } from '@/components/statement-import/StatementImportFlow';
 import { importBannerText, parseImportBanner, type ImportBanner } from '@/lib/motion';
 import { ApplePaySheet } from '@/components/movimientos/ApplePaySheet';
+import { DuplicatesReview } from '@/components/movimientos/DuplicatesReview';
+import { UndoToast } from '@/components/transactions/UndoToast';
+import { DELETE_UNDO_MS } from '@/lib/transactions/undo-delete';
+import { undoMerges, type MergeUndo } from '@/lib/duplicates/data';
 import { PremiumInline } from '@/components/premium/PremiumInline';
 import { PremiumSheet } from '@/components/premium/PremiumSheet';
 import { fetchEffectivePlan } from '@/lib/plan-client';
@@ -157,6 +161,8 @@ export default function MovimientosPage() {
 
   // Banner verde después de importar un estado de cuenta (?importados=&banco=&mes=).
   const [banner, setBanner] = useState<ImportBanner | null>(null);
+  const [dupOpen, setDupOpen] = useState(false);
+  const [dupDone, setDupDone] = useState<{ count: number; undo: MergeUndo } | null>(null);
   useEffect(() => {
     function show(b: ImportBanner) {
       setBanner(b);
@@ -460,6 +466,21 @@ export default function MovimientosPage() {
     </div>
   );
 
+  const dupFrom = historyStart && browseRange.from < historyStart ? historyStart : browseRange.from;
+  const dupText = searchScopeText(month, today, historyStart);
+  const notifyChanged = () => window.dispatchEvent(new CustomEvent(TRANSACTIONS_CHANGED_EVENT));
+  async function undoDuplicates() {
+    const done = dupDone;
+    if (!done) return;
+    setDupDone(null);
+    try {
+      await undoMerges(supabase, done.undo);
+    } catch {
+      sheets.showMessage({ text: 'No pudimos deshacer. Revisa tus movimientos.', tone: 'error' });
+    }
+    notifyChanged();
+  }
+
   if (!ready) return <PageSkeleton variant="list" />;
 
   const bannerText = banner ? importBannerText(banner, today) : null;
@@ -509,6 +530,7 @@ export default function MovimientosPage() {
             personOptions={personOptions}
             person={personFilter}
             onPersonChange={(v) => { setPersonFilter(v); setOpenRowId(null); }}
+            onFindDuplicates={() => (viewOnly ? openViewOnlySheet() : setDupOpen(true))}
           />
         </div>
 
@@ -656,6 +678,34 @@ export default function MovimientosPage() {
       </BottomSheet>
 
       {sheets.element}
+
+      {dupOpen && householdId && (
+        <DuplicatesReview
+          supabase={supabase}
+          householdId={householdId}
+          from={dupFrom}
+          to={browseRange.to}
+          scope={personFilter === 'personal' ? { personal: true } : personFilter !== 'all' ? { paidBy: personFilter } : {}}
+          categories={categories}
+          fmt={fmt}
+          periodText={dupText}
+          onClose={() => setDupOpen(false)}
+          onApplied={(count, undo) => {
+            setDupDone({ count, undo });
+            setBanner(null);
+            notifyChanged();
+          }}
+        />
+      )}
+
+      <UndoToast
+        visible={!!dupDone}
+        title={dupDone ? `Borraste ${dupDone.count} ${dupDone.count === 1 ? 'repetido' : 'repetidos'}` : ''}
+        subtitle="Tus totales ya se actualizaron."
+        onUndo={undoDuplicates}
+        onDismiss={() => setDupDone(null)}
+        duration={DELETE_UNDO_MS}
+      />
 
       <PremiumSheet reason="history" open={premiumOpen} onClose={() => setPremiumOpen(false)} />
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, X } from 'lucide-react';
+import { Copy, Search, X } from 'lucide-react';
 import { BORDER, CARD_BG, TEXT_BODY, TEXT_STRONG } from './ui';
 
 export type TypeFilter = 'all' | 'expense' | 'income';
@@ -23,6 +23,8 @@ interface MovimientosSearchProps {
   personOptions?: { value: string; label: string }[];
   person?: string;
   onPersonChange?: (v: string) => void;
+  /** Abre la revisión de movimientos repetidos. Sin esto no se muestra el chip. */
+  onFindDuplicates?: () => void;
 }
 
 function chipClass(active: boolean): string {
@@ -32,7 +34,7 @@ function chipClass(active: boolean): string {
 }
 
 /** Búsqueda por nombre o categoría y chips Todo / Gastos / Ingresos. */
-export function MovimientosSearch({ query, onQueryChange, type, onTypeChange, placeholder = 'Buscar “super”, “uber”…', scope, personOptions, person, onPersonChange }: MovimientosSearchProps) {
+export function MovimientosSearch({ query, onQueryChange, type, onTypeChange, placeholder = 'Buscar “super”, “uber”…', scope, personOptions, person, onPersonChange, onFindDuplicates }: MovimientosSearchProps) {
   return (
     <div className="flex flex-col gap-2.5">
       <div className={`flex items-center gap-2 h-[46px] pl-4 pr-2 rounded-full border ${BORDER} ${CARD_BG}`}>
@@ -59,22 +61,34 @@ export function MovimientosSearch({ query, onQueryChange, type, onTypeChange, pl
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div role="radiogroup" aria-label="Tipo de movimiento" className="flex gap-1.5">
-          {CHIPS.map((c) => {
-            const active = c.value === type;
-            return (
-              <button
-                key={c.value}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => onTypeChange(c.value)}
-                className={chipClass(active)}
-              >
-                {c.label}
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div role="radiogroup" aria-label="Tipo de movimiento" className="flex gap-1.5">
+            {CHIPS.map((c) => {
+              const active = c.value === type;
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => onTypeChange(c.value)}
+                  className={chipClass(active)}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+          {onFindDuplicates && (
+            <button
+              type="button"
+              onClick={onFindDuplicates}
+              className={`inline-flex items-center gap-1.5 h-9 px-[13px] rounded-full text-[13.5px] font-semibold border border-electric text-electric bg-transparent transition-colors hover:bg-[var(--zafi-hover)]`}
+            >
+              <Copy size={14} aria-hidden />
+              Duplicados
+            </button>
+          )}
         </div>
         {scope}
       </div>
