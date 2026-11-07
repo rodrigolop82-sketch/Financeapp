@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chooseKeeper, findDuplicatePairs, mergePatch, originLabel, pairKey, type DupTx } from './find'
+import { chooseKeeper, findDuplicatePairs, keepNote, mergePatch, originLabel, pairKey, type DupTx } from './find'
 
 const tx = (id: string, date: string, description: string, amount: number, extra: Partial<DupTx> = {}): DupTx => ({
   id, date, description, amount, category_id: null, type: 'expense', created_at: `2026-10-${date.slice(8, 10)}T10:00:00Z`, ...extra,
@@ -166,5 +166,19 @@ describe('originLabel', () => {
     expect(originLabel(b1, m)).toBe('Estado de cuenta')
     expect(originLabel(b1, b2)).toBe('Estado de cuenta')
     expect(originLabel(b2, b1)).toBe('Importado de nuevo')
+  })
+})
+
+describe('keepNote', () => {
+  it('explica cuál se queda', () => {
+    const [manual] = findDuplicatePairs([tx('m', '2026-10-24', 'Pollo Campero', 269), bank('b', '2026-10-24', 'POLLO CAMPERO 118', 269)])
+    expect(keepNote(manual)).toBe('Se queda el del banco; se borra el que anotaste.')
+    const [twice] = findDuplicatePairs([
+      bank('a', '2026-10-24', 'LA PISTA', 855, { statement_import_id: 'imp1' }),
+      bank('b', '2026-10-24', 'LA PISTA', 855, { statement_import_id: 'imp2', created_at: '2026-11-05T10:00:00Z' }),
+    ])
+    expect(keepNote(twice)).toBe('Los dos vienen del banco; se borra el importado después.')
+    const [weak] = findDuplicatePairs([tx('w1', '2026-10-25', 'Compras', 214), bank('w2', '2026-10-25', 'OTRO LUGAR', 214)])
+    expect(keepNote(weak)).toBe('Los nombres no se parecen. Revisa antes de borrar.')
   })
 })

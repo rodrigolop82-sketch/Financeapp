@@ -204,3 +204,13 @@ export function originLabel(t: DupTx, other: DupTx): string {
   }
   return 'Estado de cuenta'
 }
+
+/** Frase de "cuál se queda" para mostrar en cada pareja. */
+export function keepNote(p: DuplicatePair): string {
+  if (p.confidence === 'weak') return 'Los nombres no se parecen. Revisa antes de borrar.'
+  const keepBank = isBank(p.a)
+  const dropBank = isBank(p.b)
+  if (keepBank && !dropBank) return 'Se queda el del banco; se borra el que anotaste.'
+  if (keepBank && dropBank) return 'Los dos vienen del banco; se borra el importado después.'
+  return 'Se queda el más antiguo; se borra el otro.'
+}
