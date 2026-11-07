@@ -239,6 +239,8 @@ export function StatementImportFlow({ householdId, onDone, onChanged }: Statemen
             batch={imp.importMode === 'photos' ? imp.batch : null}
             onRemove={imp.deselectTransaction}
             onConfirm={imp.confirmImport}
+            onRetryDuplicateCheck={imp.retryDuplicateCheck}
+            onSkipDuplicateCheck={imp.skipDuplicateCheck}
             onBack={() => imp.startImport()}
             onDone={handleDone}
           />

@@ -31,6 +31,7 @@ export interface DbMatch {
  * qué transacción coincide. La clasificación completa (tolerancias, fijos y
  * emparejamiento uno a uno) está en lib/import/classify.ts.
  */
+/** @deprecated Sin uso en producción: la clasificación vive en lib/import/classify.ts. */
 export function matchDbDuplicates(
   candidates: DatedAmount[],
   existing: (DatedAmount & { id?: string })[],
@@ -53,13 +54,17 @@ export function matchDbDuplicates(
 }
 
 /** Envoltorio de matchDbDuplicates para lo que solo necesita sí/no. */
+/** @deprecated Sin uso en producción: la clasificación vive en lib/import/classify.ts. */
 export function flagDbDuplicates(candidates: DatedAmount[], existing: DatedAmount[]): boolean[] {
   return matchDbDuplicates(candidates, existing).map(m => m.kind === 'duplicate')
 }
 
 const PAGE_SIZE = 1000
 
-/** One ranged query (paginated) instead of one query per extracted transaction. */
+/**
+ * One ranged query (paginated) instead of one query per extracted transaction.
+ * @deprecated Sin uso en producción: la clasificación vive en lib/import/classify.ts.
+ */
 export async function findDbDuplicates(
   supabase: SupabaseClient,
   householdId: string,

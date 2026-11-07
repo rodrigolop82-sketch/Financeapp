@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  classifyCharges, cleanBankName, couldBeSamePayment, suggestCategory,
+  classifyCharges, cleanBankName, couldBeSamePayment, findAlreadyImported, suggestCategory,
   type BankCharge, type ClassifyContext, type ExistingTx,
 } from './classify'
 
@@ -94,6 +94,72 @@ describe('tolerancias de duplicado', () => {
   it('no empareja con lo que ya vino de un estado de cuenta', () => {
     const fromBank = tx('t', '2026-10-03', 'Super La Torre', 342.5, 'sup', { statement_import_id: 'x', bank_description: 'OTRA' })
     expect(classifyCharges([charge('2026-10-03', 'SUPERMERCADOS LA TORRE Z10', 342.5)], [fromBank], ctx)[0].kind).toBe('new')
+  })
+})
+
+describe('ya importado con otra lectura del banco (foto vs PDF)', () => {
+  const bank = (id: string, date: string, bankDescription: string, amount: number, extra: Partial<ExistingTx> = {}) =>
+    tx(id, date, 'Pollo Campero', amount, 'sup', { statement_import_id: 'imp1', bank_description: bankDescription, ...extra })
+
+  it('distinta capitalización y espacios: ya importado', () => {
+    const r = classifyCharges(
+      [charge('2026-10-24', 'Pollo  Campero 118 Vta Hermosa', 269)],
+      [bank('a', '2026-10-24', 'POLLO CAMPERO 118 VTA HERMOSA', 269)], ctx)
+    expect(r[0]).toMatchObject({ kind: 'imported', matchId: 'a' })
+  })
+
+  it('lectura cortada del mismo cargo: ya importado', () => {
+    const r = classifyCharges(
+      [charge('2026-10-24', 'POLLO CAMPERO 118 VTA HERMOS', 269)],
+      [bank('a', '2026-10-24', 'POLLO CAMPERO 118 VTA HERMOSA', 269)], ctx)
+    expect(r[0]).toMatchObject({ kind: 'imported', matchId: 'a' })
+  })
+
+  it('un día de diferencia entre foto y PDF: ya importado; dos días no', () => {
+    const existingBank = [bank('a', '2026-10-24', 'POLLO CAMPERO 118 VTA HERMOSA', 269)]
+    expect(classifyCharges([charge('2026-10-25', 'POLLO CAMPERO 118 VTA HERMOSA', 269)], existingBank, ctx)[0].kind).toBe('imported')
+    expect(classifyCharges([charge('2026-10-26', 'POLLO CAMPERO 118 VTA HERMOSA', 269)], existingBank, ctx)[0].kind).not.toBe('imported')
+  })
+
+  it('otro monto o comercios distintos: no es el mismo', () => {
+    const existingBank = [bank('a', '2026-10-24', 'POLLO CAMPERO 118 VTA HERMOSA', 269)]
+    expect(classifyCharges([charge('2026-10-24', 'POLLO CAMPERO 118 VTA HERMOSA', 270)], existingBank, ctx)[0].kind).toBe('new')
+    expect(classifyCharges([charge('2026-10-24', 'ESTACION DE SERVICIO M', 269)], existingBank, ctx)[0].kind).toBe('new')
+  })
+
+  it('un ingreso nunca coincide con un gasto del mismo monto', () => {
+    const existingBank = [bank('a', '2026-10-24', 'DEPOSITO', 269)]
+    const income: BankCharge = { date: '2026-10-24', description: 'DEPOSITO', amount: 269, type: 'income', category_id: null }
+    expect(findAlreadyImported([income], existingBank)[0]).toBeUndefined()
+  })
+
+  it('dos cargos legítimos iguales el mismo día y solo uno importado: uno ya importado y el otro nuevo', () => {
+    const one = [bank('a', '2026-10-24', 'CEMACO ZONA 15', 25)]
+    const r = classifyCharges([
+      charge('2026-10-24', 'CEMACO ZONA 15', 25),
+      charge('2026-10-24', 'CEMACO ZONA 15', 25),
+    ], one, ctx)
+    expect(r.map((x) => x.kind)).toEqual(['imported', 'new'])
+    expect(r[0].matchId).toBe('a')
+  })
+
+  it('dos cargos iguales y dos importados: ambos ya importados, cada uno con el suyo', () => {
+    const two = [bank('a', '2026-10-24', 'CEMACO ZONA 15', 25), bank('b', '2026-10-24', 'CEMACO ZONA 15', 25)]
+    const r = classifyCharges([charge('2026-10-24', 'CEMACO ZONA 15', 25), charge('2026-10-24', 'CEMACO ZONA 15', 25)], two, ctx)
+    expect(r.map((x) => x.kind)).toEqual(['imported', 'imported'])
+    expect(new Set(r.map((x) => x.matchId))).toEqual(new Set(['a', 'b']))
+  })
+
+  it('el exacto gana al difuso cuando hay dos candidatas', () => {
+    const both = [bank('fuzzy', '2026-10-24', 'POLLO CAMPERO 118 VTA HERMOS', 269), bank('exact', '2026-10-24', 'POLLO CAMPERO 118 VTA HERMOSA', 269)]
+    const r = findAlreadyImported([charge('2026-10-24', 'POLLO CAMPERO 118 VTA HERMOSA', 269)], both)
+    expect(r[0]?.id).toBe('exact')
+  })
+
+  it('un gasto anotado a mano sigue marcándose como posible duplicado', () => {
+    const manual = [tx('m', '2026-10-24', 'Pollo Campero', 269, 'sup')]
+    expect(classifyCharges([charge('2026-10-24', 'POLLO CAMPERO 118 VTA HERMOSA', 269)], manual, ctx)[0])
+      .toMatchObject({ kind: 'duplicate', matchId: 'm' })
   })
 })
 

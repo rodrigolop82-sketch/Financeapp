@@ -26,6 +26,9 @@ interface ReviewScreenProps {
   onSetAllNew: (selected: boolean) => void
   onSetCategory: (id: string, categoryId: string, subItemId: string | null, type: 'expense' | 'income') => void
   onConfirm: () => void
+  /** La comparación con lo registrado falló: reintentar o continuar a propósito. */
+  onRetryDuplicateCheck?: () => void
+  onSkipDuplicateCheck?: () => void
   onBack: () => void
   /** Nada que agregar: cierra el flujo. */
   onDone: () => void
@@ -48,7 +51,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 export function ReviewScreen({
   transactions, accountLabel, alreadyImported, review, isLoading, error,
-  onSame, onToggle, onSetAllNew, onSetCategory, onConfirm, onBack, onDone, batch, onRemove,
+  onSame, onToggle, onSetAllNew, onSetCategory, onConfirm, onRetryDuplicateCheck, onSkipDuplicateCheck, onBack, onDone, batch, onRemove,
 }: ReviewScreenProps) {
   const [editing, setEditing] = useState<string | null>(null)
   const [showImported, setShowImported] = useState(false)
@@ -102,6 +105,7 @@ export function ReviewScreen({
   }
 
   const nothing = transactions.length === 0
+  const blocked = !!review?.duplicateCheckFailed
   const title = nothing ? 'Ya estás al día' : `Encontramos ${plural(transactions.length, 'cargo', 'cargos')}`
   const sub = nothing
     ? 'Ya importaste todo lo de este estado de cuenta.'
@@ -110,7 +114,8 @@ export function ReviewScreen({
       : 'Revisa que la categoría esté bien antes de agregarlos.'
 
   let buttonLabel: string
-  if (nothing) buttonLabel = 'Listo'
+  if (blocked) buttonLabel = 'Reintenta o continúa sin revisar'
+  else if (nothing) buttonLabel = 'Listo'
   else if (pending > 0) buttonLabel = pending === 1 ? 'Revisa 1 posible duplicado' : `Revisa ${pending} posibles duplicados`
   else if (toAdd > 0) buttonLabel = `Agregar ${plural(toAdd, 'movimiento', 'movimientos')}`
   else buttonLabel = 'Listo, no hay nada nuevo'
@@ -149,6 +154,35 @@ export function ReviewScreen({
           <h2 tabIndex={-1} className={`font-serif text-[26px] leading-[1.15] outline-none ${strong}`}>{title}</h2>
           <p className={`text-sm leading-[1.45] [text-wrap:pretty] ${secondary}`}>{sub}</p>
         </div>
+
+        {review?.duplicateCheckFailed && (
+          <section role="alert" className="flex flex-col gap-3 rounded-2xl border border-warning bg-warning-light px-4 py-3.5 dark:bg-[var(--zafi-card-alt)]">
+            <div className="flex flex-col gap-1">
+              <h3 className={`text-[14px] font-bold ${strong}`}>No pudimos comparar con tus movimientos</h3>
+              <p className={`text-[13px] leading-[1.45] ${secondary}`}>
+                Puede que algunos de estos cargos ya estén registrados. Reintenta antes de agregarlos.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onRetryDuplicateCheck}
+                disabled={isLoading}
+                className="h-11 flex-1 rounded-[12px] bg-electric text-[14px] font-semibold text-white hover:bg-electric-dark disabled:opacity-60"
+              >
+                {isLoading ? 'Comparando…' : 'Reintentar'}
+              </button>
+              <button
+                type="button"
+                onClick={onSkipDuplicateCheck}
+                disabled={isLoading}
+                className={`h-11 flex-1 rounded-[12px] border border-[var(--zafi-border)] text-[14px] font-semibold disabled:opacity-60 ${strong}`}
+              >
+                Continuar sin revisar
+              </button>
+            </div>
+          </section>
+        )}
 
         {alreadyImported.length > 0 && (
           <section className="flex flex-col gap-2">
@@ -372,14 +406,14 @@ export function ReviewScreen({
         {footNote && <span className={`text-center text-[12.5px] ${secondary}`}>{footNote}</span>}
         <button
           type="button"
-          aria-disabled={pending > 0}
+          aria-disabled={pending > 0 || blocked}
           disabled={isLoading}
           onClick={() => {
-            if (pending > 0) return
+            if (pending > 0 || blocked) return
             if (nothing) onDone()
             else onConfirm()
           }}
-          className={`h-[54px] w-full rounded-[14px] text-base font-semibold ${pending > 0 ? `cursor-default bg-[var(--zafi-card-alt)] ${muted}` : 'bg-electric text-white hover:bg-electric-dark'} disabled:opacity-60`}
+          className={`h-[54px] w-full rounded-[14px] text-base font-semibold ${pending > 0 || blocked ? `cursor-default bg-[var(--zafi-card-alt)] ${muted}` : 'bg-electric text-white hover:bg-electric-dark'} disabled:opacity-60`}
         >
           {isLoading ? 'Guardando…' : buttonLabel}
         </button>

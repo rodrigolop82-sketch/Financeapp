@@ -54,6 +54,8 @@ export interface ImportReviewContext {
   categories: BudgetCategory[]
   subItems: BudgetSubItem[]
   matches: Record<string, MatchedTx>
+  /** La comparación con lo registrado falló: hay que reintentar o continuar a propósito. */
+  duplicateCheckFailed?: boolean
 }
 
 export interface ImportOutcomeState {
@@ -173,8 +175,8 @@ function genBatchId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
-function reviewContext(r: ClassifyResult): ImportReviewContext {
-  return { categories: r.categories, subItems: r.subItems, matches: r.matches }
+function reviewContext(r: ClassifyResult & { failed?: boolean }): ImportReviewContext {
+  return { categories: r.categories, subItems: r.subItems, matches: r.matches, ...(r.failed ? { duplicateCheckFailed: true } : {}) }
 }
 
 function mostCommon(values: (string | null)[]): string | null {
@@ -214,8 +216,12 @@ const EMPTY_STATE: ImportState = {
 export function useStatementImport(householdId: string) {
   const [state, setState] = useState<ImportState>(EMPTY_STATE)
 
-  /** Clasifica contra lo registrado; si falla, todo queda como nuevo con la categoría sugerida. */
-  const classify = useCallback(async (rawTx: ApiExtractedTx[]): Promise<ClassifyResult> => {
+  /**
+   * Clasifica contra lo registrado. Si falla, todo queda como nuevo pero con
+   * `failed: true`: la revisión lo avisa y no deja guardar hasta reintentar o
+   * continuar a propósito (nunca se disfraza de "todo es nuevo").
+   */
+  const classify = useCallback(async (rawTx: ApiExtractedTx[]): Promise<ClassifyResult & { failed?: boolean }> => {
     try {
       return await classifyStatement(createClient(), householdId, rawTx.map(t => ({
         date: t.date, description: t.description, amount: t.amount, type: t.type, category_id: t.category_id,
@@ -225,6 +231,7 @@ export function useStatementImport(householdId: string) {
       return {
         classified: rawTx.map(t => ({ kind: 'new' as const, matchId: null, categoryId: t.category_id ?? null, subItemId: null })),
         matches: {}, categories: [], subItems: [], overrideKeys: [],
+        failed: true,
       }
     }
   }, [householdId])
@@ -739,6 +746,61 @@ export function useStatementImport(householdId: string) {
     }))
   }, [])
 
+  /** Reintenta la comparación con lo registrado cuando falló al preparar la revisión. */
+  const retryDuplicateCheck = useCallback(async () => {
+    const current = stateRef.current
+    if (!current.review?.duplicateCheckFailed) return
+    setState(s => ({ ...s, isLoading: true, error: null }))
+    const snapshot = current.transactions
+    const raw: ApiExtractedTx[] = snapshot.map(t => ({
+      date: t.date,
+      description: t.description,
+      amount: t.amount,
+      type: t.type,
+      suggested_category: t.suggested_category,
+      category_id: t.category_id,
+      original_amount: t.original_amount ?? null,
+      original_currency: t.original_currency ?? null,
+    }))
+    const res = await classify(raw)
+    if (res.failed) {
+      setState(s => ({ ...s, isLoading: false, error: 'Todavía no pudimos comparar con tus movimientos. Revisa tu internet e inténtalo de nuevo.' }))
+      return
+    }
+    const byId = new Map(snapshot.map((t, i) => [t.id, { c: res.classified[i], raw: raw[i] }]))
+    setState(s => {
+      const moved: AlreadyImportedTx[] = []
+      const transactions: ExtractedTransaction[] = []
+      s.transactions.forEach(t => {
+        const hit = byId.get(t.id)
+        if (!hit) { transactions.push(t); return }
+        if (hit.c.kind === 'imported') { moved.push(toAlreadyImported(hit.raw)); return }
+        transactions.push({
+          ...t,
+          category_id: t.category_id ?? hit.c.categoryId,
+          subItemId: t.subItemId ?? hit.c.subItemId,
+          kind: hit.c.kind,
+          matchId: hit.c.matchId,
+          isDuplicate: hit.c.kind === 'duplicate',
+          same: null,
+        })
+      })
+      return {
+        ...s,
+        isLoading: false,
+        error: null,
+        transactions,
+        alreadyImported: [...s.alreadyImported, ...moved],
+        review: reviewContext(res),
+      }
+    })
+  }, [classify])
+
+  /** "Continuar sin revisar duplicados": el usuario acepta el riesgo a propósito. */
+  const skipDuplicateCheck = useCallback(() => {
+    setState(s => (s.review ? { ...s, review: { ...s.review, duplicateCheckFailed: false } } : s))
+  }, [])
+
   const toggleTransaction = useCallback((id: string) => {
     setState(s => ({
       ...s,
@@ -755,10 +817,14 @@ export function useStatementImport(householdId: string) {
     }))
   }, [])
 
-  const confirmImport = useCallback(async () => {
+  const confirmingRef = useRef(false)
+
+  const runConfirm = useCallback(async () => {
     const current = stateRef.current
     const review = current.review
     if (!review) return
+    // Con la comparación fallida hay que reintentar o continuar a propósito.
+    if (review.duplicateCheckFailed) return
     const chosen = current.transactions.filter(t => t.selected)
     if (chosen.some(t => t.kind === 'duplicate' && t.same === null)) return
     if (chosen.length === 0) { closeImport(); return }
@@ -800,23 +866,24 @@ export function useStatementImport(householdId: string) {
     try {
       const { data: overrides } = await supabase
         .from('merchant_category_overrides').select('merchant_key').eq('household_id', householdId)
+      const reviewed = chosen.map(t => ({
+        date: t.date || localToday(),
+        description: t.description,
+        amount: t.amount,
+        type: t.type,
+        kind: t.kind,
+        same: t.same,
+        matchId: t.matchId,
+        categoryId: t.category_id,
+        subItemId: t.subItemId,
+        original_amount: t.original_amount,
+        original_currency: t.original_currency,
+      }))
       const outcome = await confirmStatement(supabase, {
         householdId,
         userId: user.id,
         importId,
-        charges: chosen.map(t => ({
-          date: t.date || localToday(),
-          description: t.description,
-          amount: t.amount,
-          type: t.type,
-          kind: t.kind,
-          same: t.same,
-          matchId: t.matchId,
-          categoryId: t.category_id,
-          subItemId: t.subItemId,
-          original_amount: t.original_amount,
-          original_currency: t.original_currency,
-        })),
+        charges: reviewed,
         matches: review.matches,
         categories: review.categories,
         overrideKeys: ((overrides ?? []) as { merchant_key: string }[]).map(o => o.merchant_key),
@@ -834,7 +901,7 @@ export function useStatementImport(householdId: string) {
       }
 
       // Los marcados como "ya lo tenía" no suman: no se agregaron.
-      const kept = chosen.filter(t => !(t.kind === 'duplicate' && t.same === true))
+      const kept = chosen.filter((t, i) => !(t.kind === 'duplicate' && t.same === true) && !outcome.skipped.includes(reviewed[i]))
       const sum = (type: 'expense' | 'income') => kept.filter(t => t.type === type).reduce((s, t) => s + t.amount, 0)
       setState(s => ({
         ...s,
@@ -855,6 +922,17 @@ export function useStatementImport(householdId: string) {
       setState(s => ({ ...s, isLoading: false, error: 'Error al guardar los movimientos. Inténtalo de nuevo.' }))
     }
   }, [householdId, closeImport])
+
+  /** Un solo guardado a la vez: un doble toque no inserta dos veces. */
+  const confirmImport = useCallback(async () => {
+    if (confirmingRef.current) return
+    confirmingRef.current = true
+    try {
+      await runConfirm()
+    } finally {
+      confirmingRef.current = false
+    }
+  }, [runConfirm])
 
   /** De la pantalla de éxito al toast con "Deshacer" (se cerró el panel sin elegir). */
   const showUndoToast = useCallback(() => {
@@ -883,6 +961,8 @@ export function useStatementImport(householdId: string) {
     toggleTransaction,
     deselectTransaction,
     confirmImport,
+    retryDuplicateCheck,
+    skipDuplicateCheck,
     showUndoToast,
     undoImport,
     setSame,

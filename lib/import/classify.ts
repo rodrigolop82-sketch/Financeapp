@@ -2,6 +2,7 @@
 // registrado (Fase 7): ya importado, posible duplicado, coincide con un
 // gasto fijo o nuevo. Funciones puras: lib/import/classify.test.ts.
 import { getMerchantKey } from '../transactions/merchant-key'
+import { looseText, namesSimilar } from './name-match'
 
 export interface BankCharge {
   date: string
@@ -162,12 +163,59 @@ function firstWord(s: string | null | undefined): string | null {
   return w && w.length >= 3 ? w : null
 }
 
-/** Ya importado: mismo bank_description + fecha + monto en una transacción con statement_import_id. */
-export function isAlreadyImported(charge: BankCharge, existing: ExistingTx[]): ExistingTx | undefined {
+/**
+ * Ya importado, comparación exacta: mismo bank_description (sin importar
+ * mayúsculas, tildes, signos ni espacios) + fecha + monto, en una transacción
+ * con statement_import_id que no esté en `used`.
+ */
+export function isAlreadyImported(charge: BankCharge, existing: ExistingTx[], used?: ReadonlySet<string>): ExistingTx | undefined {
+  const text = looseText(charge.description)
   return existing.find((t) => !!t.statement_import_id
-    && (t.bank_description ?? '') === charge.description
+    && !used?.has(t.id)
+    && t.type === charge.type
+    && looseText(t.bank_description) === text
     && t.date === charge.date
     && cents(t.amount) === cents(charge.amount))
+}
+
+/**
+ * Ya importado, comparación difusa: la extracción de un estado de cuenta varía
+ * entre foto y PDF. Mismo tipo y monto exacto, fecha a ±1 día y descripción
+ * del banco parecida, contra lo que ya vino de un estado de cuenta.
+ */
+export function isLikelyAlreadyImported(charge: BankCharge, existing: ExistingTx[], used?: ReadonlySet<string>): ExistingTx | undefined {
+  let best: ExistingTx | undefined
+  let bestDays = Infinity
+  for (const t of existing) {
+    if (!t.statement_import_id || used?.has(t.id)) continue
+    if (t.type !== charge.type || cents(t.amount) !== cents(charge.amount)) continue
+    const days = daysBetween(t.date, charge.date)
+    if (days > 1 || days >= bestDays) continue
+    if (!t.bank_description || !namesSimilar(t.bank_description, charge.description)) continue
+    best = t
+    bestDays = days
+  }
+  return best
+}
+
+/**
+ * Para cada cargo, la transacción importada antes que ya lo trae (o undefined).
+ * Uno a uno: cada transacción absorbe un solo cargo, así que dos cargos
+ * idénticos y legítimos el mismo día no se enlazan a la misma.
+ */
+export function findAlreadyImported(charges: BankCharge[], existing: ExistingTx[]): (ExistingTx | undefined)[] {
+  const out: (ExistingTx | undefined)[] = charges.map(() => undefined)
+  const used = new Set<string>()
+  charges.forEach((c, i) => {
+    const t = isAlreadyImported(c, existing, used)
+    if (t) { out[i] = t; used.add(t.id) }
+  })
+  charges.forEach((c, i) => {
+    if (out[i]) return
+    const t = isLikelyAlreadyImported(c, existing, used)
+    if (t) { out[i] = t; used.add(t.id) }
+  })
+  return out
 }
 
 /** ¿Puede `t` (registrada a mano) ser el mismo pago que el cargo? */
@@ -189,10 +237,9 @@ export function couldBeSamePayment(charge: BankCharge, categoryId: string | null
 export function classifyCharges(charges: BankCharge[], existing: ExistingTx[], ctx: ClassifyContext): ClassifiedCharge[] {
   const out: ClassifiedCharge[] = charges.map((c) => ({ kind: 'new', matchId: null, ...suggestCategory(c, ctx) }))
 
-  // 1. Ya importados antes.
+  // 1. Ya importados antes (exacto y difuso, uno a uno).
   const usedExisting = new Set<string>()
-  charges.forEach((c, i) => {
-    const t = isAlreadyImported(c, existing)
+  findAlreadyImported(charges, existing).forEach((t, i) => {
     if (t) { out[i].kind = 'imported'; out[i].matchId = t.id; usedExisting.add(t.id) }
   })
 

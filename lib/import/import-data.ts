@@ -1,7 +1,7 @@
 // Lectura y guardado de una importación de estado de cuenta (Fase 7):
 // clasificación contra lo registrado, confirmación y "Deshacer".
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { classifyCharges, cleanBankName, type BankCharge, type ClassifiedCharge, type ExistingTx } from './classify'
+import { classifyCharges, cleanBankName, findAlreadyImported, type BankCharge, type ClassifiedCharge, type ExistingTx } from './classify'
 import { shiftDate } from './db-duplicates'
 import { fixedLeaves, leafPending } from '../inicio-de-mes'
 import { getMerchantKey } from '../transactions/merchant-key'
@@ -95,6 +95,44 @@ export async function classifyStatement(
   return { classified, matches, categories, subItems, overrideKeys: overrideRows.map((o) => o.merchant_key) }
 }
 
+/**
+ * Revisión final antes de insertar: separa los cargos que ya están importados
+ * (porque algo cambió desde la clasificación: otra pestaña, otro envío) de los
+ * que sí se pueden agregar. Función pura (lib/import/import-data.test.ts).
+ */
+export function splitAlreadyImported<T extends BankCharge>(charges: T[], existing: ExistingTx[]): { keep: T[]; skipped: T[] } {
+  const matches = findAlreadyImported(charges, existing)
+  const keep: T[] = []
+  const skipped: T[] = []
+  charges.forEach((c, i) => { (matches[i] ? skipped : keep).push(c) })
+  return { keep, skipped }
+}
+
+/** Lo ya importado alrededor de las fechas de estos cargos (±1 día). */
+async function fetchImportedAround(supabase: Client, householdId: string, charges: BankCharge[]): Promise<ExistingTx[]> {
+  const dates = charges.map((c) => c.date).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort()
+  if (dates.length === 0) return []
+  const from = shiftDate(dates[0], -1)!
+  const to = shiftDate(dates[dates.length - 1], 1)!
+  const rows: ExistingTx[] = []
+  for (let page = 0; ; page++) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('id, date, amount, description, category_id, type, statement_import_id, bank_description')
+      .eq('household_id', householdId)
+      .not('statement_import_id', 'is', null)
+      .gte('date', from)
+      .lte('date', to)
+      .order('date', { ascending: true })
+      .order('id', { ascending: true })
+      .range(page * PAGE, (page + 1) * PAGE - 1)
+    if (error) throw new Error(error.message)
+    rows.push(...((data ?? []) as ExistingTx[]))
+    if (!data || data.length < PAGE) break
+  }
+  return rows
+}
+
 export interface ReviewedCharge extends BankCharge {
   kind: 'duplicate' | 'fixed' | 'new'
   /** Duplicado: true = "Es el mismo", false = "Son distintos". */
@@ -118,6 +156,8 @@ export interface ImportUndo {
 export interface ImportOutcome {
   inserted: number
   avoided: number
+  /** Cargos que la revisión final descartó por estar ya importados. */
+  skipped: ReviewedCharge[]
   undo: ImportUndo
 }
 
@@ -159,7 +199,11 @@ export async function confirmStatement(
     })
   }
 
-  const toInsert = charges.filter((c) => !(c.kind === 'duplicate' && c.same === true))
+  // Revisión final: si desde la clasificación alguno ya quedó importado (otra
+  // pestaña, un doble envío), no se vuelve a insertar.
+  const candidates = charges.filter((c) => !(c.kind === 'duplicate' && c.same === true))
+  const importedNow = candidates.length > 0 ? await fetchImportedAround(supabase, householdId, candidates) : []
+  const { keep: toInsert, skipped } = splitAlreadyImported(candidates, importedNow)
   if (toInsert.length > 0) {
     const rows = toInsert.map((c) => {
       const cat = categories.find((x) => x.id === c.categoryId)
@@ -199,12 +243,12 @@ export async function confirmStatement(
   }
 
   await supabase.from('statement_imports').update({
-    duplicates_detected: same.length,
+    duplicates_detected: same.length + skipped.length,
     transactions_imported: undo.insertedIds.length,
     status: 'completed',
   }).eq('id', importId)
 
-  return { inserted: undo.insertedIds.length, avoided: same.length, undo }
+  return { inserted: undo.insertedIds.length, avoided: same.length + skipped.length, skipped, undo }
 }
 
 /** Revierte inserciones, actualizaciones y reglas creadas por confirmStatement. */
