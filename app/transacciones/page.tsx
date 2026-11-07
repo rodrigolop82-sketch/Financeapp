@@ -36,6 +36,7 @@ import { openViewOnlySheet } from '@/components/premium/ViewOnlySheet';
 import { useHouseholdPeople } from '@/lib/hooks/useHouseholdPeople';
 import { freeHistoryStart } from '@/lib/plans';
 import { hiddenHistoryText } from '@/lib/premium';
+import { appendUnique, filterKey, nextReloadLimit } from '@/lib/movimientos-paging';
 import { resumirMovimientos, type Metricas } from '@/lib/metricas-mes';
 import { loadMetricasInput } from '@/lib/metricas-mes-data';
 import { useRecurring } from '@/components/recurring/useRecurring';
@@ -217,7 +218,7 @@ export default function MovimientosPage() {
     wasSearching.current = searching;
   }, [searching]);
 
-  const fetchPage = useCallback(async (after: { date: string; id: string } | null, signal?: AbortSignal) => {
+  const fetchPage = useCallback(async (after: { date: string; id: string } | null, signal?: AbortSignal, limit: number = PAGE_SIZE) => {
     const res = await fetch('/api/transactions/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -228,7 +229,7 @@ export default function MovimientosPage() {
         type: typeFilter === 'all' ? undefined : typeFilter,
         paidBy: personFilter !== 'all' && personFilter !== 'personal' ? personFilter : undefined,
         scope: personFilter === 'personal' ? 'personal' : undefined,
-        limit: PAGE_SIZE,
+        limit,
         cursorDate: after?.date,
         cursorId: after?.id,
       }),
@@ -243,24 +244,63 @@ export default function MovimientosPage() {
     };
   }, [searchQuery, from, to, typeFilter, personFilter]);
 
+  // Lo ya desplegado con "Ver más" y la época de la lista: una recarga nueva
+  // invalida cualquier "Ver más" que siga en vuelo.
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const lastFilterKey = useRef<string | null>(null);
+  const epoch = useRef(0);
+  const currentFilterKey = filterKey([searchQuery, from, to, typeFilter, personFilter]);
+
   // Primera página: al entrar, al cambiar un filtro y después de cada cambio.
+  // Si solo hubo un cambio (no cambió ningún filtro) la recarga es silenciosa:
+  // vuelve a pedir todo lo que ya estaba desplegado, sin esqueleto, para que la
+  // lista no se acorte ni salte.
   useEffect(() => {
     if (!ready) return;
     const controller = new AbortController();
-    setLoading((was) => was || rows.length === 0);
-    fetchPage(null, controller.signal)
-      .then(({ rows: page, totals: t, hidden: h }) => {
+    const target = rowsRef.current.length;
+    const silent = lastFilterKey.current === currentFilterKey && target > 0;
+    lastFilterKey.current = currentFilterKey;
+    epoch.current += 1;
+    if (!silent) setLoading((was) => was || rowsRef.current.length === 0);
+
+    (async () => {
+      const firstLimit = silent ? nextReloadLimit(target, 0, 0) : PAGE_SIZE;
+      let res = await fetchPage(null, controller.signal, firstLimit);
+      const totalsNow = res.totals;
+      const hiddenNow = res.hidden;
+      let acc = res.rows;
+      let calls = 1;
+      let more = res.rows.length === firstLimit;
+      while (silent && more) {
+        const limit = nextReloadLimit(target, acc.length, calls);
+        if (!limit) break;
+        const last = acc[acc.length - 1];
+        res = await fetchPage({ date: last.date, id: last.id }, controller.signal, limit);
+        acc = appendUnique(acc, res.rows);
+        calls += 1;
+        more = res.rows.length === limit;
+      }
+      return { page: acc, totals: totalsNow, hidden: hiddenNow, more };
+    })()
+      .then(({ page, totals: t, hidden: h, more }) => {
         const pendingId = sheets.getPendingDeleteId();
         setRows(pendingId ? page.filter((r) => r.id !== pendingId) : page);
         setTotals(t);
         setHidden(h);
-        setHasMore(page.length === PAGE_SIZE);
+        setHasMore(more);
         const last = page[page.length - 1];
         cursor.current = last ? { date: last.date, id: last.id } : null;
         setLoading(false);
       })
       .catch((err) => {
         if (err?.name === 'AbortError') return;
+        if (silent) {
+          // Una recarga que falla no borra lo que el usuario ya estaba viendo.
+          sheets.showMessage({ text: 'No pudimos actualizar tus movimientos.', tone: 'error' });
+          return;
+        }
         setRows([]);
         setTotals(null);
         setHasMore(false);
@@ -287,13 +327,13 @@ export default function MovimientosPage() {
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore || loading || !cursor.current) return;
     setLoadingMore(true);
+    const startedAt = epoch.current;
     try {
       const { rows: page } = await fetchPage(cursor.current);
+      // Si la lista se recargó mientras tanto, esta página ya no corresponde.
+      if (startedAt !== epoch.current) { setLoadingMore(false); return; }
       const pendingId = sheets.getPendingDeleteId();
-      setRows((prev) => {
-        const seen = new Set(prev.map((r) => r.id));
-        return [...prev, ...page.filter((r) => !seen.has(r.id) && r.id !== pendingId)];
-      });
+      setRows((prev) => appendUnique(prev, page, pendingId));
       setHasMore(page.length === PAGE_SIZE);
       const last = page[page.length - 1];
       if (last) cursor.current = { date: last.date, id: last.id };
