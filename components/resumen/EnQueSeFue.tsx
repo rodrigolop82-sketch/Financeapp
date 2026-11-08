@@ -9,6 +9,8 @@ import { AMBER_TEXT, CARD_LG, GREEN_TEXT, NAVY_BG, SECTION_TITLE } from './ctf-u
 
 /** Debajo de este % el tramo es muy angosto para que quepa la etiqueta. */
 const MIN_LABEL_PCT = 9;
+/** Cada lado de la llave necesita al menos este % del ancho para que quepa su etiqueta. */
+const LLAVE_MIN_PCT = 22;
 
 const BLUE_TEXT = 'text-electric-dark dark:text-electric-soft';
 const DOT: Record<TipoKey, string> = { needs: NAVY_BG, wants: 'bg-electric-pale', savings: 'bg-success-dark' };
@@ -169,12 +171,17 @@ function Detalle({ tipo, month, fmt, onClose }: { tipo: TipoDetalle; month: stri
  * ingresos y presupuesto, barra apilada Lo básico / Gustos / Ahorro y, al
  * tocar un tipo, sus categorías contra el presupuesto.
  */
-export function EnQueSeFue({ month, data, isCurrent, fmt }: { month: string; data: Resultado; isCurrent: boolean; fmt: Fmt }) {
+export function EnQueSeFue({ month, data, fmt }: { month: string; data: Resultado; fmt: Fmt }) {
   const [sel, setSel] = useState<TipoKey | null>('needs');
   const mes = longMonth(month);
   const tonoClase = data.tono ? TONO_CLASS[data.tono] : TEXT_MUTED;
   const elegido = data.tipos.find((t) => t.key === sel) ?? null;
   const descripcion = `Salidas del mes: ${data.tipos.map((t) => `${t.label} ${t.pct}%`).join(', ')}`;
+
+  // Llave "Gasto / Ahorro" sobre la barra; solo si las dos etiquetas caben.
+  const gastoPct = data.tipos[0].pct + data.tipos[1].pct;
+  const ahorroPct = data.tipos[2].pct;
+  const llave = gastoPct >= LLAVE_MIN_PCT && ahorroPct >= LLAVE_MIN_PCT ? { gastoPct, ahorroPct } : null;
 
   const vsIng = data.vsIngresos;
   const vsPres = data.vsPresupuestoGasto;
@@ -203,18 +210,31 @@ export function EnQueSeFue({ month, data, isCurrent, fmt }: { month: string; dat
               {vsPres && (
                 <Dato
                   valor={textoVariacion(vsPres, fmt)}
-                  etiqueta={isCurrent ? 'vs presupuesto del mes' : 'vs presupuesto de gasto'}
+                  etiqueta="básico y gustos vs plan"
                   clase={tonoClase}
-                  aria={`Gastaste ${fmt(Math.abs(vsPres.diff))}, ${Math.abs(vsPres.pct)} por ciento ${vsPres.diff > 0 ? 'más que' : 'menos que'} tu presupuesto de gasto`}
+                  aria={`Gastaste ${fmt(Math.abs(vsPres.diff))}, ${Math.abs(vsPres.pct)} por ciento ${vsPres.diff > 0 ? 'más que' : 'menos que'} tu plan de básico y gustos`}
                 />
               )}
             </div>
           </div>
           <span className={`text-[13px] leading-[1.4] ${TEXT_MUTED}`}>
-            Gastaste {fmt(data.gastaste)} y apartaste {fmt(data.apartaste)}. Lo apartado no cuenta como gasto.
+            Gastaste {fmt(data.gastaste)} en lo básico y gustos, y apartaste {fmt(data.apartaste)} (no cuenta como gasto).
           </span>
           {data.mensaje && <span className={`text-[13px] font-semibold leading-[1.4] ${tonoClase}`}>{data.mensaje}</span>}
         </div>
+
+        {llave && (
+          <div aria-hidden className="-mb-2 flex gap-[3px]">
+            <div className="flex min-w-0 flex-col gap-[3px]" style={{ flex: `${llave.gastoPct} 1 0` }}>
+              <span className={`whitespace-nowrap text-[11.5px] font-semibold ${TEXT_MUTED}`}>Gasto {fmt(data.gastaste)}</span>
+              <div className="h-1.5 rounded-t-[5px] border-2 border-b-0 border-ink-400" />
+            </div>
+            <div className="flex min-w-0 flex-col gap-[3px]" style={{ flex: `${llave.ahorroPct} 1 0` }}>
+              <span className={`whitespace-nowrap text-[11.5px] font-semibold ${GREEN_TEXT}`}>Ahorro {fmt(data.apartaste)}</span>
+              <div className="h-1.5 rounded-t-[5px] border-2 border-b-0 border-success-dark dark:border-[var(--zafi-success-text)]" />
+            </div>
+          </div>
+        )}
 
         <div role="img" aria-label={descripcion} className="flex h-11 gap-[3px] overflow-hidden rounded-xl">
           {data.tipos.map((t) => (

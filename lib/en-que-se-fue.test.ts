@@ -67,7 +67,7 @@ describe('enQueSeFue · ejemplo del mockup', () => {
   it('tasa de ahorro 21 % y te pasaste: compensado', () => {
     expect(r.tasaAhorro).toBe(21);
     expect(r.tono).toBe('compensado');
-    expect(r.mensaje).toBe('Te pasaste Q 983 en gasto, pero ahorraste 21% (meta 20%).');
+    expect(r.mensaje).toBe('Te pasaste Q 983 en lo básico y gustos, pero ahorraste 21% (meta 20%).');
   });
 
   it('los tres porcentajes suman 100', () => {
@@ -106,7 +106,7 @@ describe('enQueSeFue · tono según pasarse y ahorro', () => {
     const r = octubre({ ingresos: 60000 })!;
     expect(r.tasaAhorro).toBe(9);
     expect(r.tono).toBe('alerta');
-    expect(r.mensaje).toBe('Te pasaste Q 983 en gasto y ahorraste solo 9% (meta 20%).');
+    expect(r.mensaje).toBe('Te pasaste Q 983 en lo básico y gustos y ahorraste solo 9% (meta 20%).');
   });
 
   it('dentro del presupuesto y ahorro ≥ 20 %: ok', () => {
@@ -114,21 +114,21 @@ describe('enQueSeFue · tono según pasarse y ahorro', () => {
     const r = octubre({ plan })!;
     expect(r.vsPresupuestoGasto!.diff).toBeLessThan(0);
     expect(r.tono).toBe('ok');
-    expect(r.mensaje).toBe('Dentro de tu presupuesto de gasto y ahorraste 21%.');
+    expect(r.mensaje).toBe('Dentro de tu plan de básico y gustos y ahorraste 21%.');
   });
 
   it('dentro del presupuesto pero ahorro < 20 %: ok-bajo', () => {
     const plan = Object.fromEntries(Object.entries(PLAN).map(([k, v]) => [k, Math.round(v * 1.08)]));
     const r = octubre({ plan, ingresos: 60000 })!;
     expect(r.tono).toBe('ok-bajo');
-    expect(r.mensaje).toBe('Dentro del presupuesto, pero ahorraste solo 9% (meta 20%).');
+    expect(r.mensaje).toBe('Dentro del plan, pero ahorraste solo 9% (meta 20%).');
   });
 
   it('gastaste más de lo que recibiste: lo dice sin un % negativo', () => {
     const r = octubre({ ingresos: 50000 })!;
     expect(r.tasaAhorro).toBeLessThan(0);
     expect(r.tono).toBe('alerta');
-    expect(r.mensaje).toBe('Te pasaste Q 983 en gasto y gastaste más de lo que recibiste.');
+    expect(r.mensaje).toBe('Te pasaste Q 983 en lo básico y gustos y gastaste más de lo que recibiste.');
   });
 
   it('el límite de 20 % ya cuenta como sano', () => {
@@ -153,7 +153,7 @@ describe('enQueSeFue · casos borde', () => {
     expect(r.tasaAhorro).toBeNull();
     expect(r.tipos[2]).toMatchObject({ presupuesto: null, diff: null, estado: 'sin-plan' });
     expect(r.tono).toBe('alerta');
-    expect(r.mensaje).toBe('Te pasaste Q 983 en gasto.');
+    expect(r.mensaje).toBe('Te pasaste Q 983 en lo básico y gustos.');
   });
 
   it('sin presupuesto: se ocultan las variaciones y no hay tono ni mensaje', () => {

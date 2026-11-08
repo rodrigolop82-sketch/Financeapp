@@ -245,7 +245,7 @@ function ComoTeFue() {
               onRegisterIncome={() => openAddSheet({ type: 'income' })}
               fmt={fmt}
             />
-            {enQue && <EnQueSeFue month={month} data={enQue} isCurrent={isCurrent} fmt={fmt} />}
+            {enQue && <EnQueSeFue month={month} data={enQue} fmt={fmt} />}
             <Highlights good={a.highlights.good} bad={a.highlights.bad} />
             <SaludBlock householdId={data.householdId} month={month} />
 

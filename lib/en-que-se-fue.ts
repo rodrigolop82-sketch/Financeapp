@@ -129,15 +129,15 @@ function tonoYMensaje(
   const sano = tasa !== null && tasa >= META_AHORRO_PCT;
   const sobre = fmt(Math.abs(gastoDiff));
   if (!pasaste) {
-    if (tasa === null) return { tono: 'ok', mensaje: 'Dentro de tu presupuesto de gasto.' };
-    if (sano) return { tono: 'ok', mensaje: `Dentro de tu presupuesto de gasto y ahorraste ${tasa}%.` };
-    if (tasa < 0) return { tono: 'ok-bajo', mensaje: 'Dentro del presupuesto, pero gastaste más de lo que recibiste.' };
-    return { tono: 'ok-bajo', mensaje: `Dentro del presupuesto, pero ahorraste solo ${tasa}% (meta ${META_AHORRO_PCT}%).` };
+    if (tasa === null) return { tono: 'ok', mensaje: 'Dentro de tu plan de básico y gustos.' };
+    if (sano) return { tono: 'ok', mensaje: `Dentro de tu plan de básico y gustos y ahorraste ${tasa}%.` };
+    if (tasa < 0) return { tono: 'ok-bajo', mensaje: 'Dentro del plan, pero gastaste más de lo que recibiste.' };
+    return { tono: 'ok-bajo', mensaje: `Dentro del plan, pero ahorraste solo ${tasa}% (meta ${META_AHORRO_PCT}%).` };
   }
-  if (tasa === null) return { tono: 'alerta', mensaje: `Te pasaste ${sobre} en gasto.` };
-  if (sano) return { tono: 'compensado', mensaje: `Te pasaste ${sobre} en gasto, pero ahorraste ${tasa}% (meta ${META_AHORRO_PCT}%).` };
-  if (tasa < 0) return { tono: 'alerta', mensaje: `Te pasaste ${sobre} en gasto y gastaste más de lo que recibiste.` };
-  return { tono: 'alerta', mensaje: `Te pasaste ${sobre} en gasto y ahorraste solo ${tasa}% (meta ${META_AHORRO_PCT}%).` };
+  if (tasa === null) return { tono: 'alerta', mensaje: `Te pasaste ${sobre} en lo básico y gustos.` };
+  if (sano) return { tono: 'compensado', mensaje: `Te pasaste ${sobre} en lo básico y gustos, pero ahorraste ${tasa}% (meta ${META_AHORRO_PCT}%).` };
+  if (tasa < 0) return { tono: 'alerta', mensaje: `Te pasaste ${sobre} en lo básico y gustos y gastaste más de lo que recibiste.` };
+  return { tono: 'alerta', mensaje: `Te pasaste ${sobre} en lo básico y gustos y ahorraste solo ${tasa}% (meta ${META_AHORRO_PCT}%).` };
 }
 
 /** null si el mes no tiene movimientos. */
