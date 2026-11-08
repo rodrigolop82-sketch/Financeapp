@@ -28,6 +28,8 @@ import { CapSheet } from '@/components/resumen/CapSheet';
 import { CARD } from '@/components/resumen/ctf-ui';
 import { CierreCard } from '@/components/resumen/CierreCard';
 import { SaludBlock } from '@/components/resumen/SaludBlock';
+import { EnQueSeFue } from '@/components/resumen/EnQueSeFue';
+import { enQueSeFue } from '@/lib/en-que-se-fue';
 import { DetalleDesplegable, DetalleLink, VerDetalle } from '@/components/resumen/VerDetalle';
 import { dailySpend } from '@/lib/resumen/daily-spend';
 import { localToday } from '@/lib/dates';
@@ -69,6 +71,9 @@ function ComoTeFue() {
 
   const caps = useMemo(() => ({ ...(data?.caps ?? DEFAULT_CAPS), ...capsOverride }), [data, capsOverride]);
   const a = useMemo(() => (data ? analyzeMonth(data, month, caps, fmt) : null), [data, month, caps, fmt]);
+  const enQue = useMemo(() => (data && a
+    ? enQueSeFue({ month, totals: a.current, txs: data.txs, categories: data.categories, planOf: a.planOf, intereses: data.intereses, fmt })
+    : null), [data, a, month, fmt]);
   const daily = useMemo(() => (data ? dailySpend(month, localToday(), data.txs, data.categories, data.intereses) : null), [data, month]);
 
   const selected = useMemo(() => new Set(
@@ -240,6 +245,7 @@ function ComoTeFue() {
               onRegisterIncome={() => openAddSheet({ type: 'income' })}
               fmt={fmt}
             />
+            {enQue && <EnQueSeFue month={month} data={enQue} isCurrent={isCurrent} fmt={fmt} />}
             <Highlights good={a.highlights.good} bad={a.highlights.bad} />
             <SaludBlock householdId={data.householdId} month={month} />
 
